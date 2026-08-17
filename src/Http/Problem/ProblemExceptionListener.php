@@ -6,6 +6,7 @@ namespace App\Http\Problem;
 
 use App\Domain\Forms\DefinitionNotValid;
 use App\Domain\Forms\FormDataNotValid;
+use App\Http\Request\RequestNotValid;
 use App\Infrastructure\Persistence\FormGone;
 use App\Infrastructure\Persistence\FormNotFound;
 use Ingot\Error\ErrorReport;
@@ -32,6 +33,12 @@ final class ProblemExceptionListener
     public function __invoke(ExceptionEvent $event): void
     {
         $throwable = $event->getThrowable();
+
+        if ($throwable instanceof RequestNotValid) {
+            $event->setResponse($this->validationResponse($throwable->report, 'request-not-valid', 'Request is not valid.'));
+
+            return;
+        }
 
         if ($throwable instanceof DefinitionNotValid) {
             $event->setResponse($this->validationResponse($throwable->report, 'definition-not-valid', 'Form definition is not valid.'));

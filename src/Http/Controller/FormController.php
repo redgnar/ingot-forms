@@ -7,14 +7,16 @@ namespace App\Http\Controller;
 use App\Domain\Forms\DefinitionNotValid;
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Http\FormEnvelope;
-use App\Http\Problem\ProblemException;
+use App\Http\Request\CreateFormRequest;
+use App\Http\Request\FormListQuery;
+use App\Http\Request\MapRequest;
+use App\Http\Request\RequestPart;
 use App\Infrastructure\Persistence\FormRepository;
 use Ingot\Error\ErrorReport;
 use Ingot\Error\MappingError;
 use Ingot\JsonPointer;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Requirement\Requirement;
@@ -33,20 +35,10 @@ final class FormController extends AbstractController
     ) {}
 
     #[Route('/api/forms', methods: ['POST'])]
-    public function create(Request $request): JsonResponse
+    public function create(#[MapRequest] CreateFormRequest $request): JsonResponse
     {
-        $payload = $this->decodeBody($request);
-        $expireDate = $this->readExpireDate($payload);
-        $definitionDocument = $payload['definition'] ?? null;
-
-        if (!\is_array($definitionDocument)) {
-            throw new ProblemException(422, 'request-not-valid', 'Request is not valid.', report: ErrorReport::of(
-                new MappingError(JsonPointer::fromString('/definition'), 'form.definition.missing', 'The "definition" object is required.'),
-            ));
-        }
-
         try {
-            $definition = $this->processor->parse(json_encode($definitionDocument, \JSON_THROW_ON_ERROR));
+            $definition = $this->processor->parse(json_encode($request->definition, \JSON_THROW_ON_ERROR));
         } catch (DefinitionNotValid $exception) {
             // Re-root the report: pointers are relative to the definition
             // document, the client sent it under "/definition".
@@ -57,7 +49,7 @@ final class FormController extends AbstractController
         $this->repository->insert(
             $id,
             json_encode($this->processor->normalize($definition), \JSON_THROW_ON_ERROR),
-            $expireDate,
+            $request->expireDate,
         );
 
         return new JsonResponse(
@@ -68,14 +60,11 @@ final class FormController extends AbstractController
     }
 
     #[Route('/api/forms', methods: ['GET'])]
-    public function list(Request $request): JsonResponse
+    public function list(#[MapRequest(RequestPart::Query)] FormListQuery $query): JsonResponse
     {
-        $limit = min(200, max(1, $request->query->getInt('limit', 50)));
-        $offset = max(0, $request->query->getInt('offset', 0));
-
         $items = [];
 
-        foreach ($this->repository->list($limit, $offset) as $item) {
+        foreach ($this->repository->list($query->limit, $query->offset) as $item) {
             $items[] = [
                 'id' => $item->id,
                 'title' => $item->title,
@@ -85,7 +74,7 @@ final class FormController extends AbstractController
             ];
         }
 
-        return new JsonResponse(['items' => $items, 'limit' => $limit, 'offset' => $offset]);
+        return new JsonResponse(['items' => $items, 'limit' => $query->limit, 'offset' => $query->offset]);
     }
 
     #[Route('/api/forms/{id}', methods: ['GET'], requirements: ['id' => Requirement::UUID])]
@@ -103,56 +92,10 @@ final class FormController extends AbstractController
     }
 
     /**
-     * @return array<mixed>
+     * The definition is validated by the domain layer, which knows nothing
+     * about where in a request the document sat — re-root its pointers to
+     * where the client actually put it.
      */
-    private function decodeBody(Request $request): array
-    {
-        try {
-            $payload = json_decode($request->getContent(), true, 512, \JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            throw new ProblemException(400, 'malformed-json', 'Request body is not valid JSON.');
-        }
-
-        if (!\is_array($payload)) {
-            throw new ProblemException(422, 'request-not-valid', 'Request is not valid.', report: ErrorReport::of(
-                new MappingError(JsonPointer::root(), 'request.body.not-object', 'The request body must be a JSON object.', $payload),
-            ));
-        }
-
-        return $payload;
-    }
-
-    /**
-     * @param array<mixed> $payload
-     */
-    private function readExpireDate(array $payload): \DateTimeImmutable
-    {
-        $raw = $payload['expireDate'] ?? null;
-
-        if (!\is_string($raw)) {
-            throw $this->expireDateProblem('form.expire_date.missing', 'expireDate is required (RFC 3339 date-time).', $raw);
-        }
-
-        try {
-            $expireDate = new \DateTimeImmutable($raw);
-        } catch (\Exception) {
-            throw $this->expireDateProblem('form.expire_date.invalid', 'expireDate is not a valid date-time.', $raw);
-        }
-
-        if ($expireDate <= new \DateTimeImmutable()) {
-            throw $this->expireDateProblem('form.expire_date.past', 'expireDate must be in the future.', $raw);
-        }
-
-        return $expireDate;
-    }
-
-    private function expireDateProblem(string $code, string $message, mixed $input): ProblemException
-    {
-        return new ProblemException(422, 'request-not-valid', 'Request is not valid.', report: ErrorReport::of(
-            new MappingError(JsonPointer::fromString('/expireDate'), $code, $message, $input),
-        ));
-    }
-
     private function prefixPointers(ErrorReport $report, string $prefix): ErrorReport
     {
         $errors = [];

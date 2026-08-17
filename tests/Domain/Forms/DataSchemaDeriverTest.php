@@ -23,7 +23,8 @@ final class DataSchemaDeriverTest extends TestCase
         // WHEN
         $document = self::document($deriver->derive(self::definition(), DeriveMode::Strict));
 
-        // THEN required fields, constraints, and enums came from the definition
+        // THEN the document declares its dialect and reflects the definition
+        self::assertSame('https://json-schema.org/draft/2020-12/schema', $document['$schema']);
         self::assertSame(['email', 'country'], $document['required']);
         self::assertIsArray($document['properties']);
         self::assertSame(

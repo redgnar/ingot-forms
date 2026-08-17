@@ -1,0 +1,40 @@
+# Runs exactly what developers run: the Makefile targets inside the pinned Docker image
+# (docker/Dockerfile) with the compose-managed Postgres. Keep this file and `make ci` in sync.
+#
+# The composer path repository (ingot/ingot: dev-main -> ../ingot) requires the same directory
+# layout as a local checkout: this repo in ingot-forms/, the library in ingot/ next to it.
+# When ingot reaches Packagist, switch composer.json to a version constraint and delete the
+# second checkout below.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ingot-forms
+
+      - uses: actions/checkout@v4
+        with:
+          repository: redgnar/ingot
+          path: ingot
+
+      # The image sets COMPOSER_CACHE_DIR=/app/.cache/composer, i.e. ingot-forms/.cache/composer
+      # on the host — cacheable without touching the container.
+      - uses: actions/cache@v4
+        with:
+          path: ingot-forms/.cache/composer
+          key: composer-${{ hashFiles('ingot-forms/composer.json') }}
+          restore-keys: composer-
+
+      - run: make install
+        working-directory: ingot-forms
+
+      - run: make ci
+        working-directory: ingot-forms

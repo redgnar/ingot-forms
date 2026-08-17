@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Domain\Forms\Definition;
 
-use Ingot\Attribute\Constraints;
 use Ingot\Attribute\Discriminator;
 
 /**
@@ -20,11 +19,14 @@ use Ingot\Attribute\Discriminator;
 abstract readonly class Field
 {
     public function __construct(
-        // Mirrors the hand-written meta-schema's `"minLength": 1` — the
-        // engine enforces it even when no schema pre-check runs.
-        #[Constraints(minLength: 1)]
+        // Non-emptiness is the meta-schema's job (`"minLength": 1`): the
+        // engine hydrates each variant through its own constructor, so an
+        // attribute here would never be enforced (GenericField even defaults
+        // name to '' for payload-only plugin fields).
         public string $name,
-        public string $label = '',
-        public bool $required = false,
+        // No defaults: every variant declares its own (that is what the
+        // engine hydrates) and forwards all three values explicitly.
+        public string $label,
+        public bool $required,
     ) {}
 }

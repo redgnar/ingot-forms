@@ -60,6 +60,7 @@ final class FormDataValidatorTest extends TestCase
             self::fail('Expected FormDataNotValid.');
         } catch (FormDataNotValid $exception) {
             // THEN
+            self::assertSame('Form data is not valid.', $exception->getMessage());
             self::assertSame('schema.required', $exception->report->errors[0]->code);
         }
     }

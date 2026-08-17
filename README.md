@@ -36,7 +36,7 @@ deliberately out of scope for this MVP.
 ```bash
 make install    # build the image + composer install
 make migrate    # apply migrations to the dev database (starts postgres)
-make ci         # everything CI checks: validate + cs + stan + deptrac + test + audit
+make ci         # validate + cs + openapi + docs + stan + deptrac + test + mutation + audit
 ```
 
 Serve locally (dev only): `docker compose up -d` → API at `http://localhost:8000`
@@ -49,6 +49,20 @@ All request/response bodies are `application/json`; every error is an RFC 9457
 `application/problem+json` document. Validation problems carry an `errors` array with one
 `{pointer, code, message, input?}` entry per finding — the same format for schema,
 type-mapping, and semantic errors (it comes straight from ingot's `ErrorReport`).
+
+Requests are mapped into **DTOs by ingot** before a controller runs: `#[MapRequest]` on a
+controller argument hands off to `src/Http/Request/`, where the DTO's constructor *is* the
+request contract — one declaration that validates the request, produces the error report,
+and generates the published request schema (see [API contract](#api-contract)).
+
+| Part | Mapping rules |
+|---|---|
+| JSON body | strict: real types, closed key set (an unexpected member is `mapping.unexpected_key`) |
+| query string | lax: `"10"` becomes `10`, unknown parameters are ignored the way HTTP clients expect |
+
+Rules a schema cannot express live next to the DTO as a `RequestRule` — e.g. "expireDate
+must be in the future" (`form.expire_date.past`). The values payload of `PUT …/data` has no
+DTO on purpose: its contract is the schema derived from that one form's definition.
 
 | Method & path | Purpose |
 |---|---|
@@ -64,6 +78,24 @@ type-mapping, and semantic errors (it comes straight from ingot's `ErrorReport`)
 Error status map: `400` malformed JSON, `404` unknown form, `409` state conflicts,
 `410` expired form (every endpoint), `422` validation reports, `500` opaque fallback.
 
+## API contract
+
+[`openapi.yaml`](openapi.yaml) (OpenAPI 3.1 — the same JSON Schema 2020-12 dialect ingot
+emits) holds the paths and the prose. Request *shapes* are not written by hand: each
+`x-ingot-schema` marker is replaced by the schema ingot generates from that request DTO
+when `make docs` renders the document into [`docs/`](docs/):
+
+| File | What it is |
+|---|---|
+| `docs/openapi.yaml` | the effective contract — hand-written paths + DTO-generated request schemas |
+| `docs/api.md` | browsable Markdown reference rendered from the same document |
+
+`tests/Http/OpenApiComplianceTest.php` validates **both halves of every exchange** against
+`docs/openapi.yaml`: each request must match the operation it targets (or, when a scenario
+deliberately breaks the contract, must be refused by it), each response must match the
+documented status, and every documented operation + status needs a scenario. So a DTO, the
+implementation, and the published document cannot drift apart in any direction.
+
 The derived schema is what a future frontend validates against (Ajv/Zod) — the server
 uses the exact same document, so the contract cannot drift.
 
@@ -73,7 +105,9 @@ uses the exact same document, so the contract cannot drift.
 src/Domain/Forms/     framework-free, storage-free — the future standalone package
 src/Infrastructure/   DBAL repository (postgres jsonb), PSR-6 schema cache
 src/Http/             controllers + problem+json mapping
+src/Http/Request/     request DTOs, #[MapRequest] and its resolver, semantic rules
 src/Command/          app:forms:purge-expired
+tools/build-docs.php  renders openapi.yaml into docs/ (dev tooling, not shipped)
 ```
 
 Boundaries are enforced by deptrac (`Domain ← Infrastructure ← Http/Command`). The domain
@@ -100,6 +134,9 @@ with `definition->>'title'` — no denormalized columns. Status is derived from 
 | `make install` / `make update` | composer install/update (Docker, PHP 8.4) |
 | `make migrate` / `make db-test` | migrations for the dev / test database |
 | `make test` / `make test-unit` | full PHPUnit (needs postgres) / fast domain-only loop |
+| `make mutation` | Infection over `src/Domain/` (unit suite, no DB), MSI thresholds enforced |
+| `make openapi` | validate `openapi.yaml` against the OpenAPI 3.1 schema |
+| `make docs` | render `openapi.yaml` into `docs/` (DTO schemas injected, output validated) |
 | `make stan` | PHPStan, level `max` + strict rules — zero errors, no baseline |
 | `make cs` / `make cs-fix` | php-cs-fixer check / apply |
 | `make deptrac` | layer boundaries per `deptrac.yaml` |

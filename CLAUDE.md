@@ -3,7 +3,8 @@
 Backend-only forms management service (Symfony 7 API, PostgreSQL jsonb via DBAL, no ORM)
 built on the [ingot](https://github.com/redgnar/ingot) mapping engine. Design docs live in
 `.claude/plan/` — read `00-mvp.md` (domain model + as-built architecture) before touching
-anything; `01-stage2.md` is the current roadmap (CI, mutation testing, OpenAPI, contract tests).
+anything; `01-stage2.md` documents stage 2 (implemented: CI workflow, mutation testing,
+OpenAPI contract + compliance tests).
 
 ## Language
 
@@ -29,6 +30,14 @@ deletes them physically. No templates, no versioning, no multi-submission — de
 - **One error format**: every error response is RFC 9457 `application/problem+json`; validation
   problems carry `errors: [{pointer, code, message, input?}]` mapped 1:1 from ingot's
   `ErrorReport` (`ProblemExceptionListener` is the single mapping point).
+- **Requests arrive as DTOs**: controllers take `#[MapRequest]` arguments (`src/Http/Request/`)
+  hydrated by ingot — never read `Request` directly, never hand-roll envelope validation. The
+  DTO is the single source of truth: it validates the request AND generates the published
+  request schema (`x-ingot-schema` markers in `openapi.yaml`, injected by `make docs`).
+  Bodies map strictly (closed key set), query strings laxly (string coercion, extras ignored);
+  rules no schema keyword covers are `RequestRule` implementations, auto-collected via
+  `_instanceof` in services.yaml. Exception: the values payload of `PUT …/data` stays raw —
+  its contract is the per-form derived schema.
 - State transitions run inside `FormRepository::transactional()` + `getForUpdate()` — never
   add a check-then-write outside the row lock.
 - Definitions are stored **normalized** (`TreeMapper::normalize()`); no denormalized columns —
@@ -56,6 +65,9 @@ Local PHP is 8.1 — all tools run inside the pinned Docker image (`docker/Docke
 | `make install` / `make update` | composer install/update (Docker) |
 | `make migrate` / `make db-test` | migrations for dev / test database |
 | `make test` / `make test-unit` | full PHPUnit (starts postgres) / fast domain-only loop |
+| `make mutation` | Infection over `src/Domain/` only (unit suite, no DB), minMsi 90 / minCoveredMsi 100 |
+| `make openapi` | validate `openapi.yaml` (OpenAPI 3.1) |
+| `make docs` | render `openapi.yaml` → `docs/openapi.yaml` + `docs/api.md` (DTO schemas injected); `docs/` is generated, never edit it by hand |
 | `make stan` | PHPStan level `max` + strict rules — zero errors, no baseline |
 | `make cs` / `make cs-fix` | php-cs-fixer check / apply |
 | `make deptrac` | layer boundaries |

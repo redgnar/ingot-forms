@@ -1,0 +1,19 @@
+{
+    "$schema": "vendor/infection/infection/resources/schema.json",
+    // Mutation testing is scoped to the domain layer only: Infrastructure/Http are thin
+    // adapters pinned by integration + contract tests, and mutating DBAL/SQL glue mostly
+    // breeds timeouts and false survivors. The unit suite needs no kernel and no database.
+    "source": {
+        "directories": ["src/Domain"]
+    },
+    "timeout": 10,
+    "tmpDir": ".cache/infection",
+    "logs": {
+        "text": ".cache/infection/infection.log"
+    },
+    "mutators": {
+        "@default": true
+    },
+    "minMsi": 90,
+    "minCoveredMsi": 100
+}

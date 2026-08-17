@@ -98,6 +98,52 @@ final class FormApiTest extends WebTestCase
         self::assertSame('form.expire_date.past', $error['code']);
     }
 
+    public function testUnknownBodyKeyIsRejectedByTheRequestDto(): void
+    {
+        // GIVEN a well-formed request carrying one member too many
+        $payload = json_encode([
+            'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
+            'definition' => self::DEFINITION,
+            'bogus' => 1,
+        ], \JSON_THROW_ON_ERROR);
+
+        // WHEN
+        $this->putJson('/api/forms', $payload, method: 'POST');
+
+        // THEN the DTO's closed contract answers, pointing at the extra member
+        self::assertResponseStatusCodeSame(422);
+        $error = $this->firstError();
+        self::assertSame('/bogus', $error['pointer']);
+        self::assertSame('mapping.unexpected_key', $error['code']);
+    }
+
+    public function testPagingOutsideTheAllowedRangeIsRejected(): void
+    {
+        // GIVEN / WHEN a page size past the documented maximum
+        $this->client->request('GET', '/api/forms?limit=500');
+
+        // THEN it is reported, not clamped
+        self::assertResponseStatusCodeSame(422);
+        $error = $this->firstError();
+        self::assertSame('/limit', $error['pointer']);
+        self::assertSame('mapping.maximum', $error['code']);
+    }
+
+    public function testUnknownSchemaModeIsRejected(): void
+    {
+        // GIVEN
+        $id = $this->createForm();
+
+        // WHEN
+        $this->client->request('GET', \sprintf('/api/forms/%s/schema?mode=bogus', $id));
+
+        // THEN
+        self::assertResponseStatusCodeSame(422);
+        $error = $this->firstError();
+        self::assertSame('/mode', $error['pointer']);
+        self::assertSame('mapping.enum', $error['code']);
+    }
+
     public function testDefinitionErrorsAreReportedUnderTheDefinitionPointer(): void
     {
         // GIVEN a definition with duplicate field names

@@ -1,6 +1,7 @@
 # 01 — stage 2: CI, mutation testing, OpenAPI, API contract tests
 
-**Status: planned.** Builds on `00-mvp.md` (implemented). Each step ends with a green `make ci`.
+**Status: implemented 2026-08-17** (as-built deltas at the end). Builds on `00-mvp.md`.
+Each step ended with a green `make ci`.
 
 ## 1. CI pipeline (GitHub Actions)
 
@@ -108,3 +109,61 @@ Goal: every real HTTP response must match `openapi.yaml`, so the spec cannot rot
 
 Out of scope for stage 2: publishing ingot to Packagist (tracked separately — simplifies
 step 1 when it happens), auth, deployment pipeline (the CI gate is build+test only).
+
+## As-built deltas (learned during implementation)
+
+### Steps 3–4 reshaped by the user during implementation
+
+1. **No `GET /api/openapi.yaml` endpoint.** The spec is a build artifact, not a runtime
+   resource: `make docs` renders `openapi.yaml` into `docs/` (`tools/build-docs.php`,
+   dev tooling — it uses require-dev packages the app must not depend on). `docs/openapi.yaml`
+   is the effective contract, `docs/api.md` a browsable Markdown reference; the generator
+   validates its own output, and `docs` runs before `test` in the `ci` chain because the
+   contract tests read it.
+2. **Request DTOs drive both validation and the document.** Controllers take
+   `#[MapRequest]` arguments (`src/Http/Request/`) mapped by ingot: `CreateFormRequest`,
+   `FormListQuery`, `DataSchemaQuery`. Bodies map strictly (closed key set — an extra member
+   is `mapping.unexpected_key`), query strings with `Coercion::Lax` (values arrive as
+   strings; unknown parameters are ignored, which is also what OpenAPI can express about
+   query strings). `RequestNotValid` + one branch in `ProblemExceptionListener` keeps the
+   single error format, and reuses the existing malformed-JSON-only → 400 rule.
+   `FormController` lost ~50 lines of hand-rolled envelope parsing; `DataSchemaController`
+   lost its `match` over the mode.
+   - `SchemaGenerator` (ingot) generates the request schemas: each `x-ingot-schema` marker
+     in `openapi.yaml` is replaced at `make docs` time, so the DTO is the only place the
+     request shape exists. Only prose/client hints (`description`, `default`, …) may sit
+     next to a marker — anything else is a hard error, since it would compete with the DTO.
+   - `DeriveMode` became a **backed** enum (`strict`/`draft`): non-backed enums cannot be
+     mapped from JSON, and the backing values are what the document publishes.
+   - Behavior change: paging outside 1–200 is now **rejected** (`422`, `/limit`
+     `mapping.maximum`) instead of silently clamped — documented and covered by a scenario.
+3. **Contract tests validate requests too**, against the generated document. Each scenario
+   declares whether its request matches the contract; the ones that deliberately break it
+   (malformed JSON, unknown body key, `limit=500`, `mode=bogus`) must be *refused* by the
+   spec — proving the document is as tight as the implementation, not just as loose. The
+   coverage guard now compares operation+status **sets**, so one response can be reached by
+   several scenarios.
+
+- **`devizzent/cebe-php-openapi` replaces `cebe/php-openapi`** everywhere: the league
+  validator depends on that fork (same `cebe\openapi` namespace — installing both would
+  collide), it ships the same `php-openapi` CLI, and unlike upstream it validates
+  OpenAPI 3.1. `make openapi` uses the fork's binary.
+- First Infection run: MSI 73% — closed by strengthening tests, not by lowering thresholds
+  (final: 100/100, thresholds kept at plan's 90/100). Structural findings on the way:
+  the `#[Constraints(minLength: 1)]` on `Field::$name` was dead code (the engine hydrates
+  each variant through its own constructor, so a parent-promoted-param attribute is never
+  enforced — removed; the meta-schema owns that rule), and `Field`'s parameter defaults
+  were unreachable (every variant forwards all three values — removed).
+- `tests/Domain/Forms/Definition/DefinitionConstraintsTest.php` pins the second-line
+  defense: definition DTO constraints hold when mapped WITHOUT the meta-schema pre-check
+  (a bare `MapperBuilder::create()->build()`), one boundary from both sides per test.
+- The coverage guard is static in both directions: it compares the set of documented
+  operation+status pairs with the scenario list — no runtime accumulation, no
+  test-ordering dependency. Each scenario also asserts the actual status it produced,
+  so a scenario cannot silently cover a different response.
+- `Source::array()` needs an explicit object for query strings: PHP cannot tell an empty
+  map from an empty list, so `[]` mapped as a JSON array and every parameter-less request
+  failed with `mapping.type` until the resolver cast it to `(object)`.
+- Infection scoping to the unit suite is done via
+  `--test-framework-options="--testsuite=unit"` on the CLI (the config file has no such
+  key), kept in the `make mutation` recipe.

@@ -65,6 +65,7 @@ final class FormDefinitionProcessorTest extends TestCase
             self::fail('Expected DefinitionNotValid.');
         } catch (DefinitionNotValid $exception) {
             // THEN
+            self::assertSame('Form definition is not valid.', $exception->getMessage());
             $error = $exception->report->errors[0];
             self::assertSame('form.field.duplicate-name', $error->code);
             self::assertSame('/fields/1/name', $error->pointer->toString());

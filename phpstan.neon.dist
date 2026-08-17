@@ -9,4 +9,5 @@ parameters:
         - migrations
         - src
         - tests
+        - tools
     tmpDir: .cache/phpstan

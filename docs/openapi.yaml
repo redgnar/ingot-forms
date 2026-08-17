@@ -1,0 +1,523 @@
+# Generated from ../openapi.yaml by tools/build-docs.php — do not edit by hand; run `make docs`.
+openapi: 3.1.0
+info:
+  title: 'ingot-forms API'
+  version: 0.2.0
+  description: 'Forms management backend. A form is a single fillable document: one immutable definition plus one data set with a required expire date. Lifecycle: empty → draft (repeatable lenient saves) → confirmed (strict validation, locked forever). Expired forms answer 410 everywhere. Every error response is an RFC 9457 `application/problem+json` document.'
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  -
+    url: /
+paths:
+  /api/forms:
+    post:
+      operationId: createForm
+      summary: 'Create a form'
+      description: 'The definition is immutable after creation — changing it means delete and recreate. Validation errors inside the definition are reported with JSON Pointers re-rooted under `/definition`.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFormRequest'
+      responses:
+        201:
+          description: 'Form created; `Location` points at the new resource.'
+          headers:
+            Location:
+              schema:
+                type: string
+              description: 'Path of the created form, `/api/forms/{id}`.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormEnvelope'
+        400:
+          $ref: '#/components/responses/MalformedJson'
+        422:
+          description: 'The request envelope or the definition is not valid.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                request-not-valid:
+                  summary: 'The body does not match the request DTO, or expires in the past'
+                  value:
+                    type: 'urn:problem:ingot-forms:request-not-valid'
+                    title: 'Request is not valid.'
+                    status: 422
+                    errors:
+                      - { pointer: /expireDate, code: form.expire_date.past, message: 'expireDate must be in the future.', input: '2020-01-01T00:00:00+00:00' }
+                      - { pointer: /bogus, code: mapping.unexpected_key, message: 'Unexpected key "bogus".' }
+                definition-not-valid:
+                  summary: 'The definition document breaks the meta-schema or a semantic rule'
+                  value:
+                    type: 'urn:problem:ingot-forms:definition-not-valid'
+                    title: 'Form definition is not valid.'
+                    status: 422
+                    errors:
+                      - { pointer: /definition/fields/1/name, code: form.field.duplicate-name, message: 'Field name "email" is not unique.', input: email }
+    get:
+      operationId: listForms
+      summary: 'List non-expired forms'
+      parameters:
+        -
+          name: limit
+          in: query
+          description: 'Page size.'
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        -
+          name: offset
+          in: query
+          description: 'Rows to skip.'
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        200:
+          description: 'One page of forms, newest first.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormList'
+        422:
+          description: 'Paging outside the documented range — rejected, not clamped.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                request-not-valid:
+                  value:
+                    type: 'urn:problem:ingot-forms:request-not-valid'
+                    title: 'Request is not valid.'
+                    status: 422
+                    errors:
+                      - { pointer: /limit, code: mapping.maximum, message: 'Must be <= 200.', input: 500 }
+  '/api/forms/{id}':
+    parameters:
+      -
+        $ref: '#/components/parameters/FormId'
+    get:
+      operationId: getForm
+      summary: 'Read a form'
+      responses:
+        200:
+          description: 'The full form envelope.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormEnvelope'
+        404:
+          $ref: '#/components/responses/FormNotFound'
+        410:
+          $ref: '#/components/responses/FormGone'
+    delete:
+      operationId: deleteForm
+      summary: 'Delete a form'
+      description: 'The "definition changed" path — delete the form and create a new one.'
+      responses:
+        204:
+          description: 'Form deleted.'
+        404:
+          $ref: '#/components/responses/FormNotFound'
+        410:
+          $ref: '#/components/responses/FormGone'
+  '/api/forms/{id}/schema':
+    parameters:
+      -
+        $ref: '#/components/parameters/FormId'
+    get:
+      operationId: getFormDataSchema
+      summary: 'Read the values schema derived from the definition'
+      description: 'The JSON Schema 2020-12 document the server validates submitted values against — shippable to a frontend validator as-is. The draft variant drops `required` (and required-driven `minLength`) so partial progress validates.'
+      parameters:
+        -
+          name: mode
+          in: query
+          description: 'Which contract the returned schema enforces.'
+          schema:
+            enum:
+              - strict
+              - draft
+            default: strict
+      responses:
+        200:
+          description: 'The derived values schema.'
+          content:
+            application/schema+json:
+              schema:
+                $ref: '#/components/schemas/DataSchema'
+        404:
+          $ref: '#/components/responses/FormNotFound'
+        410:
+          $ref: '#/components/responses/FormGone'
+        422:
+          description: 'Unknown schema mode.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                request-not-valid:
+                  value:
+                    type: 'urn:problem:ingot-forms:request-not-valid'
+                    title: 'Request is not valid.'
+                    status: 422
+                    errors:
+                      - { pointer: /mode, code: mapping.enum, message: '"bogus" is not one of: strict, draft.', input: bogus }
+  '/api/forms/{id}/data':
+    parameters:
+      -
+        $ref: '#/components/parameters/FormId'
+    put:
+      operationId: saveFormData
+      summary: 'Save draft values'
+      description: 'Repeatable; overwrites the previous draft. Values are validated against the draft variant of the derived schema — types, enums, ranges and the closed property set are enforced, `required` is not.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FormValues'
+      responses:
+        200:
+          description: 'Draft stored.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormEnvelope'
+        400:
+          $ref: '#/components/responses/MalformedJson'
+        404:
+          $ref: '#/components/responses/FormNotFound'
+        409:
+          description: 'The form is confirmed and locked.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                form-locked:
+                  value:
+                    type: 'urn:problem:ingot-forms:form-locked'
+                    title: 'Form data is confirmed and can no longer be edited.'
+                    status: 409
+        410:
+          $ref: '#/components/responses/FormGone'
+        422:
+          description: 'The draft breaks a value contract.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                form-data-not-valid:
+                  value:
+                    type: 'urn:problem:ingot-forms:form-data-not-valid'
+                    title: 'Form data is not valid.'
+                    status: 422
+                    errors:
+                      - { pointer: /age, code: schema.type, message: 'The value must be of type number.', input: old }
+    get:
+      operationId: getFormData
+      summary: 'Read the current values'
+      responses:
+        200:
+          description: 'The stored values (draft or confirmed).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormValues'
+        404:
+          description: 'Unknown form, or a form that has no data yet.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                form-not-found:
+                  value:
+                    type: 'urn:problem:ingot-forms:form-not-found'
+                    title: 'Form not found.'
+                    status: 404
+                form-data-empty:
+                  value:
+                    type: 'urn:problem:ingot-forms:form-data-empty'
+                    title: 'The form has no data yet.'
+                    status: 404
+        410:
+          $ref: '#/components/responses/FormGone'
+  '/api/forms/{id}/confirm':
+    parameters:
+      -
+        $ref: '#/components/parameters/FormId'
+    post:
+      operationId: confirmForm
+      summary: 'Confirm the stored values'
+      description: 'Validates the stored data against the full strict schema and locks the form forever. A definition containing an unknown (plugin) field type cannot be confirmed — the server will not vouch for a value contract it does not know.'
+      responses:
+        200:
+          description: 'Form confirmed and locked.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormEnvelope'
+        404:
+          $ref: '#/components/responses/FormNotFound'
+        409:
+          description: 'Nothing to confirm, or already confirmed.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                form-already-confirmed:
+                  value:
+                    type: 'urn:problem:ingot-forms:form-already-confirmed'
+                    title: 'Form data is already confirmed.'
+                    status: 409
+                form-data-empty:
+                  value:
+                    type: 'urn:problem:ingot-forms:form-data-empty'
+                    title: 'There is no data to confirm.'
+                    status: 409
+        410:
+          $ref: '#/components/responses/FormGone'
+        422:
+          description: 'The stored data fails the strict contract.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                form-data-not-valid:
+                  value:
+                    type: 'urn:problem:ingot-forms:form-data-not-valid'
+                    title: 'Form data is not valid.'
+                    status: 422
+                    errors:
+                      - { pointer: '', code: schema.required, message: 'The required property "email" is missing.' }
+                unknown-field-type:
+                  value:
+                    type: 'urn:problem:ingot-forms:form-data-not-valid'
+                    title: 'Form data is not valid.'
+                    status: 422
+                    errors:
+                      - { pointer: /fields/3/type, code: form.data.unknown-field-type, message: 'Field "sig" has an unknown type and cannot be confirmed.', input: signature }
+components:
+  parameters:
+    FormId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: 'Form id (UUID, assigned at creation).'
+  responses:
+    MalformedJson:
+      description: 'The request body is not valid JSON.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            malformed-json:
+              value:
+                type: 'urn:problem:ingot-forms:malformed-json'
+                title: 'Request body is not valid JSON.'
+                status: 400
+    FormNotFound:
+      description: 'No form with this id.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            form-not-found:
+              value:
+                type: 'urn:problem:ingot-forms:form-not-found'
+                title: 'Form not found.'
+                status: 404
+    FormGone:
+      description: 'The form has expired; its data is scheduled for physical deletion.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            form-gone:
+              value:
+                type: 'urn:problem:ingot-forms:form-gone'
+                title: 'Form has expired.'
+                status: 410
+  schemas:
+    CreateFormRequest:
+      type: object
+      properties:
+        expireDate:
+          type: string
+          format: date-time
+        definition:
+          type: object
+          additionalProperties: true
+      required:
+        - expireDate
+        - definition
+      additionalProperties: false
+      description: 'Generated from the request DTO `App\Http\Request\CreateFormRequest`, which is what the mapper enforces: `expireDate` is an RFC 3339 date-time that must also lie in the future (a rule no schema keyword covers, so the app reports it as `form.expire_date.past`), and `definition` is a form definition document whose own contract is the meta-schema at `src/Domain/Forms/form-definition.schema.json`.'
+    FormDefinition:
+      type: object
+      description: 'A form definition document. Its authoritative contract is the meta-schema at `src/Domain/Forms/form-definition.schema.json` (id, title, and 1–50 typed fields with unique names) — constraints are deliberately not duplicated here.'
+    FormValues:
+      type: object
+      description: 'Submitted values keyed by field name. The per-form contract is deliberately not part of this document — it is derived from the definition and served live by `GET /api/forms/{id}/schema`.'
+    DataSchema:
+      type: object
+      description: "A JSON Schema 2020-12 document describing one form's values."
+    FormStatus:
+      type: string
+      enum:
+        - empty
+        - draft
+        - confirmed
+      description: 'Derived, never stored — empty until first save, confirmed once locked.'
+    FormEnvelope:
+      type: object
+      description: 'The canonical JSON shape of a form returned by every endpoint.'
+      required:
+        - id
+        - title
+        - status
+        - expireDate
+        - createdAt
+        - definition
+        - data
+        - dataSavedAt
+        - confirmedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/FormStatus'
+        expireDate:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        definition:
+          $ref: '#/components/schemas/FormDefinition'
+        data:
+          oneOf:
+            -
+              $ref: '#/components/schemas/FormValues'
+            -
+              type: 'null'
+        dataSavedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        confirmedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+      additionalProperties: false
+    FormListItem:
+      type: object
+      required:
+        - id
+        - title
+        - status
+        - expireDate
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/FormStatus'
+        expireDate:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    FormList:
+      type: object
+      required:
+        - items
+        - limit
+        - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormListItem'
+        limit:
+          type: integer
+        offset:
+          type: integer
+      additionalProperties: false
+    ProblemError:
+      type: object
+      description: 'One validation error, mapped 1:1 from an ingot ErrorReport entry.'
+      required:
+        - pointer
+        - code
+        - message
+      properties:
+        pointer:
+          type: string
+          description: 'RFC 6901 JSON Pointer into the offending document ("" is its root).'
+        code:
+          type: string
+          description: 'Machine-readable code, e.g. `schema.required` or `form.field.duplicate-name`.'
+        message:
+          type: string
+        input:
+          type:
+            - string
+            - number
+            - boolean
+          description: 'The offending value — echoed only when it is a scalar.'
+      additionalProperties: false
+    Problem:
+      type: object
+      description: 'RFC 9457 problem details. `type` is a URN `urn:problem:ingot-forms:<slug>`; validation problems carry the `errors` extension member.'
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProblemError'
+      additionalProperties: false

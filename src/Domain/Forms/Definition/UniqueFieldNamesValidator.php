@@ -20,7 +20,7 @@ final class UniqueFieldNamesValidator implements ObjectValidator
         $seen = [];
 
         foreach ($object->fields as $index => $field) {
-            if (isset($seen[$field->name])) {
+            if ($seen[$field->name] ?? false) {
                 $context->addError(
                     \sprintf('/fields/%d/name', $index),
                     'form.field.duplicate-name',
