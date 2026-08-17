@@ -1,0 +1,63 @@
+{
+    "name": "ingot/forms-app",
+    "description": "Forms management backend: JSON-defined forms filled once, validated by the ingot mapping engine",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Piotr Knap",
+            "email": "piotrek.knap@gmail.com"
+        }
+    ],
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../ingot",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
+    "require": {
+        "php": ">=8.4",
+        "ext-pdo_pgsql": "*",
+        "doctrine/dbal": "^4.2",
+        "doctrine/doctrine-bundle": "^2.13",
+        "doctrine/doctrine-migrations-bundle": "^3.4",
+        "ingot/ingot": "dev-main",
+        "symfony/console": "^7.3",
+        "symfony/dotenv": "^7.3",
+        "symfony/framework-bundle": "^7.3",
+        "symfony/runtime": "^7.3",
+        "symfony/uid": "^7.3",
+        "symfony/yaml": "^7.3"
+    },
+    "require-dev": {
+        "dama/doctrine-test-bundle": "^8.2",
+        "friendsofphp/php-cs-fixer": "^3.75",
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "phpunit/phpunit": "^12.0",
+        "qossmic/deptrac": "^2.0",
+        "symfony/browser-kit": "^7.3"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "App\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "symfony/runtime": true
+        }
+    }
+}

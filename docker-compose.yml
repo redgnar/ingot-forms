@@ -1,0 +1,40 @@
+# Dev environment. PhpStorm: Settings → PHP → CLI Interpreter → From Docker Compose → service "php",
+# then PHP → Test Frameworks → PHPUnit by Remote Interpreter (composer autoloader: /app/vendor/autoload.php).
+#
+# The ingot library is consumed through a composer *path* repository (../ingot). Composer writes a
+# relative symlink vendor/ingot/ingot -> ../../../ingot, so the library checkout must sit next to
+# this project on the host AND be mounted at /ingot in the container (same depth relative to /app).
+services:
+  php:
+    build: docker
+    image: ingot-forms-dev
+    working_dir: /app
+    # `docker compose up` serves the API on http://localhost:8000 (dev server).
+    # `docker compose run` (Makefile, PhpStorm) overrides this command, and
+    # the port is only published by `up`, so tool runs never conflict.
+    command: php -S 0.0.0.0:8000 -t public
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ../ingot:/ingot:ro
+    environment:
+      DATABASE_URL: "postgresql://app:app@postgres:5432/ingot_forms?serverVersion=17&charset=utf8"
+    depends_on:
+      postgres:
+        condition: service_healthy
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: ingot_forms
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d ingot_forms"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:

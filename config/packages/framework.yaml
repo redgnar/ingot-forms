@@ -1,0 +1,19 @@
+framework:
+    secret: '%env(APP_SECRET)%'
+    http_method_override: false
+    handle_all_throwables: true
+    php_errors:
+        log: true
+    router:
+        utf8: true
+    cache:
+        pools:
+            # ingot mapper metadata — keys derive from class names only, so this
+            # pool must be cleared on every deploy: bin/console cache:pool:clear cache.ingot_mapper
+            cache.ingot_mapper: ~
+            # derived data schemas, keyed by immutable form UUID — never needs clearing
+            cache.data_schema: ~
+
+when@test:
+    framework:
+        test: true

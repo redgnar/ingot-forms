@@ -1,0 +1,34 @@
+# Module boundaries — enforced in CI (make deptrac).
+#
+# Domain         = the forms model + processors; framework-free and storage-free,
+#                  so it can be extracted into a standalone package later.
+#                  It may depend on Ingot\* and psr/cache only (vendor deps are
+#                  invisible to deptrac; the rule below keeps App layers out).
+# Infrastructure = persistence (DBAL) and caching adapters.
+# Http           = controllers and problem+json mapping.
+# Command        = console entry points (purge).
+deptrac:
+  paths:
+    - src
+  layers:
+    - name: Domain
+      collectors:
+        - type: classLike
+          value: ^App\\Domain\\
+    - name: Infrastructure
+      collectors:
+        - type: classLike
+          value: ^App\\Infrastructure\\
+    - name: Http
+      collectors:
+        - type: classLike
+          value: ^App\\Http\\
+    - name: Command
+      collectors:
+        - type: classLike
+          value: ^App\\Command\\
+  ruleset:
+    Domain: ~
+    Infrastructure: [Domain]
+    Http: [Domain, Infrastructure]
+    Command: [Domain, Infrastructure]
