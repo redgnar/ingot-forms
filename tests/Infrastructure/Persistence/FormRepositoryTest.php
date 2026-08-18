@@ -35,14 +35,14 @@ final class FormRepositoryTest extends KernelTestCase
         $record = $this->repository->get($id);
 
         // THEN the jsonb round-trip is lossless and no data exists yet
-        self::assertSame($id, $record->id);
+        self::assertTrue($id->equals($record->id()));
         self::assertEquals(
             json_decode(self::DEFINITION, true, flags: \JSON_THROW_ON_ERROR),
-            json_decode($record->definition, true, flags: \JSON_THROW_ON_ERROR),
+            json_decode($record->definition(), true, flags: \JSON_THROW_ON_ERROR),
         );
         self::assertSame(FormStatus::Empty, $record->status());
-        self::assertNull($record->data);
-        self::assertNull($record->confirmedAt);
+        self::assertNull($record->data());
+        self::assertNull($record->confirmedAt());
     }
 
     public function testUnknownFormThrowsFormNotFound(): void
@@ -63,11 +63,7 @@ final class FormRepositoryTest extends KernelTestCase
         $id = self::uuid();
         $this->repository->insert($id, self::DEFINITION, new \DateTimeImmutable('-1 hour'));
 
-        // WHEN listing, the row is invisible
-        $listed = array_map(static fn($item) => $item->id, $this->repository->list(200, 0));
-        self::assertNotContains($id, $listed);
-
-        // THEN reading it reports gone, not found
+        // WHEN / THEN reading it reports gone, not found
         $this->expectException(FormGone::class);
         $this->repository->get($id);
     }
@@ -80,25 +76,26 @@ final class FormRepositoryTest extends KernelTestCase
 
         // WHEN saving a draft the way controllers do — under a row lock
         $this->repository->transactional(function () use ($id): void {
-            $this->repository->getForUpdate($id);
-            $this->repository->updateDraft($id, '{"email": "ada@example.com"}');
+            $this->repository->getForUpdate($id)->saveDraft('{"email": "ada@example.com"}');
+            $this->repository->save();
         });
 
         // THEN
         $draft = $this->repository->get($id);
         self::assertSame(FormStatus::Draft, $draft->status());
-        self::assertNotNull($draft->dataSavedAt);
+        self::assertNotNull($draft->dataSavedAt());
 
         // WHEN confirming
         $this->repository->transactional(function () use ($id): void {
-            $this->repository->getForUpdate($id);
-            $this->repository->confirm($id);
+            $this->repository->getForUpdate($id)->confirm();
+            $this->repository->save();
         });
 
-        // THEN the form is locked
+        // THEN the form is locked and its values are untouched
         $confirmed = $this->repository->get($id);
         self::assertSame(FormStatus::Confirmed, $confirmed->status());
-        self::assertNotNull($confirmed->confirmedAt);
+        self::assertNotNull($confirmed->confirmedAt());
+        self::assertSame('{"email": "ada@example.com"}', $confirmed->data());
     }
 
     public function testDeleteRemovesTheForm(): void
@@ -128,30 +125,6 @@ final class FormRepositoryTest extends KernelTestCase
         $this->repository->delete($id);
     }
 
-    public function testListingCarriesTitleAndDerivedStatus(): void
-    {
-        // GIVEN one empty and one drafted form
-        $emptyId = self::uuid();
-        $draftId = self::uuid();
-        $this->repository->insert($emptyId, self::DEFINITION, new \DateTimeImmutable('+1 day'));
-        $this->repository->insert($draftId, self::DEFINITION, new \DateTimeImmutable('+1 day'));
-        $this->repository->transactional(function () use ($draftId): void {
-            $this->repository->getForUpdate($draftId);
-            $this->repository->updateDraft($draftId, '{"email": "ada@example.com"}');
-        });
-
-        // WHEN
-        $byId = [];
-
-        foreach ($this->repository->list(200, 0) as $item) {
-            $byId[$item->id] = $item;
-        }
-
-        // THEN the title comes straight from the definition document
-        self::assertSame('Contact us', $byId[$emptyId]->title);
-        self::assertSame(FormStatus::Empty, $byId[$emptyId]->status);
-        self::assertSame(FormStatus::Draft, $byId[$draftId]->status);
-    }
 
     public function testPurgeExpiredDeletesOnlyExpiredRows(): void
     {
@@ -166,13 +139,13 @@ final class FormRepositoryTest extends KernelTestCase
 
         // THEN only the expired row went away
         self::assertSame(1, $purged);
-        self::assertSame($liveId, $this->repository->get($liveId)->id);
+        self::assertTrue($liveId->equals($this->repository->get($liveId)->id()));
         $this->expectException(FormNotFound::class);
         $this->repository->get($expiredId);
     }
 
-    private static function uuid(): string
+    private static function uuid(): Uuid
     {
-        return Uuid::v7()->toRfc4122();
+        return Uuid::v7();
     }
 }

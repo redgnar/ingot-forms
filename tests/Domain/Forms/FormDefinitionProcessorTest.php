@@ -12,18 +12,17 @@ use PHPUnit\Framework\TestCase;
 
 final class FormDefinitionProcessorTest extends TestCase
 {
-    private const string DEFINITION = <<<'JSON'
-        {
-            "id": "contact",
-            "title": "Contact us",
-            "fields": [
-                {"type": "text", "name": "email", "label": "E-mail", "required": true, "maxLength": 120},
-                {"type": "select", "name": "country", "options": ["pl", "de", "fr"], "required": true},
-                {"type": "number", "name": "age", "min": 18, "max": 120},
-                {"type": "signature", "name": "sig", "vendor": {"pad": "2.0"}}
-            ]
-        }
-        JSON;
+    /** @var array<string, mixed> Documents arrive decoded — the caller owns the wire format. */
+    private const array DEFINITION = [
+        'id' => 'contact',
+        'title' => 'Contact us',
+        'fields' => [
+            ['type' => 'text', 'name' => 'email', 'label' => 'E-mail', 'required' => true, 'maxLength' => 120],
+            ['type' => 'select', 'name' => 'country', 'options' => ['pl', 'de', 'fr'], 'required' => true],
+            ['type' => 'number', 'name' => 'age', 'min' => 18, 'max' => 120],
+            ['type' => 'signature', 'name' => 'sig', 'vendor' => ['pad' => '2.0']],
+        ],
+    ];
 
     public function testParsesDefinitionIncludingAnUnknownFieldType(): void
     {
@@ -48,20 +47,18 @@ final class FormDefinitionProcessorTest extends TestCase
     {
         // GIVEN a structurally valid definition breaking a semantic rule
         $processor = new FormDefinitionProcessor();
-        $json = <<<'JSON'
-            {
-                "id": "dup",
-                "title": "Duplicates",
-                "fields": [
-                    {"type": "text", "name": "email"},
-                    {"type": "text", "name": "email"}
-                ]
-            }
-            JSON;
+        $document = [
+            'id' => 'dup',
+            'title' => 'Duplicates',
+            'fields' => [
+                ['type' => 'text', 'name' => 'email'],
+                ['type' => 'text', 'name' => 'email'],
+            ],
+        ];
 
         // WHEN
         try {
-            $processor->parse($json);
+            $processor->parse($document);
             self::fail('Expected DefinitionNotValid.');
         } catch (DefinitionNotValid $exception) {
             // THEN
@@ -79,26 +76,11 @@ final class FormDefinitionProcessorTest extends TestCase
 
         // WHEN
         try {
-            $processor->parse('{"id": "x", "fields": [{"type": "text", "name": "a"}]}');
+            $processor->parse(['id' => 'x', 'fields' => [['type' => 'text', 'name' => 'a']]]);
             self::fail('Expected DefinitionNotValid.');
         } catch (DefinitionNotValid $exception) {
             // THEN
             self::assertSame('schema.required', $exception->report->errors[0]->code);
-        }
-    }
-
-    public function testRejectsMalformedJson(): void
-    {
-        // GIVEN
-        $processor = new FormDefinitionProcessor();
-
-        // WHEN
-        try {
-            $processor->parse('{broken');
-            self::fail('Expected DefinitionNotValid.');
-        } catch (DefinitionNotValid $exception) {
-            // THEN
-            self::assertSame('source.malformed_json', $exception->report->errors[0]->code);
         }
     }
 
@@ -113,14 +95,14 @@ final class FormDefinitionProcessorTest extends TestCase
 
         // THEN nothing was lost — not even the unknown "signature" field
         self::assertEquals(
-            json_decode(self::DEFINITION, true, flags: \JSON_THROW_ON_ERROR),
+            self::DEFINITION,
             json_decode(json_encode($document, \JSON_THROW_ON_ERROR), true, flags: \JSON_THROW_ON_ERROR),
         );
     }
 
     public function testFromStoredRebuildsTheModelFromANormalizedDocument(): void
     {
-        // GIVEN a stored (normalized) document
+        // GIVEN a stored (normalized) document, as the database returns it
         $processor = new FormDefinitionProcessor();
         $stored = json_encode($processor->normalize($processor->parse(self::DEFINITION)), \JSON_THROW_ON_ERROR);
 

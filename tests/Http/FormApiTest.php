@@ -98,6 +98,22 @@ final class FormApiTest extends WebTestCase
         self::assertSame('form.expire_date.past', $error['code']);
     }
 
+    public function testMissingBodyMemberIsReportedAtItsPointer(): void
+    {
+        // GIVEN a body without the required expireDate
+        $payload = json_encode(['definition' => self::DEFINITION], \JSON_THROW_ON_ERROR);
+
+        // WHEN
+        $this->putJson('/api/forms', $payload, method: 'POST');
+
+        // THEN the DTO could not be built, and says so in the wire's terms
+        self::assertResponseStatusCodeSame(422);
+        $error = $this->firstError();
+        self::assertSame('/expireDate', $error['pointer']);
+        self::assertSame('request.type', $error['code']);
+        self::assertSame('This member is missing or is not an RFC 3339 date-time.', $error['message']);
+    }
+
     public function testUnknownBodyKeyIsRejectedByTheRequestDto(): void
     {
         // GIVEN a well-formed request carrying one member too many
@@ -114,20 +130,24 @@ final class FormApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
         $error = $this->firstError();
         self::assertSame('/bogus', $error['pointer']);
-        self::assertSame('mapping.unexpected_key', $error['code']);
+        self::assertSame('request.unexpected_key', $error['code']);
     }
 
-    public function testPagingOutsideTheAllowedRangeIsRejected(): void
+    public function testDataPayloadMustBeAJsonObject(): void
     {
-        // GIVEN / WHEN a page size past the documented maximum
-        $this->client->request('GET', '/api/forms?limit=500');
+        // GIVEN a form and a body that is a list, not a set of field values
+        $id = $this->createForm();
 
-        // THEN it is reported, not clamped
+        // WHEN
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), '[1, 2]');
+
+        // THEN the request DTO answers before any per-form rule applies
         self::assertResponseStatusCodeSame(422);
         $error = $this->firstError();
-        self::assertSame('/limit', $error['pointer']);
-        self::assertSame('mapping.maximum', $error['code']);
+        self::assertSame('', $error['pointer']);
+        self::assertSame('request.type', $error['code']);
     }
+
 
     public function testUnknownSchemaModeIsRejected(): void
     {
@@ -141,7 +161,7 @@ final class FormApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
         $error = $this->firstError();
         self::assertSame('/mode', $error['pointer']);
-        self::assertSame('mapping.enum', $error['code']);
+        self::assertSame('request.choice', $error['code']);
     }
 
     public function testDefinitionErrorsAreReportedUnderTheDefinitionPointer(): void
@@ -180,7 +200,7 @@ final class FormApiTest extends WebTestCase
         $id = Uuid::v7()->toRfc4122();
         $repository = self::getContainer()->get(FormRepository::class);
         self::assertInstanceOf(FormRepository::class, $repository);
-        $repository->insert($id, json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR), new \DateTimeImmutable('-1 hour'));
+        $repository->insert(Uuid::fromString($id), json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR), new \DateTimeImmutable('-1 hour'));
 
         // WHEN / THEN reads and writes both report gone
         $this->client->request('GET', \sprintf('/api/forms/%s', $id));
@@ -275,21 +295,6 @@ final class FormApiTest extends WebTestCase
         self::assertSame('urn:problem:ingot-forms:form-data-empty', $this->responseBody()['type']);
     }
 
-    public function testListingShowsTheCreatedForm(): void
-    {
-        // GIVEN
-        $id = $this->createForm();
-
-        // WHEN
-        $this->client->request('GET', '/api/forms');
-
-        // THEN
-        self::assertResponseStatusCodeSame(200);
-        $body = $this->responseBody();
-        self::assertIsArray($body['items']);
-        $ids = array_column($body['items'], 'id');
-        self::assertContains($id, $ids);
-    }
 
     /**
      * @param array<string, mixed> $definition

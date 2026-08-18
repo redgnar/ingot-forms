@@ -1,6 +1,7 @@
 # ingot-forms — agent guide
 
-Backend-only forms management service (Symfony 7 API, PostgreSQL jsonb via DBAL, no ORM)
+Backend-only forms management service (Symfony 7.4 API, Doctrine ORM — portable across
+database platforms)
 built on the [ingot](https://github.com/redgnar/ingot) mapping engine. Design docs live in
 `.claude/plan/` — read `00-mvp.md` (domain model + as-built architecture) before touching
 anything; `01-stage2.md` documents stage 2 (implemented: CI workflow, mutation testing,
@@ -30,18 +31,36 @@ deletes them physically. No templates, no versioning, no multi-submission — de
 - **One error format**: every error response is RFC 9457 `application/problem+json`; validation
   problems carry `errors: [{pointer, code, message, input?}]` mapped 1:1 from ingot's
   `ErrorReport` (`ProblemExceptionListener` is the single mapping point).
-- **Requests arrive as DTOs**: controllers take `#[MapRequest]` arguments (`src/Http/Request/`)
-  hydrated by ingot — never read `Request` directly, never hand-roll envelope validation. The
-  DTO is the single source of truth: it validates the request AND generates the published
-  request schema (`x-ingot-schema` markers in `openapi.yaml`, injected by `make docs`).
-  Bodies map strictly (closed key set), query strings laxly (string coercion, extras ignored);
-  rules no schema keyword covers are `RequestRule` implementations, auto-collected via
-  `_instanceof` in services.yaml. Exception: the values payload of `PUT …/data` stays raw —
-  its contract is the per-form derived schema.
+- **Two engines, one boundary between them**:
+  - **Symfony owns the request envelope.** Controllers take `#[MapRequestPayload]` /
+    `#[MapQueryString]` DTOs from `src/Http/Request/`, validated by `symfony/validator`
+    (`Assert\*` on promoted constructor properties) — never read `Request` directly, never
+    hand-roll envelope parsing. Ids are `Uuid` value objects (route params resolved by
+    Symfony, repository and records typed accordingly). A DTO documents itself with
+    `#[ApiProperty]`, and `make docs` generates its published schema from constructor +
+    constraints + that prose (`x-dto-schema` markers in `openapi.yaml`).
+  - **ingot owns the documents inside the envelope** — the form definition and the submitted
+    values — and receives them already decoded (`Source::array()`), never as JSON text.
+    The bridge is a custom constraint: `ValidFormDefinition` (attribute on the DTO) and
+    `ValidFormValues` (carries the form's definition, applied inside the row lock), both in
+    `src/Http/Request/Constraint/`, translating engine findings into violations with the
+    exact JSON Pointer preserved via `ViolationPointer::PARAMETER`.
+  - `ViolationReportFactory` turns violations back into the one `errors[]` shape, so the
+    error format never depends on which engine refused the request.
+  - Bodies are closed (`ALLOW_EXTRA_ATTRIBUTES => false` → `request.unexpected_key`); query
+    strings ignore unknown parameters, as HTTP clients expect. The submitted values of
+    `PUT …/data` are a document rather than named members, so `SaveFormDataRequest` is
+    mapped whole by `SaveFormDataRequestDenormalizer` (decoded with
+    `JsonDecode::ASSOCIATIVE => false`, so `{}` stays an object).
 - State transitions run inside `FormRepository::transactional()` + `getForUpdate()` — never
   add a check-then-write outside the row lock.
-- Definitions are stored **normalized** (`TreeMapper::normalize()`); no denormalized columns —
-  the listing reads `definition->>'title'` from jsonb.
+- Definitions are stored **normalized** (`TreeMapper::normalize()`); no denormalized columns.
+- **Persistence is Doctrine ORM and stays platform-neutral**: the `Form` entity maps portable
+  Doctrine types only (`uuid`, `text`, `datetime_immutable` in UTC), both documents are stored
+  as the exact JSON text that passed validation (PHP arrays cannot tell `{}` from `[]`, and the
+  bytes go back to clients verbatim), and the migration is built through the schema API rather
+  than raw SQL. Nothing may reintroduce jsonb/`now()`/`FOR UPDATE` written by hand — the row
+  lock is `LockMode::PESSIMISTIC_WRITE` via `FormRepository::getForUpdate()`.
 
 ## Testing (PHPUnit)
 

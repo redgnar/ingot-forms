@@ -39,12 +39,17 @@ final class FormDefinitionProcessor
     }
 
     /**
+     * Parses an already-decoded definition document — the shape a framework
+     * hands over after mapping the request envelope.
+     *
+     * @param array<string, mixed> $document
+     *
      * @throws DefinitionNotValid when the document fails the meta-schema,
      *         type mapping, or semantic rules — one aggregated report
      */
-    public function parse(string $json): FormDefinition
+    public function parse(array $document): FormDefinition
     {
-        $result = $this->mapper->tryMap(FormDefinition::class, Source::json($json));
+        $result = $this->mapper->tryMap(FormDefinition::class, Source::array(self::asJsonDocument($document)));
 
         if (!$result->isSuccess()) {
             throw new DefinitionNotValid($result->errors());
@@ -80,5 +85,20 @@ final class FormDefinitionProcessor
     public function fromStored(string $json): FormDefinition
     {
         return $this->mapper->map(FormDefinition::class, Source::json($json));
+    }
+
+    /**
+     * PHP arrays cannot say "JSON object": the schema pre-check needs the
+     * shape json_decode() would have produced, so re-decode once at the
+     * boundary. An empty nested object is the one thing this cannot recover —
+     * it arrives as an empty array and stays a list.
+     *
+     * @param array<string, mixed> $document
+     */
+    private static function asJsonDocument(array $document): \stdClass
+    {
+        $decoded = json_decode(json_encode($document, \JSON_THROW_ON_ERROR), false, flags: \JSON_THROW_ON_ERROR);
+
+        return $decoded instanceof \stdClass ? $decoded : new \stdClass();
     }
 }

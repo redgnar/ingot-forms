@@ -2,6 +2,12 @@ framework:
     secret: '%env(APP_SECRET)%'
     http_method_override: false
     handle_all_throwables: true
+    # Request envelopes are mapped and validated by Symfony (#[MapRequestPayload],
+    # #[MapQueryString] + Assert attributes on the DTOs in src/Http/Request/).
+    validation:
+        enable_attributes: true
+    serializer:
+        enable_attributes: true
     php_errors:
         log: true
     router:

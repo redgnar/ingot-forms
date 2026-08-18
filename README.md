@@ -50,24 +50,28 @@ All request/response bodies are `application/json`; every error is an RFC 9457
 `{pointer, code, message, input?}` entry per finding — the same format for schema,
 type-mapping, and semantic errors (it comes straight from ingot's `ErrorReport`).
 
-Requests are mapped into **DTOs by ingot** before a controller runs: `#[MapRequest]` on a
-controller argument hands off to `src/Http/Request/`, where the DTO's constructor *is* the
-request contract — one declaration that validates the request, produces the error report,
-and generates the published request schema (see [API contract](#api-contract)).
+Requests are mapped into **DTOs by Symfony** before a controller runs
+(`#[MapRequestPayload]`, `#[MapQueryString]` over `src/Http/Request/`), and validated by
+`symfony/validator`. Every DTO member is non-nullable, so an instance means a complete
+request; what the mapper could not supply is reported at its pointer before validation
+runs. Ids are `Uuid` value objects, bodies are closed (an undeclared member is
+`request.unexpected_key`), and query strings ignore unknown parameters the way HTTP
+clients expect. Members document themselves with swagger-php's `#[OA\Property]`
+(description, example, type/format), which is what the published schema is generated
+from.
 
-| Part | Mapping rules |
-|---|---|
-| JSON body | strict: real types, closed key set (an unexpected member is `mapping.unexpected_key`) |
-| query string | lax: `"10"` becomes `10`, unknown parameters are ignored the way HTTP clients expect |
-
-Rules a schema cannot express live next to the DTO as a `RequestRule` — e.g. "expireDate
-must be in the future" (`form.expire_date.past`). The values payload of `PUT …/data` has no
-DTO on purpose: its contract is the schema derived from that one form's definition.
+**ingot validates the documents inside the envelope** — the form definition and the
+submitted values — receiving them already decoded rather than as JSON text. The two meet in
+custom constraints (`src/Http/Request/Constraint/`): `ValidFormDefinition` hands the
+definition to the engine's meta-schema and semantic rules, `ValidFormValues` carries a
+form's definition and checks the values against the schema derived from it. Engine findings
+become Symfony violations with their JSON Pointer intact, and `ViolationReportFactory`
+turns every violation back into the same `errors[]` shape — so the error format never
+depends on which engine refused the request.
 
 | Method & path | Purpose |
 |---|---|
 | `POST /api/forms` | Create a form. Body: `{"expireDate": "<RFC 3339>", "definition": {…}}`. `201` + `Location`. |
-| `GET /api/forms` | List non-expired forms (`?limit=` ≤ 200, `?offset=`). |
 | `GET /api/forms/{id}` | Full envelope: definition, status, data, timestamps. |
 | `DELETE /api/forms/{id}` | `204`. The "definition changed" path is delete + recreate. |
 | `GET /api/forms/{id}/schema` | Derived JSON Schema of the form's *values* (`application/schema+json`). `?mode=draft` returns the relaxed variant. |
@@ -80,14 +84,16 @@ Error status map: `400` malformed JSON, `404` unknown form, `409` state conflict
 
 ## API contract
 
-[`openapi.yaml`](openapi.yaml) (OpenAPI 3.1 — the same JSON Schema 2020-12 dialect ingot
-emits) holds the paths and the prose. Request *shapes* are not written by hand: each
-`x-ingot-schema` marker is replaced by the schema ingot generates from that request DTO
-when `make docs` renders the document into [`docs/`](docs/):
+The contract is generated from the code by **NelmioApiDocBundle**: routes, the request DTOs
+behind `#[MapRequestPayload]`/`#[MapQueryString]` (with their `Assert` constraints and
+`#[OA\Property]` prose) and the `#[OA\Response]` attributes on the controllers. What cannot
+come from a route — the document's identity and the shapes shared across operations
+(`Problem`, `FormEnvelope`, the reusable 400/404/410 responses) — lives in
+`config/packages/nelmio_api_doc.yaml`. `make docs` dumps it all into [`docs/`](docs/):
 
 | File | What it is |
 |---|---|
-| `docs/openapi.yaml` | the effective contract — hand-written paths + DTO-generated request schemas |
+| `docs/openapi.yaml` | the contract, dumped by `bin/console nelmio:apidoc:dump` |
 | `docs/api.md` | browsable Markdown reference rendered from the same document |
 
 `tests/Http/OpenApiComplianceTest.php` validates **both halves of every exchange** against
@@ -103,9 +109,9 @@ uses the exact same document, so the contract cannot drift.
 
 ```
 src/Domain/Forms/     framework-free, storage-free — the future standalone package
-src/Infrastructure/   DBAL repository (postgres jsonb), PSR-6 schema cache
+src/Infrastructure/   Doctrine ORM entity + repository, PSR-6 schema cache
 src/Http/             controllers + problem+json mapping
-src/Http/Request/     request DTOs, #[MapRequest] and its resolver, semantic rules
+src/Http/Request/     request DTOs (Symfony-validated) + constraints bridging to ingot
 src/Command/          app:forms:purge-expired
 tools/build-docs.php  renders openapi.yaml into docs/ (dev tooling, not shipped)
 ```
@@ -114,10 +120,15 @@ Boundaries are enforced by deptrac (`Domain ← Infrastructure ← Http/Command`
 layer depends only on `Ingot\*` and the `psr/cache` interface, so extracting it into a
 reusable package later is a namespace move, not a rewrite.
 
-Storage is a single `forms` table; the definition is stored **normalized**
-(`TreeMapper::normalize()` output) in a `jsonb` column, and the listing reads the title
-with `definition->>'title'` — no denormalized columns. Status is derived from the row
-(`data IS NULL` / `confirmed_at`), never stored.
+Storage is a single `forms` table behind one Doctrine entity, mapped with portable types
+only (`uuid`, `text`, `datetime_immutable` in UTC) so the service installs on PostgreSQL,
+MySQL/MariaDB or SQLite alike — point `DATABASE_URL` at it and run the migration, which is
+built through Doctrine's schema API rather than raw SQL. The definition is stored
+**normalized** (`TreeMapper::normalize()` output) as the exact JSON text that passed
+validation, and so are the values: PHP arrays cannot tell an empty object from an empty
+list, and those bytes are handed back to clients verbatim. Status is derived from the row
+(`data IS NULL` / `confirmed_at`), never stored; state transitions run under
+`LockMode::PESSIMISTIC_WRITE`.
 
 ## Operations notes
 

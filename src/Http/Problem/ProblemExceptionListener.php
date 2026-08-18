@@ -6,15 +6,19 @@ namespace App\Http\Problem;
 
 use App\Domain\Forms\DefinitionNotValid;
 use App\Domain\Forms\FormDataNotValid;
-use App\Http\Request\RequestNotValid;
 use App\Infrastructure\Persistence\FormGone;
 use App\Infrastructure\Persistence\FormNotFound;
 use Ingot\Error\ErrorReport;
+use Ingot\Error\MappingError;
+use Ingot\JsonPointer;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\Serializer\Exception\ExtraAttributesException;
+use Symfony\Component\Serializer\Exception\NotEncodableValueException;
+use Symfony\Component\Validator\Exception\ValidationFailedException;
 
 /**
  * One place where every error becomes an application/problem+json response:
@@ -26,6 +30,7 @@ final class ProblemExceptionListener
 {
     public function __construct(
         private readonly ProblemResponseFactory $factory,
+        private readonly ViolationReportFactory $violations,
         #[Autowire(param: 'kernel.debug')]
         private readonly bool $debug,
     ) {}
@@ -34,8 +39,27 @@ final class ProblemExceptionListener
     {
         $throwable = $event->getThrowable();
 
-        if ($throwable instanceof RequestNotValid) {
-            $event->setResponse($this->validationResponse($throwable->report, 'request-not-valid', 'Request is not valid.'));
+        if ($throwable instanceof ValidationFailedException) {
+            $event->setResponse($this->violationResponse(422, $throwable));
+
+            return;
+        }
+
+        // A member the request DTO does not declare: the serializer refuses it
+        // before any constraint runs, so it arrives on its own.
+        if ($throwable instanceof ExtraAttributesException) {
+            $errors = [];
+
+            foreach ($throwable->getExtraAttributes() as $attribute) {
+                $name = \is_string($attribute) ? $attribute : (string) json_encode($attribute);
+                $errors[] = new MappingError(
+                    JsonPointer::fromString('/' . $name),
+                    'request.unexpected_key',
+                    \sprintf('Unexpected member "%s".', $name),
+                );
+            }
+
+            $event->setResponse($this->factory->fromReport(422, 'request-not-valid', 'Request is not valid.', ErrorReport::of(...$errors)));
 
             return;
         }
@@ -75,7 +99,26 @@ final class ProblemExceptionListener
         }
 
         if ($throwable instanceof HttpExceptionInterface) {
+            $previous = $throwable->getPrevious();
             $status = $throwable->getStatusCode();
+
+            // Symfony's payload mapper wraps what it refused: a violation list
+            // when the envelope did not match the DTO, a decoding failure when
+            // the body was not JSON at all.
+            if ($previous instanceof ValidationFailedException) {
+                $event->setResponse($this->violationResponse($status, $previous));
+
+                return;
+            }
+
+            if ($previous instanceof \JsonException || $previous instanceof NotEncodableValueException) {
+                $event->setResponse($this->factory->fromReport(400, 'malformed-json', 'Request body is not valid JSON.', ErrorReport::of(
+                    new MappingError(JsonPointer::root(), 'source.malformed_json', $previous->getMessage()),
+                )));
+
+                return;
+            }
+
             $event->setResponse($this->factory->simple($status, 'http-error', Response::$statusTexts[$status] ?? 'HTTP error'));
 
             return;
@@ -87,7 +130,17 @@ final class ProblemExceptionListener
         }
     }
 
-    private function validationResponse(ErrorReport $report, string $type, string $title): Response
+    private function violationResponse(int $status, ValidationFailedException $exception): Response
+    {
+        return $this->validationResponse(
+            $this->violations->fromViolations($exception->getViolations()),
+            'request-not-valid',
+            'Request is not valid.',
+            $status,
+        );
+    }
+
+    private function validationResponse(ErrorReport $report, string $type, string $title, int $status = 422): Response
     {
         // A body that is not even JSON is a malformed request, not a
         // validation failure of the document it never was.
@@ -95,7 +148,7 @@ final class ProblemExceptionListener
             return $this->factory->fromReport(400, 'malformed-json', 'Request body is not valid JSON.', $report);
         }
 
-        return $this->factory->fromReport(422, $type, $title, $report);
+        return $this->factory->fromReport($status, $type, $title, $report);
     }
 
     private function isMalformedJsonOnly(ErrorReport $report): bool

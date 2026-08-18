@@ -1,4 +1,20 @@
 doctrine:
     dbal:
         url: '%env(resolve:DATABASE_URL)%'
-        use_savepoints: true
+        types:
+            uuid: Symfony\Bridge\Doctrine\Types\UuidType
+    orm:
+        # Nothing platform-specific is mapped: columns use portable Doctrine types
+        # and the documents are stored as the exact JSON text the engine validated,
+        # so the same mapping runs on PostgreSQL, MySQL/MariaDB or SQLite.
+        naming_strategy: doctrine.orm.naming_strategy.underscore_number_aware
+        validate_xml_mapping: true
+        controller_resolver:
+            auto_mapping: false
+        mappings:
+            Forms:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Infrastructure/Persistence'
+                prefix: 'App\Infrastructure\Persistence'
+                alias: Forms

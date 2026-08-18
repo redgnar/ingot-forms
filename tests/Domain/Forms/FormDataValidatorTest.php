@@ -21,7 +21,7 @@ final class FormDataValidatorTest extends TestCase
         $validator = new FormDataValidator();
 
         // WHEN only the optional field is filled
-        $validator->validateDraft(self::definition(), '{"age": 36}');
+        $validator->validateDraft(self::definition(), self::values('{"age": 36}'));
 
         // THEN no exception — partial progress is storable
         $this->addToAssertionCount(1);
@@ -34,7 +34,7 @@ final class FormDataValidatorTest extends TestCase
 
         // WHEN a draft violates value contracts and the closed property set
         try {
-            $validator->validateDraft(self::definition(), '{"age": "old", "bogus": 1}');
+            $validator->validateDraft(self::definition(), self::values('{"age": "old", "bogus": 1}'));
             self::fail('Expected FormDataNotValid.');
         } catch (FormDataNotValid $exception) {
             // THEN both problems are reported at their exact locations
@@ -56,7 +56,7 @@ final class FormDataValidatorTest extends TestCase
 
         // WHEN confirming data missing a required field
         try {
-            $validator->validateFinal(self::definition(), '{"email": "ada@example.com"}');
+            $validator->validateFinal(self::definition(), self::values('{"email": "ada@example.com"}'));
             self::fail('Expected FormDataNotValid.');
         } catch (FormDataNotValid $exception) {
             // THEN
@@ -71,7 +71,7 @@ final class FormDataValidatorTest extends TestCase
         $validator = new FormDataValidator();
 
         // WHEN
-        $validator->validateFinal(self::definition(), '{"email": "ada@example.com", "country": "pl", "age": 36}');
+        $validator->validateFinal(self::definition(), self::values('{"email": "ada@example.com", "country": "pl", "age": 36}'));
 
         // THEN
         $this->addToAssertionCount(1);
@@ -88,7 +88,7 @@ final class FormDataValidatorTest extends TestCase
 
         // WHEN
         try {
-            $validator->validateFinal($definition, '{"email": "ada@example.com"}');
+            $validator->validateFinal($definition, self::values('{"email": "ada@example.com"}'));
             self::fail('Expected FormDataNotValid.');
         } catch (FormDataNotValid $exception) {
             // THEN the offending field is named, not the submitted values
@@ -99,21 +99,6 @@ final class FormDataValidatorTest extends TestCase
         }
     }
 
-    public function testMalformedJsonIsASourceError(): void
-    {
-        // GIVEN
-        $validator = new FormDataValidator();
-
-        // WHEN
-        try {
-            $validator->validateDraft(self::definition(), '{broken');
-            self::fail('Expected FormDataNotValid.');
-        } catch (FormDataNotValid $exception) {
-            // THEN
-            self::assertSame('source.malformed_json', $exception->report->errors[0]->code);
-        }
-    }
-
     private static function definition(): FormDefinition
     {
         return new FormDefinition('contact', 'Contact us', [
@@ -121,5 +106,17 @@ final class FormDataValidatorTest extends TestCase
             new SelectField('country', ['pl', 'de', 'fr'], required: true),
             new NumberField('age', min: 18, max: 120),
         ]);
+    }
+
+    /**
+     * Values reach the validator decoded, exactly as json_decode() produces
+     * them — objects as \stdClass, so the schema keeps JSON's own semantics.
+     */
+    private static function values(string $json): \stdClass
+    {
+        $values = json_decode($json, false, 512, \JSON_THROW_ON_ERROR);
+        self::assertInstanceOf(\stdClass::class, $values);
+
+        return $values;
     }
 }

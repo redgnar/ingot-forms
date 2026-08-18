@@ -3,12 +3,6 @@ services:
         autowire: true
         autoconfigure: true
 
-    # Semantic rules on request DTOs are collected by RequestMapper, so adding
-    # one is a matter of writing the class.
-    _instanceof:
-        App\Http\Request\RequestRule:
-            tags: ['app.request_rule']
-
     App\:
         resource: '../src/'
         exclude:
@@ -16,15 +10,13 @@ services:
             # data objects and exceptions, not services
             - '../src/Domain/Forms/Definition/'
             - '../src/Domain/Forms/{DefinitionNotValid,FormDataNotValid,DeriveMode}.php'
-            - '../src/Infrastructure/Persistence/{FormRecord,FormListItem,FormStatus,FormNotFound,FormGone}.php'
+            - '../src/Infrastructure/Persistence/{Form,FormStatus,FormNotFound,FormGone}.php'
             - '../src/Http/Problem/ProblemException.php'
-            - '../src/Http/Request/{CreateFormRequest,FormListQuery,DataSchemaQuery,MapRequest,RequestPart,RequestNotValid}.php'
+            # request DTOs and the attributes/constraints describing them
+            - '../src/Http/Request/{CreateFormRequest,DataSchemaQuery,SaveFormDataRequest}.php'
+            - '../src/Http/Request/Constraint/{ValidFormDefinition,ValidFormValues,ViolationPointer}.php'
 
     App\Domain\Forms\FormDefinitionProcessor:
-        arguments:
-            $mapperCache: '@cache.ingot_mapper'
-
-    App\Http\Request\RequestMapper:
         arguments:
             $mapperCache: '@cache.ingot_mapper'
 

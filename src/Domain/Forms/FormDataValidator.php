@@ -11,7 +11,6 @@ use Ingot\Error\MappingError;
 use Ingot\JsonPointer;
 use Ingot\Schema\OpisSchemaValidator;
 use Ingot\Schema\SchemaValidator;
-use Ingot\Source;
 
 /**
  * Validates form data against the schema derived from the definition.
@@ -29,17 +28,20 @@ final class FormDataValidator
     ) {}
 
     /**
+     * Values are passed already decoded, the way json_decode() produces them
+     * (objects as \stdClass) — the caller owns the wire format.
+     *
      * @throws FormDataNotValid
      */
-    public function validateDraft(FormDefinition $definition, string $json): void
+    public function validateDraft(FormDefinition $definition, \stdClass $values): void
     {
-        $this->validate($definition, $json, DeriveMode::Draft);
+        $this->validate($definition, $values, DeriveMode::Draft);
     }
 
     /**
      * @throws FormDataNotValid
      */
-    public function validateFinal(FormDefinition $definition, string $json): void
+    public function validateFinal(FormDefinition $definition, \stdClass $values): void
     {
         $unknown = [];
 
@@ -58,23 +60,15 @@ final class FormDataValidator
             throw new FormDataNotValid(ErrorReport::of(...$unknown));
         }
 
-        $this->validate($definition, $json, DeriveMode::Strict);
+        $this->validate($definition, $values, DeriveMode::Strict);
     }
 
     /**
      * @throws FormDataNotValid
      */
-    private function validate(FormDefinition $definition, string $json, DeriveMode $mode): void
+    private function validate(FormDefinition $definition, \stdClass $values, DeriveMode $mode): void
     {
-        try {
-            $decoded = Source::json($json)->data();
-        } catch (\JsonException $exception) {
-            throw new FormDataNotValid(ErrorReport::of(
-                new MappingError(JsonPointer::root(), 'source.malformed_json', $exception->getMessage()),
-            ));
-        }
-
-        $report = $this->schemaValidator->validate($decoded, $this->deriver->derive($definition, $mode));
+        $report = $this->schemaValidator->validate($values, $this->deriver->derive($definition, $mode));
 
         if (!$report->isEmpty()) {
             throw new FormDataNotValid($report);

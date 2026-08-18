@@ -36,11 +36,12 @@ coverage: db-test
 mutation: ## Mutation testing (Infection): src/Domain only, unit suite, no database
 	$(RUN) vendor/bin/infection --threads=max --no-progress --test-framework-options="--testsuite=unit"
 
-openapi: ## Validate openapi.yaml against the OpenAPI 3.1 schema
-	$(RUN) vendor/bin/php-openapi validate openapi.yaml
-
-docs: ## Render openapi.yaml into docs/ (single-file spec + Markdown reference)
+docs: ## Generate the API contract (NelmioApiDocBundle) into docs/ + a Markdown reference
+	$(RUN) sh -c 'bin/console nelmio:apidoc:dump --format=yaml > docs/openapi.yaml'
 	$(RUN) php tools/build-docs.php
+
+openapi: docs ## Validate the generated contract against the OpenAPI 3.1 schema
+	$(RUN) vendor/bin/php-openapi validate docs/openapi.yaml
 
 stan:
 	$(RUN) vendor/bin/phpstan analyse --no-progress --memory-limit=512M
@@ -60,9 +61,9 @@ audit: ## Known security vulnerabilities in dependencies (abandoned transitive d
 deptrac: ## Module boundaries (deptrac.yaml)
 	$(RUN) vendor/bin/deptrac analyse --no-progress --cache-file=.cache/deptrac.cache
 
-# `docs` runs before `test`: the contract tests validate real traffic against the
-# generated docs/openapi.yaml, so it must be current.
-ci: validate cs openapi docs stan deptrac test mutation audit ## Everything the git pipeline checks
+# `openapi` regenerates docs/ first: the contract tests validate real traffic against
+# the generated docs/openapi.yaml, so it must be current.
+ci: validate cs openapi stan deptrac test mutation audit ## Everything the git pipeline checks
 
 shell: ## Interactive shell inside the dev image
 	docker compose run --rm --no-deps -it php sh

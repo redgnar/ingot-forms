@@ -120,23 +120,64 @@ step 1 when it happens), auth, deployment pipeline (the CI gate is build+test on
    is the effective contract, `docs/api.md` a browsable Markdown reference; the generator
    validates its own output, and `docs` runs before `test` in the `ci` chain because the
    contract tests read it.
-2. **Request DTOs drive both validation and the document.** Controllers take
-   `#[MapRequest]` arguments (`src/Http/Request/`) mapped by ingot: `CreateFormRequest`,
-   `FormListQuery`, `DataSchemaQuery`. Bodies map strictly (closed key set — an extra member
-   is `mapping.unexpected_key`), query strings with `Coercion::Lax` (values arrive as
-   strings; unknown parameters are ignored, which is also what OpenAPI can express about
-   query strings). `RequestNotValid` + one branch in `ProblemExceptionListener` keeps the
-   single error format, and reuses the existing malformed-JSON-only → 400 rule.
-   `FormController` lost ~50 lines of hand-rolled envelope parsing; `DataSchemaController`
-   lost its `match` over the mode.
-   - `SchemaGenerator` (ingot) generates the request schemas: each `x-ingot-schema` marker
-     in `openapi.yaml` is replaced at `make docs` time, so the DTO is the only place the
-     request shape exists. Only prose/client hints (`description`, `default`, …) may sit
-     next to a marker — anything else is a hard error, since it would compete with the DTO.
-   - `DeriveMode` became a **backed** enum (`strict`/`draft`): non-backed enums cannot be
-     mapped from JSON, and the backing values are what the document publishes.
-   - Behavior change: paging outside 1–200 is now **rejected** (`422`, `/limit`
-     `mapping.maximum`) instead of silently clamped — documented and covered by a scenario.
+2. **Request DTOs, mapped and validated by Symfony; ingot keeps the documents.**
+   (First built on an ingot-based `#[MapRequest]` mechanism, then rebuilt on Symfony's own
+   at the user's direction — the envelope is framework work, the documents inside it are
+   the engine's.) Controllers take `#[MapRequestPayload]` / `#[MapQueryString]` DTOs from
+   `src/Http/Request/`; `symfony/validator` + `symfony/serializer` were added, and every
+   Symfony constraint sits on a promoted constructor property.
+   - **The bridge is a pair of custom constraints** (`src/Http/Request/Constraint/`):
+     `ValidFormDefinition` (attribute on `CreateFormRequest::$definition`) hands the decoded
+     document to `FormDefinitionProcessor`, and `ValidFormValues` — which carries the form's
+     definition and mode — is applied by hand inside the row lock, where the definition is
+     known. Findings become violations carrying the engine's exact JSON Pointer in a
+     violation parameter (`ViolationPointer::PARAMETER`), because Symfony's property-path
+     syntax cannot round-trip a pointer: a field may legitimately be named `a.b`.
+     `FormController` lost its manual `prefixPointers()` — the validator context already
+     roots the definition's findings under `/definition`.
+   - `ViolationReportFactory` maps violations back into the `errors[]` shape: readable
+     violation codes win (engine findings), then a constraint's `payload: ['code' => …]`
+     (e.g. `form.expire_date.past`), then the constraint's own name (`request.range`), and
+     `request.type` when the payload could not be mapped at all. Symfony's opaque UUID
+     codes never reach a client.
+   - **ingot now receives structures, not JSON text**: `FormDefinitionProcessor::parse()`
+     takes an array, `FormDataValidator` takes decoded `\stdClass` values. One boundary
+     detail is documented in code: PHP arrays cannot say "JSON object", so `parse()`
+     re-decodes once (an *empty* nested object is the one thing that cannot survive), and
+     the values endpoint decodes with `assoc: false` so `{}` stays an object.
+   - **Value objects**: ids are `Uuid` everywhere above SQL — route arguments (resolved by
+     Symfony), repository methods, `FormRecord`/`FormListItem`, the schema cache key.
+   - `DeriveMode` became a **backed** enum (`strict`/`draft`). The DTO takes the wire value
+     with `#[Assert\Choice]` rather than the enum type, so a wrong mode is answered with
+     the accepted list instead of a mapping message naming internal PHP types; `mode()`
+     hands the controller the enum.
+   - Required members are nullable + `#[Assert\NotNull]` (so "missing" reports as missing,
+     not as a type mismatch) with accessors returning the non-null value.
+   - Behavior changes: paging outside 1–200 is **rejected** (`422`, `/limit`,
+     `request.range`) instead of silently clamped; an undeclared body member is refused
+     (`ALLOW_EXTRA_ATTRIBUTES => false` → `request.unexpected_key`); `expireDate` parsing is
+     now Symfony's (lenient about non-RFC-3339 strings a date parser accepts, where ingot's
+     `#[Format]` was strict) — the published contract still documents `format: date-time`.
+   - The schema generation in `tools/build-docs.php` was rewritten accordingly: the marker
+     is `x-dto-schema`, and schemas come from the DTO's constructor, its `Assert`
+     constraints and swagger-php's `#[OA\Property]` description/example/type/format (the
+     ecosystem attribute, the one NelmioApiDocBundle consumes — a bespoke `ApiProperty`
+     was written first and dropped). Only prose and client hints may sit next to a marker —
+     anything else is a hard error, since it would compete with the DTO for the shape.
+   - DTO members are **non-nullable**: an instance means a complete request. A missing or
+     mistyped member never reaches the constructor, and `ViolationReportFactory` words that
+     failure in the wire's terms ("This member is missing or is not an RFC 3339 date-time.")
+     instead of Symfony's PHP-typed message.
+   - `SaveFormDataRequest` + `SaveFormDataRequestDenormalizer`: the submitted values are a
+     document, not named members, so the DTO takes the whole body. Two details make it
+     honest — the payload is decoded with `JsonDecode::ASSOCIATIVE => false` (Symfony's
+     JsonEncoder defaults to arrays, which cannot tell `{}` from `[]`, and these values are
+     stored verbatim), and a non-object body is *collected* into
+     `not_normalizable_value_exceptions` rather than thrown, which is how the serializer
+     turns it into a 422 violation instead of a 500.
+   - `GET /api/forms` (listing) was dropped at the user's request together with its DTO,
+     repository method, `FormListItem`, spec entry and tests — nothing presents such a list
+     yet.
 3. **Contract tests validate requests too**, against the generated document. Each scenario
    declares whether its request matches the contract; the ones that deliberately break it
    (malformed JSON, unknown body key, `limit=500`, `mode=bogus`) must be *refused* by the
@@ -161,9 +202,55 @@ step 1 when it happens), auth, deployment pipeline (the CI gate is build+test on
   operation+status pairs with the scenario list — no runtime accumulation, no
   test-ordering dependency. Each scenario also asserts the actual status it produced,
   so a scenario cannot silently cover a different response.
-- `Source::array()` needs an explicit object for query strings: PHP cannot tell an empty
-  map from an empty list, so `[]` mapped as a JSON array and every parameter-less request
-  failed with `mapping.type` until the resolver cast it to `(object)`.
+- `Source::array()` hands data to the engine untouched (JSON sources decode with
+  `assoc: false`), so anything given to ingot must use `\stdClass` for JSON objects —
+  otherwise the opis schema pre-check sees PHP arrays and reports `type` violations.
+- Symfony's `#[MapQueryString]` answers a bad query string with **404** by default;
+  both query DTOs set `validationFailedStatusCode: 422`.
+- `Assert\*` attributes target properties, not parameters: the docs generator reads them
+  from the promoted property (`ReflectionClass::getProperty()`), which is also where
+  Symfony's validator looks.
+- Symfony is pinned to `^7.4`; unconstrained transitive components resolve to 8.x, which
+  their own constraints allow, so the HTTP stack (http-kernel, http-foundation, routing,
+  event-dispatcher) is required explicitly to keep it on one line.
+
+### Stage 2 ended on a different stack than it started
+
+Two more directions arrived while the contract work was landing, and both are implemented:
+
+- **NelmioApiDocBundle generates the contract.** The hand-written `openapi.yaml` and the
+  DTO-schema injector in `tools/build-docs.php` are gone: Nelmio reads the routes, the
+  request DTOs behind `#[MapRequestPayload]`/`#[MapQueryString]` (Assert constraints and
+  swagger-php `#[OA\Property]` prose included) and the `#[OA\Response]` attributes on the
+  controllers. `config/packages/nelmio_api_doc.yaml` carries only what no route can state:
+  the document identity and the shared shapes (`Problem`, `FormEnvelope`, the reusable
+  400/404/410 responses). `make docs` = `nelmio:apidoc:dump --format=yaml` into
+  `docs/openapi.yaml` + `tools/build-docs.php`, now only a Markdown renderer; `make openapi`
+  validates the *dumped* document. Details worth remembering: named examples need a
+  `summary` (swagger-php refuses otherwise), problem responses must declare
+  `application/problem+json` explicitly (`OA\MediaType`, not `OA\JsonContent`), and the
+  values endpoint overrides its request body to `FormValues` because the DTO carrying the
+  document is not the wire shape.
+- **Doctrine ORM instead of hand-written DBAL SQL**, so the service installs on any
+  supported platform. One `Form` entity replaces `FormRecord` and owns the transitions
+  (`saveDraft()`, `confirm()`, `status()`, `hasExpired()`); `FormRepository` keeps its
+  contract but runs on the EntityManager, with `LockMode::PESSIMISTIC_WRITE` in place of
+  `SELECT … FOR UPDATE` and a DQL bulk delete (plus `clear()`, since a bulk delete bypasses
+  the identity map) in place of `DELETE … WHERE expire_date <= now()`. Portability drove
+  three mapping decisions: UTC `datetime_immutable` instead of `timestamptz`, `text`
+  instead of `jsonb` (nothing queries inside the documents any more, and storing the exact
+  validated JSON keeps `{}` from degrading into `[]`), and a migration built through the
+  schema API instead of raw SQL. doctrine-bundle 3.x also dropped `use_savepoints`,
+  `auto_generate_proxy_classes` and `report_fields_where_declared` from its config.
+
+## Next step (not implemented): Symfony Forms / constraints derived from a definition
+
+The user's direction for stage 3: keep ingot's constraints for the basic semantics of a
+definition and its values, and build a **Symfony Form (or constraint set) from the stored
+definition** for the richer validation a real form needs. `ValidFormValues` is the seam —
+it already owns "validate these values against this definition", so a second implementation
+can sit behind it without touching controllers, and `GET /api/forms/{id}/schema` keeps
+serving the derived JSON Schema to clients.
 - Infection scoping to the unit suite is done via
   `--test-framework-options="--testsuite=unit"` on the CLI (the config file has no such
   key), kept in the `make mutation` recipe.

@@ -164,14 +164,6 @@ final class OpenApiComplianceTest extends WebTestCase
                 // The request DTO closes the body, and so does the published schema
                 $test->postJson('/api/forms', '{"expireDate": "2999-01-01T00:00:00+00:00", "definition": {}, "bogus": 1}');
             }],
-            ['GET', '/api/forms', 200, true, '', static function (self $test): void {
-                $test->createForm();
-                $test->client->request('GET', '/api/forms?limit=10&offset=0');
-            }],
-            ['GET', '/api/forms', 422, false, '', static function (self $test): void {
-                // 500 rows is past the documented maximum of 200
-                $test->client->request('GET', '/api/forms?limit=500');
-            }],
             ['GET', '/api/forms/{id}', 200, true, '', static function (self $test): void {
                 $test->client->request('GET', \sprintf('/api/forms/%s', $test->createForm()));
             }],
@@ -358,7 +350,7 @@ final class OpenApiComplianceTest extends WebTestCase
         $id = Uuid::v7()->toRfc4122();
         $repository = self::getContainer()->get(FormRepository::class);
         self::assertInstanceOf(FormRepository::class, $repository);
-        $repository->insert($id, json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR), new \DateTimeImmutable('-1 hour'));
+        $repository->insert(Uuid::fromString($id), json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR), new \DateTimeImmutable('-1 hour'));
 
         return $id;
     }
