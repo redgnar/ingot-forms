@@ -210,6 +210,13 @@ step 1 when it happens), auth, deployment pipeline (the CI gate is build+test on
 - `Assert\*` attributes target properties, not parameters: the docs generator reads them
   from the promoted property (`ReflectionClass::getProperty()`), which is also where
   Symfony's validator looks.
+- `qossmic/deptrac` (abandoned) ships its analysis as a PHAR with an **older bundled
+  php-parser**, so it printed `Syntax error, unexpected T_OBJECT_OPERATOR` for the PHP 8.4
+  `new X()->y()` form — and silently *skipped* those files while still reporting zero
+  errors, a hole in the gate rather than mere noise. Replaced by the maintained
+  `deptrac/deptrac` ^4.7: the syntax errors are gone, the files are analysed (Uncovered
+  227 → 271, Allowed 36 → 42, Violations still 0) and `composer audit` no longer reports an
+  abandoned package.
 - Symfony is pinned to `^7.4`; unconstrained transitive components resolve to 8.x, which
   their own constraints allow, so the HTTP stack (http-kernel, http-foundation, routing,
   event-dispatcher) is required explicitly to keep it on one line.

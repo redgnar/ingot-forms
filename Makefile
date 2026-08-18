@@ -69,7 +69,7 @@ cs-fix:
 validate:
 	$(RUN) composer validate --strict
 
-audit: ## Known security vulnerabilities in dependencies (abandoned transitive dev deps: report, don't fail)
+audit: ## Known security vulnerabilities in dependencies (abandoned packages: report, don't fail)
 	$(RUN) composer audit --abandoned=report
 
 deptrac: ## Module boundaries (deptrac.yaml)
