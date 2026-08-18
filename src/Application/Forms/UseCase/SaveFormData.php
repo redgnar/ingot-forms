@@ -22,9 +22,9 @@ use App\Domain\Forms\ValueObject\FormId;
 final class SaveFormData
 {
     public function __construct(
-        private readonly Transactions $transactions,
-        private readonly FormRepository $forms,
-        private readonly ValuesValidator $values,
+        private readonly Transactions    $transactions,
+        private readonly FormRepository  $forms,
+        private readonly ValuesValidator $valuesValidator,
     ) {}
 
     /**
@@ -35,7 +35,7 @@ final class SaveFormData
     {
         $this->transactions->run(function () use ($id, $values): void {
             $form = $this->forms->getForUpdate($id);
-            $form->saveDraft($values, $this->values);
+            $form->saveDraft($values, $this->valuesValidator);
             $this->forms->save($form);
         });
     }

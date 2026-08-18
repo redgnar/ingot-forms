@@ -19,9 +19,9 @@ use App\Domain\Forms\ValueObject\FormId;
 final class ConfirmForm
 {
     public function __construct(
-        private readonly Transactions $transactions,
-        private readonly FormRepository $forms,
-        private readonly ValuesValidator $values,
+        private readonly Transactions    $transactions,
+        private readonly FormRepository  $forms,
+        private readonly ValuesValidator $valuesValidator,
     ) {}
 
     /**
@@ -33,7 +33,7 @@ final class ConfirmForm
     {
         $this->transactions->run(function () use ($id): void {
             $form = $this->forms->getForUpdate($id);
-            $form->confirm($this->values);
+            $form->confirm($this->valuesValidator);
             $this->forms->save($form);
         });
     }
