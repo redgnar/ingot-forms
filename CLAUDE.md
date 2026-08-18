@@ -111,21 +111,22 @@ Rules that follow from it, and that the tooling checks:
   the reading back happens there and then — a definition is whole from the moment it exists,
   with no deferred work hidden behind an accessor.
 - **The aggregate is not an entity.** Doctrine maps `FormRecord` — a row with public fields,
-  ORM attributes and no behaviour — and never the model. A read builds a form from a record
-  (`toForm()`), a write copies it back (`write()`), and `Form::fromState()` restores one
-  without judging or recording anything, because reading is not something that happens to a
-  form. That costs a mapping in both directions and buys a model with no mapping, no
-  constructor to bypass and no fix-up after a read. Every field is copied by hand, so
-  `testEveryPieceOfAFormSurvivesTheRoundTrip` is what stops a forgotten one from being
-  discovered in production.
+  ORM attributes, no behaviour and no idea a form exists — and never the model. Both
+  directions of the translation live in `DoctrineFormRepository`, and `Form::fromState()`
+  restores what was read without judging or recording anything, because reading is not
+  something that happens to a form. That costs a mapping in both directions and buys a model
+  with no mapping, no constructor to bypass and no fix-up after a read;
+  `testEveryPieceOfAFormSurvivesTheRoundTrip` drives a form through storage and back so a
+  half-mapped field is caught here rather than in production.
 - **The port stays a collection** (`add`, `get`, `getForUpdate`, `save(Form)`, `remove`,
   `purgeExpired`), and every method that writes names the form it writes.
-- **Transitions record what happened.** Each one appends a `FormEvent` (past tense, with the
-  moment it happened at); `releaseEvents()` hands them over and forgets them, and the
-  repository takes them in the same step that makes the change durable. Nothing consumes
-  them yet — that call is the seam where an audit log or a message would be appended, and
-  it keeps a long-lived form from carrying one transition into the next. A refused
-  transition records nothing.
+- **Transitions record what happened, and the write follows the record.** Each one appends a
+  `FormEvent` — past tense, the moment it happened at, and whatever it changed (`DraftSaved`
+  carries its `Values`); `releaseEvents()` hands them over and forgets them. `save()` applies
+  them onto the row instead of copying state across, so a column changes because something
+  happened, and a `match` without a default means a transition nobody taught the adapter
+  about stops the write rather than vanishing from it. An insert is the exception: a new row
+  is written whole. A refused transition records nothing.
 - **Exceptions live in `Exception/` next to the layer that raises them**, carry the id they
   are about, and say nothing about HTTP. Which status a refusal deserves is decided in
   `ProblemExceptionListener` (or in an action, where the same state means different things —

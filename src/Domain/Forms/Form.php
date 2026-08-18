@@ -118,7 +118,7 @@ final class Form
 
         $this->data = Values::fromDecoded($values);
         $this->dataSavedAt = self::utc($now ?? new \DateTimeImmutable());
-        $this->events[] = new DraftSaved($this->id(), $this->dataSavedAt);
+        $this->events[] = new DraftSaved($this->id(), $this->dataSavedAt, $this->data);
     }
 
     /**

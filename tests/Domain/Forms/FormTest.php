@@ -276,6 +276,8 @@ final class FormTest extends TestCase
         self::assertCount(3, $events);
         self::assertTrue($form->id()->equals($events[1]->formId));
         self::assertSame($form->dataSavedAt(), $events[1]->occurredAt);
+        // the draft event carries what it stored, so a writer needs nothing else
+        self::assertSame('{"email":"ada@example.com"}', (string) $events[1]->values);
         self::assertSame($form->confirmedAt(), $events[2]->occurredAt);
         self::assertSame($form->createdAt(), $events[0]->occurredAt);
 
