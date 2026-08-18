@@ -47,7 +47,10 @@ deletes them physically. No templates, no versioning, no multi-submission — de
     exact JSON Pointer preserved via `ViolationPointer::PARAMETER`.
   - `ViolationReportFactory` turns violations back into the one `errors[]` shape, so the
     error format never depends on which engine refused the request.
-  - Bodies are closed (`ALLOW_EXTRA_ATTRIBUTES => false` → `request.unexpected_key`); query
+  - **JSON only**: every body-mapping attribute sets `acceptFormat: 'json'`, so any other
+    media type (or none) is refused with `415 unsupported-media-type` before mapping —
+    without it Symfony would happily map a form-encoded payload. Bodies are also closed
+    (`ALLOW_EXTRA_ATTRIBUTES => false` → `request.unexpected_key`); query
     strings ignore unknown parameters, as HTTP clients expect. The submitted values of
     `PUT …/data` are a document rather than named members, so `SaveFormDataRequest` is
     mapped whole by `SaveFormDataRequestDenormalizer` (decoded with

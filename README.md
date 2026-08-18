@@ -54,9 +54,9 @@ Requests are mapped into **DTOs by Symfony** before a controller runs
 (`#[MapRequestPayload]`, `#[MapQueryString]` over `src/Http/Request/`), and validated by
 `symfony/validator`. Every DTO member is non-nullable, so an instance means a complete
 request; what the mapper could not supply is reported at its pointer before validation
-runs. Ids are `Uuid` value objects, bodies are closed (an undeclared member is
-`request.unexpected_key`), and query strings ignore unknown parameters the way HTTP
-clients expect. Members document themselves with swagger-php's `#[OA\Property]`
+runs. Ids are `Uuid` value objects, request bodies are accepted as `application/json` and nothing
+else (`415` otherwise), bodies are closed (an undeclared member is `request.unexpected_key`),
+and query strings ignore unknown parameters the way HTTP clients expect. Members document themselves with swagger-php's `#[OA\Property]`
 (description, example, type/format), which is what the published schema is generated
 from.
 
@@ -80,7 +80,8 @@ depends on which engine refused the request.
 | `GET /api/forms/{id}/data` | The current values (`404 form-data-empty` when none). |
 
 Error status map: `400` malformed JSON, `404` unknown form, `409` state conflicts,
-`410` expired form (every endpoint), `422` validation reports, `500` opaque fallback.
+`410` expired form (every endpoint), `415` a request body that is not `application/json`,
+`422` validation reports, `500` opaque fallback.
 
 ## API contract
 

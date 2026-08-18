@@ -75,6 +75,7 @@ final class FormDataController extends AbstractController
             ],
         ),
     )]
+    #[OA\Response(response: 415, ref: '#/components/responses/UnsupportedMediaType')]
     #[OA\Response(response: 410, ref: '#/components/responses/FormGone')]
     #[OA\Response(
         response: 422,
@@ -100,10 +101,13 @@ final class FormDataController extends AbstractController
     )]
     public function save(
         Uuid $id,
-        // The serializer decodes JSON into arrays by default, which cannot tell
-        // an empty object from an empty list — these values are stored verbatim,
-        // so decode them the way JSON means them.
-        #[MapRequestPayload(serializationContext: [JsonDecode::ASSOCIATIVE => false])]
+        // JSON only. The serializer decodes it into arrays by default, which
+        // cannot tell an empty object from an empty list — these values are
+        // stored verbatim, so decode them the way JSON means them.
+        #[MapRequestPayload(
+            acceptFormat: 'json',
+            serializationContext: [JsonDecode::ASSOCIATIVE => false],
+        )]
         SaveFormDataRequest $request,
     ): JsonResponse {
         $values = $request->values;

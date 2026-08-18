@@ -98,6 +98,23 @@ final class FormApiTest extends WebTestCase
         self::assertSame('form.expire_date.past', $error['code']);
     }
 
+    public function testOnlyJsonBodiesAreAccepted(): void
+    {
+        // GIVEN a perfectly good payload sent as a form
+        $payload = json_encode([
+            'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
+            'definition' => self::DEFINITION,
+        ], \JSON_THROW_ON_ERROR);
+
+        // WHEN
+        $this->client->request('POST', '/api/forms', server: ['CONTENT_TYPE' => 'application/x-www-form-urlencoded'], content: $payload);
+
+        // THEN the media type is refused before anything is mapped
+        self::assertResponseStatusCodeSame(415);
+        self::assertResponseHeaderSame('Content-Type', 'application/problem+json');
+        self::assertSame('urn:problem:ingot-forms:unsupported-media-type', $this->responseBody()['type']);
+    }
+
     public function testMissingBodyMemberIsReportedAtItsPointer(): void
     {
         // GIVEN a body without the required expireDate

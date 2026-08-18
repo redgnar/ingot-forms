@@ -156,6 +156,10 @@ final class OpenApiComplianceTest extends WebTestCase
             ['POST', '/api/forms', 400, false, '', static function (self $test): void {
                 $test->postJson('/api/forms', '{broken');
             }],
+            ['POST', '/api/forms', 415, false, '', static function (self $test): void {
+                // Only JSON bodies are accepted, and the contract says so
+                $test->client->request('POST', '/api/forms', server: ['CONTENT_TYPE' => 'text/plain'], content: self::createPayload());
+            }],
             ['POST', '/api/forms', 422, true, 'expired', static function (self $test): void {
                 // A past date is a valid date-time — only the app can know it is too late
                 $test->postJson('/api/forms', self::createPayload(new \DateTimeImmutable('-1 hour')));
@@ -206,6 +210,9 @@ final class OpenApiComplianceTest extends WebTestCase
             }],
             ['PUT', '/api/forms/{id}/data', 409, true, '', static function (self $test): void {
                 $test->putJson(\sprintf('/api/forms/%s/data', $test->confirmedForm()), self::PARTIAL_DATA);
+            }],
+            ['PUT', '/api/forms/{id}/data', 415, false, '', static function (self $test): void {
+                $test->client->request('PUT', \sprintf('/api/forms/%s/data', $test->createForm()), server: ['CONTENT_TYPE' => 'text/plain'], content: self::PARTIAL_DATA);
             }],
             ['PUT', '/api/forms/{id}/data', 410, true, '', static function (self $test): void {
                 $test->putJson(\sprintf('/api/forms/%s/data', $test->expiredForm()), self::PARTIAL_DATA);

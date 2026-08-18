@@ -136,6 +136,19 @@ nelmio_api_doc:
                                         type: 'urn:problem:ingot-forms:malformed-json'
                                         title: Request body is not valid JSON.
                                         status: 400
+                UnsupportedMediaType:
+                    description: The request body is not `application/json` — no other media type is accepted.
+                    content:
+                        application/problem+json:
+                            schema:
+                                $ref: '#/components/schemas/Problem'
+                            examples:
+                                unsupported-media-type:
+                                    summary: A form-encoded or missing content type
+                                    value:
+                                        type: 'urn:problem:ingot-forms:unsupported-media-type'
+                                        title: Only application/json request bodies are accepted.
+                                        status: 415
                 FormNotFound:
                     description: No form with this id.
                     content:

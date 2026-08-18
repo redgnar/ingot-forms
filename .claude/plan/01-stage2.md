@@ -214,6 +214,12 @@ step 1 when it happens), auth, deployment pipeline (the CI gate is build+test on
   their own constraints allow, so the HTTP stack (http-kernel, http-foundation, routing,
   event-dispatcher) is required explicitly to keep it on one line.
 
+- **Request bodies are `application/json` or nothing**: `acceptFormat: 'json'` on both
+  `#[MapRequestPayload]` attributes closes a hole Symfony leaves open by default — a
+  form-encoded payload was being mapped happily. A wrong or missing media type is now
+  `415 unsupported-media-type` in the usual problem+json shape, documented as a shared
+  response and covered by a scenario on both body endpoints.
+
 ### Stage 2 ended on a different stack than it started
 
 Two more directions arrived while the contract work was landing, and both are implemented:

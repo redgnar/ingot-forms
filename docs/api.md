@@ -15,11 +15,11 @@ this reference cannot drift from the implementation.
 | Method & path | Operation | Purpose | Responses |
 |---|---|---|---|
 | [`GET /api/forms/{id}/schema`](#get-apiformsidschema) | `getFormDataSchema` | Read the values schema derived from the definition | `200`, `404`, `410`, `422` |
-| [`POST /api/forms`](#post-apiforms) | `createForm` | Create a form | `201`, `400`, `422` |
+| [`POST /api/forms`](#post-apiforms) | `createForm` | Create a form | `201`, `400`, `415`, `422` |
 | [`GET /api/forms/{id}`](#get-apiformsid) | `getForm` | Read a form | `200`, `404`, `410` |
 | [`DELETE /api/forms/{id}`](#delete-apiformsid) | `deleteForm` | Delete a form | `204`, `404`, `410` |
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
-| [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `200`, `400`, `404`, `409`, `410`, `422` |
+| [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `200`, `400`, `404`, `409`, `415`, `410`, `422` |
 | [`POST /api/forms/{id}/confirm`](#post-apiformsidconfirm) | `confirmForm` | Confirm the stored values | `200`, `404`, `409`, `410`, `422` |
 
 ## Operations
@@ -60,6 +60,7 @@ The definition is immutable after creation — changing it means delete and recr
 |---|---|---|---|
 | `201` | `application/json` | [`FormEnvelope`](#formenvelope) | Form created; `Location` points at the new resource. |
 | `400` | `application/problem+json` | [`Problem`](#problem) | The request body is not valid JSON, or its media type is missing. |
+| `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | The request envelope or the definition is not valid. |
 
 ### GET /api/forms/{id}
@@ -140,6 +141,7 @@ Repeatable; overwrites the previous draft. Values are validated against the draf
 | `400` | `application/problem+json` | [`Problem`](#problem) | The request body is not valid JSON, or its media type is missing. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
 | `409` | `application/problem+json` | [`Problem`](#problem) | The form is confirmed and locked. |
+| `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | The body is not a JSON object, or the values break the form-s own contract. |
 

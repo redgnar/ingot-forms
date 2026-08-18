@@ -83,6 +83,8 @@ paths:
                 $ref: '#/components/schemas/FormEnvelope'
         '400':
           $ref: '#/components/responses/MalformedJson'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
         '422':
           description: 'The request envelope or the definition is not valid.'
           content:
@@ -208,6 +210,8 @@ paths:
                 form-locked:
                   summary: 'Editing a confirmed form'
                   value: { type: 'urn:problem:ingot-forms:form-locked', title: 'Form data is confirmed and can no longer be edited.', status: 409 }
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
         '410':
           $ref: '#/components/responses/FormGone'
         '422':
@@ -436,6 +440,19 @@ components:
                 type: 'urn:problem:ingot-forms:malformed-json'
                 title: 'Request body is not valid JSON.'
                 status: 400
+    UnsupportedMediaType:
+      description: 'The request body is not `application/json` — no other media type is accepted.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            unsupported-media-type:
+              summary: 'A form-encoded or missing content type'
+              value:
+                type: 'urn:problem:ingot-forms:unsupported-media-type'
+                title: 'Only application/json request bodies are accepted.'
+                status: 415
     FormNotFound:
       description: 'No form with this id.'
       content:

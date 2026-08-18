@@ -43,6 +43,7 @@ final class FormController extends AbstractController
         content: new OA\JsonContent(ref: '#/components/schemas/FormEnvelope'),
     )]
     #[OA\Response(response: 400, ref: '#/components/responses/MalformedJson')]
+    #[OA\Response(response: 415, ref: '#/components/responses/UnsupportedMediaType')]
     #[OA\Response(
         response: 422,
         description: 'The request envelope or the definition is not valid.',
@@ -79,9 +80,13 @@ final class FormController extends AbstractController
         ),
     )]
     public function create(
-        // The body is a closed contract: a member the DTO does not declare is
-        // a client bug worth reporting, and the published schema says so too.
-        #[MapRequestPayload(serializationContext: [AbstractNormalizer::ALLOW_EXTRA_ATTRIBUTES => false])]
+        // JSON only, and a closed contract: a media type this API does not speak
+        // is refused before mapping, and a member the DTO does not declare is a
+        // client bug worth reporting — the published schema says both.
+        #[MapRequestPayload(
+            acceptFormat: 'json',
+            serializationContext: [AbstractNormalizer::ALLOW_EXTRA_ATTRIBUTES => false],
+        )]
         CreateFormRequest $request,
     ): JsonResponse {
         // The definition already passed the engine during envelope validation

@@ -16,6 +16,7 @@ use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\HttpKernel\Exception\UnsupportedMediaTypeHttpException;
 use Symfony\Component\Serializer\Exception\ExtraAttributesException;
 use Symfony\Component\Serializer\Exception\NotEncodableValueException;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
@@ -94,6 +95,17 @@ final class ProblemExceptionListener
                     ? $this->factory->fromReport($throwable->status, $throwable->type, $throwable->title, $throwable->report, $throwable->detail)
                     : $this->factory->simple($throwable->status, $throwable->type, $throwable->title, $throwable->detail),
             );
+
+            return;
+        }
+
+        if ($throwable instanceof UnsupportedMediaTypeHttpException) {
+            $event->setResponse($this->factory->simple(
+                415,
+                'unsupported-media-type',
+                'Only application/json request bodies are accepted.',
+                $throwable->getMessage(),
+            ));
 
             return;
         }
