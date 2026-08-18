@@ -10,11 +10,11 @@ servers:
   -
     url: /
 paths:
-  '/api/forms/{id}/schema':
-    get:
-      summary: 'Read the values schema derived from the definition'
-      description: 'The JSON Schema 2020-12 document the server validates submitted values against — shippable to a frontend validator as-is. The draft variant drops `required` (and the required-driven non-empty rule) so partial progress validates.'
-      operationId: getFormDataSchema
+  '/api/forms/{id}/confirm':
+    post:
+      summary: 'Confirm the stored values'
+      description: 'Validates the stored data against the full strict schema and locks the form forever. A definition containing an unknown (plugin) field type cannot be confirmed — the server will not vouch for a value contract it does not know.'
+      operationId: confirmForm
       parameters:
         -
           name: id
@@ -23,41 +23,39 @@ paths:
           schema:
             type: string
             pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
-        -
-          name: mode
-          in: query
-          description: 'Which contract the returned schema enforces: `strict` is the confirmation contract, `draft` relaxes what would block storing partial progress.'
-          required: false
-          schema:
-            description: 'Which contract the returned schema enforces: `strict` is the confirmation contract, `draft` relaxes what would block storing partial progress.'
-            type: string
-            example: draft
-            default: strict
-            enum:
-              - strict
-              - draft
-          example: draft
       responses:
-        '200':
-          description: 'The derived values schema.'
-          content:
-            application/schema+json:
-              schema:
-                $ref: '#/components/schemas/DataSchema'
+        '204':
+          description: 'Form confirmed and locked. No body.'
         '404':
           $ref: '#/components/responses/FormNotFound'
-        '410':
-          $ref: '#/components/responses/FormGone'
-        '422':
-          description: 'Unknown schema mode.'
+        '409':
+          description: 'Nothing to confirm, or already confirmed.'
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
               examples:
-                request-not-valid:
-                  summary: 'A mode outside the enum'
-                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /mode, code: request.choice, message: 'mode must be one of: strict, draft.', input: bogus }] }
+                form-data-empty:
+                  summary: 'No draft to confirm'
+                  value: { type: 'urn:problem:ingot-forms:form-data-empty', title: 'There is no data to confirm.', status: 409 }
+                form-already-confirmed:
+                  summary: 'Confirming twice'
+                  value: { type: 'urn:problem:ingot-forms:form-already-confirmed', title: 'Form data is already confirmed.', status: 409 }
+        '410':
+          $ref: '#/components/responses/FormGone'
+        '422':
+          description: 'The stored data fails the strict contract.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                required-missing:
+                  summary: 'A required field was never filled in'
+                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: '', code: schema.required, message: 'The required properties (email, country) are missing' }] }
+                unknown-field-type:
+                  summary: 'The definition carries a plugin field the server cannot vouch for'
+                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /fields/3/type, code: form.data.unknown-field-type, message: 'Field "sig" has unknown type "signature" — its value contract cannot be confirmed.', input: signature }] }
   /api/forms:
     post:
       summary: 'Create a form'
@@ -220,11 +218,11 @@ paths:
                 form-data-not-valid:
                   summary: 'A value the derived schema refuses'
                   value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /age, code: schema.type, message: 'The data (string) must match the type: number' }] }
-  '/api/forms/{id}/confirm':
-    post:
-      summary: 'Confirm the stored values'
-      description: 'Validates the stored data against the full strict schema and locks the form forever. A definition containing an unknown (plugin) field type cannot be confirmed — the server will not vouch for a value contract it does not know.'
-      operationId: confirmForm
+  '/api/forms/{id}/schema':
+    get:
+      summary: 'Read the values schema derived from the definition'
+      description: 'The JSON Schema 2020-12 document the server validates submitted values against — shippable to a frontend validator as-is. The draft variant drops `required` (and the required-driven non-empty rule) so partial progress validates.'
+      operationId: getFormDataSchema
       parameters:
         -
           name: id
@@ -233,39 +231,41 @@ paths:
           schema:
             type: string
             pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+        -
+          name: mode
+          in: query
+          description: 'Which contract the returned schema enforces: `strict` is the confirmation contract, `draft` relaxes what would block storing partial progress.'
+          required: false
+          schema:
+            description: 'Which contract the returned schema enforces: `strict` is the confirmation contract, `draft` relaxes what would block storing partial progress.'
+            type: string
+            example: draft
+            default: strict
+            enum:
+              - strict
+              - draft
+          example: draft
       responses:
-        '204':
-          description: 'Form confirmed and locked. No body.'
+        '200':
+          description: 'The derived values schema.'
+          content:
+            application/schema+json:
+              schema:
+                $ref: '#/components/schemas/DataSchema'
         '404':
           $ref: '#/components/responses/FormNotFound'
-        '409':
-          description: 'Nothing to confirm, or already confirmed.'
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-              examples:
-                form-data-empty:
-                  summary: 'No draft to confirm'
-                  value: { type: 'urn:problem:ingot-forms:form-data-empty', title: 'There is no data to confirm.', status: 409 }
-                form-already-confirmed:
-                  summary: 'Confirming twice'
-                  value: { type: 'urn:problem:ingot-forms:form-already-confirmed', title: 'Form data is already confirmed.', status: 409 }
         '410':
           $ref: '#/components/responses/FormGone'
         '422':
-          description: 'The stored data fails the strict contract.'
+          description: 'Unknown schema mode.'
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
               examples:
-                required-missing:
-                  summary: 'A required field was never filled in'
-                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: '', code: schema.required, message: 'The required properties (email, country) are missing' }] }
-                unknown-field-type:
-                  summary: 'The definition carries a plugin field the server cannot vouch for'
-                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /fields/3/type, code: form.data.unknown-field-type, message: 'Field "sig" has unknown type "signature" — its value contract cannot be confirmed.', input: signature }] }
+                request-not-valid:
+                  summary: 'A mode outside the enum'
+                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /mode, code: request.choice, message: 'mode must be one of: strict, draft.', input: bogus }] }
 components:
   schemas:
     FormStatus:
@@ -375,17 +375,6 @@ components:
             $ref: '#/components/schemas/ProblemError'
       type: object
       additionalProperties: false
-    DataSchemaQuery:
-      properties:
-        mode:
-          description: 'Which contract the returned schema enforces: `strict` is the confirmation contract, `draft` relaxes what would block storing partial progress.'
-          type: string
-          example: draft
-          default: strict
-          enum:
-            - strict
-            - draft
-      type: object
     CreateFormRequest:
       required:
         - expireDate
@@ -408,6 +397,17 @@ components:
                 type: text
                 name: email
                 required: true
+      type: object
+    DataSchemaQuery:
+      properties:
+        mode:
+          description: 'Which contract the returned schema enforces: `strict` is the confirmation contract, `draft` relaxes what would block storing partial progress.'
+          type: string
+          example: draft
+          default: strict
+          enum:
+            - strict
+            - draft
       type: object
     stdClass:
       type: object

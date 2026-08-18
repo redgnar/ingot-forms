@@ -13,8 +13,10 @@ doctrine:
             auto_mapping: false
         mappings:
             Forms:
-                type: attribute
+                # XML, not attributes: the aggregate is domain code and says
+                # nothing about how it is stored.
+                type: xml
                 is_bundle: false
-                dir: '%kernel.project_dir%/src/Infrastructure/Persistence'
-                prefix: 'App\Infrastructure\Persistence'
+                dir: '%kernel.project_dir%/config/doctrine'
+                prefix: 'App\Domain\Forms'
                 alias: Forms

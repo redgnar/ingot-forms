@@ -14,37 +14,37 @@ this reference cannot drift from the implementation.
 
 | Method & path | Operation | Purpose | Responses |
 |---|---|---|---|
-| [`GET /api/forms/{id}/schema`](#get-apiformsidschema) | `getFormDataSchema` | Read the values schema derived from the definition | `200`, `404`, `410`, `422` |
+| [`POST /api/forms/{id}/confirm`](#post-apiformsidconfirm) | `confirmForm` | Confirm the stored values | `204`, `404`, `409`, `410`, `422` |
 | [`POST /api/forms`](#post-apiforms) | `createForm` | Create a form | `201`, `400`, `415`, `422` |
 | [`GET /api/forms/{id}`](#get-apiformsid) | `getForm` | Read a form | `200`, `404`, `410` |
 | [`DELETE /api/forms/{id}`](#delete-apiformsid) | `deleteForm` | Delete a form | `204`, `404`, `410` |
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
 | [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `415`, `410`, `422` |
-| [`POST /api/forms/{id}/confirm`](#post-apiformsidconfirm) | `confirmForm` | Confirm the stored values | `204`, `404`, `409`, `410`, `422` |
+| [`GET /api/forms/{id}/schema`](#get-apiformsidschema) | `getFormDataSchema` | Read the values schema derived from the definition | `200`, `404`, `410`, `422` |
 
 ## Operations
 
-### GET /api/forms/{id}/schema
+### POST /api/forms/{id}/confirm
 
-`operationId: getFormDataSchema` — Read the values schema derived from the definition
+`operationId: confirmForm` — Confirm the stored values
 
-The JSON Schema 2020-12 document the server validates submitted values against — shippable to a frontend validator as-is. The draft variant drops `required` (and the required-driven non-empty rule) so partial progress validates.
+Validates the stored data against the full strict schema and locks the form forever. A definition containing an unknown (plugin) field type cannot be confirmed — the server will not vouch for a value contract it does not know.
 
 **Parameters**
 
 | Name | In | Required | Type | Description |
 |---|---|---|---|---|
 | `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
-| `mode` | query | no | `string` (`strict` \| `draft`) | Which contract the returned schema enforces: `strict` is the confirmation contract, `draft` relaxes what would block storing partial progress. |
 
 **Responses**
 
 | Status | Content type | Body | Description |
 |---|---|---|---|
-| `200` | `application/schema+json` | [`DataSchema`](#dataschema) | The derived values schema. |
+| `204` | — | empty | Form confirmed and locked. No body. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
+| `409` | `application/problem+json` | [`Problem`](#problem) | Nothing to confirm, or already confirmed. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
-| `422` | `application/problem+json` | [`Problem`](#problem) | Unknown schema mode. |
+| `422` | `application/problem+json` | [`Problem`](#problem) | The stored data fails the strict contract. |
 
 ### POST /api/forms
 
@@ -145,27 +145,27 @@ Repeatable; overwrites the previous draft. Values are validated against the draf
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | The body is not a JSON object, or the values break the form-s own contract. |
 
-### POST /api/forms/{id}/confirm
+### GET /api/forms/{id}/schema
 
-`operationId: confirmForm` — Confirm the stored values
+`operationId: getFormDataSchema` — Read the values schema derived from the definition
 
-Validates the stored data against the full strict schema and locks the form forever. A definition containing an unknown (plugin) field type cannot be confirmed — the server will not vouch for a value contract it does not know.
+The JSON Schema 2020-12 document the server validates submitted values against — shippable to a frontend validator as-is. The draft variant drops `required` (and the required-driven non-empty rule) so partial progress validates.
 
 **Parameters**
 
 | Name | In | Required | Type | Description |
 |---|---|---|---|---|
 | `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+| `mode` | query | no | `string` (`strict` \| `draft`) | Which contract the returned schema enforces: `strict` is the confirmation contract, `draft` relaxes what would block storing partial progress. |
 
 **Responses**
 
 | Status | Content type | Body | Description |
 |---|---|---|---|
-| `204` | — | empty | Form confirmed and locked. No body. |
+| `200` | `application/schema+json` | [`DataSchema`](#dataschema) | The derived values schema. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
-| `409` | `application/problem+json` | [`Problem`](#problem) | Nothing to confirm, or already confirmed. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
-| `422` | `application/problem+json` | [`Problem`](#problem) | The stored data fails the strict contract. |
+| `422` | `application/problem+json` | [`Problem`](#problem) | Unknown schema mode. |
 
 ## Schemas
 
@@ -238,18 +238,18 @@ RFC 9457 problem details. `type` is a URN `urn:problem:ingot-forms:<slug>`; vali
 
 No other properties are allowed.
 
-### DataSchemaQuery
-
-| Property | Type | Required | Description |
-|---|---|---|---|
-| `mode` | `string` (`strict` \| `draft`) | no | Which contract the returned schema enforces: `strict` is the confirmation contract, `draft` relaxes what would block storing partial progress. |
-
 ### CreateFormRequest
 
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `expireDate` | `string` (`date-time`) | yes | When the form stops being fillable, as an RFC 3339 date-time. Must lie in the future; past it the form answers 410 everywhere and the purge command deletes it. |
 | `definition` | `object` | yes | The form definition: id, title and 1–50 typed fields with unique names, per the meta-schema in src/Domain/Forms/form-definition.schema.json. Immutable once created — changing it means deleting the form and creating a new one. |
+
+### DataSchemaQuery
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `mode` | `string` (`strict` \| `draft`) | no | Which contract the returned schema enforces: `strict` is the confirmation contract, `draft` relaxes what would block storing partial progress. |
 
 ### stdClass
 

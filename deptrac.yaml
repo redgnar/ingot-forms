@@ -1,12 +1,16 @@
 # Module boundaries — enforced in CI (make deptrac).
 #
-# Domain         = the forms model + processors; framework-free and storage-free,
-#                  so it can be extracted into a standalone package later.
-#                  It may depend on Ingot\* and psr/cache only (vendor deps are
-#                  invisible to deptrac; the rule below keeps App layers out).
-# Infrastructure = persistence (DBAL) and caching adapters.
-# Http           = controllers and problem+json mapping.
-# Command        = console entry points (purge).
+# Domain         = the forms model, its exceptions and the ports it declares.
+#                  Framework-free and storage-free, so it can be extracted into a
+#                  standalone package later (vendor deps are invisible to deptrac;
+#                  the rules below keep App layers out).
+# Application    = use cases: one class per thing the system does, orchestrating
+#                  the domain behind ports it declares for what it cannot do itself.
+# Infrastructure = the adapters filling those ports: Doctrine, cache, the Symfony
+#                  form and the derived schema.
+# UserInterface  = what talks to the outside — HTTP controllers with their request
+#                  DTOs and problem mapping, and the console commands. It reaches
+#                  the application, never an adapter.
 deptrac:
   paths:
     - src
@@ -15,20 +19,20 @@ deptrac:
       collectors:
         - type: classLike
           value: ^App\\Domain\\
+    - name: Application
+      collectors:
+        - type: classLike
+          value: ^App\\Application\\
     - name: Infrastructure
       collectors:
         - type: classLike
           value: ^App\\Infrastructure\\
-    - name: Http
+    - name: UserInterface
       collectors:
         - type: classLike
-          value: ^App\\Http\\
-    - name: Command
-      collectors:
-        - type: classLike
-          value: ^App\\Command\\
+          value: ^App\\UserInterface\\
   ruleset:
     Domain: ~
-    Infrastructure: [Domain]
-    Http: [Domain, Infrastructure]
-    Command: [Domain, Infrastructure]
+    Application: [Domain]
+    Infrastructure: [Domain, Application]
+    UserInterface: [Domain, Application]

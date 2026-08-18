@@ -18,10 +18,11 @@
     <testsuites>
         <testsuite name="unit">
             <directory>tests/Domain</directory>
+            <directory>tests/Application</directory>
         </testsuite>
         <testsuite name="integration">
             <directory>tests/Infrastructure</directory>
-            <directory>tests/Http</directory>
+            <directory>tests/UserInterface</directory>
         </testsuite>
     </testsuites>
     <extensions>

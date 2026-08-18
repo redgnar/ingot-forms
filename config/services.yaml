@@ -31,6 +31,13 @@ services:
         arguments:
             $mapper: '@forms.definition_mapper'
 
+    # Ports, and the adapters that fill them. Nothing above the application
+    # layer names an implementation.
+    App\Domain\Forms\Port\FormRepository: '@App\Infrastructure\Persistence\DoctrineFormRepository'
+    App\Application\Forms\Port\Transactions: '@App\Infrastructure\Persistence\DoctrineTransactions'
+    App\Application\Forms\Port\ValuesValidator: '@App\Infrastructure\Validation\StagedValuesValidator'
+    App\Application\Forms\Port\DataSchemas: '@App\Infrastructure\Cache\CachedDataSchemaProvider'
+
     App\Infrastructure\Cache\CachedDataSchemaProvider:
         arguments:
             $pool: '@cache.data_schema'

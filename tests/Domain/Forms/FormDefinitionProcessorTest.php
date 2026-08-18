@@ -6,7 +6,7 @@ namespace App\Tests\Domain\Forms;
 
 use App\Domain\Forms\Definition\GenericField;
 use App\Domain\Forms\Definition\TextField;
-use App\Domain\Forms\DefinitionNotValid;
+use App\Domain\Forms\Exception\DefinitionNotValid;
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\FormMapperFactory;
 use PHPUnit\Framework\TestCase;

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Where the Form aggregate meets the database. It lives here, and not as
+  attributes on the class, so the domain model stays free of storage concerns —
+  the same reason the columns use portable Doctrine types only.
+-->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+    <entity name="App\Domain\Forms\Form" table="forms">
+        <indexes>
+            <index name="idx_forms_expire" columns="expire_date"/>
+        </indexes>
+
+        <id name="id" type="uuid"/>
+
+        <field name="definition" type="text"/>
+        <field name="expireDate" column="expire_date" type="datetime_immutable"/>
+        <field name="data" type="text" nullable="true"/>
+        <field name="dataSavedAt" column="data_saved_at" type="datetime_immutable" nullable="true"/>
+        <field name="confirmedAt" column="confirmed_at" type="datetime_immutable" nullable="true"/>
+        <field name="createdAt" column="created_at" type="datetime_immutable"/>
+    </entity>
+</doctrine-mapping>

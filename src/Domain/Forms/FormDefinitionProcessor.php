@@ -6,6 +6,7 @@ namespace App\Domain\Forms;
 
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\GenericField;
+use App\Domain\Forms\Exception\DefinitionNotValid;
 use Ingot\Source;
 use Ingot\TreeMapper;
 

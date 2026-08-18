@@ -21,13 +21,86 @@ deletes them physically. No templates, no versioning, no multi-submission — de
 
 ## Architecture ground rules
 
-- **`src/Domain/Forms/` stays framework-free and storage-free** (only `Ingot\*` and the
-  `psr/cache` interface) — it is the future standalone package. Deptrac enforces
-  Domain ← Infrastructure ← Http/Command (`deptrac.yaml`).
-- **The definition mapper is a service, not a private detail**: `FormMapperFactory` (domain,
-  framework-free) holds its configuration — meta-schema, uniqueness rule, plugin-field
-  fallback — and services.yaml registers the built `TreeMapper` as `forms.definition_mapper`,
-  injected into consumers. Never rebuild a mapper inside a class that uses it.
+The code is laid out in four layers, and the dependency arrows only ever point inwards:
+**UserInterface → Application → Domain**, with **Infrastructure → Domain, Application**.
+`deptrac.yaml` enforces exactly that; the UI may not name an adapter, ever.
+
+```
+src/Domain/Forms/          the model: Form (aggregate), FormStatus, DeriveMode, the definition
+                           model and its processors. Framework-free and storage-free — the
+                           future standalone package.
+    Definition/            the field union and the meta-schema
+    ValueObject/           FormId, ExpireDate, Values
+    Exception/             what the model refuses: DefinitionNotValid, ValuesNotValid,
+                           FormNotFound, FormGone, FormLocked, FormAlreadyConfirmed,
+                           FormHasNoData
+    Port/                  FormRepository — what the model needs from the outside
+src/Application/Forms/
+    UseCase/               one class per thing the system does, each with a single __invoke:
+                           CreateForm, SaveFormData, ConfirmForm, DeleteForm, ReadForm,
+                           PurgeExpiredForms. This is where a transaction is opened and where
+                           the order of steps lives.
+    Port/                  Transactions, ValuesValidator, DataSchemas — what a use case needs
+                           and cannot do itself
+src/Infrastructure/        the adapters filling those ports
+    Persistence/           DoctrineFormRepository, DoctrineTransactions (+ config/doctrine/*.xml)
+    Cache/                 CachedDataSchemaProvider
+    Validation/            the schema gate, the Symfony form and the staged validator
+src/UserInterface/
+    Http/Action/           one invokable class per endpoint, suffixed Action
+    Http/Request|Problem/  request DTOs, problem+json mapping
+    Cli/                   console commands
+```
+
+Rules that follow from it, and that the tooling checks:
+
+- **A controller is one action.** `#[Route]` + `#[OA\…]` + `__invoke()` in a class named after
+  what it does (`SaveFormDataAction`), so a class only injects what that one endpoint needs.
+  Never group endpoints to share a constructor.
+- **The user interface talks to use cases, never to a repository, a cache or an entity
+  manager**, and it never mutates an aggregate. Its job is HTTP: map the request onto a use
+  case, map a refusal onto a status.
+- **Ports are declared where they are needed and implemented outward.** The domain declares
+  what the model needs (`FormRepository`); the application declares what a use case needs
+  (`Transactions`, `ValuesValidator`, `DataSchemas`); `services.yaml` binds each interface to
+  its adapter. Nothing above Infrastructure names an implementation class.
+- **The domain speaks in value objects, not primitives**: `FormId` instead of a raw uuid,
+  `ExpireDate` (UTC, and `future()` cannot be constructed in the past), `Values` (a JSON
+  object, keeping `{}` distinct from `[]` and handing out the exact text that was validated).
+  A new concept that has an invariant gets a value object, not a `string`.
+- **The aggregate owns its transitions** (`saveDraft()`, `confirm()`, `status()`,
+  `hasExpired()`) and knows nothing about storage: the Doctrine mapping lives in
+  `config/doctrine/Form.orm.xml`, never as attributes on the class.
+- **Exceptions live in `Exception/` next to the layer that raises them**, carry the id they
+  are about, and say nothing about HTTP. Which status a refusal deserves is decided in
+  `ProblemExceptionListener` (or in an action, where the same state means different things —
+  no data is 404 on a read, 409 on a confirm).
+- **One error format**: every error response is RFC 9457 `application/problem+json`; validation
+  problems carry `errors: [{pointer, code, message, input?}]` mapped 1:1 from ingot's
+  `ErrorReport` (`ProblemExceptionListener` is the single mapping point).
+- **Requests arrive as DTOs**: actions take `#[MapRequestPayload]` / `#[MapQueryString]`
+  arguments from `src/UserInterface/Http/Request/`, validated by `symfony/validator` — never
+  read `Request` directly, never hand-roll envelope validation. Every DTO member is
+  non-nullable, so an instance means a complete request. Bodies are JSON only
+  (`acceptFormat: 'json'` → 415 otherwise) and closed (`ALLOW_EXTRA_ATTRIBUTES => false` →
+  `request.unexpected_key`); query strings ignore unknown parameters. A DTO documents itself
+  with swagger-php's `#[OA\Property]`, and NelmioApiDocBundle turns routes + DTOs +
+  `#[OA\Response]` into the published contract (`make docs`).
+- **ingot owns the form definition** — meta-schema, typed tree, semantic rules — and derives
+  the per-form JSON Schema. It receives decoded structures (`Source::array()`), never JSON
+  text. The definition mapper is a service (`FormMapperFactory` → `forms.definition_mapper`);
+  never rebuild a mapper inside a class that uses it.
+- **Submitted values pass two gates, cheapest first**: the derived schema (cached per form and
+  mode, ~10× cheaper) answers first, so the server can never be looser than its published
+  contract; the Symfony form built from the definition then adds what a schema cannot say.
+  Keep that order.
+- **State transitions run inside `Transactions::run()` + `FormRepository::getForUpdate()`** —
+  never add a check-then-write outside the row lock.
+- **Writes answer with a status, not a document**: `PUT …/data` and `POST …/confirm` return
+  `204 No Content` (`422` with the report when refused).
+- **Persistence stays platform-neutral**: portable Doctrine types only (`uuid`, `text`,
+  `datetime_immutable` in UTC), both documents stored as the exact JSON text that passed
+  validation, migrations built through the schema API rather than raw SQL.
 - **ingot is consumed via a composer path repository** (`../ingot`, sibling checkout,
   mounted at `/ingot` in Docker so the relative symlink resolves). After pulling new ingot
   commits run `make update`. When ingot reaches Packagist: switch to a version constraint,
@@ -37,61 +110,6 @@ deletes them physically. No templates, no versioning, no multi-submission — de
     which clones `redgnar/ingot` at `main`. Push the library, wait for it to land, then push
     the application; otherwise the workflow builds new expectations against the old library
     and fails for a reason nothing in the diff explains.
-- **One error format**: every error response is RFC 9457 `application/problem+json`; validation
-  problems carry `errors: [{pointer, code, message, input?}]` mapped 1:1 from ingot's
-  `ErrorReport` (`ProblemExceptionListener` is the single mapping point).
-- **Two engines, one boundary between them**:
-  - **Symfony owns the request envelope.** Controllers take `#[MapRequestPayload]` /
-    `#[MapQueryString]` DTOs from `src/Http/Request/`, validated by `symfony/validator`
-    (`Assert\*` on promoted constructor properties) — never read `Request` directly, never
-    hand-roll envelope parsing. Ids are `Uuid` value objects (route params resolved by
-    Symfony, repository and records typed accordingly). A DTO documents itself with
-    `#[ApiProperty]`, and `make docs` generates its published schema from constructor +
-    constraints + that prose (`x-dto-schema` markers in `openapi.yaml`).
-  - **ingot owns the form definition**: the meta-schema, the typed tree and the semantic
-    rules, receiving it already decoded (`Source::array()`), never as JSON text. It also
-    derives the per-form JSON Schema that `GET …/schema` publishes to clients.
-  - **Submitted values pass two gates, cheapest first** (`src/Http/Form/`):
-    `SchemaValuesValidator` runs the derived schema (cached per form+mode through
-    `CachedDataSchemaProvider::schemaFor()`, no extra read) and, if it reports anything,
-    the request is answered there — building the form is ~10× more expensive and would
-    add nothing for a payload of the wrong shape. `FormValuesValidator` then runs
-    `FormValuesType` (`TextType`/`ChoiceType`/`NumberType`, `RawValueType` for plugin
-    fields) for everything a schema cannot say; that is where new rules belong. Keep the
-    order — the published contract must answer first, or the server could be looser than
-    the document clients validate against.
-  - Undeclared members come back as `schema.additionalProperties`, one per member, each at
-    its own pointer — that is ingot's behaviour since the fix in `OpisSchemaValidator`, not
-    something this application post-processes.
-    `tests/Http/Form/FormValuesValidatorTest` pins that the form and that published schema
-    reach the same verdict — they are two views of one definition and must not drift.
-  - The bridge to Symfony validation is a pair of custom constraints in
-    `src/Http/Request/Constraint/`: `ValidFormDefinition` (attribute on the DTO) and
-    `ValidFormValues` (carries the form's definition, applied inside the row lock), both
-    translating findings into violations with the exact JSON Pointer preserved via
-    `ViolationPointer::PARAMETER`.
-  - `ViolationReportFactory` turns violations back into the one `errors[]` shape, so the
-    error format never depends on which engine refused the request.
-  - **JSON only**: every body-mapping attribute sets `acceptFormat: 'json'`, so any other
-    media type (or none) is refused with `415 unsupported-media-type` before mapping —
-    without it Symfony would happily map a form-encoded payload. Bodies are also closed
-    (`ALLOW_EXTRA_ATTRIBUTES => false` → `request.unexpected_key`); query
-    strings ignore unknown parameters, as HTTP clients expect. The submitted values of
-    `PUT …/data` are a document rather than named members, so `SaveFormDataRequest` is
-    mapped whole by `SaveFormDataRequestDenormalizer` (decoded with
-    `JsonDecode::ASSOCIATIVE => false`, so `{}` stays an object).
-- State transitions run inside `FormRepository::transactional()` + `getForUpdate()` — never
-  add a check-then-write outside the row lock.
-- **Writes answer with a status, not a document**: `PUT …/data` and `POST …/confirm` return
-  `204 No Content` (`422` with the report when refused). Do not re-add an envelope there — the
-  client knows what it sent, and building one cost an extra read after the transaction.
-- Definitions are stored **normalized** (`TreeMapper::normalize()`); no denormalized columns.
-- **Persistence is Doctrine ORM and stays platform-neutral**: the `Form` entity maps portable
-  Doctrine types only (`uuid`, `text`, `datetime_immutable` in UTC), both documents are stored
-  as the exact JSON text that passed validation (PHP arrays cannot tell `{}` from `[]`, and the
-  bytes go back to clients verbatim), and the migration is built through the schema API rather
-  than raw SQL. Nothing may reintroduce jsonb/`now()`/`FOR UPDATE` written by hand — the row
-  lock is `LockMode::PESSIMISTIC_WRITE` via `FormRepository::getForUpdate()`.
 
 ## Testing (PHPUnit)
 
@@ -99,7 +117,9 @@ deletes them physically. No templates, no versioning, no multi-submission — de
   names describe behavior; error-path tests assert JSON Pointer + error code.
 - Suites: `unit` (tests/Domain — no kernel, no DB) and `integration` (tests/Infrastructure,
   tests/Http — real compose Postgres, per-test rollback via dama/doctrine-test-bundle).
-- Tests mirror `src/` under `tests/`.
+- Tests mirror `src/` under `tests/`, layer for layer. Use cases are tested against in-memory
+  fakes of their ports (`tests/Application/Forms/Fake/`) — no kernel, no database — so what
+  they check is the orchestration: the transaction, the locked read, the order of steps.
 
 ## Quality gates (all must pass before any commit)
 

@@ -310,3 +310,33 @@ definition", so the implementation behind it was swapped without touching a cont
 - Infection scoping to the unit suite is done via
   `--test-framework-options="--testsuite=unit"` on the CLI (the config file has no such
   key), kept in the `make mutation` recipe.
+
+## Four layers, ports and single-action controllers (implemented)
+
+The last shape problem was ownership: an action reached for the Doctrine repository, opened
+the transaction and constructed the aggregate itself, so "what the system does" lived in the
+HTTP layer and could not be tested without a kernel.
+
+- **`src/Application/Forms/UseCase/`** now holds one invokable per operation — `CreateForm`,
+  `SaveFormData`, `ConfirmForm`, `DeleteForm`, `ReadForm`, `PurgeExpiredForms`. The
+  transaction, the locked read and the order of steps live there; an action maps a request
+  onto one of them and a refusal onto a status.
+- **Ports are declared where they are needed**: `Domain\Forms\Port\FormRepository` for the
+  model, `Application\Forms\Port\{Transactions,ValuesValidator,DataSchemas}` for the use
+  cases. `Infrastructure/` supplies `DoctrineFormRepository`, `DoctrineTransactions`,
+  `StagedValuesValidator` and `CachedDataSchemaProvider`; `services.yaml` binds them.
+- **The aggregate moved into the domain** and lost its ORM attributes — the mapping is XML in
+  `config/doctrine/Form.orm.xml`, so the model stays extractable. Value objects came with it:
+  `FormId`, `ExpireDate` (UTC; `future()` refuses a past moment) and `Values` (an object
+  document that keeps `{}` distinct from `[]` and hands out the text that was validated).
+- **Exceptions are grouped in `Exception/`** per layer and say nothing about HTTP; the status
+  is decided in `ProblemExceptionListener`, or in an action where the same state means two
+  things (no data is 404 on a read, 409 on a confirm).
+- **One class per endpoint**, suffixed `Action`, so each injects only its own dependencies —
+  `FormController` and `DataSchemaController` are gone.
+- deptrac was rewritten around the four layers (`Domain: ~`, `Application: [Domain]`,
+  `Infrastructure: [Domain, Application]`, `UserInterface: [Domain, Application]`) — the UI
+  cannot name an adapter. Use cases are tested against in-memory fakes in the unit suite;
+  the HTTP contract tests were untouched by the move, which is the evidence behaviour held.
+
+The rules this settled on are written down in `CLAUDE.md` so later work follows them.

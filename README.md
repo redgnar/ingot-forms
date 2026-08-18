@@ -50,8 +50,8 @@ All request/response bodies are `application/json`; every error is an RFC 9457
 `{pointer, code, message, input?}` entry per finding — the same format for schema,
 type-mapping, and semantic errors (it comes straight from ingot's `ErrorReport`).
 
-Requests are mapped into **DTOs by Symfony** before a controller runs
-(`#[MapRequestPayload]`, `#[MapQueryString]` over `src/Http/Request/`), and validated by
+Requests are mapped into **DTOs by Symfony** before an action runs
+(`#[MapRequestPayload]`, `#[MapQueryString]` over `src/UserInterface/Http/Request/`), and validated by
 `symfony/validator`. Every DTO member is non-nullable, so an instance means a complete
 request; what the mapper could not supply is reported at its pointer before validation
 runs. Ids are `Uuid` value objects, request bodies are accepted as `application/json` and nothing
@@ -62,7 +62,7 @@ from.
 
 **ingot validates the form definition** — meta-schema, typed tree, semantic rules — and
 derives the per-form JSON Schema published to clients. **Submitted values pass two gates**
-(`src/Http/Form/`), cheapest first:
+(`src/Infrastructure/Validation/`), cheapest first:
 
 1. the **derived schema**, cached per form and mode — the same document
    `GET /api/forms/{id}/schema` serves, so the server can never be looser than its own
@@ -76,10 +76,10 @@ Values refused by the schema never reach the form: on this project's example def
 schema answers in ~60 µs where building and running the form costs ~670 µs, so a payload
 that was never going to fit is rejected without that work.
 
-Both meet Symfony validation through custom constraints
-(`src/Http/Request/Constraint/`): `ValidFormDefinition` on the create DTO, and
-`ValidFormValues`, which carries a form's definition and runs inside the row lock. Findings
-keep their JSON Pointer, and `ViolationReportFactory` turns every violation back into the
+The definition meets Symfony validation through a custom constraint
+(`src/UserInterface/Http/Request/Constraint/ValidFormDefinition`) on the create DTO; values
+are checked by the `SaveFormData` / `ConfirmForm` use cases inside the row lock, through the
+`ValuesValidator` port. Findings keep their JSON Pointer, and `ViolationReportFactory` turns every violation back into the
 same `errors[]` shape — so the error format never depends on which engine refused the
 request. A test asserts the form and the published schema reach the same verdict, so the
 contract clients validate against cannot drift from what the server enforces.
@@ -129,19 +129,24 @@ uses the exact same document, so the contract cannot drift.
 ## Architecture
 
 ```
-src/Domain/Forms/     framework-free, storage-free — the future standalone package
-                      (FormMapperFactory configures the mapper; DI injects it as a service)
-src/Infrastructure/   Doctrine ORM entity + repository, PSR-6 schema cache
-src/Http/             controllers + problem+json mapping
-src/Http/Request/     request DTOs (Symfony-validated) + constraints bridging to the engines
-src/Http/Form/        the form built from a definition — what validates submitted values
-src/Command/          app:forms:purge-expired
-tools/build-docs.php  renders openapi.yaml into docs/ (dev tooling, not shipped)
+src/Domain/Forms/          the model — aggregate, value objects, exceptions, and the port it
+                           declares. Framework-free and storage-free.
+src/Application/Forms/     use cases (one class, one __invoke) and the ports they need
+src/Infrastructure/        the adapters: Doctrine, the schema cache, the validation stages
+src/UserInterface/Http/    one invokable Action per endpoint, request DTOs, problem+json
+src/UserInterface/Cli/     console commands
+config/doctrine/           the ORM mapping, kept out of the model
+tools/build-docs.php       renders the generated contract into docs/ (dev tooling)
 ```
 
-Boundaries are enforced by deptrac (`Domain ← Infrastructure ← Http/Command`). The domain
-layer depends only on `Ingot\*` and the `psr/cache` interface, so extracting it into a
-reusable package later is a namespace move, not a rewrite.
+Dependencies point inwards only — **UserInterface → Application → Domain**, with
+**Infrastructure → Domain, Application** — and `deptrac.yaml` fails the build otherwise. An
+action never touches a repository, a cache or an entity manager: it maps a request onto a use
+case and a refusal onto a status.
+
+The domain layer depends only on `Ingot\*`, `psr/cache` and `symfony/uid` (a value-object
+library, not the framework), so extracting it into a reusable package later is a namespace
+move, not a rewrite.
 
 Storage is a single `forms` table behind one Doctrine entity, mapped with portable types
 only (`uuid`, `text`, `datetime_immutable` in UTC) so the service installs on PostgreSQL,
