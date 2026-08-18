@@ -6,7 +6,6 @@ namespace App\UserInterface\Http\Action;
 
 use App\Application\Forms\UseCase\CreateForm;
 use App\Domain\Forms\ValueObject\ExpireDate;
-use App\UserInterface\Http\FormEnvelope;
 use App\UserInterface\Http\Request\CreateFormRequest;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -22,7 +21,6 @@ final class CreateFormAction
 {
     public function __construct(
         private readonly CreateForm $createForm,
-        private readonly FormEnvelope $envelope,
     ) {}
 
     #[Route('/api/forms', methods: ['POST'])]
@@ -33,9 +31,9 @@ final class CreateFormAction
     )]
     #[OA\Response(
         response: 201,
-        description: 'Form created; `Location` points at the new resource.',
+        description: 'Form created. The body carries the new id and nothing else — everything else the client already sent, or can read back from `Location`.',
         headers: [new OA\Header(header: 'Location', description: 'Path of the created form, `/api/forms/{id}`.', schema: new OA\Schema(type: 'string'))],
-        content: new OA\JsonContent(ref: '#/components/schemas/FormEnvelope'),
+        content: new OA\JsonContent(ref: '#/components/schemas/CreatedForm'),
     )]
     #[OA\Response(response: 400, ref: '#/components/responses/MalformedJson')]
     #[OA\Response(response: 415, ref: '#/components/responses/UnsupportedMediaType')]
@@ -84,12 +82,15 @@ final class CreateFormAction
         )]
         CreateFormRequest $request,
     ): JsonResponse {
-        $form = ($this->createForm)($request->definition, ExpireDate::future($request->expireDate));
+        $id = ($this->createForm)($request->definition, ExpireDate::future($request->expireDate));
 
+        // The id is the one thing the client cannot know yet; the definition and
+        // the expire date came from this very request, so echoing them back would
+        // only invite a client to trust a copy instead of the resource.
         return new JsonResponse(
-            $this->envelope->build($form),
+            ['id' => (string) $id],
             201,
-            ['Location' => \sprintf('/api/forms/%s', $form->id())],
+            ['Location' => \sprintf('/api/forms/%s', $id)],
         );
     }
 }

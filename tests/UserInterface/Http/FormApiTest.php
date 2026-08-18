@@ -34,12 +34,18 @@ final class FormApiTest extends WebTestCase
 
     public function testFullLifecycleFromCreationToConfirmedLock(): void
     {
-        // GIVEN a freshly created form
+        // GIVEN a freshly created form: the answer is the new id and nothing else,
+        // because everything else was in the request or is readable at Location
         $id = $this->createForm();
-        $created = $this->responseBody();
-        self::assertSame('empty', $created['status']);
-        self::assertSame('Contact us', $created['title']);
+        self::assertSame(['id' => $id], $this->responseBody());
         self::assertSame(\sprintf('/api/forms/%s', $id), $this->client->getResponse()->headers->get('Location'));
+
+        // WHEN reading it back
+        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+
+        // THEN the full envelope is where the state lives
+        self::assertSame('empty', $this->responseBody()['status']);
+        self::assertSame('Contact us', $this->responseBody()['title']);
 
         // WHEN saving partial progress
         $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"age": 36}');

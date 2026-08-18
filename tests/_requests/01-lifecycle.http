@@ -26,9 +26,8 @@ Content-Type: application/json
         client.assert(response.status === 201, "Expected 201, got " + response.status);
         client.assert(response.headers.valueOf("Location") === "/api/forms/" + response.body.id, "Location must point at the new form");
     });
-    client.test("a fresh form is empty", function () {
-        client.assert(response.body.status === "empty", "Expected status empty, got " + response.body.status);
-        client.assert(response.body.data === null, "A fresh form carries no data");
+    client.test("the body carries the id alone", function () {
+        client.assert(Object.keys(response.body).length === 1, "Creation answers with the id only; read the form to see its state");
     });
     client.global.set("formId", response.body.id);
 %}

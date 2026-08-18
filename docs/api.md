@@ -58,7 +58,7 @@ The definition is immutable after creation — changing it means delete and recr
 
 | Status | Content type | Body | Description |
 |---|---|---|---|
-| `201` | `application/json` | [`FormEnvelope`](#formenvelope) | Form created; `Location` points at the new resource. |
+| `201` | `application/json` | [`CreatedForm`](#createdform) | Form created. The body carries the new id and nothing else — everything else the client already sent, or can read back from `Location`. |
 | `400` | `application/problem+json` | [`Problem`](#problem) | The request body is not valid JSON, or its media type is missing. |
 | `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | The request envelope or the definition is not valid. |
@@ -193,9 +193,19 @@ A JSON Schema 2020-12 document describing one form's values.
 
 Type: `object`
 
+### CreatedForm
+
+The answer to a creation: the identity of the new form and nothing else. Everything else is readable at `Location`.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` (`uuid`) | yes |  |
+
+No other properties are allowed.
+
 ### FormEnvelope
 
-The canonical JSON shape of a form returned by every endpoint.
+The canonical JSON shape of a form read back from the API.
 
 | Property | Type | Required | Description |
 |---|---|---|---|

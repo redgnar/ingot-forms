@@ -52,9 +52,20 @@ nelmio_api_doc:
                 DataSchema:
                     type: object
                     description: A JSON Schema 2020-12 document describing one form's values.
+                CreatedForm:
+                    type: object
+                    description: >-
+                        The answer to a creation: the identity of the new form and nothing
+                        else. Everything else is readable at `Location`.
+                    required: [id]
+                    additionalProperties: false
+                    properties:
+                        id:
+                            type: string
+                            format: uuid
                 FormEnvelope:
                     type: object
-                    description: The canonical JSON shape of a form returned by every endpoint.
+                    description: The canonical JSON shape of a form read back from the API.
                     required: [id, title, status, expireDate, createdAt, definition, data, dataSavedAt, confirmedAt]
                     additionalProperties: false
                     properties:

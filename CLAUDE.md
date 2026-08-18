@@ -19,6 +19,31 @@ A form is a **single fillable document**: one immutable definition + one data se
 change = delete + recreate. Expired forms answer 410 everywhere; `app:forms:purge-expired`
 deletes them physically. No templates, no versioning, no multi-submission — deliberately.
 
+## Design principles
+
+The shape of this codebase is **hexagonal architecture with DDD elements**: a model that
+knows nothing about the outside, ports declaring what it needs, adapters filling them, and
+use cases as the only entry into a transition. Read the layer map below as the concrete form
+of that, not as a separate idea.
+
+- **DDD**: an aggregate (`Form`) owns its invariants and transitions, value objects
+  (`FormId`, `ExpireDate`, `Values`) carry the rules a primitive cannot, exceptions are the
+  vocabulary of refusal, and a repository is an interface the domain declares — never a
+  Doctrine detail leaking upwards. The ubiquitous language is what the code is named after.
+- **DRY**: one place per rule. One error format and one mapping point, one derived schema
+  serving both the published contract and the incoming check, one definition mapper as a
+  service. A write never answers with the document a `GET` already serves — a second copy is
+  a second truth.
+- **YAGNI**: the domain model says no on purpose (no templates, no versioning, no
+  multi-submission, no form list endpoint). Do not add a seam, an abstraction or a config
+  knob for a case nobody asked for; add it when the second caller appears.
+- **SOLID**: one action per endpoint and one `__invoke` per use case (S); the field catalogue
+  grows by adding a variant, not by editing a switch (O); adapters are substitutable behind
+  their port, which is what lets the unit suite run on fakes (L); ports stay narrow — a use
+  case that needs a transaction does not receive an entity manager (I); every layer depends
+  on interfaces it declares itself, and `services.yaml` is the only place an implementation
+  is named (D).
+
 ## Architecture ground rules
 
 The code is laid out in four layers, and the dependency arrows only ever point inwards:
@@ -96,8 +121,12 @@ Rules that follow from it, and that the tooling checks:
   Keep that order.
 - **State transitions run inside `Transactions::run()` + `FormRepository::getForUpdate()`** —
   never add a check-then-write outside the row lock.
-- **Writes answer with a status, not a document**: `PUT …/data` and `POST …/confirm` return
-  `204 No Content` (`422` with the report when refused).
+- **A write never answers with the thing it wrote** — that is what `GET` is for, and a
+  second copy is a second truth. `PUT …/data` and `POST …/confirm` return `204 No Content`
+  (`422` with the report when refused); `POST /api/forms` returns `201` with `{"id": …}` and
+  a `Location` header, because the id is the only part the client could not already know.
+  The same holds one layer down: a use case that creates or changes something returns `void`
+  or an identity, never the aggregate.
 - **Persistence stays platform-neutral**: portable Doctrine types only (`uuid`, `text`,
   `datetime_immutable` in UTC), both documents stored as the exact JSON text that passed
   validation, migrations built through the schema API rather than raw SQL.

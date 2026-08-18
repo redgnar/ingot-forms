@@ -28,7 +28,7 @@ final class CreateForm
      *
      * @throws DefinitionNotValid
      */
-    public function __invoke(array $definitionDocument, ExpireDate $expireDate): Form
+    public function __invoke(array $definitionDocument, ExpireDate $expireDate): FormId
     {
         $definition = $this->processor->parse($definitionDocument);
 
@@ -40,6 +40,6 @@ final class CreateForm
 
         $this->forms->add($form);
 
-        return $form;
+        return $form->id();
     }
 }
