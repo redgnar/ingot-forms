@@ -348,21 +348,39 @@ constructor, so the aggregate kept needing repairs after a read — a parser han
 repository, a value object rebuilt on every accessor, and finally a custom DBAL type to avoid
 both. The cause was that the domain model *was* the mapped entity.
 
-- **`FormRecord`** is now what Doctrine sees: public fields, ORM attributes, no behaviour, the
-  same `forms` table and columns as before — so no migration. `toForm()` builds the aggregate,
-  `write()` copies a changed one back, and `DoctrineFormRepository` is the only place either
-  happens. Mapping moved from `config/doctrine/*.xml` to attributes, which is now the right
+- **`FormRecord`** is now what Doctrine sees: public fields, ORM attributes, no behaviour and
+  no import from the domain, on the same `forms` table and columns as before — so no
+  migration. Both directions of the translation live in `DoctrineFormRepository`, its only
+  caller. Mapping moved from `config/doctrine/*.xml` to attributes, which is now the right
   call: the class carrying them exists to be a row.
 - **`Form` is `final`** (nothing needs to proxy it), holds value objects rather than the
   scalars a column wanted (`FormId`, `Definition`, `ExpireDate`, `Values`), and gained
   `fromState()` — the way an adapter restores what it read, judging nothing and recording
   nothing.
-- **`Definition` earned its invariant**: a private constructor, `fromDocument()` refusing
-  anything that is not a JSON object, and `FormDefinitionProcessor::document()` as the way in
-  for anything from outside. Holding one now means the document passed the definition gate.
-- **Transitions record events** (`FormCreated`, `DraftSaved`, `FormConfirmed`), handed over by
-  `releaseEvents()` and taken by the repository in the same step that makes the change
-  durable. Nothing consumes them yet — that call is the seam.
-- The risk this introduces is a field copied in one direction and forgotten in the other, so
+- **`Definition` became the structure, not a label on a string.** A first attempt gave it a
+  private constructor and a shallow "is this a JSON object" check, which promised more than it
+  proved. It now carries the normalized document *and* the structure, and the only ways in are
+  `FormDefinitionProcessor::document()` (a structure the mapper just accepted) and
+  `Definition::stored()` (a stored document read back through that same mapper), so the real
+  parse is the check. Reading it back happens where the value is built — a lazily resolved
+  version existed briefly and bought only the read and delete paths an unmeasured saving, at
+  the price of a closure field and a class that could not be `readonly`.
+- The risk this introduces is a field mapped in one direction and forgotten in the other, so
   `testEveryPieceOfAFormSurvivesTheRoundTrip` drives a form through save, confirm, a cleared
   entity manager and a fresh read, asserting every piece came back.
+
+## Writes follow the events (implemented)
+
+Recording events and then discarding them made them a description nobody acted on, while
+persistence still worked by copying state across.
+
+- `DraftSaved` carries the `Values` it stored, so `save()` no longer looks at the form: it
+  walks `releaseEvents()` and turns each one into the columns it happened to. `FormConfirmed`
+  stamps `confirmed_at`; `FormCreated` is not an update, because an insert writes the row
+  whole — the one place that still reads the form rather than what happened to it.
+- "A field copied in one direction and forgotten in the other" becomes "an event type nobody
+  handles", and that throws. PHPStan does not accept `match (true)` as exhaustive, so the
+  refusal is an explicit `default` rather than a bare `\UnhandledMatchError`.
+- `Transactions` stays: `getForUpdate()` uses `LockMode::PESSIMISTIC_WRITE`, which Doctrine
+  refuses outside a transaction, and the state a form checks must not change between the check
+  and the write. Events say what happened; they do not say that nobody else got in between.

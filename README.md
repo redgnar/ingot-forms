@@ -130,11 +130,11 @@ uses the exact same document, so the contract cannot drift.
 ## Architecture
 
 ```
-src/Domain/Forms/          the model — aggregate, value objects, exceptions, and the port it
-                           declares. Framework-free and storage-free.
+src/Domain/Forms/          the model — aggregate, value objects, events, exceptions, and the
+                           ports it declares. Framework-free and storage-free.
 src/Application/Forms/     use cases (one class, one __invoke) and the ports they need
-src/Infrastructure/        the adapters: the row and its Doctrine mapping, the schema
-                           cache, the validation stages
+src/Infrastructure/        the adapters: the row, its Doctrine mapping and the repository
+                           that translates both ways, the schema cache, the validation stages
 src/UserInterface/Http/    one invokable Action per endpoint, request DTOs, problem+json
 src/UserInterface/Cli/     console commands
 tools/build-docs.php       renders the generated contract into docs/ (dev tooling)
@@ -146,18 +146,36 @@ action never touches a repository, a cache or an entity manager: it maps a reque
 case and a refusal onto a status.
 
 The domain layer depends only on `Ingot\*`, `psr/cache` and `symfony/uid` (a value-object
-library, not the framework), so extracting it into a reusable package later is a namespace
-move, not a rewrite.
+library, not the framework) — no ORM, no attributes, no configuration — so extracting it into
+a reusable package later is a namespace move, not a rewrite.
 
-Storage is a single `forms` table behind one Doctrine entity, mapped with portable types
-only (`uuid`, `text`, `datetime_immutable` in UTC) so the service installs on PostgreSQL,
-MySQL/MariaDB or SQLite alike — point `DATABASE_URL` at it and run the migration, which is
-built through Doctrine's schema API rather than raw SQL. The definition is stored
-**normalized** (`TreeMapper::normalize()` output) as the exact JSON text that passed
-validation, and so are the values: PHP arrays cannot tell an empty object from an empty
-list, and those bytes are handed back to clients verbatim. Status is derived from the row
-(`data IS NULL` / `confirmed_at`), never stored; state transitions run under
-`LockMode::PESSIMISTIC_WRITE`.
+**A form judges what it is asked to hold.** `Form::saveDraft()` and `Form::confirm()` run
+the values past the `ValuesValidator` port before storing anything, and the form itself picks
+the contract that applies — lenient while filling in, strict at confirmation. Nothing can
+store values that do not fit a definition by forgetting to ask; the same methods refuse a
+confirmed form (`FormLocked`), a second confirmation and an empty one. A use case is left
+with when it happens: one transaction, a locked read, a write.
+
+**Each transition records what happened** (`FormCreated`, `DraftSaved` — which carries the
+values it stored — `FormConfirmed`), and `releaseEvents()` hands them over. That is what the
+repository writes from: a column changes because something happened, not because a copying
+routine remembered it, and a transition no adapter knows how to store stops the write instead
+of vanishing from it.
+
+**The aggregate is not a Doctrine entity.** Doctrine maps `FormRecord` — a row with public
+fields, ORM attributes and no idea a form exists — and `DoctrineFormRepository` translates
+both ways. So the model has no mapping, no constructor to bypass and nothing done to it after
+a read, which is what let `Definition` become a value that carries both the stored document
+and the structure parsed from it.
+
+Storage is a single `forms` table, mapped with portable types only (`uuid`, `text`,
+`datetime_immutable` in UTC) so the service installs on PostgreSQL, MySQL/MariaDB or SQLite
+alike — point `DATABASE_URL` at it and run the migration, which is built through Doctrine's
+schema API rather than raw SQL. The definition is stored **normalized**
+(`TreeMapper::normalize()` output) as the exact JSON text that passed validation, and so are
+the values: PHP arrays cannot tell an empty object from an empty list, and those bytes are
+handed back to clients verbatim. Status is derived from the row (`data IS NULL` /
+`confirmed_at`), never stored; state transitions run under `LockMode::PESSIMISTIC_WRITE`.
 
 ## Operations notes
 
