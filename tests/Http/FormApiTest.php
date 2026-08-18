@@ -53,7 +53,7 @@ final class FormApiTest extends WebTestCase
 
         // THEN confirmation enforces the strict contract
         self::assertResponseStatusCodeSame(422);
-        self::assertSame('form.value.required', $this->firstError()['code']);
+        self::assertSame('schema.required', $this->firstError()['code']);
 
         // WHEN completing and confirming
         $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"email": "ada@example.com", "country": "pl", "age": 36}');

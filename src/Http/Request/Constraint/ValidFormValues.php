@@ -6,6 +6,7 @@ namespace App\Http\Request\Constraint;
 
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\DeriveMode;
+use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Constraint;
 
 /**
@@ -21,6 +22,8 @@ final class ValidFormValues extends Constraint
     public function __construct(
         public readonly FormDefinition $definition,
         public readonly DeriveMode $mode = DeriveMode::Draft,
+        /** Lets the derived schema come from the cache the schema endpoint fills. */
+        public readonly ?Uuid $formId = null,
     ) {
         parent::__construct();
     }

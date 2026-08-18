@@ -233,6 +233,27 @@ step 1 when it happens), auth, deployment pipeline (the CI gate is build+test on
   `FormEnvelope` dependency, the OpenAPI responses declare no content, and the lifecycle test
   now reads the form separately to prove the state transition.
 
+- **Values are gated by the published schema before the form is built.** `app:forms:schema`
+  and `app:forms:check-values` (plus `make schema` / `make check-values`) answer "would the
+  API take this JSON?" from a definition file, with no database. The same derived schema —
+  cached per form and mode, reusing the entries the schema endpoint fills — now runs as the
+  first stage of `ValidFormValues`: measured on the example definition, the schema costs
+  ~31 µs on valid values and ~62 µs on broken ones where the form costs ~640–670 µs, so
+  refusing early saves an order of magnitude of work and guarantees the server cannot accept
+  what the published contract rejects. One consequence worth knowing: values findings speak
+  `schema.*` for everything the contract covers, and `form.value.*` is left for what only a
+  form can catch.
+- **Fixed at the source in ingot** (`src/Schema/OpisSchemaValidator.php`): opis reports
+  `additionalProperties` once on the owning object and lists every member it did not
+  evaluate — which includes *declared* members that failed their own subschema, so
+  `{"age": 7}` came back both as `/age schema.minimum` and as "age is not allowed". The
+  adapter now expands that error into one finding per member, each at its own pointer with
+  the offending value, and drops members that already carry a finding of their own. ingot's
+  own suite covers it (three new cases in `OpisSchemaValidatorTest`, plus the forms example
+  updated), and `make ci` there is green at MSI 100%. ingot-forms then dropped the
+  workaround it had grown: unknown members are simply `schema.additionalProperties` at
+  `/member`.
+
 ### Stage 2 ended on a different stack than it started
 
 Two more directions arrived while the contract work was landing, and both are implemented:

@@ -7,20 +7,29 @@ namespace App\Http\Request\Constraint;
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\UnknownFieldTypes;
 use App\Http\Form\FormValuesValidator;
+use App\Http\Form\SchemaValuesValidator;
 use Ingot\Error\ErrorReport;
 use Symfony\Component\Validator\Constraint;
 use Symfony\Component\Validator\ConstraintValidator;
 use Symfony\Component\Validator\Exception\UnexpectedTypeException;
 
 /**
- * Validates submitted values against the form they belong to: a Symfony form
- * built from that form's definition ({@see FormValuesValidator}), plus the one
- * rule that lives in the domain — a definition carrying an unknown field type
- * can never be confirmed.
+ * Validates submitted values against the form they belong to, in the order
+ * that costs the least:
+ *
+ * 1. the domain rule that no form with an unknown field type may be confirmed,
+ * 2. the derived JSON Schema ({@see SchemaValuesValidator}) — cached, cheap,
+ *    and the same contract clients validate against,
+ * 3. the Symfony form built from the definition ({@see FormValuesValidator}),
+ *    which carries everything a schema cannot say.
+ *
+ * A payload refused by step 2 never reaches step 3, so the expensive work is
+ * spent only on values that are already shaped right.
  */
 final class ValidFormValuesValidator extends ConstraintValidator
 {
     public function __construct(
+        private readonly SchemaValuesValidator $schema,
         private readonly FormValuesValidator $values,
         private readonly UnknownFieldTypes $unknownFieldTypes,
     ) {}
@@ -49,6 +58,14 @@ final class ValidFormValuesValidator extends ConstraintValidator
 
                 return;
             }
+        }
+
+        $schemaReport = $this->schema->validate($constraint->definition, $value, $constraint->mode, $constraint->formId);
+
+        if (!$schemaReport->isEmpty()) {
+            $this->report($schemaReport);
+
+            return;
         }
 
         $this->report($this->values->validate($constraint->definition, $value, $constraint->mode));

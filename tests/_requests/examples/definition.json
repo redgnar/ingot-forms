@@ -1,0 +1,9 @@
+{
+  "id": "contact",
+  "title": "Contact us",
+  "fields": [
+    { "type": "text", "name": "email", "label": "E-mail", "required": true, "maxLength": 120 },
+    { "type": "select", "name": "country", "label": "Country", "options": ["pl", "de", "fr"], "required": true },
+    { "type": "number", "name": "age", "label": "Age", "min": 18, "max": 120 }
+  ]
+}

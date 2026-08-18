@@ -171,7 +171,9 @@ Content-Type: application/json
     });
 %}
 
-### A number outside the declared range — enforced even while drafting.
+### A number outside the declared range — enforced even while drafting. From here on the
+### answers come from the derived schema: it is the first gate values pass, ahead of the
+### form, so a payload that was never going to fit is refused without building one.
 # @name valueOutOfRange
 PUT {{host}}/api/forms/{{valuesFormId}}/data
 Content-Type: application/json
@@ -181,10 +183,10 @@ Content-Type: application/json
 }
 
 > {%
-    client.test("422 form.value.range at /age", function () {
+    client.test("422 schema.minimum at /age", function () {
         client.assert(response.status === 422, "Expected 422, got " + response.status);
         client.assert(response.body.errors[0].pointer === "/age", "Expected the error at /age");
-        client.assert(response.body.errors[0].code === "form.value.range", "Expected form.value.range");
+        client.assert(response.body.errors[0].code === "schema.minimum", "Expected schema.minimum");
     });
 %}
 
@@ -198,9 +200,9 @@ Content-Type: application/json
 }
 
 > {%
-    client.test("422 form.value.type at /age", function () {
+    client.test("422 schema.type at /age", function () {
         client.assert(response.status === 422, "Expected 422, got " + response.status);
-        client.assert(response.body.errors[0].code === "form.value.type", "Expected form.value.type");
+        client.assert(response.body.errors[0].code === "schema.type", "Expected schema.type");
     });
 %}
 
@@ -230,9 +232,10 @@ Content-Type: application/json
 }
 
 > {%
-    client.test("422 form.value.unknown_field", function () {
+    client.test("422 schema.additionalProperties, pointed at the member itself", function () {
         client.assert(response.status === 422, "Expected 422, got " + response.status);
-        client.assert(response.body.errors[0].code === "form.value.unknown_field", "Expected form.value.unknown_field");
+        client.assert(response.body.errors[0].pointer === "/bogus", "Expected the error at /bogus");
+        client.assert(response.body.errors[0].code === "schema.additionalProperties", "Expected schema.additionalProperties");
     });
 %}
 

@@ -76,11 +76,10 @@ GET {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/data
 POST {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/confirm
 
 > {%
-    client.test("422 naming every field still missing", function () {
+    client.test("422 — the published schema names what is still missing", function () {
         client.assert(response.status === 422, "Expected 422, got " + response.status);
-        const pointers = response.body.errors.map(e => e.pointer);
-        client.assert(pointers.includes("/email"), "Expected /email among " + pointers);
-        client.assert(response.body.errors[0].code === "form.value.required", "Expected form.value.required");
+        client.assert(response.body.errors[0].code === "schema.required", "Expected schema.required");
+        client.assert(response.body.errors[0].message.includes("email"), "The message names the missing fields");
     });
 %}
 

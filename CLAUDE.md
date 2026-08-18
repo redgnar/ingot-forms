@@ -46,12 +46,18 @@ deletes them physically. No templates, no versioning, no multi-submission — de
   - **ingot owns the form definition**: the meta-schema, the typed tree and the semantic
     rules, receiving it already decoded (`Source::array()`), never as JSON text. It also
     derives the per-form JSON Schema that `GET …/schema` publishes to clients.
-  - **A Symfony form owns the submitted values** (`src/Http/Form/`): `FormValuesType` builds
-    fields from the definition (`TextType`/`ChoiceType`/`NumberType`, `RawValueType` for
-    plugin fields), `FormValuesValidator` submits the values into it and reports findings as
-    `form.value.*`. Strict mode submits with `clearMissing` so required fields fire; draft
-    mode does not. Wire types are checked *before* the form, because a form would transform
-    `"36"` into a number while the published schema says otherwise.
+  - **Submitted values pass two gates, cheapest first** (`src/Http/Form/`):
+    `SchemaValuesValidator` runs the derived schema (cached per form+mode through
+    `CachedDataSchemaProvider::schemaFor()`, no extra read) and, if it reports anything,
+    the request is answered there — building the form is ~10× more expensive and would
+    add nothing for a payload of the wrong shape. `FormValuesValidator` then runs
+    `FormValuesType` (`TextType`/`ChoiceType`/`NumberType`, `RawValueType` for plugin
+    fields) for everything a schema cannot say; that is where new rules belong. Keep the
+    order — the published contract must answer first, or the server could be looser than
+    the document clients validate against.
+  - Undeclared members come back as `schema.additionalProperties`, one per member, each at
+    its own pointer — that is ingot's behaviour since the fix in `OpisSchemaValidator`, not
+    something this application post-processes.
     `tests/Http/Form/FormValuesValidatorTest` pins that the form and that published schema
     reach the same verdict — they are two views of one definition and must not drift.
   - The bridge to Symfony validation is a pair of custom constraints in
@@ -110,6 +116,7 @@ Local PHP is 8.1 — all tools run inside the pinned Docker image (`docker/Docke
 | `make test-filter FILTER=…` / `make test-file FILE=…` | one test (or group) / one file or directory |
 | `make lint` | `php -l` over every PHP file, in the pinned image |
 | `make console CMD="…"` | any `bin/console` command inside the container |
+| `make schema DEFINITION=…` / `make check-values DEFINITION=… VALUES=…` | derive the values schema from a definition file / validate a values file against it, no database involved |
 | `make mutation` | Infection over `src/Domain/` only (unit suite, no DB), minMsi 90 / minCoveredMsi 100 |
 | `make openapi` | validate `openapi.yaml` (OpenAPI 3.1) |
 | `make docs` | render `openapi.yaml` → `docs/openapi.yaml` + `docs/api.md` (DTO schemas injected); `docs/` is generated, never edit it by hand |

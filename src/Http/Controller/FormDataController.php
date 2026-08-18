@@ -91,7 +91,7 @@ final class FormDataController extends AbstractController
                         'title' => 'Request is not valid.',
                         'status' => 422,
                         'errors' => [
-                            ['pointer' => '/age', 'code' => 'form.value.type', 'message' => 'This value must be of type number.', 'input' => 'old'],
+                            ['pointer' => '/age', 'code' => 'schema.type', 'message' => 'The data (string) must match the type: number'],
                         ],
                     ],
                 ),
@@ -119,7 +119,7 @@ final class FormDataController extends AbstractController
             }
 
             $definition = $this->processor->fromStored($record->definition());
-            $this->assertValid($values, new ValidFormValues($definition));
+            $this->assertValid($values, new ValidFormValues($definition, formId: $id));
             $record->saveDraft(json_encode($values, \JSON_THROW_ON_ERROR));
             $this->repository->save();
         });
@@ -181,7 +181,7 @@ final class FormDataController extends AbstractController
                         'title' => 'Request is not valid.',
                         'status' => 422,
                         'errors' => [
-                            ['pointer' => '/email', 'code' => 'form.value.required', 'message' => 'This field is required.'],
+                            ['pointer' => '', 'code' => 'schema.required', 'message' => 'The required properties (email, country) are missing'],
                         ],
                     ],
                 ),
@@ -215,7 +215,7 @@ final class FormDataController extends AbstractController
 
             $definition = $this->processor->fromStored($record->definition());
             $stored = json_decode($record->data(), false, 512, \JSON_THROW_ON_ERROR);
-            $this->assertValid($stored, new ValidFormValues($definition, DeriveMode::Strict));
+            $this->assertValid($stored, new ValidFormValues($definition, DeriveMode::Strict, $id));
             $record->confirm();
             $this->repository->save();
         });

@@ -61,12 +61,20 @@ and query strings ignore unknown parameters the way HTTP clients expect. Members
 from.
 
 **ingot validates the form definition** — meta-schema, typed tree, semantic rules — and
-derives the per-form JSON Schema published to clients. **The submitted values are validated
-by a Symfony form built from that same definition** (`src/Http/Form/`): text, select and
-number fields become the matching form types with their constraints, unknown (plugin) field
-types pass through untouched, and richer rules have somewhere to live as the field catalogue
-grows. The wire type of each value is checked before the form sees it, since a form would
-happily turn `"36"` into a number while the published schema says it must be one.
+derives the per-form JSON Schema published to clients. **Submitted values pass two gates**
+(`src/Http/Form/`), cheapest first:
+
+1. the **derived schema**, cached per form and mode — the same document
+   `GET /api/forms/{id}/schema` serves, so the server can never be looser than its own
+   published contract. Findings carry `schema.*` codes.
+2. the **Symfony form** built from that definition — text, select and number fields become
+   the matching form types with their constraints, unknown (plugin) field types pass
+   through untouched, and richer rules have somewhere to live as the field catalogue grows.
+   Findings carry `form.value.*` codes.
+
+Values refused by the schema never reach the form: on this project's example definition the
+schema answers in ~60 µs where building and running the form costs ~670 µs, so a payload
+that was never going to fit is rejected without that work.
 
 Both meet Symfony validation through custom constraints
 (`src/Http/Request/Constraint/`): `ValidFormDefinition` on the create DTO, and
@@ -163,6 +171,8 @@ list, and those bytes are handed back to clients verbatim. Status is derived fro
 | `make test-integration` | Http + Infrastructure suite only |
 | `make test-filter FILTER=…` | one test or a group: `make test-filter FILTER=FormApiTest::testSaveDraft` |
 | `make test-file FILE=…` | one file or directory: `make test-file FILE=tests/Http/FormApiTest.php` |
+| `make schema DEFINITION=…` | print the values schema a definition derives (`MODE=draft` for the relaxed one) |
+| `make check-values DEFINITION=… VALUES=…` | would the API take this JSON? validates it against that schema |
 | `make lint` | `php -l` over every PHP file, in the pinned image |
 | `make console CMD="…"` | any `bin/console` command inside the container |
 | `make mutation` | Infection over `src/Domain/` (unit suite, no DB), MSI thresholds enforced |

@@ -6,7 +6,7 @@
 RUN   := docker compose run --rm --no-deps php
 RUNDB := docker compose run --rm php
 
-.PHONY: image install update test test-unit test-integration test-filter test-file coverage mutation openapi docs lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
+.PHONY: image install update test test-unit test-integration test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
 
 image: ## Build the dev/test image
 	docker compose build
@@ -53,6 +53,14 @@ docs: ## Generate the API contract (NelmioApiDocBundle) into docs/ + a Markdown 
 
 openapi: docs ## Validate the generated contract against the OpenAPI 3.1 schema
 	$(RUN) vendor/bin/php-openapi validate docs/openapi.yaml
+
+schema: ## Values schema derived from a definition: make schema DEFINITION=tests/_requests/examples/definition.json [MODE=draft]
+	@[ -n "$(DEFINITION)" ] || { echo 'Set DEFINITION, e.g. make schema DEFINITION=tests/_requests/examples/definition.json'; exit 1; }
+	$(RUN) bin/console app:forms:schema '$(DEFINITION)' --mode=$(or $(MODE),strict)
+
+check-values: ## Would the API take this JSON? make check-values DEFINITION=… VALUES=… [MODE=strict]
+	@[ -n "$(DEFINITION)" ] && [ -n "$(VALUES)" ] || { echo 'Set DEFINITION and VALUES, e.g. make check-values DEFINITION=tests/_requests/examples/definition.json VALUES=tests/_requests/examples/values-partial.json'; exit 1; }
+	$(RUN) bin/console app:forms:check-values '$(DEFINITION)' '$(VALUES)' --mode=$(or $(MODE),draft)
 
 lint: ## Syntax check every PHP file against the runtime this project targets
 	$(RUN) sh -c 'find src tests tools migrations public -name "*.php" -print0 | xargs -0 -n1 php -l | grep -v "No syntax errors" || true'
