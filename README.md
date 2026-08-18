@@ -155,6 +155,11 @@ list, and those bytes are handed back to clients verbatim. Status is derived fro
 | `make install` / `make update` | composer install/update (Docker, PHP 8.4) |
 | `make migrate` / `make db-test` | migrations for the dev / test database |
 | `make test` / `make test-unit` | full PHPUnit (needs postgres) / fast domain-only loop |
+| `make test-integration` | Http + Infrastructure suite only |
+| `make test-filter FILTER=…` | one test or a group: `make test-filter FILTER=FormApiTest::testSaveDraft` |
+| `make test-file FILE=…` | one file or directory: `make test-file FILE=tests/Http/FormApiTest.php` |
+| `make lint` | `php -l` over every PHP file, in the pinned image |
+| `make console CMD="…"` | any `bin/console` command inside the container |
 | `make mutation` | Infection over `src/Domain/` (unit suite, no DB), MSI thresholds enforced |
 | `make openapi` | validate `openapi.yaml` against the OpenAPI 3.1 schema |
 | `make docs` | render `openapi.yaml` into `docs/` (DTO schemas injected, output validated) |

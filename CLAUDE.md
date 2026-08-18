@@ -90,7 +90,9 @@ deletes them physically. No templates, no versioning, no multi-submission — de
 ## Quality gates (all must pass before any commit)
 
 **Hard rule: run `make ci` before declaring any task done; a task with a red `make ci` is
-not finished.**
+not finished.** Every tool runs through a make target — never call phpunit, phpstan,
+composer or `bin/console` directly, and never on the host. If an isolated run has no
+target, add one here rather than reaching for a raw command.
 
 Local PHP is 8.1 — all tools run inside the pinned Docker image (`docker/Dockerfile`,
 `php:8.4-cli-alpine`); never on the host. `docker compose up -d` serves the API on :8000
@@ -101,6 +103,10 @@ Local PHP is 8.1 — all tools run inside the pinned Docker image (`docker/Docke
 | `make install` / `make update` | composer install/update (Docker) |
 | `make migrate` / `make db-test` | migrations for dev / test database |
 | `make test` / `make test-unit` | full PHPUnit (starts postgres) / fast domain-only loop |
+| `make test-integration` | Http + Infrastructure suite only |
+| `make test-filter FILTER=…` / `make test-file FILE=…` | one test (or group) / one file or directory |
+| `make lint` | `php -l` over every PHP file, in the pinned image |
+| `make console CMD="…"` | any `bin/console` command inside the container |
 | `make mutation` | Infection over `src/Domain/` only (unit suite, no DB), minMsi 90 / minCoveredMsi 100 |
 | `make openapi` | validate `openapi.yaml` (OpenAPI 3.1) |
 | `make docs` | render `openapi.yaml` → `docs/openapi.yaml` + `docs/api.md` (DTO schemas injected); `docs/` is generated, never edit it by hand |

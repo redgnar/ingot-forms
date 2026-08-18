@@ -6,7 +6,7 @@
 RUN   := docker compose run --rm --no-deps php
 RUNDB := docker compose run --rm php
 
-.PHONY: image install update test test-unit coverage mutation openapi docs stan cs cs-fix validate audit deptrac migrate db-test ci shell
+.PHONY: image install update test test-unit test-integration test-filter test-file coverage mutation openapi docs lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
 
 image: ## Build the dev/test image
 	docker compose build
@@ -30,6 +30,17 @@ test: db-test
 test-unit: ## Fast loop: domain tests only, no database
 	$(RUN) vendor/bin/phpunit --testsuite unit
 
+test-integration: db-test ## Http + Infrastructure tests against the compose postgres
+	$(RUNDB) vendor/bin/phpunit --testsuite integration
+
+test-filter: db-test ## One test or a group of them: make test-filter FILTER=FormApiTest::testSaveDraft
+	@[ -n "$(FILTER)" ] || { echo 'Set FILTER, e.g. make test-filter FILTER=FormApiTest'; exit 1; }
+	$(RUNDB) vendor/bin/phpunit --filter '$(FILTER)'
+
+test-file: db-test ## One test file or directory: make test-file FILE=tests/Http/FormApiTest.php
+	@[ -n "$(FILE)" ] || { echo 'Set FILE, e.g. make test-file FILE=tests/Http/FormApiTest.php'; exit 1; }
+	$(RUNDB) vendor/bin/phpunit '$(FILE)'
+
 coverage: db-test
 	$(RUNDB) vendor/bin/phpunit --coverage-text
 
@@ -42,6 +53,9 @@ docs: ## Generate the API contract (NelmioApiDocBundle) into docs/ + a Markdown 
 
 openapi: docs ## Validate the generated contract against the OpenAPI 3.1 schema
 	$(RUN) vendor/bin/php-openapi validate docs/openapi.yaml
+
+lint: ## Syntax check every PHP file against the runtime this project targets
+	$(RUN) sh -c 'find src tests tools migrations public -name "*.php" -print0 | xargs -0 -n1 php -l | grep -v "No syntax errors" || true'
 
 stan:
 	$(RUN) vendor/bin/phpstan analyse --no-progress --memory-limit=512M
@@ -64,6 +78,10 @@ deptrac: ## Module boundaries (deptrac.yaml)
 # `openapi` regenerates docs/ first: the contract tests validate real traffic against
 # the generated docs/openapi.yaml, so it must be current.
 ci: validate cs openapi stan deptrac test mutation audit ## Everything the git pipeline checks
+
+console: ## Any console command, in the container: make console CMD="doctrine:migrations:status"
+	@[ -n "$(CMD)" ] || { echo 'Set CMD, e.g. make console CMD="debug:router"'; exit 1; }
+	$(RUNDB) bin/console $(CMD)
 
 shell: ## Interactive shell inside the dev image
 	docker compose run --rm --no-deps -it php sh
