@@ -1,0 +1,79 @@
+# The values schema derived from a definition — the contract a frontend validates
+# against before sending anything. Two variants: the strict one confirmation uses,
+# and the draft one that lets partial progress through.
+
+### A form to derive the schema from.
+# @name createFormForSchema
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "id": "contact",
+    "title": "Contact us",
+    "fields": [
+      { "type": "text", "name": "email", "required": true, "maxLength": 120 },
+      { "type": "select", "name": "country", "options": ["pl", "de", "fr"], "required": true },
+      { "type": "number", "name": "age", "min": 18, "max": 120 }
+    ]
+  }
+}
+
+> {%
+    client.test("201", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+    client.global.set("schemaFormId", response.body.id);
+%}
+
+### Strict variant (the default): what confirmation enforces.
+# @name getStrictSchema
+GET {{host}}/api/forms/{{schemaFormId}}/schema
+
+> {%
+    client.test("200 application/schema+json", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(response.contentType.mimeType === "application/schema+json", "Expected application/schema+json, got " + response.contentType.mimeType);
+    });
+    client.test("the required fields come from the definition", function () {
+        client.assert(JSON.stringify(response.body.required) === JSON.stringify(["email", "country"]), "Expected email and country to be required");
+        client.assert(response.body.additionalProperties === false, "The property set is closed");
+    });
+%}
+
+### Draft variant: same value contracts, nothing required.
+# @name getDraftSchema
+GET {{host}}/api/forms/{{schemaFormId}}/schema?mode=draft
+
+> {%
+    client.test("200 and no required list", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(response.body.required === undefined, "A draft schema requires nothing");
+    });
+    client.test("value contracts still hold", function () {
+        client.assert(response.body.properties.age.minimum === 18, "The number range survives in draft mode");
+        client.assert(response.body.additionalProperties === false, "The property set stays closed");
+    });
+%}
+
+### Anything other than strict|draft is refused, with the accepted values in the message.
+# @name unknownSchemaMode
+GET {{host}}/api/forms/{{schemaFormId}}/schema?mode=bogus
+
+> {%
+    client.test("422 request.choice at /mode", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/mode", "Expected the error at /mode");
+        client.assert(response.body.errors[0].code === "request.choice", "Expected request.choice");
+    });
+%}
+
+### Clean up.
+DELETE {{host}}/api/forms/{{schemaFormId}}
+
+> {%
+    client.test("204", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}

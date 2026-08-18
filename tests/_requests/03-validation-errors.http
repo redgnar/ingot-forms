@@ -1,0 +1,246 @@
+# Every way a request can be refused, and what the answer looks like. All of them are
+# RFC 9457 problem documents: `type` is a URN, and validation problems carry
+# `errors: [{pointer, code, message, input?}]` — one entry per finding.
+#
+# The catalogue splits in two: problems with the *envelope* (`request.*`, checked by the
+# request DTOs) and problems with the *values* (`form.value.*`, checked by the form built
+# from that form's definition).
+
+### A body that is not JSON at all: 400, before anything is mapped.
+# @name malformedJson
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{broken
+
+> {%
+    client.test("400 malformed-json", function () {
+        client.assert(response.status === 400, "Expected 400, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:malformed-json", "Expected the malformed-json problem type");
+        client.assert(response.body.errors[0].code === "source.malformed_json", "Expected source.malformed_json");
+    });
+%}
+
+### Any media type other than application/json: 415. A form-encoded payload is refused too.
+# @name unsupportedMediaType
+POST {{host}}/api/forms
+Content-Type: application/x-www-form-urlencoded
+
+expireDate=2030-01-31T23:59:59%2B00:00
+
+> {%
+    client.test("415 unsupported-media-type", function () {
+        client.assert(response.status === 415, "Expected 415, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:unsupported-media-type", "Expected the unsupported-media-type problem type");
+    });
+%}
+
+### A missing member is reported at its own pointer, in the wire's terms.
+# @name missingMember
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "definition": { "id": "contact", "title": "Contact us", "fields": [{ "type": "text", "name": "email" }] }
+}
+
+> {%
+    client.test("422 at /expireDate", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/expireDate", "Expected the error at /expireDate");
+        client.assert(response.body.errors[0].code === "request.type", "Expected request.type");
+    });
+%}
+
+### The body is a closed contract: a member the DTO does not declare is refused.
+# @name unexpectedMember
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "id": "contact", "title": "Contact us", "fields": [{ "type": "text", "name": "email" }] },
+  "bogus": 1
+}
+
+> {%
+    client.test("422 request.unexpected_key at /bogus", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/bogus", "Expected the error at /bogus");
+        client.assert(response.body.errors[0].code === "request.unexpected_key", "Expected request.unexpected_key");
+    });
+%}
+
+### A form that expires in the past could never be filled in.
+# @name pastExpireDate
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2020-01-01T00:00:00+00:00",
+  "definition": { "id": "contact", "title": "Contact us", "fields": [{ "type": "text", "name": "email" }] }
+}
+
+> {%
+    client.test("422 form.expire_date.past", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "form.expire_date.past", "Expected form.expire_date.past");
+    });
+%}
+
+### Problems inside the definition keep the engine's pointer, re-rooted under /definition.
+# @name duplicateFieldNames
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "id": "dup",
+    "title": "Duplicates",
+    "fields": [
+      { "type": "text", "name": "email" },
+      { "type": "text", "name": "email" }
+    ]
+  }
+}
+
+> {%
+    client.test("422 form.field.duplicate-name at the second field", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/definition/fields/1/name", "Expected the pointer inside the definition");
+        client.assert(response.body.errors[0].code === "form.field.duplicate-name", "Expected form.field.duplicate-name");
+    });
+%}
+
+### A definition that breaks the meta-schema (no title) is refused the same way.
+# @name definitionAgainstMetaSchema
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "id": "contact", "fields": [{ "type": "text", "name": "email" }] }
+}
+
+> {%
+    client.test("422 schema.required under /definition", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/definition", "The engine's pointer is re-rooted where the client sent the document");
+        client.assert(response.body.errors[0].code === "schema.required", "Expected schema.required, got " + response.body.errors[0].code);
+    });
+%}
+
+### From here on, the values of a real form. Create one first.
+# @name createFormForValueErrors
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "id": "contact",
+    "title": "Contact us",
+    "fields": [
+      { "type": "text", "name": "email", "required": true, "maxLength": 120 },
+      { "type": "select", "name": "country", "options": ["pl", "de", "fr"], "required": true },
+      { "type": "number", "name": "age", "min": 18, "max": 120 }
+    ]
+  }
+}
+
+> {%
+    client.test("201", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+    client.global.set("valuesFormId", response.body.id);
+%}
+
+### Values must be a JSON object keyed by field name — a list is not.
+# @name valuesNotAnObject
+PUT {{host}}/api/forms/{{valuesFormId}}/data
+Content-Type: application/json
+
+[1, 2]
+
+> {%
+    client.test("422 request.type at the document root", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "", "Expected the root pointer");
+        client.assert(response.body.errors[0].code === "request.type", "Expected request.type");
+    });
+%}
+
+### A number outside the declared range — enforced even while drafting.
+# @name valueOutOfRange
+PUT {{host}}/api/forms/{{valuesFormId}}/data
+Content-Type: application/json
+
+{
+  "age": 7
+}
+
+> {%
+    client.test("422 form.value.range at /age", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/age", "Expected the error at /age");
+        client.assert(response.body.errors[0].code === "form.value.range", "Expected form.value.range");
+    });
+%}
+
+### A number sent as a string. The form would convert it; the published schema says otherwise.
+# @name valueWrongWireType
+PUT {{host}}/api/forms/{{valuesFormId}}/data
+Content-Type: application/json
+
+{
+  "age": "36"
+}
+
+> {%
+    client.test("422 form.value.type at /age", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "form.value.type", "Expected form.value.type");
+    });
+%}
+
+### A choice outside the declared options.
+# @name valueOutsideChoices
+PUT {{host}}/api/forms/{{valuesFormId}}/data
+Content-Type: application/json
+
+{
+  "country": "es"
+}
+
+> {%
+    client.test("422 at /country", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/country", "Expected the error at /country");
+    });
+%}
+
+### A field this form never declared.
+# @name valueUndeclaredField
+PUT {{host}}/api/forms/{{valuesFormId}}/data
+Content-Type: application/json
+
+{
+  "bogus": 1
+}
+
+> {%
+    client.test("422 form.value.unknown_field", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "form.value.unknown_field", "Expected form.value.unknown_field");
+    });
+%}
+
+### Clean up.
+DELETE {{host}}/api/forms/{{valuesFormId}}
+
+> {%
+    client.test("204", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}

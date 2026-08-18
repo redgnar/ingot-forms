@@ -1,0 +1,132 @@
+# State conflicts, unknown forms, and what an expired form answers.
+#
+# The last two requests need a pause between them: the form is created with an expire
+# date a few seconds away, and only after it passes does the API treat it as gone.
+
+### An unknown (but well-formed) id.
+# @name unknownForm
+GET {{host}}/api/forms/01a00000-0000-7000-8000-000000000000
+
+> {%
+    client.test("404 form-not-found", function () {
+        client.assert(response.status === 404, "Expected 404, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:form-not-found", "Expected the form-not-found problem type");
+    });
+%}
+
+### An id that is not a UUID does not even match the route.
+# @name malformedId
+GET {{host}}/api/forms/not-a-uuid
+
+> {%
+    client.test("404 — the route requires a UUID", function () {
+        client.assert(response.status === 404, "Expected 404, got " + response.status);
+    });
+%}
+
+### A form nobody has filled in yet.
+# @name createEmptyForm
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "id": "contact",
+    "title": "Contact us",
+    "fields": [{ "type": "text", "name": "email", "required": true }]
+  }
+}
+
+> {%
+    client.test("201", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+    client.global.set("emptyFormId", response.body.id);
+%}
+
+### Reading the values of an empty form: 404, with its own problem type.
+# @name readEmptyFormData
+GET {{host}}/api/forms/{{emptyFormId}}/data
+
+> {%
+    client.test("404 form-data-empty", function () {
+        client.assert(response.status === 404, "Expected 404, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:form-data-empty", "Expected the form-data-empty problem type");
+    });
+%}
+
+### Confirming an empty form: nothing to confirm, so 409.
+# @name confirmEmptyForm
+POST {{host}}/api/forms/{{emptyFormId}}/confirm
+
+> {%
+    client.test("409 form-data-empty", function () {
+        client.assert(response.status === 409, "Expected 409, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:form-data-empty", "Expected the form-data-empty problem type");
+    });
+%}
+
+### Clean up.
+DELETE {{host}}/api/forms/{{emptyFormId}}
+
+> {%
+    client.test("204", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+### A form that expires almost immediately. The pre-request script stamps the date;
+### if your PhpStorm predates pre-request handlers, hardcode a date a minute ahead.
+# @name createExpiringForm
+< {%
+    request.variables.set("expiresSoon", new Date(Date.now() + 5000).toISOString());
+%}
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "{{expiresSoon}}",
+  "definition": {
+    "id": "fleeting",
+    "title": "Gone in five seconds",
+    "fields": [{ "type": "text", "name": "email" }]
+  }
+}
+
+> {%
+    client.test("201 — the date is still in the future", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+    client.global.set("expiringFormId", response.body.id);
+%}
+
+### Run this one AFTER the expire date passes (wait ~5 seconds). Every endpoint of an
+### expired form answers the same way — reads and writes alike.
+# @name readExpiredForm
+GET {{host}}/api/forms/{{expiringFormId}}
+
+> {%
+    client.test("410 form-gone", function () {
+        client.assert(response.status === 410, "Expected 410 — did you run this before the form expired? Got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:form-gone", "Expected the form-gone problem type");
+    });
+%}
+
+### Writing to it is answered the same way.
+# @name writeToExpiredForm
+PUT {{host}}/api/forms/{{expiringFormId}}/data
+Content-Type: application/json
+
+{
+  "email": "ada@example.com"
+}
+
+> {%
+    client.test("410 form-gone", function () {
+        client.assert(response.status === 410, "Expected 410, got " + response.status);
+    });
+%}
+
+### The row itself is removed by the purge command, not by the API:
+###   make console CMD="app:forms:purge-expired"

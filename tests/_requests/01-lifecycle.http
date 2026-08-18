@@ -1,0 +1,162 @@
+# The whole life of a form: created empty, filled in twice, confirmed, then locked.
+# Run the requests top to bottom — each one reuses the id the first request captured.
+#
+# Select the environment ("dev") in the run gutter; see README.md in this directory.
+
+### Create a form. The definition is immutable afterwards: changing it means delete + recreate.
+# @name createForm
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "id": "contact",
+    "title": "Contact us",
+    "fields": [
+      { "type": "text", "name": "email", "label": "E-mail", "required": true, "maxLength": 120 },
+      { "type": "select", "name": "country", "label": "Country", "options": ["pl", "de", "fr"], "required": true },
+      { "type": "number", "name": "age", "label": "Age", "min": 18, "max": 120 }
+    ]
+  }
+}
+
+> {%
+    client.test("201 with a Location header", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+        client.assert(response.headers.valueOf("Location") === "/api/forms/" + response.body.id, "Location must point at the new form");
+    });
+    client.test("a fresh form is empty", function () {
+        client.assert(response.body.status === "empty", "Expected status empty, got " + response.body.status);
+        client.assert(response.body.data === null, "A fresh form carries no data");
+    });
+    client.global.set("formId", response.body.id);
+%}
+
+### Read it back: definition, derived status, timestamps.
+# @name getForm
+GET {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f
+
+> {%
+    client.test("200 with the full envelope", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(response.body.title === "Contact us", "The title comes from the definition");
+    });
+%}
+
+### Save partial progress. Repeatable, and "required" does not apply yet.
+# @name saveDraft
+PUT {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/data
+Content-Type: application/json
+
+{
+  "age": 36
+}
+
+> {%
+    client.test("200 and the form turned into a draft", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(response.body.status === "draft", "Expected status draft, got " + response.body.status);
+        client.assert(response.body.dataSavedAt !== null, "dataSavedAt is stamped on every save");
+    });
+%}
+
+### Read the values back.
+# @name getFormData
+GET {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/data
+
+> {%
+    client.test("200 with the stored values", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(response.body.age === 36, "The draft value survived");
+    });
+%}
+
+### Confirming an incomplete draft fails: this is where "required" starts to matter.
+# @name confirmIncomplete
+POST {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/confirm
+
+> {%
+    client.test("422 naming every field still missing", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        const pointers = response.body.errors.map(e => e.pointer);
+        client.assert(pointers.includes("/email"), "Expected /email among " + pointers);
+        client.assert(response.body.errors[0].code === "form.value.required", "Expected form.value.required");
+    });
+%}
+
+### Fill everything in. This overwrites the previous draft.
+# @name saveComplete
+PUT {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/data
+Content-Type: application/json
+
+{
+  "email": "ada@example.com",
+  "country": "pl",
+  "age": 36
+}
+
+> {%
+    client.test("200", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+%}
+
+### Confirm: validates the stored data strictly and locks the form for good.
+# @name confirmForm
+POST {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/confirm
+
+> {%
+    client.test("200 and the form is confirmed", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(response.body.status === "confirmed", "Expected status confirmed");
+        client.assert(response.body.confirmedAt !== null, "confirmedAt is stamped once");
+    });
+%}
+
+### Editing a confirmed form is refused — confirmation is final.
+# @name saveAfterConfirm
+PUT {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/data
+Content-Type: application/json
+
+{
+  "age": 37
+}
+
+> {%
+    client.test("409 form-locked", function () {
+        client.assert(response.status === 409, "Expected 409, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:form-locked", "Expected the form-locked problem type");
+    });
+%}
+
+### Confirming twice is refused as well.
+# @name confirmAgain
+POST {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/confirm
+
+> {%
+    client.test("409 form-already-confirmed", function () {
+        client.assert(response.status === 409, "Expected 409, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:form-already-confirmed", "Expected the already-confirmed problem type");
+    });
+%}
+
+### Delete it. This is the only way to "change" a definition: delete and create anew.
+# @name deleteForm
+DELETE {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f
+
+> {%
+    client.test("204 and it is gone", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+### Reading a deleted form is a 404.
+GET {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f
+
+> {%
+    client.test("404 form-not-found", function () {
+        client.assert(response.status === 404, "Expected 404, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:form-not-found", "Expected the form-not-found problem type");
+    });
+%}

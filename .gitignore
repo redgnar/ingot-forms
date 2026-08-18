@@ -7,3 +7,4 @@
 /.phpunit.cache/
 /config/reference.php
 /.idea/
+/docker-compose.override.yml

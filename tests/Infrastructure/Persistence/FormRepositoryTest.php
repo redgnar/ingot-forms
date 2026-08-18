@@ -137,8 +137,11 @@ final class FormRepositoryTest extends KernelTestCase
         // WHEN
         $purged = $this->repository->purgeExpired();
 
-        // THEN only the expired row went away
-        self::assertSame(1, $purged);
+        // THEN the expired row is physically gone — not merely invisible — while the
+        // live one is untouched. The count is asserted as "at least ours", because
+        // this database is shared: anything expired left behind by, say, the request
+        // examples in tests/_requests is swept up by the same call.
+        self::assertGreaterThanOrEqual(1, $purged);
         self::assertTrue($liveId->equals($this->repository->get($liveId)->id()));
         $this->expectException(FormNotFound::class);
         $this->repository->get($expiredId);
