@@ -6,7 +6,6 @@ namespace App\Infrastructure\Validation;
 
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Exception\ValuesNotValid;
-use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\Port\ValuesValidator;
 use App\Domain\Forms\UnknownFieldTypes;
 use App\Domain\Forms\ValueObject\Definition;
@@ -36,7 +35,6 @@ use Ingot\JsonPointer;
 final class StagedValuesValidator implements ValuesValidator
 {
     public function __construct(
-        private readonly FormDefinitionProcessor $definitions,
         private readonly DerivedSchemaValues $schema,
         private readonly SymfonyFormValues $form,
         private readonly UnknownFieldTypes $unknownFieldTypes,
@@ -56,8 +54,8 @@ final class StagedValuesValidator implements ValuesValidator
 
     private function check(Definition $definition, mixed $values, DeriveMode $mode, FormId $formId): ErrorReport
     {
-        // Before anything is parsed: a payload that is not an object at all
-        // cannot be judged against any definition.
+        // Before the definition is even parsed: a payload that is not an
+        // object at all cannot be judged against any definition.
         if (!$values instanceof \stdClass) {
             return ErrorReport::of(new MappingError(
                 JsonPointer::root(),
@@ -67,7 +65,7 @@ final class StagedValuesValidator implements ValuesValidator
             ));
         }
 
-        $model = $this->definitions->fromStored((string) $definition);
+        $model = $definition->structure();
 
         if ($mode === DeriveMode::Strict) {
             $unknown = $this->unknownFieldTypes->in($model);

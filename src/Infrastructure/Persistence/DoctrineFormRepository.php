@@ -7,6 +7,7 @@ namespace App\Infrastructure\Persistence;
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
 use App\Domain\Forms\Form;
+use App\Domain\Forms\Port\DefinitionParser;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
@@ -25,6 +26,7 @@ final class DoctrineFormRepository implements FormRepository
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
+        private readonly DefinitionParser $definitions,
     ) {}
 
     public function add(Form $form): void
@@ -98,7 +100,7 @@ final class DoctrineFormRepository implements FormRepository
      */
     private function fetch(FormId $id, ?LockMode $lockMode): Form
     {
-        return $this->liveRow($id, $lockMode)->toForm();
+        return $this->liveRow($id, $lockMode)->toForm($this->definitions);
     }
 
     /**

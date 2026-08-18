@@ -4,40 +4,56 @@ declare(strict_types=1);
 
 namespace App\Domain\Forms\ValueObject;
 
+use App\Domain\Forms\Definition\FormDefinition;
+use App\Domain\Forms\Port\DefinitionParser;
+
 /**
- * A form definition that was accepted: the normalized document, exactly as it
- * is stored and handed back to clients.
+ * What a form is made of, in the two shapes it is needed in and never in one
+ * without the other: the normalized document, which is what is stored and
+ * handed back to clients byte for byte, and the structure behind it, which is
+ * what a rule can be asked about.
  *
- * Holding one means the document went through the definition gate — the
- * meta-schema, the typed tree and the semantic rules — because that is the
- * only way to obtain one: {@see \App\Domain\Forms\FormDefinitionProcessor}
- * builds it from a model it just proved, and storage can only hand back what
- * went in that way. What this type checks for itself is the one thing it can:
- * that the document is a JSON object, so a corrupted or empty column is
- * refused at the boundary instead of somewhere deeper.
+ * There is no way to hold one that was not proved: it is built either from a
+ * structure the mapper has just accepted, or from a stored document read back
+ * through that same mapper. The structure is resolved when somebody first
+ * asks for it and never twice — reading or deleting a form needs only the
+ * document, and must not pay for parsing it.
  */
-final readonly class Definition implements \Stringable
+final class Definition implements \Stringable
 {
-    private function __construct(
-        private string $document,
-    ) {}
+    private ?FormDefinition $structure = null;
+
+    /** @var \Closure(): FormDefinition */
+    private readonly \Closure $resolve;
 
     /**
-     * @throws \InvalidArgumentException when the text is not a JSON object
+     * @param \Closure(): FormDefinition $resolve
      */
-    public static function fromDocument(string $document): self
+    private function __construct(
+        private readonly string $document,
+        \Closure $resolve,
+    ) {
+        $this->resolve = $resolve;
+    }
+
+    /** A definition the mapper has just accepted, with the document it normalizes to. */
+    public static function of(FormDefinition $structure, string $document): self
     {
-        try {
-            $decoded = json_decode($document, false, flags: \JSON_THROW_ON_ERROR);
-        } catch (\JsonException $exception) {
-            throw new \InvalidArgumentException('A form definition must be a JSON document.', previous: $exception);
-        }
+        return new self($document, static fn(): FormDefinition => $structure);
+    }
 
-        if (!$decoded instanceof \stdClass) {
-            throw new \InvalidArgumentException('A form definition must be a JSON object.');
-        }
+    /**
+     * A definition read back from storage. Whether the document still maps is
+     * answered by the parser, at the moment the structure is asked for.
+     */
+    public static function stored(string $document, DefinitionParser $parser): self
+    {
+        return new self($document, static fn(): FormDefinition => $parser->fromStored($document));
+    }
 
-        return new self($document);
+    public function structure(): FormDefinition
+    {
+        return $this->structure ??= ($this->resolve)();
     }
 
     public function __toString(): string

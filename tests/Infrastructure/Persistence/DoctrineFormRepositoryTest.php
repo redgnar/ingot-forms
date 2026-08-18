@@ -7,6 +7,8 @@ namespace App\Tests\Infrastructure\Persistence;
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
 use App\Domain\Forms\Form;
+use App\Domain\Forms\FormDefinitionProcessor;
+use App\Domain\Forms\FormMapperFactory;
 use App\Domain\Forms\FormStatus;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\ValueObject\Definition;
@@ -197,7 +199,7 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
 
     private static function definition(): Definition
     {
-        return Definition::fromDocument(self::DEFINITION);
+        return Definition::stored(self::DEFINITION, new FormDefinitionProcessor(new FormMapperFactory()->create()));
     }
 
     private static function uuid(): FormId

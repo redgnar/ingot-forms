@@ -18,6 +18,7 @@ use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Values;
+use App\Tests\Domain\Forms\Fake\SpyParser;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
 
@@ -219,7 +220,7 @@ final class FormTest extends TestCase
         $id = FormId::next();
 
         // WHEN
-        $form = new Form($id, Definition::fromDocument(self::DEFINITION), ExpireDate::at(new \DateTimeImmutable('+1 day')));
+        $form = new Form($id, Definition::stored(self::DEFINITION, new SpyParser()), ExpireDate::at(new \DateTimeImmutable('+1 day')));
 
         // THEN
         self::assertTrue($id->equals($form->id()));
@@ -237,7 +238,7 @@ final class FormTest extends TestCase
         // WHEN
         $form = Form::fromState(
             $id,
-            Definition::fromDocument(self::DEFINITION),
+            Definition::stored(self::DEFINITION, new SpyParser()),
             ExpireDate::at(new \DateTimeImmutable('+1 day')),
             Values::fromJson('{"email": "ada@example.com"}'),
             $savedAt,
@@ -302,7 +303,7 @@ final class FormTest extends TestCase
     {
         return new Form(
             FormId::next(),
-            Definition::fromDocument(self::DEFINITION),
+            Definition::stored(self::DEFINITION, new SpyParser()),
             ExpireDate::at($expires ?? new \DateTimeImmutable('+1 day')),
             $now,
         );

@@ -15,6 +15,7 @@ use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Tests\Application\Forms\Fake\ImmediateTransactions;
 use App\Tests\Application\Forms\Fake\InMemoryForms;
+use App\Tests\Domain\Forms\Fake\SpyParser;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
 
@@ -71,7 +72,7 @@ final class ConfirmFormTest extends TestCase
     private static function plant(InMemoryForms $forms): FormId
     {
         $id = FormId::next();
-        $forms->add(new Form($id, Definition::fromDocument(self::DEFINITION), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+        $forms->add(new Form($id, Definition::stored(self::DEFINITION, new SpyParser()), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
 
         return $id;
     }

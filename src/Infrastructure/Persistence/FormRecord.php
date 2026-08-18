@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Persistence;
 
 use App\Domain\Forms\Form;
+use App\Domain\Forms\Port\DefinitionParser;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
@@ -73,11 +74,11 @@ class FormRecord
         $this->confirmedAt = $form->confirmedAt();
     }
 
-    public function toForm(): Form
+    public function toForm(DefinitionParser $parser): Form
     {
         return Form::fromState(
             FormId::of($this->id),
-            Definition::fromDocument($this->definition),
+            Definition::stored($this->definition, $parser),
             ExpireDate::at($this->expireDate),
             $this->data === null ? null : Values::fromJson($this->data),
             $this->dataSavedAt,

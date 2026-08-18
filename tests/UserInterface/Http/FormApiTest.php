@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Tests\UserInterface\Http;
 
 use App\Domain\Forms\Form;
+use App\Domain\Forms\FormDefinitionProcessor;
+use App\Domain\Forms\FormMapperFactory;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
@@ -330,7 +332,10 @@ final class FormApiTest extends WebTestCase
     /** What a form planted straight into storage is made of. */
     private static function definition(): Definition
     {
-        return Definition::fromDocument(json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR));
+        return Definition::stored(
+            json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR),
+            new FormDefinitionProcessor(new FormMapperFactory()->create()),
+        );
     }
 
     /**

@@ -4,40 +4,65 @@ declare(strict_types=1);
 
 namespace App\Tests\Domain\Forms\ValueObject;
 
+use App\Domain\Forms\Definition\FormDefinition;
+use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\ValueObject\Definition;
+use App\Tests\Domain\Forms\Fake\SpyParser;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The definition as the model carries it: an accepted document, unchanged,
- * because that is what is stored and what clients are handed back.
+ * What a form is made of, in both shapes it is needed in — and the rule that
+ * keeps them one fact: the document is what is stored, the structure is what
+ * is reasoned about, and neither is held without the other.
  */
 final class DefinitionTest extends TestCase
 {
     private const string DOCUMENT = '{"id":"contact","title":"Contact us","fields":[{"type":"text","name":"email"}]}';
 
-    public function testItHandsBackTheDocumentItWasGiven(): void
+    public function testADefinitionJustAcceptedCarriesItsStructureAlready(): void
     {
-        // GIVEN / WHEN
-        $definition = Definition::fromDocument(self::DOCUMENT);
+        // GIVEN a structure the mapper accepted, and the document it normalizes to
+        $structure = new FormDefinition('contact', 'Contact us', [new TextField('email')]);
 
-        // THEN byte for byte — a validator and a client must see the same text
+        // WHEN
+        $definition = Definition::of($structure, self::DOCUMENT);
+
+        // THEN both shapes are there, and the document is byte for byte the one given
+        self::assertSame($structure, $definition->structure());
         self::assertSame(self::DOCUMENT, (string) $definition);
     }
 
-    public function testADocumentThatIsNotAnObjectIsRefused(): void
+    public function testAStoredDefinitionIsReadBackOnlyWhenItsStructureIsAskedFor(): void
     {
-        // GIVEN a document shaped like anything but a definition
-        // WHEN / THEN
-        $this->expectException(\InvalidArgumentException::class);
+        // GIVEN a definition as storage hands it over
+        $parser = new SpyParser();
+        $definition = Definition::stored(self::DOCUMENT, $parser);
 
-        Definition::fromDocument('[{"id":"contact"}]');
+        // THEN the document is available without parsing anything — which is
+        // all that reading or deleting a form ever needs
+        self::assertSame(self::DOCUMENT, (string) $definition);
+        self::assertSame(0, $parser->calls);
+
+        // WHEN the structure is asked for
+        $structure = $definition->structure();
+
+        // THEN it comes from the stored document
+        self::assertSame('contact', $structure->id);
+        self::assertSame(1, $parser->calls);
     }
 
-    public function testTextThatIsNotJsonIsRefused(): void
+    public function testAStoredDefinitionIsReadBackAtMostOnce(): void
     {
-        // GIVEN / WHEN / THEN a corrupted column stops here, not deeper in
-        $this->expectException(\InvalidArgumentException::class);
+        // GIVEN
+        $parser = new SpyParser();
+        $definition = Definition::stored(self::DOCUMENT, $parser);
 
-        Definition::fromDocument('{broken');
+        // WHEN asked repeatedly
+        $first = $definition->structure();
+        $second = $definition->structure();
+
+        // THEN the same structure comes back, and the parser ran once
+        self::assertSame($first, $second);
+        self::assertSame(1, $parser->calls);
     }
 }

@@ -7,6 +7,7 @@ namespace App\Domain\Forms;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\GenericField;
 use App\Domain\Forms\Exception\DefinitionNotValid;
+use App\Domain\Forms\Port\DefinitionParser;
 use App\Domain\Forms\ValueObject\Definition;
 use Ingot\Source;
 use Ingot\TreeMapper;
@@ -17,7 +18,7 @@ use Ingot\TreeMapper;
  * rules guard incoming documents, while unknown (plugin) field types fall back
  * to {@see GenericField} so stored definitions round-trip losslessly.
  */
-final class FormDefinitionProcessor
+final class FormDefinitionProcessor implements DefinitionParser
 {
     public function __construct(
         private readonly TreeMapper $mapper,
@@ -44,12 +45,13 @@ final class FormDefinitionProcessor
     }
 
     /**
-     * The definition as the value object a form is built with: the normalized
-     * document of a model this processor has proved.
+     * The definition as the value object a form is built with: a structure
+     * this processor has just proved, together with the document it
+     * normalizes to.
      */
     public function document(FormDefinition $definition): Definition
     {
-        return Definition::fromDocument(json_encode($this->normalize($definition), \JSON_THROW_ON_ERROR));
+        return Definition::of($definition, json_encode($this->normalize($definition), \JSON_THROW_ON_ERROR));
     }
 
     /**

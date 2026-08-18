@@ -60,8 +60,8 @@ src/Domain/Forms/          the model: Form (aggregate), FormStatus, DeriveMode, 
     Exception/             what the model refuses: DefinitionNotValid, ValuesNotValid,
                            FormNotFound, FormGone, FormLocked, FormAlreadyConfirmed,
                            FormHasNoData
-    Port/                  FormRepository, ValuesValidator — what the model needs from the
-                           outside to keep its own rules
+    Port/                  FormRepository, ValuesValidator, DefinitionParser — what the
+                           model needs from the outside to keep its own rules
 src/Application/Forms/
     UseCase/               one class per thing the system does, each with a single __invoke:
                            CreateForm, SaveFormData, ConfirmForm, DeleteForm, ReadForm,
@@ -89,8 +89,8 @@ Rules that follow from it, and that the tooling checks:
   manager**, and it never mutates an aggregate. Its job is HTTP: map the request onto a use
   case, map a refusal onto a status.
 - **Ports are declared where they are needed and implemented outward.** The domain declares
-  what the model needs to keep its own rules (`FormRepository`, `ValuesValidator`); the
-  application declares what a use case needs (`Transactions`,
+  what the model needs to keep its own rules (`FormRepository`, `ValuesValidator`,
+  `DefinitionParser`); the application declares what a use case needs (`Transactions`,
   `DataSchemas`); `services.yaml` binds each interface to its adapter. Nothing above
   Infrastructure names an implementation class.
 - **The domain speaks in value objects, not primitives**: `FormId` instead of a raw uuid,
@@ -103,9 +103,13 @@ Rules that follow from it, and that the tooling checks:
   handed in as an argument (the verdict needs machinery the model does not carry), but which
   contract applies — lenient while filling in, strict at confirmation — is the form's own
   business. A caller cannot skip that check, which is the point: it is an invariant, not a
-  courtesy. The definition travels as `Definition`: the normalized document of a model the
-  processor has already proved, which is the only way to obtain one — parsing it back into
-  the typed tree is the validator's business, since it is the one paying for the check.
+  courtesy. The definition travels as `Definition`, which holds both shapes it is needed in
+  and never one without the other: the normalized document that is stored and served byte for
+  byte, and the structure a rule can be asked about. One cannot be held unproved — it is
+  built either from a structure the mapper just accepted (`FormDefinitionProcessor::document`)
+  or from a stored document read back through that same mapper (`Definition::stored`), and
+  the structure resolves when first asked for, once, so reading or deleting a form pays
+  nothing for it.
 - **The aggregate is not an entity.** Doctrine maps `FormRecord` — a row with public fields,
   ORM attributes and no behaviour — and never the model. A read builds a form from a record
   (`toForm()`), a write copies it back (`write()`), and `Form::fromState()` restores one
