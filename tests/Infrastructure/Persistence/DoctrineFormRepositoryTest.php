@@ -7,13 +7,16 @@ namespace App\Tests\Infrastructure\Persistence;
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
 use App\Domain\Forms\Form;
+use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\FormStatus;
+use App\Domain\Forms\Port\DefinitionParser;
 use App\Domain\Forms\Port\FormRepository;
+use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
-use App\Domain\Forms\ValueObject\Values;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
 use App\Infrastructure\Persistence\DoctrineTransactions;
+use App\Tests\Domain\Forms\Fake\StubValues;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 final class DoctrineFormRepositoryTest extends KernelTestCase
@@ -24,6 +27,8 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
 
     private DoctrineTransactions $transactions;
 
+    private DefinitionParser $parser;
+
     protected function setUp(): void
     {
         self::bootKernel();
@@ -33,6 +38,9 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         $transactions = self::getContainer()->get(DoctrineTransactions::class);
         self::assertInstanceOf(DoctrineTransactions::class, $transactions);
         $this->transactions = $transactions;
+        $parser = self::getContainer()->get(FormDefinitionProcessor::class);
+        self::assertInstanceOf(FormDefinitionProcessor::class, $parser);
+        $this->parser = $parser;
     }
 
     public function testInsertedFormReadsBackWithEmptyStatus(): void
@@ -41,14 +49,14 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         $id = self::uuid();
 
         // WHEN
-        $this->repository->add(new Form($id, self::DEFINITION, ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+        $this->repository->add(new Form($id, $this->definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
         $record = $this->repository->get($id);
 
         // THEN the jsonb round-trip is lossless and no data exists yet
         self::assertTrue($id->equals($record->id()));
         self::assertEquals(
             json_decode(self::DEFINITION, true, flags: \JSON_THROW_ON_ERROR),
-            json_decode($record->definition(), true, flags: \JSON_THROW_ON_ERROR),
+            json_decode((string) $record->definition(), true, flags: \JSON_THROW_ON_ERROR),
         );
         self::assertSame(FormStatus::Empty, $record->status());
         self::assertNull($record->valuesJson());
@@ -71,7 +79,7 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
     {
         // GIVEN a form past its expire_date
         $id = self::uuid();
-        $this->repository->add(new Form($id, self::DEFINITION, ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
+        $this->repository->add(new Form($id, $this->definition(), ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
 
         // WHEN / THEN reading it reports gone, not found
         $this->expectException(FormGone::class);
@@ -82,12 +90,13 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
     {
         // GIVEN
         $id = self::uuid();
-        $this->repository->add(new Form($id, self::DEFINITION, ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+        $this->repository->add(new Form($id, $this->definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
 
         // WHEN saving a draft the way controllers do — under a row lock
         $this->transactions->run(function () use ($id): void {
-            $this->repository->getForUpdate($id)->saveDraft(Values::fromJson('{"email": "ada@example.com"}'));
-            $this->repository->save();
+            $form = $this->repository->getForUpdate($id);
+            $form->saveDraft(json_decode('{"email": "ada@example.com"}', false, flags: \JSON_THROW_ON_ERROR), new StubValues());
+            $this->repository->save($form);
         });
 
         // THEN
@@ -97,8 +106,9 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
 
         // WHEN confirming
         $this->transactions->run(function () use ($id): void {
-            $this->repository->getForUpdate($id)->confirm();
-            $this->repository->save();
+            $form = $this->repository->getForUpdate($id);
+            $form->confirm(new StubValues());
+            $this->repository->save($form);
         });
 
         // THEN the form is locked and its values are untouched
@@ -112,7 +122,7 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
     {
         // GIVEN
         $id = self::uuid();
-        $this->repository->add(new Form($id, self::DEFINITION, ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+        $this->repository->add(new Form($id, $this->definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
 
         // WHEN
         $this->repository->remove($id);
@@ -126,7 +136,7 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
     {
         // GIVEN
         $id = self::uuid();
-        $this->repository->add(new Form($id, self::DEFINITION, ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
+        $this->repository->add(new Form($id, $this->definition(), ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
 
         // THEN even deletion treats the row as gone — the purge command owns it
         $this->expectException(FormGone::class);
@@ -141,8 +151,8 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         // GIVEN one expired and one live form
         $expiredId = self::uuid();
         $liveId = self::uuid();
-        $this->repository->add(new Form($expiredId, self::DEFINITION, ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
-        $this->repository->add(new Form($liveId, self::DEFINITION, ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+        $this->repository->add(new Form($expiredId, $this->definition(), ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
+        $this->repository->add(new Form($liveId, $this->definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
 
         // WHEN
         $purged = $this->repository->purgeExpired();
@@ -155,6 +165,12 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         self::assertTrue($liveId->equals($this->repository->get($liveId)->id()));
         $this->expectException(FormNotFound::class);
         $this->repository->get($expiredId);
+    }
+
+    /** The definition as storage will hand it back: a document plus the parser that reads it. */
+    private function definition(): Definition
+    {
+        return Definition::stored(self::DEFINITION, $this->parser);
     }
 
     private static function uuid(): FormId

@@ -78,8 +78,9 @@ that was never going to fit is rejected without that work.
 
 The definition meets Symfony validation through a custom constraint
 (`src/UserInterface/Http/Request/Constraint/ValidFormDefinition`) on the create DTO; values
-are checked by the `SaveFormData` / `ConfirmForm` use cases inside the row lock, through the
-`ValuesValidator` port. Findings keep their JSON Pointer, and `ViolationReportFactory` turns every violation back into the
+are checked by the aggregate itself — `Form::saveDraft()` and `Form::confirm()` judge them
+through the `ValuesValidator` port before anything is stored, so unfit values are refused by
+the model rather than by whoever remembered to ask. Findings keep their JSON Pointer, and `ViolationReportFactory` turns every violation back into the
 same `errors[]` shape — so the error format never depends on which engine refused the
 request. A test asserts the form and the published schema reach the same verdict, so the
 contract clients validate against cannot drift from what the server enforces.

@@ -7,6 +7,7 @@ namespace App\Domain\Forms;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\GenericField;
 use App\Domain\Forms\Exception\DefinitionNotValid;
+use App\Domain\Forms\Port\DefinitionParser;
 use Ingot\Source;
 use Ingot\TreeMapper;
 
@@ -16,7 +17,7 @@ use Ingot\TreeMapper;
  * rules guard incoming documents, while unknown (plugin) field types fall back
  * to {@see GenericField} so stored definitions round-trip losslessly.
  */
-final class FormDefinitionProcessor
+final class FormDefinitionProcessor implements DefinitionParser
 {
     public function __construct(
         private readonly TreeMapper $mapper,

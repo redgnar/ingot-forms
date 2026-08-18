@@ -41,8 +41,8 @@ interface FormRepository
      */
     public function remove(FormId $id): void;
 
-    /** Persists what changed on forms read in the current transaction. */
-    public function save(): void;
+    /** Persists what changed on the form handed over. */
+    public function save(Form $form): void;
 
     /** Physically deletes every expired form. Returns how many were removed. */
     public function purgeExpired(): int;

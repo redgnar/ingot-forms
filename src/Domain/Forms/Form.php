@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 namespace App\Domain\Forms;
 
+use App\Domain\Forms\Exception\FormAlreadyConfirmed;
+use App\Domain\Forms\Exception\FormHasNoData;
+use App\Domain\Forms\Exception\FormLocked;
+use App\Domain\Forms\Exception\ValuesNotValid;
+use App\Domain\Forms\Port\DefinitionParser;
+use App\Domain\Forms\Port\ValuesValidator;
+use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Values;
@@ -30,6 +37,14 @@ class Form
 
     private string $definition;
 
+    /**
+     * The same definition as a model, kept out of the mapping: it is derived
+     * from the document above, so storing it twice would be storing one fact
+     * twice. A form built in this process carries it from the start; one read
+     * from storage is handed a parser by the repository.
+     */
+    private ?Definition $model = null;
+
     private \DateTimeImmutable $expireDate;
 
     private ?string $data = null;
@@ -42,35 +57,57 @@ class Form
 
     public function __construct(
         FormId $id,
-        string $definitionJson,
+        Definition $definition,
         ExpireDate $expireDate,
         ?\DateTimeImmutable $now = null,
     ) {
         $this->id = $id->toUuid();
-        $this->definition = $definitionJson;
+        $this->definition = (string) $definition;
+        $this->model = $definition;
         $this->expireDate = $expireDate->toDateTime();
         $this->createdAt = self::utc($now ?? new \DateTimeImmutable());
     }
 
     /**
-     * Overwrites the draft. Confirmation is final, so this refuses to run
-     * after it — the caller is expected to have checked under the row lock.
+     * Overwrites the draft. Nothing may be stored that does not fit this
+     * form's own definition, so the judgment happens here rather than in
+     * whoever happened to call: the validator is handed in because the
+     * verdict needs machinery the model does not carry, but which contract
+     * applies — lenient while filling in — is the form's own business.
+     *
+     * @throws FormLocked when the form was confirmed and is closed for good
+     * @throws ValuesNotValid when the values do not fit the definition
+     * @throws \InvalidArgumentException when they are not a JSON object at all
      */
-    public function saveDraft(Values $values, ?\DateTimeImmutable $now = null): void
+    public function saveDraft(mixed $values, ValuesValidator $validator, ?\DateTimeImmutable $now = null): void
     {
         if ($this->confirmedAt !== null) {
-            throw new \LogicException(\sprintf('Form "%s" is confirmed and can no longer be edited.', $this->id->toRfc4122()));
+            throw new FormLocked($this->id());
         }
 
-        $this->data = (string) $values;
+        $validator->assertFit($this->definition()->model(), $values, DeriveMode::Draft, $this->id());
+
+        $this->data = (string) Values::fromDecoded($values);
         $this->dataSavedAt = self::utc($now ?? new \DateTimeImmutable());
     }
 
-    public function confirm(?\DateTimeImmutable $now = null): void
+    /**
+     * The one-way door: what was filled in is judged against the strict
+     * contract, and only a form that passes it locks.
+     *
+     * @throws FormAlreadyConfirmed when the door was already closed
+     * @throws FormHasNoData when nothing was ever filled in
+     * @throws ValuesNotValid when what is stored does not complete the form
+     */
+    public function confirm(ValuesValidator $validator, ?\DateTimeImmutable $now = null): void
     {
-        if ($this->confirmedAt !== null || $this->data === null) {
-            throw new \LogicException(\sprintf('Form "%s" has nothing to confirm, or was confirmed already.', $this->id->toRfc4122()));
+        if ($this->confirmedAt !== null) {
+            throw new FormAlreadyConfirmed($this->id());
         }
+
+        $values = $this->values() ?? throw new FormHasNoData($this->id());
+
+        $validator->assertFit($this->definition()->model(), $values->document(), DeriveMode::Strict, $this->id());
 
         $this->confirmedAt = self::utc($now ?? new \DateTimeImmutable());
     }
@@ -94,10 +131,21 @@ class Form
         return FormId::of($this->id);
     }
 
-    /** The normalized definition document, as stored. */
-    public function definition(): string
+    /**
+     * Hands over the parser a form read from storage needs to make sense of
+     * its own definition: hydration fills the fields directly, so a form
+     * arrives with the document but without the means to read it. The
+     * repository does this on the one path every read goes through.
+     */
+    public function useParser(DefinitionParser $parser): void
     {
-        return $this->definition;
+        $this->model = Definition::stored($this->definition, $parser);
+    }
+
+    /** What this form is made of — the document as stored, and the model behind it. */
+    public function definition(): Definition
+    {
+        return $this->model ?? throw new \LogicException('A form read from storage needs a definition parser before its definition can be used.');
     }
 
     public function expireDate(): ExpireDate

@@ -53,8 +53,9 @@ final class InMemoryForms implements FormRepository
         unset($this->forms[(string) $id]);
     }
 
-    public function save(): void
+    public function save(Form $form): void
     {
+        $this->forms[(string) $form->id()] = $form;
         ++$this->saves;
     }
 

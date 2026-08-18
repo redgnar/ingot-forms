@@ -7,15 +7,13 @@ services:
         resource: '../src/'
         exclude:
             - '../src/Kernel.php'
-            # data objects and exceptions, not services
-            - '../src/Domain/Forms/Definition/'
-            - '../src/Domain/Forms/{DefinitionNotValid,DeriveMode}.php'
-            - '../src/Infrastructure/Persistence/{Form,FormStatus,FormNotFound,FormGone}.php'
-            - '../src/Http/Problem/ProblemException.php'
+            # the model itself: an aggregate, its data objects and its exceptions
+            - '../src/Domain/Forms/{Definition,Exception,ValueObject}/'
+            - '../src/Domain/Forms/{Form,FormStatus,DeriveMode}.php'
+            - '../src/UserInterface/Http/Problem/ProblemException.php'
             # request DTOs and the attributes/constraints describing them
-            - '../src/Http/Request/{CreateFormRequest,DataSchemaQuery,SaveFormDataRequest}.php'
-            - '../src/Http/Request/Constraint/{ValidFormDefinition,ViolationPointer}.php'
-            - '../src/Http/Form/ValuesNotValid.php'
+            - '../src/UserInterface/Http/Request/{CreateFormRequest,DataSchemaQuery,SaveFormDataRequest}.php'
+            - '../src/UserInterface/Http/Request/Constraint/{ValidFormDefinition,ViolationPointer}.php'
 
     # The definition mapper is configuration, not a consumer's private detail:
     # one named service, built by a domain factory, injected where it is needed.
@@ -34,8 +32,9 @@ services:
     # Ports, and the adapters that fill them. Nothing above the application
     # layer names an implementation.
     App\Domain\Forms\Port\FormRepository: '@App\Infrastructure\Persistence\DoctrineFormRepository'
+    App\Domain\Forms\Port\DefinitionParser: '@App\Domain\Forms\FormDefinitionProcessor'
+    App\Domain\Forms\Port\ValuesValidator: '@App\Infrastructure\Validation\StagedValuesValidator'
     App\Application\Forms\Port\Transactions: '@App\Infrastructure\Persistence\DoctrineTransactions'
-    App\Application\Forms\Port\ValuesValidator: '@App\Infrastructure\Validation\StagedValuesValidator'
     App\Application\Forms\Port\DataSchemas: '@App\Infrastructure\Cache\CachedDataSchemaProvider'
 
     App\Infrastructure\Cache\CachedDataSchemaProvider:

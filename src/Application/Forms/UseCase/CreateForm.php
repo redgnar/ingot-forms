@@ -8,6 +8,7 @@ use App\Domain\Forms\Exception\DefinitionNotValid;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\Port\FormRepository;
+use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 
@@ -34,7 +35,7 @@ final class CreateForm
 
         $form = new Form(
             FormId::next(),
-            json_encode($this->processor->normalize($definition), \JSON_THROW_ON_ERROR),
+            Definition::of($definition, json_encode($this->processor->normalize($definition), \JSON_THROW_ON_ERROR)),
             $expireDate,
         );
 

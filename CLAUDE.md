@@ -55,18 +55,19 @@ src/Domain/Forms/          the model: Form (aggregate), FormStatus, DeriveMode, 
                            model and its processors. Framework-free and storage-free — the
                            future standalone package.
     Definition/            the field union and the meta-schema
-    ValueObject/           FormId, ExpireDate, Values
+    ValueObject/           FormId, ExpireDate, Values, Definition
     Exception/             what the model refuses: DefinitionNotValid, ValuesNotValid,
                            FormNotFound, FormGone, FormLocked, FormAlreadyConfirmed,
                            FormHasNoData
-    Port/                  FormRepository — what the model needs from the outside
+    Port/                  FormRepository, ValuesValidator, DefinitionParser — what the
+                           model needs from the outside to keep its own rules
 src/Application/Forms/
     UseCase/               one class per thing the system does, each with a single __invoke:
                            CreateForm, SaveFormData, ConfirmForm, DeleteForm, ReadForm,
                            PurgeExpiredForms. This is where a transaction is opened and where
                            the order of steps lives.
-    Port/                  Transactions, ValuesValidator, DataSchemas — what a use case needs
-                           and cannot do itself
+    Port/                  Transactions, DataSchemas — what a use case needs and cannot
+                           do itself
 src/Infrastructure/        the adapters filling those ports
     Persistence/           DoctrineFormRepository, DoctrineTransactions (+ config/doctrine/*.xml)
     Cache/                 CachedDataSchemaProvider
@@ -86,16 +87,28 @@ Rules that follow from it, and that the tooling checks:
   manager**, and it never mutates an aggregate. Its job is HTTP: map the request onto a use
   case, map a refusal onto a status.
 - **Ports are declared where they are needed and implemented outward.** The domain declares
-  what the model needs (`FormRepository`); the application declares what a use case needs
-  (`Transactions`, `ValuesValidator`, `DataSchemas`); `services.yaml` binds each interface to
-  its adapter. Nothing above Infrastructure names an implementation class.
+  what the model needs to keep its own rules (`FormRepository`, `ValuesValidator`,
+  `DefinitionParser`); the application declares what a use case needs (`Transactions`,
+  `DataSchemas`); `services.yaml` binds each interface to its adapter. Nothing above
+  Infrastructure names an implementation class.
 - **The domain speaks in value objects, not primitives**: `FormId` instead of a raw uuid,
   `ExpireDate` (UTC, and `future()` cannot be constructed in the past), `Values` (a JSON
   object, keeping `{}` distinct from `[]` and handing out the exact text that was validated).
   A new concept that has an invariant gets a value object, not a `string`.
-- **The aggregate owns its transitions** (`saveDraft()`, `confirm()`, `status()`,
-  `hasExpired()`) and knows nothing about storage: the Doctrine mapping lives in
-  `config/doctrine/Form.orm.xml`, never as attributes on the class.
+- **The aggregate owns its transitions and refuses what breaks them.** `saveDraft()` and
+  `confirm()` throw `FormLocked`, `FormAlreadyConfirmed`, `FormHasNoData` themselves, and
+  neither stores anything that does not fit the form's own definition: the validator is
+  handed in as an argument (the verdict needs machinery the model does not carry), but which
+  contract applies — lenient while filling in, strict at confirmation — is the form's own
+  business. A caller cannot skip that check, which is the point: it is an invariant, not a
+  courtesy. The definition travels as `Definition` — the stored document plus the model
+  parsed from it on demand, never twice, so reads and deletes pay nothing.
+- **The aggregate knows nothing about storage**: the Doctrine mapping lives in
+  `config/doctrine/Form.orm.xml`, never as attributes on the class. Hydration fills fields
+  directly, so `DoctrineFormRepository::fetch()` — the one path every read passes through —
+  hands the form its `DefinitionParser`. That fix-up belongs to the adapter; the port stays a
+  collection (`add`, `get`, `getForUpdate`, `save(Form)`, `remove`, `purgeExpired`), and
+  every method that writes names the form it writes.
 - **Exceptions live in `Exception/` next to the layer that raises them**, carry the id they
   are about, and say nothing about HTTP. Which status a refusal deserves is decided in
   `ProblemExceptionListener` (or in an action, where the same state means different things —
@@ -119,8 +132,10 @@ Rules that follow from it, and that the tooling checks:
   mode, ~10× cheaper) answers first, so the server can never be looser than its published
   contract; the Symfony form built from the definition then adds what a schema cannot say.
   Keep that order.
-- **State transitions run inside `Transactions::run()` + `FormRepository::getForUpdate()`** —
-  never add a check-then-write outside the row lock.
+- **A use case orchestrates, it does not decide.** State transitions run inside
+  `Transactions::run()` + `FormRepository::getForUpdate()`, so the state the form checks
+  cannot change between the check and the write — but what may happen is the aggregate's
+  call, and a use case that re-checks a rule the model already keeps has duplicated it.
 - **A write never answers with the thing it wrote** — that is what `GET` is for, and a
   second copy is a second truth. `PUT …/data` and `POST …/confirm` return `204 No Content`
   (`422` with the report when refused); `POST /api/forms` returns `201` with `{"id": …}` and

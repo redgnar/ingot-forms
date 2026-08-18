@@ -9,15 +9,14 @@ use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Exception\FormLocked;
 use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\Form;
-use App\Domain\Forms\FormDefinitionProcessor;
-use App\Domain\Forms\FormMapperFactory;
 use App\Domain\Forms\FormStatus;
+use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
-use App\Domain\Forms\ValueObject\Values;
 use App\Tests\Application\Forms\Fake\ImmediateTransactions;
 use App\Tests\Application\Forms\Fake\InMemoryForms;
-use App\Tests\Application\Forms\Fake\StubValues;
+use App\Tests\Domain\Forms\Fake\SpyParser;
+use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -37,7 +36,7 @@ final class SaveFormDataTest extends TestCase
         $id = self::plant($forms);
 
         // WHEN
-        (new SaveFormData($transactions, $forms, self::processor(), $values))($id, self::values('{"email": "ada@example.com"}'));
+        (new SaveFormData($transactions, $forms, $values))($id, self::values('{"email": "ada@example.com"}'));
 
         // THEN the values are stored, having been judged as a draft
         $form = $forms->get($id);
@@ -57,13 +56,13 @@ final class SaveFormDataTest extends TestCase
         $forms = new InMemoryForms();
         $values = new StubValues();
         $id = self::plant($forms);
-        $forms->get($id)->saveDraft(Values::fromJson('{"email": "ada@example.com"}'));
-        $forms->get($id)->confirm();
+        $forms->get($id)->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+        $forms->get($id)->confirm(new StubValues());
 
         // WHEN / THEN
         $this->expectException(FormLocked::class);
 
-        (new SaveFormData(new ImmediateTransactions(), $forms, self::processor(), $values))($id, self::values('{"email": "eve@example.com"}'));
+        (new SaveFormData(new ImmediateTransactions(), $forms, $values))($id, self::values('{"email": "eve@example.com"}'));
     }
 
     public function testValuesThatDoNotFitAreNeverStored(): void
@@ -74,7 +73,7 @@ final class SaveFormDataTest extends TestCase
 
         // WHEN
         try {
-            (new SaveFormData(new ImmediateTransactions(), $forms, self::processor(), new StubValues(refuse: true)))($id, self::values('{"email": 1}'));
+            (new SaveFormData(new ImmediateTransactions(), $forms, new StubValues(refuse: true)))($id, self::values('{"email": 1}'));
             self::fail('Expected ValuesNotValid.');
         } catch (ValuesNotValid $exception) {
             // THEN the report travels untouched, and the form stayed empty
@@ -87,14 +86,9 @@ final class SaveFormDataTest extends TestCase
     private static function plant(InMemoryForms $forms): FormId
     {
         $id = FormId::next();
-        $forms->add(new Form($id, self::DEFINITION, ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+        $forms->add(new Form($id, Definition::stored(self::DEFINITION, new SpyParser()), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
 
         return $id;
-    }
-
-    private static function processor(): FormDefinitionProcessor
-    {
-        return new FormDefinitionProcessor(new FormMapperFactory()->create());
     }
 
     private static function values(string $json): \stdClass

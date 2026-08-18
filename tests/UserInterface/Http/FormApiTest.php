@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Tests\UserInterface\Http;
 
 use App\Domain\Forms\Form;
+use App\Domain\Forms\FormDefinitionProcessor;
+use App\Domain\Forms\FormMapperFactory;
+use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
@@ -231,7 +234,7 @@ final class FormApiTest extends WebTestCase
         $id = Uuid::v7()->toRfc4122();
         $repository = self::getContainer()->get(DoctrineFormRepository::class);
         self::assertInstanceOf(DoctrineFormRepository::class, $repository);
-        $repository->add(new Form(FormId::fromString($id), json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR), ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
+        $repository->add(new Form(FormId::fromString($id), self::definition(), ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
 
         // WHEN / THEN reads and writes both report gone
         $this->client->request('GET', \sprintf('/api/forms/%s', $id));
@@ -326,6 +329,14 @@ final class FormApiTest extends WebTestCase
         self::assertSame('urn:problem:ingot-forms:form-data-empty', $this->responseBody()['type']);
     }
 
+    /** What a form planted straight into storage is made of. */
+    private static function definition(): Definition
+    {
+        return Definition::stored(
+            json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR),
+            new FormDefinitionProcessor(new FormMapperFactory()->create()),
+        );
+    }
 
     /**
      * @param array<string, mixed> $definition

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Validation;
 
-use App\Application\Forms\Port\ValuesValidator;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Exception\ValuesNotValid;
+use App\Domain\Forms\Port\ValuesValidator;
 use App\Domain\Forms\UnknownFieldTypes;
 use App\Domain\Forms\ValueObject\FormId;
 use Ingot\Error\ErrorReport;
@@ -27,8 +27,8 @@ use Ingot\JsonPointer;
  * Values refused at step 2 never reach step 3, so the expensive work is spent
  * only on a payload that is already shaped right.
  *
- * This is the adapter behind {@see ValuesValidator}: a use case asks whether
- * values fit, and what that costs — a schema, a form, both in turn — stays
+ * This is the adapter behind {@see ValuesValidator}: a form asks whether the
+ * values fit it, and what that costs — a schema, a form, both in turn — stays
  * here. Findings travel as an {@see ErrorReport} the whole way to the
  * response.
  */

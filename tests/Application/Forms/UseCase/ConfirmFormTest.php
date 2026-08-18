@@ -9,15 +9,14 @@ use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Form;
-use App\Domain\Forms\FormDefinitionProcessor;
-use App\Domain\Forms\FormMapperFactory;
 use App\Domain\Forms\FormStatus;
+use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
-use App\Domain\Forms\ValueObject\Values;
 use App\Tests\Application\Forms\Fake\ImmediateTransactions;
 use App\Tests\Application\Forms\Fake\InMemoryForms;
-use App\Tests\Application\Forms\Fake\StubValues;
+use App\Tests\Domain\Forms\Fake\SpyParser;
+use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -34,10 +33,10 @@ final class ConfirmFormTest extends TestCase
         $forms = new InMemoryForms();
         $values = new StubValues();
         $id = self::plant($forms);
-        $forms->get($id)->saveDraft(Values::fromJson('{"email": "ada@example.com"}'));
+        $forms->get($id)->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
 
         // WHEN
-        (new ConfirmForm(new ImmediateTransactions(), $forms, self::processor(), $values))($id);
+        (new ConfirmForm(new ImmediateTransactions(), $forms, $values))($id);
 
         // THEN
         self::assertSame(FormStatus::Confirmed, $forms->get($id)->status());
@@ -53,7 +52,7 @@ final class ConfirmFormTest extends TestCase
         // WHEN / THEN
         $this->expectException(FormHasNoData::class);
 
-        (new ConfirmForm(new ImmediateTransactions(), $forms, self::processor(), new StubValues()))($id);
+        (new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues()))($id);
     }
 
     public function testConfirmingTwiceIsRefused(): void
@@ -61,25 +60,28 @@ final class ConfirmFormTest extends TestCase
         // GIVEN a form already confirmed
         $forms = new InMemoryForms();
         $id = self::plant($forms);
-        $forms->get($id)->saveDraft(Values::fromJson('{"email": "ada@example.com"}'));
-        $forms->get($id)->confirm();
+        $forms->get($id)->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+        $forms->get($id)->confirm(new StubValues());
 
         // WHEN / THEN
         $this->expectException(FormAlreadyConfirmed::class);
 
-        (new ConfirmForm(new ImmediateTransactions(), $forms, self::processor(), new StubValues()))($id);
+        (new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues()))($id);
     }
 
     private static function plant(InMemoryForms $forms): FormId
     {
         $id = FormId::next();
-        $forms->add(new Form($id, self::DEFINITION, ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+        $forms->add(new Form($id, Definition::stored(self::DEFINITION, new SpyParser()), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
 
         return $id;
     }
 
-    private static function processor(): FormDefinitionProcessor
+    private static function values(string $json): \stdClass
     {
-        return new FormDefinitionProcessor(new FormMapperFactory()->create());
+        $values = json_decode($json, false, 512, \JSON_THROW_ON_ERROR);
+        self::assertInstanceOf(\stdClass::class, $values);
+
+        return $values;
     }
 }
