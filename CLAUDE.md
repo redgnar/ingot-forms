@@ -71,6 +71,9 @@ deletes them physically. No templates, no versioning, no multi-submission — de
     `JsonDecode::ASSOCIATIVE => false`, so `{}` stays an object).
 - State transitions run inside `FormRepository::transactional()` + `getForUpdate()` — never
   add a check-then-write outside the row lock.
+- **Writes answer with a status, not a document**: `PUT …/data` and `POST …/confirm` return
+  `204 No Content` (`422` with the report when refused). Do not re-add an envelope there — the
+  client knows what it sent, and building one cost an extra read after the transaction.
 - Definitions are stored **normalized** (`TreeMapper::normalize()`); no denormalized columns.
 - **Persistence is Doctrine ORM and stays platform-neutral**: the `Form` entity maps portable
   Doctrine types only (`uuid`, `text`, `datetime_immutable` in UTC), both documents are stored

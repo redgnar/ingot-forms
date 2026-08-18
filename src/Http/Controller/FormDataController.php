@@ -6,7 +6,6 @@ namespace App\Http\Controller;
 
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\FormDefinitionProcessor;
-use App\Http\FormEnvelope;
 use App\Http\Problem\ProblemException;
 use App\Http\Request\Constraint\ValidFormValues;
 use App\Http\Request\SaveFormDataRequest;
@@ -15,6 +14,7 @@ use App\Infrastructure\Persistence\FormStatus;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Requirement\Requirement;
@@ -39,7 +39,6 @@ final class FormDataController extends AbstractController
         private readonly FormRepository $repository,
         private readonly FormDefinitionProcessor $processor,
         private readonly ValidatorInterface $validator,
-        private readonly FormEnvelope $envelope,
     ) {}
 
     #[Route('/api/forms/{id}/data', methods: ['PUT'], requirements: ['id' => Requirement::UUID])]
@@ -53,7 +52,7 @@ final class FormDataController extends AbstractController
             content: new OA\JsonContent(ref: '#/components/schemas/FormValues'),
         ),
     )]
-    #[OA\Response(response: 200, description: 'Draft stored.', content: new OA\JsonContent(ref: '#/components/schemas/FormEnvelope'))]
+    #[OA\Response(response: 204, description: 'Draft stored. No body: read the form if you need its new state.')]
     #[OA\Response(response: 400, ref: '#/components/responses/MalformedJson')]
     #[OA\Response(response: 404, ref: '#/components/responses/FormNotFound')]
     #[OA\Response(
@@ -109,7 +108,7 @@ final class FormDataController extends AbstractController
             serializationContext: [JsonDecode::ASSOCIATIVE => false],
         )]
         SaveFormDataRequest $request,
-    ): JsonResponse {
+    ): Response {
         $values = $request->values;
 
         $this->repository->transactional(function () use ($id, $values): void {
@@ -125,7 +124,9 @@ final class FormDataController extends AbstractController
             $this->repository->save();
         });
 
-        return new JsonResponse($this->envelope->build($this->repository->get($id)));
+        // Nothing to say beyond "stored": the client already knows the values it
+        // sent, and a copy of the form would cost another read.
+        return new Response(status: 204);
     }
 
     #[Route('/api/forms/{id}/confirm', methods: ['POST'], requirements: ['id' => Requirement::UUID])]
@@ -134,7 +135,7 @@ final class FormDataController extends AbstractController
         summary: 'Confirm the stored values',
         description: 'Validates the stored data against the full strict schema and locks the form forever. A definition containing an unknown (plugin) field type cannot be confirmed — the server will not vouch for a value contract it does not know.',
     )]
-    #[OA\Response(response: 200, description: 'Form confirmed and locked.', content: new OA\JsonContent(ref: '#/components/schemas/FormEnvelope'))]
+    #[OA\Response(response: 204, description: 'Form confirmed and locked. No body.')]
     #[OA\Response(response: 404, ref: '#/components/responses/FormNotFound')]
     #[OA\Response(
         response: 409,
@@ -199,7 +200,7 @@ final class FormDataController extends AbstractController
             ],
         ),
     )]
-    public function confirm(Uuid $id): JsonResponse
+    public function confirm(Uuid $id): Response
     {
         $this->repository->transactional(function () use ($id): void {
             $record = $this->repository->getForUpdate($id);
@@ -219,7 +220,7 @@ final class FormDataController extends AbstractController
             $this->repository->save();
         });
 
-        return new JsonResponse($this->envelope->build($this->repository->get($id)));
+        return new Response(status: 204);
     }
 
     #[Route('/api/forms/{id}/data', methods: ['GET'], requirements: ['id' => Requirement::UUID])]

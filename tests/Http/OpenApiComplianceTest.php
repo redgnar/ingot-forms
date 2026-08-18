@@ -199,7 +199,7 @@ final class OpenApiComplianceTest extends WebTestCase
                 // "bogus" is outside the enum the DeriveMode enum published
                 $test->client->request('GET', \sprintf('/api/forms/%s/schema?mode=bogus', $test->createForm()));
             }],
-            ['PUT', '/api/forms/{id}/data', 200, true, '', static function (self $test): void {
+            ['PUT', '/api/forms/{id}/data', 204, true, '', static function (self $test): void {
                 $test->putJson(\sprintf('/api/forms/%s/data', $test->createForm()), self::PARTIAL_DATA);
             }],
             ['PUT', '/api/forms/{id}/data', 400, false, '', static function (self $test): void {
@@ -232,7 +232,7 @@ final class OpenApiComplianceTest extends WebTestCase
             ['GET', '/api/forms/{id}/data', 410, true, '', static function (self $test): void {
                 $test->client->request('GET', \sprintf('/api/forms/%s/data', $test->expiredForm()));
             }],
-            ['POST', '/api/forms/{id}/confirm', 200, true, '', static function (self $test): void {
+            ['POST', '/api/forms/{id}/confirm', 204, true, '', static function (self $test): void {
                 $id = $test->createForm();
                 $test->putJson(\sprintf('/api/forms/%s/data', $id), self::COMPLETE_DATA);
                 $test->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
@@ -347,7 +347,7 @@ final class OpenApiComplianceTest extends WebTestCase
         $id = $this->createForm();
         $this->putJson(\sprintf('/api/forms/%s/data', $id), self::COMPLETE_DATA);
         $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
-        self::assertResponseStatusCodeSame(200);
+        self::assertResponseStatusCodeSame(204);
 
         return $id;
     }

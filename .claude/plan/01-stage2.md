@@ -227,6 +227,12 @@ step 1 when it happens), auth, deployment pipeline (the CI gate is build+test on
   `415 unsupported-media-type` in the usual problem+json shape, documented as a shared
   response and covered by a scenario on both body endpoints.
 
+- **Writes no longer echo the form.** `PUT …/data` and `POST …/confirm` answer `204 No Content`
+  instead of the envelope: the client already holds the values it sent, so the copy
+  bought nothing and cost a read after the transaction. `FormDataController` dropped its
+  `FormEnvelope` dependency, the OpenAPI responses declare no content, and the lifecycle test
+  now reads the form separately to prove the state transition.
+
 ### Stage 2 ended on a different stack than it started
 
 Two more directions arrived while the contract work was landing, and both are implemented:

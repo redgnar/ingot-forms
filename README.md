@@ -82,12 +82,17 @@ contract clients validate against cannot drift from what the server enforces.
 | `GET /api/forms/{id}` | Full envelope: definition, status, data, timestamps. |
 | `DELETE /api/forms/{id}` | `204`. The "definition changed" path is delete + recreate. |
 | `GET /api/forms/{id}/schema` | Derived JSON Schema of the form's *values* (`application/schema+json`). `?mode=draft` returns the relaxed variant. |
-| `PUT /api/forms/{id}/data` | Save a draft (repeatable). `409 form-locked` once confirmed. |
-| `POST /api/forms/{id}/confirm` | Strictly validate the stored data and lock the form. `409` when already confirmed or empty, `422` with the report when invalid. |
+| `PUT /api/forms/{id}/data` | Save a draft (repeatable). `204`, `409 form-locked` once confirmed. |
+| `POST /api/forms/{id}/confirm` | Strictly validate the stored data and lock the form. `204`; `409` when already confirmed or empty, `422` with the report when invalid. |
 | `GET /api/forms/{id}/data` | The current values (`404 form-data-empty` when none). |
 
+Writes answer with a status, not a copy: `PUT …/data` and `POST …/confirm` return `204 No
+Content` (or `422` with the report), because the client already knows the values it sent —
+read the form if you need its new state.
+
 Error status map: `400` malformed JSON, `404` unknown form, `409` state conflicts,
-`410` expired form (every endpoint), `415` a request body that is not `application/json`,
+`204` a write that succeeded, `410` expired form (every endpoint), `415` a request body that
+is not `application/json`,
 `422` validation reports, `500` opaque fallback.
 
 ## API contract

@@ -41,8 +41,11 @@ final class FormApiTest extends WebTestCase
         // WHEN saving partial progress
         $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"age": 36}');
 
-        // THEN the draft is stored even though required fields are missing
-        self::assertResponseStatusCodeSame(200);
+        // THEN the draft is stored even though required fields are missing, and the
+        // answer is the status alone — the client keeps no copy it did not ask for
+        self::assertResponseStatusCodeSame(204);
+        self::assertSame('', $this->client->getResponse()->getContent());
+        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
         self::assertSame('draft', $this->responseBody()['status']);
 
         // WHEN confirming the incomplete draft
@@ -54,11 +57,13 @@ final class FormApiTest extends WebTestCase
 
         // WHEN completing and confirming
         $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"email": "ada@example.com", "country": "pl", "age": 36}');
-        self::assertResponseStatusCodeSame(200);
+        self::assertResponseStatusCodeSame(204);
         $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
 
-        // THEN the form is locked for good
-        self::assertResponseStatusCodeSame(200);
+        // THEN the form is locked for good, again with no body
+        self::assertResponseStatusCodeSame(204);
+        self::assertSame('', $this->client->getResponse()->getContent());
+        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
         $confirmed = $this->responseBody();
         self::assertSame('confirmed', $confirmed['status']);
         self::assertNotNull($confirmed['confirmedAt']);
@@ -276,7 +281,7 @@ final class FormApiTest extends WebTestCase
 
         // WHEN drafting complete data — the unknown field accepts anything
         $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"email": "ada@example.com", "country": "pl", "sig": {"strokes": []}}');
-        self::assertResponseStatusCodeSame(200);
+        self::assertResponseStatusCodeSame(204);
 
         // THEN confirmation refuses to vouch for an unknown value contract
         $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));

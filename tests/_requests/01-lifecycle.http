@@ -54,10 +54,9 @@ Content-Type: application/json
 }
 
 > {%
-    client.test("200 and the form turned into a draft", function () {
-        client.assert(response.status === 200, "Expected 200, got " + response.status);
-        client.assert(response.body.status === "draft", "Expected status draft, got " + response.body.status);
-        client.assert(response.body.dataSavedAt !== null, "dataSavedAt is stamped on every save");
+    client.test("204 — the status is the whole answer", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+        client.assert(!response.body, "A save answers with the status alone; read the form to see its new state");
     });
 %}
 
@@ -97,8 +96,8 @@ Content-Type: application/json
 }
 
 > {%
-    client.test("200", function () {
-        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    client.test("204", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
     });
 %}
 
@@ -107,10 +106,9 @@ Content-Type: application/json
 POST {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/confirm
 
 > {%
-    client.test("200 and the form is confirmed", function () {
-        client.assert(response.status === 200, "Expected 200, got " + response.status);
-        client.assert(response.body.status === "confirmed", "Expected status confirmed");
-        client.assert(response.body.confirmedAt !== null, "confirmedAt is stamped once");
+    client.test("204 and no body", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+        client.assert(!response.body, "Confirmation answers with the status alone");
     });
 %}
 

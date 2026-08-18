@@ -190,12 +190,8 @@ paths:
             schema:
               $ref: '#/components/schemas/FormValues'
       responses:
-        '200':
-          description: 'Draft stored.'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FormEnvelope'
+        '204':
+          description: 'Draft stored. No body: read the form if you need its new state.'
         '400':
           $ref: '#/components/responses/MalformedJson'
         '404':
@@ -238,12 +234,8 @@ paths:
             type: string
             pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
       responses:
-        '200':
-          description: 'Form confirmed and locked.'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FormEnvelope'
+        '204':
+          description: 'Form confirmed and locked. No body.'
         '404':
           $ref: '#/components/responses/FormNotFound'
         '409':
