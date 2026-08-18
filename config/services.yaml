@@ -14,7 +14,8 @@ services:
             - '../src/Http/Problem/ProblemException.php'
             # request DTOs and the attributes/constraints describing them
             - '../src/Http/Request/{CreateFormRequest,DataSchemaQuery,SaveFormDataRequest}.php'
-            - '../src/Http/Request/Constraint/{ValidFormDefinition,ValidFormValues,ViolationPointer}.php'
+            - '../src/Http/Request/Constraint/{ValidFormDefinition,ViolationPointer}.php'
+            - '../src/Http/Form/ValuesNotValid.php'
 
     # The definition mapper is configuration, not a consumer's private detail:
     # one named service, built by a domain factory, injected where it is needed.

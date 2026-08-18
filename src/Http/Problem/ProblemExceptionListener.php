@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Problem;
 
 use App\Domain\Forms\DefinitionNotValid;
+use App\Http\Form\ValuesNotValid;
 use App\Infrastructure\Persistence\FormGone;
 use App\Infrastructure\Persistence\FormNotFound;
 use Ingot\Error\ErrorReport;
@@ -60,6 +61,12 @@ final class ProblemExceptionListener
             }
 
             $event->setResponse($this->factory->fromReport(422, 'request-not-valid', 'Request is not valid.', ErrorReport::of(...$errors)));
+
+            return;
+        }
+
+        if ($throwable instanceof ValuesNotValid) {
+            $event->setResponse($this->validationResponse($throwable->report, 'request-not-valid', 'Request is not valid.'));
 
             return;
         }

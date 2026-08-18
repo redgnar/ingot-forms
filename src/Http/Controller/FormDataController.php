@@ -6,8 +6,8 @@ namespace App\Http\Controller;
 
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\FormDefinitionProcessor;
+use App\Http\Form\SubmittedValues;
 use App\Http\Problem\ProblemException;
-use App\Http\Request\Constraint\ValidFormValues;
 use App\Http\Request\SaveFormDataRequest;
 use App\Infrastructure\Persistence\FormRepository;
 use App\Infrastructure\Persistence\FormStatus;
@@ -20,8 +20,6 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Requirement\Requirement;
 use Symfony\Component\Serializer\Encoder\JsonDecode;
 use Symfony\Component\Uid\Uuid;
-use Symfony\Component\Validator\Exception\ValidationFailedException;
-use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 /**
  * The data lifecycle of a form: save a draft (repeatable), confirm (locks
@@ -29,16 +27,15 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
  * row-locking transaction so validation and state checks cannot race.
  *
  * The submitted values are the one payload no DTO can declare — their
- * members come from the form's own definition — so they are validated by
- * {@see ValidFormValues}, which carries that definition and hands the
- * document to the engine.
+ * members come from the form's own definition — so {@see SubmittedValues}
+ * checks them against that definition, inside the lock.
  */
 final class FormDataController extends AbstractController
 {
     public function __construct(
         private readonly FormRepository $repository,
         private readonly FormDefinitionProcessor $processor,
-        private readonly ValidatorInterface $validator,
+        private readonly SubmittedValues $values,
     ) {}
 
     #[Route('/api/forms/{id}/data', methods: ['PUT'], requirements: ['id' => Requirement::UUID])]
@@ -109,9 +106,9 @@ final class FormDataController extends AbstractController
         )]
         SaveFormDataRequest $request,
     ): Response {
-        $values = $request->values;
+        $submitted = $request->values;
 
-        $this->repository->transactional(function () use ($id, $values): void {
+        $this->repository->transactional(function () use ($id, $submitted): void {
             $record = $this->repository->getForUpdate($id);
 
             if ($record->status() === FormStatus::Confirmed) {
@@ -119,8 +116,8 @@ final class FormDataController extends AbstractController
             }
 
             $definition = $this->processor->fromStored($record->definition());
-            $this->assertValid($values, new ValidFormValues($definition, formId: $id));
-            $record->saveDraft(json_encode($values, \JSON_THROW_ON_ERROR));
+            $this->values->assertFit($definition, $submitted, DeriveMode::Draft, $id);
+            $record->saveDraft(json_encode($submitted, \JSON_THROW_ON_ERROR));
             $this->repository->save();
         });
 
@@ -215,7 +212,7 @@ final class FormDataController extends AbstractController
 
             $definition = $this->processor->fromStored($record->definition());
             $stored = json_decode($record->data(), false, 512, \JSON_THROW_ON_ERROR);
-            $this->assertValid($stored, new ValidFormValues($definition, DeriveMode::Strict, $id));
+            $this->values->assertFit($definition, $stored, DeriveMode::Strict, $id);
             $record->confirm();
             $this->repository->save();
         });
@@ -255,14 +252,5 @@ final class FormDataController extends AbstractController
         }
 
         return JsonResponse::fromJsonString($record->data());
-    }
-
-    private function assertValid(mixed $values, ValidFormValues $constraint): void
-    {
-        $violations = $this->validator->validate($values, $constraint);
-
-        if (\count($violations) > 0) {
-            throw new ValidationFailedException($values, $violations);
-        }
     }
 }

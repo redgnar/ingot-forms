@@ -15,7 +15,7 @@ namespace App\Http\Request;
  * \stdClass, so `{}` stays `{}` and a nested empty object survives storage).
  *
  * The per-form contract is applied right after, by
- * {@see \App\Http\Request\Constraint\ValidFormValues}.
+ * {@see \App\Http\Form\SubmittedValues}.
  */
 final readonly class SaveFormDataRequest
 {
