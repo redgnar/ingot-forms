@@ -298,7 +298,6 @@ components:
       description: 'The canonical JSON shape of a form read back from the API.'
       required:
         - id
-        - title
         - status
         - expireDate
         - createdAt
@@ -310,8 +309,6 @@ components:
         id:
           type: string
           format: uuid
-        title:
-          type: string
         status:
           $ref: '#/components/schemas/FormStatus'
         expireDate:

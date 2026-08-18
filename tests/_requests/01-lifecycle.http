@@ -34,12 +34,12 @@ Content-Type: application/json
 
 ### Read it back: definition, derived status, timestamps.
 # @name getForm
-GET {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f
+GET {{host}}/api/forms/01a0163b-f3e8-7cc4-acfc-64bcd854813d
 
 > {%
     client.test("200 with the full envelope", function () {
         client.assert(response.status === 200, "Expected 200, got " + response.status);
-        client.assert(response.body.title === "Contact us", "The title comes from the definition");
+        client.assert(response.body.definition.title === "Contact us", "The title is read from the definition, which is served whole");
     });
 %}
 

@@ -45,7 +45,7 @@ final class FormApiTest extends WebTestCase
 
         // THEN the full envelope is where the state lives
         self::assertSame('empty', $this->responseBody()['status']);
-        self::assertSame('Contact us', $this->responseBody()['title']);
+        self::assertArrayNotHasKey('title', $this->responseBody());
 
         // WHEN saving partial progress
         $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"age": 36}');

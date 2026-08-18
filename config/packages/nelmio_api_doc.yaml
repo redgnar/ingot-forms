@@ -66,14 +66,12 @@ nelmio_api_doc:
                 FormEnvelope:
                     type: object
                     description: The canonical JSON shape of a form read back from the API.
-                    required: [id, title, status, expireDate, createdAt, definition, data, dataSavedAt, confirmedAt]
+                    required: [id, status, expireDate, createdAt, definition, data, dataSavedAt, confirmedAt]
                     additionalProperties: false
                     properties:
                         id:
                             type: string
                             format: uuid
-                        title:
-                            type: string
                         status:
                             $ref: '#/components/schemas/FormStatus'
                         expireDate:

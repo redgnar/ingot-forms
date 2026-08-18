@@ -210,7 +210,6 @@ The canonical JSON shape of a form read back from the API.
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `id` | `string` (`uuid`) | yes |  |
-| `title` | `string` | yes |  |
 | `status` | [`FormStatus`](#formstatus) | yes |  |
 | `expireDate` | `string` (`date-time`) | yes |  |
 | `createdAt` | `string` (`date-time`) | yes |  |
