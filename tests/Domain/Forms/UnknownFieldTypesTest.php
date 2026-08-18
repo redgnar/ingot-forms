@@ -42,12 +42,12 @@ final class UnknownFieldTypesTest extends TestCase
         $errors = $report->errors;
         self::assertCount(2, $errors);
 
-        self::assertSame('/fields/1/type', $errors[0]->pointer->toString());
+        self::assertSame('/items/1/type', $errors[0]->pointer->toString());
         self::assertSame('form.data.unknown-field-type', $errors[0]->code);
         self::assertSame('signature', $errors[0]->input);
         self::assertStringContainsString('"sig"', $errors[0]->message);
 
-        self::assertSame('/fields/2/type', $errors[1]->pointer->toString());
+        self::assertSame('/items/2/type', $errors[1]->pointer->toString());
         self::assertSame('captcha', $errors[1]->input);
     }
 }

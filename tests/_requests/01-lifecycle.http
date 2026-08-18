@@ -12,7 +12,7 @@ Content-Type: application/json
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition": {
     "id": "contact",
-    "fields": [
+    "items": [
       { "type": "text", "name": "email", "label": "E-mail", "required": true, "maxLength": 120 },
       { "type": "select", "name": "country", "label": "Country", "options": ["pl", "de", "fr"], "required": true },
       { "type": "number", "name": "age", "label": "Age", "min": 18, "max": 120 }

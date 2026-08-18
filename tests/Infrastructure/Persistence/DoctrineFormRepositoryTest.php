@@ -22,7 +22,7 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 final class DoctrineFormRepositoryTest extends KernelTestCase
 {
-    private const string DEFINITION = '{"id": "contact", "fields": [{"type": "text", "name": "email", "label": "", "required": true, "maxLength": null, "pattern": null}]}';
+    private const string DEFINITION = '{"id": "contact", "items": [{"type": "text", "name": "email", "label": "", "required": true, "maxLength": null, "pattern": null}]}';
 
     private FormRepository $repository;
 

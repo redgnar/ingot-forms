@@ -9,12 +9,12 @@ use Ingot\Attribute\Constraints;
 final readonly class FormDefinition
 {
     /**
-     * @param list<Field> $fields
+     * @param list<Field> $items
      */
     public function __construct(
         #[Constraints(minLength: 1, maxLength: 64, pattern: '^[a-z][a-z0-9-]*$')]
         public string $id,
         #[Constraints(minItems: 1, maxItems: 50)]
-        public array $fields,
+        public array $items,
     ) {}
 }

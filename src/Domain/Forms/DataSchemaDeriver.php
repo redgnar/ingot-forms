@@ -24,7 +24,7 @@ final class DataSchemaDeriver
         $properties = [];
         $required = [];
 
-        foreach ($definition->fields as $field) {
+        foreach ($definition->items as $field) {
             $properties[$field->name] = $this->fieldSchema($field, $mode);
 
             if ($field->required) {

@@ -51,8 +51,8 @@ final class DefinitionConstraintsTest extends TestCase
         $mapper = self::bareMapper();
 
         // WHEN / THEN both count boundaries map successfully
-        self::assertTrue($mapper->tryMap(FormDefinition::class, self::definitionJson(fieldCount: 1))->isSuccess());
-        self::assertTrue($mapper->tryMap(FormDefinition::class, self::definitionJson(fieldCount: 50))->isSuccess());
+        self::assertTrue($mapper->tryMap(FormDefinition::class, self::definitionJson(itemCount: 1))->isSuccess());
+        self::assertTrue($mapper->tryMap(FormDefinition::class, self::definitionJson(itemCount: 50))->isSuccess());
     }
 
     public function testFieldCountRejectsZeroAndFiftyOneFields(): void
@@ -61,12 +61,12 @@ final class DefinitionConstraintsTest extends TestCase
         $mapper = self::bareMapper();
 
         // WHEN mapping field lists one step past each boundary
-        $none = $mapper->tryMap(FormDefinition::class, self::definitionJson(fieldCount: 0));
-        $tooMany = $mapper->tryMap(FormDefinition::class, self::definitionJson(fieldCount: 51));
+        $none = $mapper->tryMap(FormDefinition::class, self::definitionJson(itemCount: 0));
+        $tooMany = $mapper->tryMap(FormDefinition::class, self::definitionJson(itemCount: 51));
 
         // THEN
-        self::assertSame(['mapping.min_items'], self::codesAt($none, '/fields'));
-        self::assertSame(['mapping.max_items'], self::codesAt($tooMany, '/fields'));
+        self::assertSame(['mapping.min_items'], self::codesAt($none, '/items'));
+        self::assertSame(['mapping.max_items'], self::codesAt($tooMany, '/items'));
     }
 
     public function testTextMaxLengthMustBePositive(): void
@@ -130,16 +130,16 @@ final class DefinitionConstraintsTest extends TestCase
         return MapperBuilder::create()->build();
     }
 
-    private static function definitionJson(string $id = 'contact', int $fieldCount = 1): Source
+    private static function definitionJson(string $id = 'contact', int $itemCount = 1): Source
     {
-        $fields = [];
+        $items = [];
 
-        for ($i = 0; $i < $fieldCount; ++$i) {
-            $fields[] = ['type' => 'text', 'name' => 'field-' . $i];
+        for ($i = 0; $i < $itemCount; ++$i) {
+            $items[] = ['type' => 'text', 'name' => 'field-' . $i];
         }
 
         return Source::json(json_encode(
-            ['id' => $id, 'fields' => $fields],
+            ['id' => $id, 'items' => $items],
             \JSON_THROW_ON_ERROR,
         ));
     }

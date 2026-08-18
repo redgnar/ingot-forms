@@ -65,7 +65,7 @@ final class CreateFormAction
                         'title' => 'Form definition is not valid.',
                         'status' => 422,
                         'errors' => [
-                            ['pointer' => '/definition/fields/1/name', 'code' => 'form.field.duplicate-name', 'message' => 'Field name "email" is not unique.', 'input' => 'email'],
+                            ['pointer' => '/definition/items/1/name', 'code' => 'form.field.duplicate-name', 'message' => 'Field name "email" is not unique.', 'input' => 'email'],
                         ],
                     ],
                 ),

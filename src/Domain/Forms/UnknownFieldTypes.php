@@ -29,13 +29,13 @@ final class UnknownFieldTypes
     {
         $errors = [];
 
-        foreach ($definition->fields as $index => $field) {
+        foreach ($definition->items as $index => $field) {
             if (!$field instanceof GenericField) {
                 continue;
             }
 
             $errors[] = new MappingError(
-                JsonPointer::fromString(\sprintf('/fields/%d/type', $index)),
+                JsonPointer::fromString(\sprintf('/items/%d/type', $index)),
                 'form.data.unknown-field-type',
                 \sprintf('Field "%s" has unknown type "%s" — its value contract cannot be confirmed.', $field->name, $field->type),
                 $field->type,

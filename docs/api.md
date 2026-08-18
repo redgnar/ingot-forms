@@ -177,7 +177,7 @@ Type: `string` (`empty` \| `draft` \| `confirmed`)
 
 ### FormDefinition
 
-A form definition document. Its authoritative contract is the meta-schema at `src/Domain/Forms/form-definition.schema.json` (an id and 1–50 typed fields with unique names) — the constraints are deliberately not duplicated here.
+A form definition document. Its authoritative contract is the meta-schema at `src/Domain/Forms/form-definition.schema.json` (an id and 1–50 typed items with unique names) — the constraints are deliberately not duplicated here.
 
 Type: `object`
 
@@ -252,7 +252,7 @@ No other properties are allowed.
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `expireDate` | `string` (`date-time`) | yes | When the form stops being fillable, as an RFC 3339 date-time. Must lie in the future; past it the form answers 410 everywhere and the purge command deletes it. |
-| `definition` | `object` | yes | The form definition: an id and 1–50 typed fields with unique names, per the meta-schema in src/Domain/Forms/form-definition.schema.json. Immutable once created — changing it means deleting the form and creating a new one. |
+| `definition` | `object` | yes | The form definition: an id and 1–50 typed items with unique names, per the meta-schema in src/Domain/Forms/form-definition.schema.json. Immutable once created — changing it means deleting the form and creating a new one. |
 
 ### DataSchemaQuery
 

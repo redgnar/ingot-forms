@@ -21,14 +21,14 @@ final class ViolationReportFactoryTest extends TestCase
     {
         // GIVEN a violation on a nested member, in Symfony's path syntax
         $violations = new ConstraintViolationList([
-            self::violation('definition.fields[1].name', new Assert\NotNull()),
+            self::violation('definition.items[1].name', new Assert\NotNull()),
         ]);
 
         // WHEN
         $report = new ViolationReportFactory()->fromViolations($violations);
 
         // THEN
-        self::assertSame('/definition/fields/1/name', $report->errors[0]->pointer->toString());
+        self::assertSame('/definition/items/1/name', $report->errors[0]->pointer->toString());
     }
 
     public function testAnExplicitPointerWinsOverThePropertyPath(): void
@@ -99,7 +99,7 @@ final class ViolationReportFactoryTest extends TestCase
     {
         // GIVEN a violation whose offending value is a whole document
         $violations = new ConstraintViolationList([
-            new ConstraintViolation('Invalid.', null, [], null, 'definition', ['fields' => []]),
+            new ConstraintViolation('Invalid.', null, [], null, 'definition', ['items' => []]),
         ]);
 
         // WHEN

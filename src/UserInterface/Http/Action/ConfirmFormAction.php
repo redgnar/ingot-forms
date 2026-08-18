@@ -86,7 +86,7 @@ final class ConfirmFormAction
                         'title' => 'Request is not valid.',
                         'status' => 422,
                         'errors' => [
-                            ['pointer' => '/fields/3/type', 'code' => 'form.data.unknown-field-type', 'message' => 'Field "sig" has unknown type "signature" — its value contract cannot be confirmed.', 'input' => 'signature'],
+                            ['pointer' => '/items/3/type', 'code' => 'form.data.unknown-field-type', 'message' => 'Field "sig" has unknown type "signature" — its value contract cannot be confirmed.', 'input' => 'signature'],
                         ],
                     ],
                 ),

@@ -11,7 +11,7 @@
 POST {{host}}/api/forms
 Content-Type: application/json
 
-{broken
+{
 
 > {%
     client.test("400 malformed-json", function () {
@@ -41,7 +41,7 @@ POST {{host}}/api/forms
 Content-Type: application/json
 
 {
-  "definition": { "id": "contact", "fields": [{ "type": "text", "name": "email" }] }
+  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] }
 }
 
 > {%
@@ -59,7 +59,7 @@ Content-Type: application/json
 
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
-  "definition": { "id": "contact", "fields": [{ "type": "text", "name": "email" }] },
+  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
   "bogus": 1
 }
 
@@ -78,7 +78,7 @@ Content-Type: application/json
 
 {
   "expireDate": "2020-01-01T00:00:00+00:00",
-  "definition": { "id": "contact", "fields": [{ "type": "text", "name": "email" }] }
+  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] }
 }
 
 > {%
@@ -97,7 +97,7 @@ Content-Type: application/json
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition": {
     "id": "dup",
-    "fields": [
+    "items": [
       { "type": "text", "name": "email" },
       { "type": "text", "name": "email" }
     ]
@@ -107,7 +107,7 @@ Content-Type: application/json
 > {%
     client.test("422 form.field.duplicate-name at the second field", function () {
         client.assert(response.status === 422, "Expected 422, got " + response.status);
-        client.assert(response.body.errors[0].pointer === "/definition/fields/1/name", "Expected the pointer inside the definition");
+        client.assert(response.body.errors[0].pointer === "/definition/items/1/name", "Expected the pointer inside the definition");
         client.assert(response.body.errors[0].code === "form.field.duplicate-name", "Expected form.field.duplicate-name");
     });
 %}
@@ -139,7 +139,7 @@ Content-Type: application/json
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition": {
     "id": "contact",
-      "fields": [
+      "items": [
       { "type": "text", "name": "email", "required": true, "maxLength": 120 },
       { "type": "select", "name": "country", "options": ["pl", "de", "fr"], "required": true },
       { "type": "number", "name": "age", "min": 18, "max": 120 }

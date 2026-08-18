@@ -19,7 +19,7 @@ use Symfony\Component\Cache\Adapter\ArrayAdapter;
  */
 final class FormMapperFactoryTest extends TestCase
 {
-    private const string DEFINITION = '{"id": "contact", "fields": [{"type": "signature", "name": "sig"}]}';
+    private const string DEFINITION = '{"id": "contact", "items": [{"type": "signature", "name": "sig"}]}';
 
     public function testTheMapperItBuildsCarriesTheDefinitionConfiguration(): void
     {
@@ -30,10 +30,10 @@ final class FormMapperFactoryTest extends TestCase
         $definition = $mapper->map(FormDefinition::class, Source::json(self::DEFINITION));
 
         // THEN the fallback kept it instead of failing
-        self::assertInstanceOf(GenericField::class, $definition->fields[0]);
+        self::assertInstanceOf(GenericField::class, $definition->items[0]);
 
         // AND the meta-schema still guards the document
-        $result = $mapper->tryMap(FormDefinition::class, Source::json('{"id": "x", "fields": []}'));
+        $result = $mapper->tryMap(FormDefinition::class, Source::json('{"id": "x", "items": []}'));
         self::assertFalse($result->isSuccess());
     }
 

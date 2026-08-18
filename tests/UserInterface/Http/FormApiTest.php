@@ -20,7 +20,7 @@ final class FormApiTest extends WebTestCase
     /** @var array<string, mixed> */
     private const array DEFINITION = [
         'id' => 'contact',
-        'fields' => [
+        'items' => [
             ['type' => 'text', 'name' => 'email', 'label' => 'E-mail', 'required' => true, 'maxLength' => 120],
             ['type' => 'select', 'name' => 'country', 'options' => ['pl', 'de', 'fr'], 'required' => true],
             ['type' => 'number', 'name' => 'age', 'min' => 18, 'max' => 120],
@@ -201,7 +201,7 @@ final class FormApiTest extends WebTestCase
     {
         // GIVEN a definition with duplicate field names
         $definition = self::DEFINITION;
-        $definition['fields'] = [
+        $definition['items'] = [
             ['type' => 'text', 'name' => 'email'],
             ['type' => 'text', 'name' => 'email'],
         ];
@@ -212,7 +212,7 @@ final class FormApiTest extends WebTestCase
         // THEN the pointer is re-rooted to where the client sent the document
         self::assertResponseStatusCodeSame(422);
         $error = $this->firstError();
-        self::assertSame('/definition/fields/1/name', $error['pointer']);
+        self::assertSame('/definition/items/1/name', $error['pointer']);
         self::assertSame('form.field.duplicate-name', $error['code']);
     }
 
@@ -286,7 +286,7 @@ final class FormApiTest extends WebTestCase
     {
         // GIVEN a definition containing a plugin field type
         $definition = self::DEFINITION;
-        $definition['fields'][] = ['type' => 'signature', 'name' => 'sig', 'vendor' => ['pad' => '2.0']];
+        $definition['items'][] = ['type' => 'signature', 'name' => 'sig', 'vendor' => ['pad' => '2.0']];
         $id = $this->postForm($definition, new \DateTimeImmutable('+1 day'));
         self::assertResponseStatusCodeSame(201);
 
@@ -299,7 +299,7 @@ final class FormApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
         $error = $this->firstError();
         self::assertSame('form.data.unknown-field-type', $error['code']);
-        self::assertSame('/fields/3/type', $error['pointer']);
+        self::assertSame('/items/3/type', $error['pointer']);
     }
 
     public function testReadingDataOfAnEmptyFormIsA404Problem(): void

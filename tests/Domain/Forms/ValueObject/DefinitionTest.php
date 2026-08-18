@@ -17,7 +17,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class DefinitionTest extends TestCase
 {
-    private const string DOCUMENT = '{"id":"contact","fields":[{"type":"text","name":"email"}]}';
+    private const string DOCUMENT = '{"id":"contact","items":[{"type":"text","name":"email"}]}';
 
     public function testADefinitionJustAcceptedCarriesItsStructureAlready(): void
     {

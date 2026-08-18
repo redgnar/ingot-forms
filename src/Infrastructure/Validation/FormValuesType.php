@@ -37,7 +37,7 @@ final class FormValuesType extends AbstractType
         \assert($definition instanceof FormDefinition);
         $strict = $options['mode'] === DeriveMode::Strict;
 
-        foreach ($definition->fields as $field) {
+        foreach ($definition->items as $field) {
             [$type, $fieldOptions] = match (true) {
                 $field instanceof TextField => [TextType::class, self::textOptions($field, $strict)],
                 $field instanceof SelectField => [ChoiceType::class, self::selectOptions($field, $strict)],

@@ -77,7 +77,7 @@ final class SymfonyFormValues
     {
         $errors = [];
 
-        foreach ($definition->fields as $field) {
+        foreach ($definition->items as $field) {
             $value = $submitted[$field->name] ?? null;
 
             if ($value === null) {

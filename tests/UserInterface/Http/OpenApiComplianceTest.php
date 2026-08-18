@@ -43,7 +43,7 @@ final class OpenApiComplianceTest extends WebTestCase
     /** @var array<string, mixed> */
     private const array DEFINITION = [
         'id' => 'contact',
-        'fields' => [
+        'items' => [
             ['type' => 'text', 'name' => 'email', 'label' => 'E-mail', 'required' => true, 'maxLength' => 120],
             ['type' => 'select', 'name' => 'country', 'options' => ['pl', 'de', 'fr'], 'required' => true],
             ['type' => 'number', 'name' => 'age', 'min' => 18, 'max' => 120],

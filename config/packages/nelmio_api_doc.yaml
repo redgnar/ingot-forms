@@ -39,7 +39,7 @@ nelmio_api_doc:
                     description: >-
                         A form definition document. Its authoritative contract is the
                         meta-schema at `src/Domain/Forms/form-definition.schema.json`
-                        (an id and 1–50 typed fields with unique names) — the
+                        (an id and 1–50 typed items with unique names) — the
                         constraints are deliberately not duplicated here.
                 FormValues:
                     type: object
