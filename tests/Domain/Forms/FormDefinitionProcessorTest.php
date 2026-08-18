@@ -8,6 +8,7 @@ use App\Domain\Forms\Definition\GenericField;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\DefinitionNotValid;
 use App\Domain\Forms\FormDefinitionProcessor;
+use App\Domain\Forms\FormMapperFactory;
 use PHPUnit\Framework\TestCase;
 
 final class FormDefinitionProcessorTest extends TestCase
@@ -27,7 +28,7 @@ final class FormDefinitionProcessorTest extends TestCase
     public function testParsesDefinitionIncludingAnUnknownFieldType(): void
     {
         // GIVEN
-        $processor = new FormDefinitionProcessor();
+        $processor = self::processor();
 
         // WHEN
         $definition = $processor->parse(self::DEFINITION);
@@ -46,7 +47,7 @@ final class FormDefinitionProcessorTest extends TestCase
     public function testRejectsDefinitionWithDuplicateFieldNames(): void
     {
         // GIVEN a structurally valid definition breaking a semantic rule
-        $processor = new FormDefinitionProcessor();
+        $processor = self::processor();
         $document = [
             'id' => 'dup',
             'title' => 'Duplicates',
@@ -72,7 +73,7 @@ final class FormDefinitionProcessorTest extends TestCase
     public function testRejectsDefinitionViolatingTheMetaSchema(): void
     {
         // GIVEN a definition missing its required "title"
-        $processor = new FormDefinitionProcessor();
+        $processor = self::processor();
 
         // WHEN
         try {
@@ -87,7 +88,7 @@ final class FormDefinitionProcessorTest extends TestCase
     public function testNormalizeRoundTripsLosslesslyIncludingUnknownFields(): void
     {
         // GIVEN
-        $processor = new FormDefinitionProcessor();
+        $processor = self::processor();
         $definition = $processor->parse(self::DEFINITION);
 
         // WHEN parse → normalize
@@ -103,7 +104,7 @@ final class FormDefinitionProcessorTest extends TestCase
     public function testFromStoredRebuildsTheModelFromANormalizedDocument(): void
     {
         // GIVEN a stored (normalized) document, as the database returns it
-        $processor = new FormDefinitionProcessor();
+        $processor = self::processor();
         $stored = json_encode($processor->normalize($processor->parse(self::DEFINITION)), \JSON_THROW_ON_ERROR);
 
         // WHEN
@@ -112,5 +113,10 @@ final class FormDefinitionProcessorTest extends TestCase
         // THEN
         self::assertSame('contact', $definition->id);
         self::assertCount(4, $definition->fields);
+    }
+
+    private static function processor(): FormDefinitionProcessor
+    {
+        return new FormDefinitionProcessor(new FormMapperFactory()->create());
     }
 }

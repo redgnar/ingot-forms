@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Problem;
 
 use App\Domain\Forms\DefinitionNotValid;
-use App\Domain\Forms\FormDataNotValid;
 use App\Infrastructure\Persistence\FormGone;
 use App\Infrastructure\Persistence\FormNotFound;
 use Ingot\Error\ErrorReport;
@@ -67,12 +66,6 @@ final class ProblemExceptionListener
 
         if ($throwable instanceof DefinitionNotValid) {
             $event->setResponse($this->validationResponse($throwable->report, 'definition-not-valid', 'Form definition is not valid.'));
-
-            return;
-        }
-
-        if ($throwable instanceof FormDataNotValid) {
-            $event->setResponse($this->validationResponse($throwable->report, 'form-data-not-valid', 'Form data is not valid.'));
 
             return;
         }

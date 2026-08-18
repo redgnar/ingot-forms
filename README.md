@@ -60,14 +60,21 @@ and query strings ignore unknown parameters the way HTTP clients expect. Members
 (description, example, type/format), which is what the published schema is generated
 from.
 
-**ingot validates the documents inside the envelope** — the form definition and the
-submitted values — receiving them already decoded rather than as JSON text. The two meet in
-custom constraints (`src/Http/Request/Constraint/`): `ValidFormDefinition` hands the
-definition to the engine's meta-schema and semantic rules, `ValidFormValues` carries a
-form's definition and checks the values against the schema derived from it. Engine findings
-become Symfony violations with their JSON Pointer intact, and `ViolationReportFactory`
-turns every violation back into the same `errors[]` shape — so the error format never
-depends on which engine refused the request.
+**ingot validates the form definition** — meta-schema, typed tree, semantic rules — and
+derives the per-form JSON Schema published to clients. **The submitted values are validated
+by a Symfony form built from that same definition** (`src/Http/Form/`): text, select and
+number fields become the matching form types with their constraints, unknown (plugin) field
+types pass through untouched, and richer rules have somewhere to live as the field catalogue
+grows. The wire type of each value is checked before the form sees it, since a form would
+happily turn `"36"` into a number while the published schema says it must be one.
+
+Both meet Symfony validation through custom constraints
+(`src/Http/Request/Constraint/`): `ValidFormDefinition` on the create DTO, and
+`ValidFormValues`, which carries a form's definition and runs inside the row lock. Findings
+keep their JSON Pointer, and `ViolationReportFactory` turns every violation back into the
+same `errors[]` shape — so the error format never depends on which engine refused the
+request. A test asserts the form and the published schema reach the same verdict, so the
+contract clients validate against cannot drift from what the server enforces.
 
 | Method & path | Purpose |
 |---|---|
@@ -110,9 +117,11 @@ uses the exact same document, so the contract cannot drift.
 
 ```
 src/Domain/Forms/     framework-free, storage-free — the future standalone package
+                      (FormMapperFactory configures the mapper; DI injects it as a service)
 src/Infrastructure/   Doctrine ORM entity + repository, PSR-6 schema cache
 src/Http/             controllers + problem+json mapping
-src/Http/Request/     request DTOs (Symfony-validated) + constraints bridging to ingot
+src/Http/Request/     request DTOs (Symfony-validated) + constraints bridging to the engines
+src/Http/Form/        the form built from a definition — what validates submitted values
 src/Command/          app:forms:purge-expired
 tools/build-docs.php  renders openapi.yaml into docs/ (dev tooling, not shipped)
 ```

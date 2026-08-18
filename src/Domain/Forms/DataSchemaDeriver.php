@@ -89,7 +89,7 @@ final class DataSchemaDeriver
         }
 
         // Unknown (plugin) field types accept anything at draft time; the
-        // confirm path rejects definitions containing them (see FormDataValidator).
+        // confirm path rejects definitions containing them (see UnknownFieldTypes).
         return new \stdClass();
     }
 }

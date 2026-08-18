@@ -9,16 +9,26 @@ services:
             - '../src/Kernel.php'
             # data objects and exceptions, not services
             - '../src/Domain/Forms/Definition/'
-            - '../src/Domain/Forms/{DefinitionNotValid,FormDataNotValid,DeriveMode}.php'
+            - '../src/Domain/Forms/{DefinitionNotValid,DeriveMode}.php'
             - '../src/Infrastructure/Persistence/{Form,FormStatus,FormNotFound,FormGone}.php'
             - '../src/Http/Problem/ProblemException.php'
             # request DTOs and the attributes/constraints describing them
             - '../src/Http/Request/{CreateFormRequest,DataSchemaQuery,SaveFormDataRequest}.php'
             - '../src/Http/Request/Constraint/{ValidFormDefinition,ValidFormValues,ViolationPointer}.php'
 
+    # The definition mapper is configuration, not a consumer's private detail:
+    # one named service, built by a domain factory, injected where it is needed.
+    forms.definition_mapper:
+        class: Ingot\TreeMapper
+        factory: ['@App\Domain\Forms\FormMapperFactory', 'create']
+
+    App\Domain\Forms\FormMapperFactory:
+        arguments:
+            $metadataCache: '@cache.ingot_mapper'
+
     App\Domain\Forms\FormDefinitionProcessor:
         arguments:
-            $mapperCache: '@cache.ingot_mapper'
+            $mapper: '@forms.definition_mapper'
 
     App\Infrastructure\Cache\CachedDataSchemaProvider:
         arguments:

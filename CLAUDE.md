@@ -24,6 +24,10 @@ deletes them physically. No templates, no versioning, no multi-submission — de
 - **`src/Domain/Forms/` stays framework-free and storage-free** (only `Ingot\*` and the
   `psr/cache` interface) — it is the future standalone package. Deptrac enforces
   Domain ← Infrastructure ← Http/Command (`deptrac.yaml`).
+- **The definition mapper is a service, not a private detail**: `FormMapperFactory` (domain,
+  framework-free) holds its configuration — meta-schema, uniqueness rule, plugin-field
+  fallback — and services.yaml registers the built `TreeMapper` as `forms.definition_mapper`,
+  injected into consumers. Never rebuild a mapper inside a class that uses it.
 - **ingot is consumed via a composer path repository** (`../ingot`, sibling checkout,
   mounted at `/ingot` in Docker so the relative symlink resolves). After pulling new ingot
   commits run `make update`. When ingot reaches Packagist: switch to a version constraint,
@@ -39,12 +43,22 @@ deletes them physically. No templates, no versioning, no multi-submission — de
     Symfony, repository and records typed accordingly). A DTO documents itself with
     `#[ApiProperty]`, and `make docs` generates its published schema from constructor +
     constraints + that prose (`x-dto-schema` markers in `openapi.yaml`).
-  - **ingot owns the documents inside the envelope** — the form definition and the submitted
-    values — and receives them already decoded (`Source::array()`), never as JSON text.
-    The bridge is a custom constraint: `ValidFormDefinition` (attribute on the DTO) and
-    `ValidFormValues` (carries the form's definition, applied inside the row lock), both in
-    `src/Http/Request/Constraint/`, translating engine findings into violations with the
-    exact JSON Pointer preserved via `ViolationPointer::PARAMETER`.
+  - **ingot owns the form definition**: the meta-schema, the typed tree and the semantic
+    rules, receiving it already decoded (`Source::array()`), never as JSON text. It also
+    derives the per-form JSON Schema that `GET …/schema` publishes to clients.
+  - **A Symfony form owns the submitted values** (`src/Http/Form/`): `FormValuesType` builds
+    fields from the definition (`TextType`/`ChoiceType`/`NumberType`, `RawValueType` for
+    plugin fields), `FormValuesValidator` submits the values into it and reports findings as
+    `form.value.*`. Strict mode submits with `clearMissing` so required fields fire; draft
+    mode does not. Wire types are checked *before* the form, because a form would transform
+    `"36"` into a number while the published schema says otherwise.
+    `tests/Http/Form/FormValuesValidatorTest` pins that the form and that published schema
+    reach the same verdict — they are two views of one definition and must not drift.
+  - The bridge to Symfony validation is a pair of custom constraints in
+    `src/Http/Request/Constraint/`: `ValidFormDefinition` (attribute on the DTO) and
+    `ValidFormValues` (carries the form's definition, applied inside the row lock), both
+    translating findings into violations with the exact JSON Pointer preserved via
+    `ViolationPointer::PARAMETER`.
   - `ViolationReportFactory` turns violations back into the one `errors[]` shape, so the
     error format never depends on which engine refused the request.
   - **JSON only**: every body-mapping attribute sets `acceptFormat: 'json'`, so any other

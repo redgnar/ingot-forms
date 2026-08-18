@@ -4,39 +4,22 @@ declare(strict_types=1);
 
 namespace App\Domain\Forms;
 
-use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\GenericField;
-use App\Domain\Forms\Definition\UniqueFieldNamesValidator;
-use Ingot\MapperBuilder;
-use Ingot\Schema\Schema;
 use Ingot\Source;
 use Ingot\TreeMapper;
-use Psr\Cache\CacheItemPoolInterface;
 
 /**
- * Parses and serializes form definitions through one lenient ingot mapper:
- * the meta-schema pre-check and semantic rules guard incoming documents,
- * while unknown (plugin) field types fall back to {@see GenericField} so
- * stored definitions round-trip losslessly.
+ * Parses and serializes form definitions through the lenient mapper
+ * {@see FormMapperFactory} configures: the meta-schema pre-check and semantic
+ * rules guard incoming documents, while unknown (plugin) field types fall back
+ * to {@see GenericField} so stored definitions round-trip losslessly.
  */
 final class FormDefinitionProcessor
 {
-    private readonly TreeMapper $mapper;
-
-    public function __construct(?CacheItemPoolInterface $mapperCache = null)
-    {
-        $builder = MapperBuilder::create()
-            ->withSchema(FormDefinition::class, Schema::fromFile(__DIR__ . '/form-definition.schema.json'))
-            ->withValidator(FormDefinition::class, new UniqueFieldNamesValidator())
-            ->withVariantFallback(Field::class, GenericField::class);
-
-        if ($mapperCache !== null) {
-            $builder = $builder->withCache($mapperCache);
-        }
-
-        $this->mapper = $builder->build();
-    }
+    public function __construct(
+        private readonly TreeMapper $mapper,
+    ) {}
 
     /**
      * Parses an already-decoded definition document — the shape a framework

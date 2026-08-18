@@ -249,14 +249,30 @@ Two more directions arrived while the contract work was landing, and both are im
   schema API instead of raw SQL. doctrine-bundle 3.x also dropped `use_savepoints`,
   `auto_generate_proxy_classes` and `report_fields_where_declared` from its config.
 
-## Next step (not implemented): Symfony Forms / constraints derived from a definition
+## Values are validated by a Symfony form built from the definition (implemented)
 
-The user's direction for stage 3: keep ingot's constraints for the basic semantics of a
-definition and its values, and build a **Symfony Form (or constraint set) from the stored
-definition** for the richer validation a real form needs. `ValidFormValues` is the seam —
-it already owns "validate these values against this definition", so a second implementation
-can sit behind it without touching controllers, and `GET /api/forms/{id}/schema` keeps
-serving the derived JSON Schema to clients.
+The seam held: `ValidFormValues` already owned "validate these values against this
+definition", so the implementation behind it was swapped without touching a controller.
+
+- `src/Http/Form/FormValuesType` builds a form from the definition — `TextType` with
+  `Length`/`Regex`, `ChoiceType` over the declared options, `NumberType` with `Range`,
+  and `RawValueType` (compound-less passthrough) for plugin fields, whose values are stored
+  as they came. `FormValuesValidator` submits into it and reports findings as `form.value.*`.
+- Strict mode submits with `clearMissing`, which is what makes the required rules fire;
+  draft mode leaves missing fields missing. Undeclared fields are refused by the form itself
+  (`allow_extra_fields: false` → `form.value.unknown_field`, told apart from a value the
+  form cannot transform by the `Form` constraint's own error code).
+- **Wire types are checked before the form runs.** A form transforms — `"36"` would become
+  the number 36 — while the derived schema tells clients a number is required, so the check
+  keeps the server from being looser than its own contract.
+- `FormDataValidator` and `FormDataNotValid` are gone from the domain; the one rule that
+  stayed is `UnknownFieldTypes` (a definition with a plugin field can never be confirmed).
+  `DataSchemaDeriver` is untouched: it still derives what `GET …/schema` publishes.
+- The risk this introduces is two views of one definition drifting apart, so
+  `tests/Http/Form/FormValuesValidatorTest::testFormAndPublishedSchemaAgree` runs nine value
+  documents past both the form and the published schema and asserts they agree.
+- Error vocabulary for values changed accordingly: `schema.required` → `form.value.required`,
+  `schema.type` → `form.value.type`, and so on; the OpenAPI examples were updated with it.
 - Infection scoping to the unit suite is done via
   `--test-framework-options="--testsuite=unit"` on the CLI (the config file has no such
   key), kept in the `make mutation` recipe.

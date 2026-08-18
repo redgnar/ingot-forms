@@ -92,7 +92,7 @@ final class FormDataController extends AbstractController
                         'title' => 'Request is not valid.',
                         'status' => 422,
                         'errors' => [
-                            ['pointer' => '/age', 'code' => 'schema.type', 'message' => 'The value must be of type number.', 'input' => 'old'],
+                            ['pointer' => '/age', 'code' => 'form.value.type', 'message' => 'This value must be of type number.', 'input' => 'old'],
                         ],
                     ],
                 ),
@@ -180,7 +180,7 @@ final class FormDataController extends AbstractController
                         'title' => 'Request is not valid.',
                         'status' => 422,
                         'errors' => [
-                            ['pointer' => '', 'code' => 'schema.required', 'message' => 'The required property "email" is missing.'],
+                            ['pointer' => '/email', 'code' => 'form.value.required', 'message' => 'This field is required.'],
                         ],
                     ],
                 ),

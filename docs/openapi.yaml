@@ -223,7 +223,7 @@ paths:
               examples:
                 form-data-not-valid:
                   summary: 'A value the derived schema refuses'
-                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /age, code: schema.type, message: 'The value must be of type number.', input: old }] }
+                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /age, code: form.value.type, message: 'This value must be of type number.', input: old }] }
   '/api/forms/{id}/confirm':
     post:
       summary: 'Confirm the stored values'
@@ -270,7 +270,7 @@ paths:
               examples:
                 required-missing:
                   summary: 'A required field was never filled in'
-                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: '', code: schema.required, message: 'The required property "email" is missing.' }] }
+                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /email, code: form.value.required, message: 'This field is required.' }] }
                 unknown-field-type:
                   summary: 'The definition carries a plugin field the server cannot vouch for'
                   value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /fields/3/type, code: form.data.unknown-field-type, message: 'Field "sig" has unknown type "signature" — its value contract cannot be confirmed.', input: signature }] }
