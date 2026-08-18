@@ -17,12 +17,12 @@ use PHPUnit\Framework\TestCase;
  */
 final class DefinitionTest extends TestCase
 {
-    private const string DOCUMENT = '{"id":"contact","title":"Contact us","fields":[{"type":"text","name":"email"}]}';
+    private const string DOCUMENT = '{"id":"contact","fields":[{"type":"text","name":"email"}]}';
 
     public function testADefinitionJustAcceptedCarriesItsStructureAlready(): void
     {
         // GIVEN a structure the mapper accepted, and the document it normalizes to
-        $structure = new FormDefinition('contact', 'Contact us', [new TextField('email')]);
+        $structure = new FormDefinition('contact', [new TextField('email')]);
 
         // WHEN
         $definition = Definition::of($structure, self::DOCUMENT);

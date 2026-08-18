@@ -12,7 +12,6 @@ Content-Type: application/json
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition": {
     "id": "contact",
-    "title": "Contact us",
     "fields": [
       { "type": "text", "name": "email", "label": "E-mail", "required": true, "maxLength": 120 },
       { "type": "select", "name": "country", "label": "Country", "options": ["pl", "de", "fr"], "required": true },
@@ -34,18 +33,18 @@ Content-Type: application/json
 
 ### Read it back: definition, derived status, timestamps.
 # @name getForm
-GET {{host}}/api/forms/01a0163b-f3e8-7cc4-acfc-64bcd854813d
+GET {{host}}/api/forms/01a01724-0b3a-79d9-b0fd-2ac0fde67f7b
 
 > {%
     client.test("200 with the full envelope", function () {
         client.assert(response.status === 200, "Expected 200, got " + response.status);
-        client.assert(response.body.definition.title === "Contact us", "The title is read from the definition, which is served whole");
+        client.assert(response.body.definition.id === "contact", "The definition is served whole, exactly as it was stored");
     });
 %}
 
 ### Save partial progress. Repeatable, and "required" does not apply yet.
 # @name saveDraft
-PUT {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/data
+PUT {{host}}/api/forms/01a01724-0b3a-79d9-b0fd-2ac0fde67f7b/data
 Content-Type: application/json
 
 {

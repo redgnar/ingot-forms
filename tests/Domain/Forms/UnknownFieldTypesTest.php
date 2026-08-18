@@ -15,7 +15,7 @@ final class UnknownFieldTypesTest extends TestCase
     public function testADefinitionOfKnownFieldsHasNothingToReport(): void
     {
         // GIVEN
-        $definition = new FormDefinition('contact', 'Contact us', [
+        $definition = new FormDefinition('contact', [
             new TextField('email', required: true),
         ]);
 
@@ -29,7 +29,7 @@ final class UnknownFieldTypesTest extends TestCase
     public function testEveryPluginFieldIsNamedAtItsPositionInTheDefinition(): void
     {
         // GIVEN two field types this application does not know
-        $definition = new FormDefinition('sign', 'Sign here', [
+        $definition = new FormDefinition('sign', [
             new TextField('email', required: true),
             new GenericField('signature', 'sig'),
             new GenericField('captcha', 'proof'),

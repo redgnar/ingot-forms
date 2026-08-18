@@ -20,7 +20,7 @@ final class SpyParser implements DefinitionParser
 
     public function __construct(?FormDefinition $definition = null)
     {
-        $this->definition = $definition ?? new FormDefinition('contact', 'Contact us', [
+        $this->definition = $definition ?? new FormDefinition('contact', [
             new TextField('email', required: true, maxLength: 120),
         ]);
     }

@@ -16,7 +16,6 @@ final class FormDefinitionProcessorTest extends TestCase
     /** @var array<string, mixed> Documents arrive decoded — the caller owns the wire format. */
     private const array DEFINITION = [
         'id' => 'contact',
-        'title' => 'Contact us',
         'fields' => [
             ['type' => 'text', 'name' => 'email', 'label' => 'E-mail', 'required' => true, 'maxLength' => 120],
             ['type' => 'select', 'name' => 'country', 'options' => ['pl', 'de', 'fr'], 'required' => true],
@@ -50,7 +49,6 @@ final class FormDefinitionProcessorTest extends TestCase
         $processor = self::processor();
         $document = [
             'id' => 'dup',
-            'title' => 'Duplicates',
             'fields' => [
                 ['type' => 'text', 'name' => 'email'],
                 ['type' => 'text', 'name' => 'email'],
@@ -72,12 +70,12 @@ final class FormDefinitionProcessorTest extends TestCase
 
     public function testRejectsDefinitionViolatingTheMetaSchema(): void
     {
-        // GIVEN a definition missing its required "title"
+        // GIVEN a definition with no fields at all
         $processor = self::processor();
 
         // WHEN
         try {
-            $processor->parse(['id' => 'x', 'fields' => [['type' => 'text', 'name' => 'a']]]);
+            $processor->parse(['id' => 'x']);
             self::fail('Expected DefinitionNotValid.');
         } catch (DefinitionNotValid $exception) {
             // THEN

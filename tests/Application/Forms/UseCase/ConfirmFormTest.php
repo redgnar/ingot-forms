@@ -25,7 +25,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class ConfirmFormTest extends TestCase
 {
-    private const string DEFINITION = '{"id":"contact","title":"Contact us","fields":[{"type":"text","name":"email"}]}';
+    private const string DEFINITION = '{"id":"contact","fields":[{"type":"text","name":"email"}]}';
 
     public function testJudgesTheStoredValuesStrictlyAndLocksTheForm(): void
     {

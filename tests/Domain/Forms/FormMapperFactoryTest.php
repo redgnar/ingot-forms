@@ -19,7 +19,7 @@ use Symfony\Component\Cache\Adapter\ArrayAdapter;
  */
 final class FormMapperFactoryTest extends TestCase
 {
-    private const string DEFINITION = '{"id": "contact", "title": "Contact us", "fields": [{"type": "signature", "name": "sig"}]}';
+    private const string DEFINITION = '{"id": "contact", "fields": [{"type": "signature", "name": "sig"}]}';
 
     public function testTheMapperItBuildsCarriesTheDefinitionConfiguration(): void
     {

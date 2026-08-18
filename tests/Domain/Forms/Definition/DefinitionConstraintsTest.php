@@ -139,7 +139,7 @@ final class DefinitionConstraintsTest extends TestCase
         }
 
         return Source::json(json_encode(
-            ['id' => $id, 'title' => 'Contact us', 'fields' => $fields],
+            ['id' => $id, 'fields' => $fields],
             \JSON_THROW_ON_ERROR,
         ));
     }

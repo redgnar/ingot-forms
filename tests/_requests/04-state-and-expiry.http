@@ -33,8 +33,7 @@ Content-Type: application/json
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition": {
     "id": "contact",
-    "title": "Contact us",
-    "fields": [{ "type": "text", "name": "email", "required": true }]
+      "fields": [{ "type": "text", "name": "email", "required": true }]
   }
 }
 
@@ -89,7 +88,6 @@ Content-Type: application/json
   "expireDate": "{{expiresSoon}}",
   "definition": {
     "id": "fleeting",
-    "title": "Gone in five seconds",
     "fields": [{ "type": "text", "name": "email" }]
   }
 }

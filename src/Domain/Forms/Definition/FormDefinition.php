@@ -14,7 +14,6 @@ final readonly class FormDefinition
     public function __construct(
         #[Constraints(minLength: 1, maxLength: 64, pattern: '^[a-z][a-z0-9-]*$')]
         public string $id,
-        public string $title,
         #[Constraints(minItems: 1, maxItems: 50)]
         public array $fields,
     ) {}
