@@ -32,6 +32,11 @@ deletes them physically. No templates, no versioning, no multi-submission — de
   mounted at `/ingot` in Docker so the relative symlink resolves). After pulling new ingot
   commits run `make update`. When ingot reaches Packagist: switch to a version constraint,
   delete the `repositories` block.
+  - **A change spanning both repositories goes to ingot first.** Locally the two are always
+    in step — the symlink points at your checkout — so a mismatch is invisible until CI,
+    which clones `redgnar/ingot` at `main`. Push the library, wait for it to land, then push
+    the application; otherwise the workflow builds new expectations against the old library
+    and fails for a reason nothing in the diff explains.
 - **One error format**: every error response is RFC 9457 `application/problem+json`; validation
   problems carry `errors: [{pointer, code, message, input?}]` mapped 1:1 from ingot's
   `ErrorReport` (`ProblemExceptionListener` is the single mapping point).
