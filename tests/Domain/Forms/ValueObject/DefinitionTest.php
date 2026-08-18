@@ -11,9 +11,9 @@ use App\Tests\Domain\Forms\Fake\SpyParser;
 use PHPUnit\Framework\TestCase;
 
 /**
- * What a form is made of, in both shapes it is needed in — and the rule that
- * keeps them one fact: the document is what is stored, the structure is what
- * is reasoned about, and neither is held without the other.
+ * What a form is made of, in both shapes it is needed in — the document that
+ * is stored and the structure that is reasoned about — neither ever held
+ * without the other.
  */
 final class DefinitionTest extends TestCase
 {
@@ -32,37 +32,18 @@ final class DefinitionTest extends TestCase
         self::assertSame(self::DOCUMENT, (string) $definition);
     }
 
-    public function testAStoredDefinitionIsReadBackOnlyWhenItsStructureIsAskedFor(): void
+    public function testAStoredDefinitionIsReadBackThroughTheParserAndIsWholeAtOnce(): void
     {
         // GIVEN a definition as storage hands it over
         $parser = new SpyParser();
+
+        // WHEN
         $definition = Definition::stored(self::DOCUMENT, $parser);
 
-        // THEN the document is available without parsing anything — which is
-        // all that reading or deleting a form ever needs
+        // THEN it carries both shapes straight away, and read the document once
         self::assertSame(self::DOCUMENT, (string) $definition);
-        self::assertSame(0, $parser->calls);
-
-        // WHEN the structure is asked for
-        $structure = $definition->structure();
-
-        // THEN it comes from the stored document
-        self::assertSame('contact', $structure->id);
-        self::assertSame(1, $parser->calls);
-    }
-
-    public function testAStoredDefinitionIsReadBackAtMostOnce(): void
-    {
-        // GIVEN
-        $parser = new SpyParser();
-        $definition = Definition::stored(self::DOCUMENT, $parser);
-
-        // WHEN asked repeatedly
-        $first = $definition->structure();
-        $second = $definition->structure();
-
-        // THEN the same structure comes back, and the parser ran once
-        self::assertSame($first, $second);
+        self::assertSame('contact', $definition->structure()->id);
+        self::assertSame($definition->structure(), $definition->structure());
         self::assertSame(1, $parser->calls);
     }
 }

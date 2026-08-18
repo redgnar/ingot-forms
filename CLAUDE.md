@@ -108,8 +108,8 @@ Rules that follow from it, and that the tooling checks:
   byte, and the structure a rule can be asked about. One cannot be held unproved — it is
   built either from a structure the mapper just accepted (`FormDefinitionProcessor::document`)
   or from a stored document read back through that same mapper (`Definition::stored`), and
-  the structure resolves when first asked for, once, so reading or deleting a form pays
-  nothing for it.
+  the reading back happens there and then — a definition is whole from the moment it exists,
+  with no deferred work hidden behind an accessor.
 - **The aggregate is not an entity.** Doctrine maps `FormRecord` — a row with public fields,
   ORM attributes and no behaviour — and never the model. A read builds a form from a record
   (`toForm()`), a write copies it back (`write()`), and `Form::fromState()` restores one

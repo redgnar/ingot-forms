@@ -15,45 +15,37 @@ use App\Domain\Forms\Port\DefinitionParser;
  *
  * There is no way to hold one that was not proved: it is built either from a
  * structure the mapper has just accepted, or from a stored document read back
- * through that same mapper. The structure is resolved when somebody first
- * asks for it and never twice — reading or deleting a form needs only the
- * document, and must not pay for parsing it.
+ * through that same mapper — and reading it back happens there and then, so a
+ * definition is whole from the moment it exists.
  */
-final class Definition implements \Stringable
+final readonly class Definition implements \Stringable
 {
-    private ?FormDefinition $structure = null;
-
-    /** @var \Closure(): FormDefinition */
-    private readonly \Closure $resolve;
-
-    /**
-     * @param \Closure(): FormDefinition $resolve
-     */
     private function __construct(
-        private readonly string $document,
-        \Closure $resolve,
-    ) {
-        $this->resolve = $resolve;
-    }
+        private FormDefinition $structure,
+        private string $document,
+    ) {}
 
     /** A definition the mapper has just accepted, with the document it normalizes to. */
     public static function of(FormDefinition $structure, string $document): self
     {
-        return new self($document, static fn(): FormDefinition => $structure);
+        return new self($structure, $document);
     }
 
     /**
-     * A definition read back from storage. Whether the document still maps is
-     * answered by the parser, at the moment the structure is asked for.
+     * A definition read back from storage.
+     *
+     * @throws \Ingot\Error\MappingFailed when the stored document no longer
+     *         maps — which means storage was corrupted, since nothing gets in
+     *         without passing the definition gate
      */
     public static function stored(string $document, DefinitionParser $parser): self
     {
-        return new self($document, static fn(): FormDefinition => $parser->fromStored($document));
+        return new self($parser->fromStored($document), $document);
     }
 
     public function structure(): FormDefinition
     {
-        return $this->structure ??= ($this->resolve)();
+        return $this->structure;
     }
 
     public function __toString(): string
