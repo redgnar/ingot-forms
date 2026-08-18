@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Tests\Domain\Forms;
 
 use App\Domain\Forms\DeriveMode;
+use App\Domain\Forms\Event\DraftSaved;
+use App\Domain\Forms\Event\FormConfirmed;
+use App\Domain\Forms\Event\FormCreated;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
@@ -14,7 +17,7 @@ use App\Domain\Forms\FormStatus;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
-use App\Tests\Domain\Forms\Fake\SpyParser;
+use App\Domain\Forms\ValueObject\Values;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
 
@@ -63,7 +66,7 @@ final class FormTest extends TestCase
         self::assertSame([DeriveMode::Draft], $values->modes);
         [$askedAbout, $definition] = $values->asked[0];
         self::assertTrue($form->id()->equals($askedAbout));
-        self::assertSame($form->definition()->model(), $definition);
+        self::assertSame(self::DEFINITION, (string) $definition);
     }
 
     public function testSavingWithoutAMomentUsesNow(): void
@@ -214,61 +217,95 @@ final class FormTest extends TestCase
     {
         // GIVEN
         $id = FormId::next();
-        $model = new SpyParser()->fromStored(self::DEFINITION);
 
         // WHEN
-        $form = new Form($id, Definition::of($model, self::DEFINITION), ExpireDate::at(new \DateTimeImmutable('+1 day')));
+        $form = new Form($id, Definition::fromDocument(self::DEFINITION), ExpireDate::at(new \DateTimeImmutable('+1 day')));
 
         // THEN
         self::assertTrue($id->equals($form->id()));
         self::assertSame(self::DEFINITION, (string) $form->definition());
-        self::assertSame($model, $form->definition()->model());
     }
 
-    public function testAFormReadFromStorageReadsItsDefinitionThroughTheParserItIsGiven(): void
+    public function testARestoredFormIsWhatWasStoredAndHasDoneNothingYet(): void
     {
-        // GIVEN a form as storage hands it over: fields filled in, no model with them
-        $form = self::hydrated();
-        $parser = new SpyParser();
+        // GIVEN the state an adapter reads back
+        $id = FormId::next();
+        $created = new \DateTimeImmutable('2026-01-01T00:00:00+00:00');
+        $savedAt = new \DateTimeImmutable('2026-01-02T00:00:00+00:00');
+        $confirmedAt = new \DateTimeImmutable('2026-01-03T00:00:00+00:00');
 
-        // WHEN the repository hands over the parser
-        $form->useParser($parser);
+        // WHEN
+        $form = Form::fromState(
+            $id,
+            Definition::fromDocument(self::DEFINITION),
+            ExpireDate::at(new \DateTimeImmutable('+1 day')),
+            Values::fromJson('{"email": "ada@example.com"}'),
+            $savedAt,
+            $confirmedAt,
+            $created,
+        );
 
-        // THEN the definition becomes readable, from the document that was stored
+        // THEN every piece of it came back...
+        self::assertTrue($id->equals($form->id()));
         self::assertSame(self::DEFINITION, (string) $form->definition());
-        self::assertSame('contact', $form->definition()->model()->id);
-        self::assertSame(1, $parser->calls);
+        self::assertSame('{"email":"ada@example.com"}', $form->valuesJson());
+        self::assertEquals($savedAt, $form->dataSavedAt());
+        self::assertEquals($confirmedAt, $form->confirmedAt());
+        self::assertEquals($created, $form->createdAt());
+        self::assertSame(FormStatus::Confirmed, $form->status());
+
+        // ...and reading it is not something that happened to the form
+        self::assertSame([], $form->releaseEvents());
     }
 
-    public function testAFormWithoutItsParserSaysSoRatherThanGuessing(): void
+    public function testEveryTransitionIsRecordedAndHandedOverOnlyOnce(): void
     {
-        // GIVEN a form nobody handed a parser to
-        $form = self::hydrated();
+        // GIVEN a form that was created, filled in and confirmed
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+        $form->confirm(new StubValues());
 
-        // WHEN / THEN
-        $this->expectException(\LogicException::class);
+        // WHEN
+        $events = $form->releaseEvents();
 
-        $form->definition();
+        // THEN each transition left its own record, in the order it happened
+        self::assertInstanceOf(FormCreated::class, $events[0]);
+        self::assertInstanceOf(DraftSaved::class, $events[1]);
+        self::assertInstanceOf(FormConfirmed::class, $events[2]);
+        self::assertCount(3, $events);
+        self::assertTrue($form->id()->equals($events[1]->formId));
+        self::assertSame($form->dataSavedAt(), $events[1]->occurredAt);
+        self::assertSame($form->confirmedAt(), $events[2]->occurredAt);
+        self::assertSame($form->createdAt(), $events[0]->occurredAt);
+
+        // AND asking again hands over nothing: what was taken is gone
+        self::assertSame([], $form->releaseEvents());
+    }
+
+    public function testARefusedTransitionRecordsNothing(): void
+    {
+        // GIVEN a form whose values are refused
+        $form = self::form();
+        $form->releaseEvents();
+
+        // WHEN
+        try {
+            $form->saveDraft(self::values('{"email": 1}'), new StubValues(refuse: true));
+            self::fail('Expected ValuesNotValid.');
+        } catch (ValuesNotValid) {
+            // THEN nothing happened, so nothing is recorded
+            self::assertSame([], $form->releaseEvents());
+        }
     }
 
     private static function form(?\DateTimeImmutable $now = null, ?\DateTimeImmutable $expires = null): Form
     {
         return new Form(
             FormId::next(),
-            Definition::stored(self::DEFINITION, new SpyParser()),
+            Definition::fromDocument(self::DEFINITION),
             ExpireDate::at($expires ?? new \DateTimeImmutable('+1 day')),
             $now,
         );
-    }
-
-    /** A form in the state Doctrine leaves it in: mapped fields set, constructor never run. */
-    private static function hydrated(): Form
-    {
-        $form = new \ReflectionClass(Form::class)->newInstanceWithoutConstructor();
-        $definition = new \ReflectionProperty(Form::class, 'definition');
-        $definition->setValue($form, self::DEFINITION);
-
-        return $form;
     }
 
     private static function values(string $json): \stdClass

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Domain\Forms\Fake;
 
-use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\Port\ValuesValidator;
+use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\FormId;
 use Ingot\Error\ErrorReport;
 use Ingot\Error\MappingError;
@@ -24,14 +24,14 @@ final class StubValues implements ValuesValidator
     /** @var list<DeriveMode> */
     public array $modes = [];
 
-    /** @var list<array{FormId, FormDefinition, mixed}> what it was handed, in order */
+    /** @var list<array{FormId, Definition, mixed}> what it was handed, in order */
     public array $asked = [];
 
     public function __construct(
         private readonly bool $refuse = false,
     ) {}
 
-    public function assertFit(FormDefinition $definition, mixed $values, DeriveMode $mode, FormId $formId): void
+    public function assertFit(Definition $definition, mixed $values, DeriveMode $mode, FormId $formId): void
     {
         $this->modes[] = $mode;
         $this->asked[] = [$formId, $definition, $values];

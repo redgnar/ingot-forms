@@ -340,3 +340,29 @@ HTTP layer and could not be tested without a kernel.
   the HTTP contract tests were untouched by the move, which is the evidence behaviour held.
 
 The rules this settled on are written down in `CLAUDE.md` so later work follows them.
+
+## The model stopped being an entity (implemented)
+
+Three problems in a row turned out to be one: Doctrine hydrates an object without calling its
+constructor, so the aggregate kept needing repairs after a read — a parser handed over by the
+repository, a value object rebuilt on every accessor, and finally a custom DBAL type to avoid
+both. The cause was that the domain model *was* the mapped entity.
+
+- **`FormRecord`** is now what Doctrine sees: public fields, ORM attributes, no behaviour, the
+  same `forms` table and columns as before — so no migration. `toForm()` builds the aggregate,
+  `write()` copies a changed one back, and `DoctrineFormRepository` is the only place either
+  happens. Mapping moved from `config/doctrine/*.xml` to attributes, which is now the right
+  call: the class carrying them exists to be a row.
+- **`Form` is `final`** (nothing needs to proxy it), holds value objects rather than the
+  scalars a column wanted (`FormId`, `Definition`, `ExpireDate`, `Values`), and gained
+  `fromState()` — the way an adapter restores what it read, judging nothing and recording
+  nothing.
+- **`Definition` earned its invariant**: a private constructor, `fromDocument()` refusing
+  anything that is not a JSON object, and `FormDefinitionProcessor::document()` as the way in
+  for anything from outside. Holding one now means the document passed the definition gate.
+- **Transitions record events** (`FormCreated`, `DraftSaved`, `FormConfirmed`), handed over by
+  `releaseEvents()` and taken by the repository in the same step that makes the change
+  durable. Nothing consumes them yet — that call is the seam.
+- The risk this introduces is a field copied in one direction and forgotten in the other, so
+  `testEveryPieceOfAFormSurvivesTheRoundTrip` drives a form through save, confirm, a cleared
+  entity manager and a fresh read, asserting every piece came back.

@@ -55,12 +55,13 @@ src/Domain/Forms/          the model: Form (aggregate), FormStatus, DeriveMode, 
                            model and its processors. Framework-free and storage-free — the
                            future standalone package.
     Definition/            the field union and the meta-schema
+    Event/                 what happened to a form: FormCreated, DraftSaved, FormConfirmed
     ValueObject/           FormId, ExpireDate, Values, Definition
     Exception/             what the model refuses: DefinitionNotValid, ValuesNotValid,
                            FormNotFound, FormGone, FormLocked, FormAlreadyConfirmed,
                            FormHasNoData
-    Port/                  FormRepository, ValuesValidator, DefinitionParser — what the
-                           model needs from the outside to keep its own rules
+    Port/                  FormRepository, ValuesValidator — what the model needs from the
+                           outside to keep its own rules
 src/Application/Forms/
     UseCase/               one class per thing the system does, each with a single __invoke:
                            CreateForm, SaveFormData, ConfirmForm, DeleteForm, ReadForm,
@@ -69,7 +70,8 @@ src/Application/Forms/
     Port/                  Transactions, DataSchemas — what a use case needs and cannot
                            do itself
 src/Infrastructure/        the adapters filling those ports
-    Persistence/           DoctrineFormRepository, DoctrineTransactions (+ config/doctrine/*.xml)
+    Persistence/           FormRecord (the row, mapped with ORM attributes),
+                           DoctrineFormRepository, DoctrineTransactions
     Cache/                 CachedDataSchemaProvider
     Validation/            the schema gate, the Symfony form and the staged validator
 src/UserInterface/
@@ -87,8 +89,8 @@ Rules that follow from it, and that the tooling checks:
   manager**, and it never mutates an aggregate. Its job is HTTP: map the request onto a use
   case, map a refusal onto a status.
 - **Ports are declared where they are needed and implemented outward.** The domain declares
-  what the model needs to keep its own rules (`FormRepository`, `ValuesValidator`,
-  `DefinitionParser`); the application declares what a use case needs (`Transactions`,
+  what the model needs to keep its own rules (`FormRepository`, `ValuesValidator`); the
+  application declares what a use case needs (`Transactions`,
   `DataSchemas`); `services.yaml` binds each interface to its adapter. Nothing above
   Infrastructure names an implementation class.
 - **The domain speaks in value objects, not primitives**: `FormId` instead of a raw uuid,
@@ -101,14 +103,25 @@ Rules that follow from it, and that the tooling checks:
   handed in as an argument (the verdict needs machinery the model does not carry), but which
   contract applies — lenient while filling in, strict at confirmation — is the form's own
   business. A caller cannot skip that check, which is the point: it is an invariant, not a
-  courtesy. The definition travels as `Definition` — the stored document plus the model
-  parsed from it on demand, never twice, so reads and deletes pay nothing.
-- **The aggregate knows nothing about storage**: the Doctrine mapping lives in
-  `config/doctrine/Form.orm.xml`, never as attributes on the class. Hydration fills fields
-  directly, so `DoctrineFormRepository::fetch()` — the one path every read passes through —
-  hands the form its `DefinitionParser`. That fix-up belongs to the adapter; the port stays a
-  collection (`add`, `get`, `getForUpdate`, `save(Form)`, `remove`, `purgeExpired`), and
-  every method that writes names the form it writes.
+  courtesy. The definition travels as `Definition`: the normalized document of a model the
+  processor has already proved, which is the only way to obtain one — parsing it back into
+  the typed tree is the validator's business, since it is the one paying for the check.
+- **The aggregate is not an entity.** Doctrine maps `FormRecord` — a row with public fields,
+  ORM attributes and no behaviour — and never the model. A read builds a form from a record
+  (`toForm()`), a write copies it back (`write()`), and `Form::fromState()` restores one
+  without judging or recording anything, because reading is not something that happens to a
+  form. That costs a mapping in both directions and buys a model with no mapping, no
+  constructor to bypass and no fix-up after a read. Every field is copied by hand, so
+  `testEveryPieceOfAFormSurvivesTheRoundTrip` is what stops a forgotten one from being
+  discovered in production.
+- **The port stays a collection** (`add`, `get`, `getForUpdate`, `save(Form)`, `remove`,
+  `purgeExpired`), and every method that writes names the form it writes.
+- **Transitions record what happened.** Each one appends a `FormEvent` (past tense, with the
+  moment it happened at); `releaseEvents()` hands them over and forgets them, and the
+  repository takes them in the same step that makes the change durable. Nothing consumes
+  them yet — that call is the seam where an audit log or a message would be appended, and
+  it keeps a long-lived form from carrying one transition into the next. A refused
+  transition records nothing.
 - **Exceptions live in `Exception/` next to the layer that raises them**, carry the id they
   are about, and say nothing about HTTP. Which status a refusal deserves is decided in
   `ProblemExceptionListener` (or in an action, where the same state means different things —
@@ -143,8 +156,8 @@ Rules that follow from it, and that the tooling checks:
   The same holds one layer down: a use case that creates or changes something returns `void`
   or an identity, never the aggregate.
 - **Persistence stays platform-neutral**: portable Doctrine types only (`uuid`, `text`,
-  `datetime_immutable` in UTC), both documents stored as the exact JSON text that passed
-  validation, migrations built through the schema API rather than raw SQL.
+  `datetime_immutable` in UTC) on `FormRecord`, both documents stored as the exact JSON text
+  that passed validation, migrations built through the schema API rather than raw SQL.
 - **ingot is consumed via a composer path repository** (`../ingot`, sibling checkout,
   mounted at `/ingot` in Docker so the relative symlink resolves). After pulling new ingot
   commits run `make update`. When ingot reaches Packagist: switch to a version constraint,

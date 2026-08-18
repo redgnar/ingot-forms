@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Forms\Port;
 
-use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Exception\ValuesNotValid;
+use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\FormId;
 
 /**
@@ -23,5 +23,5 @@ interface ValuesValidator
     /**
      * @throws ValuesNotValid with one finding per problem
      */
-    public function assertFit(FormDefinition $definition, mixed $values, DeriveMode $mode, FormId $formId): void;
+    public function assertFit(Definition $definition, mixed $values, DeriveMode $mode, FormId $formId): void;
 }

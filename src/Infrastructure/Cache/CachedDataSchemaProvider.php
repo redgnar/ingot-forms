@@ -8,6 +8,7 @@ use App\Application\Forms\Port\DataSchemas;
 use App\Domain\Forms\DataSchemaDeriver;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\DeriveMode;
+use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\ValueObject\FormId;
 use Ingot\Schema\Schema;
@@ -25,6 +26,7 @@ final class CachedDataSchemaProvider implements DataSchemas
     public function __construct(
         private readonly CacheItemPoolInterface $pool,
         private readonly FormRepository $repository,
+        private readonly FormDefinitionProcessor $definitions,
         private readonly DataSchemaDeriver $deriver,
     ) {}
 
@@ -36,7 +38,7 @@ final class CachedDataSchemaProvider implements DataSchemas
     {
         $record = $this->repository->get($formId);
 
-        return $this->cached($formId, $mode, static fn(): FormDefinition => $record->definition()->model());
+        return $this->cached($formId, $mode, fn(): FormDefinition => $this->definitions->fromStored((string) $record->definition()));
     }
 
     /**

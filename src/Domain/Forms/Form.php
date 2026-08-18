@@ -4,17 +4,19 @@ declare(strict_types=1);
 
 namespace App\Domain\Forms;
 
+use App\Domain\Forms\Event\DraftSaved;
+use App\Domain\Forms\Event\FormConfirmed;
+use App\Domain\Forms\Event\FormCreated;
+use App\Domain\Forms\Event\FormEvent;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
 use App\Domain\Forms\Exception\ValuesNotValid;
-use App\Domain\Forms\Port\DefinitionParser;
 use App\Domain\Forms\Port\ValuesValidator;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Values;
-use Symfony\Component\Uid\Uuid;
 
 /**
  * One row = one fillable form: an immutable definition, at most one data set,
@@ -28,26 +30,29 @@ use Symfony\Component\Uid\Uuid;
  * Timestamps are normalized to UTC because the column type carries no zone on
  * most platforms; the API re-emits them as RFC 3339 with `+00:00`.
  *
- * Nothing here knows how it is stored: the mapping lives with the adapter, in
- * config/doctrine/Form.orm.xml.
+ * Nothing here knows how it is stored, and storage does not reach in here:
+ * the adapter keeps its own record of a row and builds a form from it, so this
+ * class has no mapping, no fix-up after a read, and a constructor that always
+ * runs.
  */
-class Form
+final class Form
 {
-    private Uuid $id;
+    private FormId $id;
 
-    private string $definition;
+    private Definition $definition;
 
     /**
-     * The same definition as a model, kept out of the mapping: it is derived
-     * from the document above, so storing it twice would be storing one fact
-     * twice. A form built in this process carries it from the start; one read
-     * from storage is handed a parser by the repository.
+     * What happened here and has not been handed over yet. Kept out of the
+     * mapping: these describe transitions, not state, and a form read back
+     * from storage has not done anything yet.
+     *
+     * @var list<FormEvent>
      */
-    private ?Definition $model = null;
+    private array $events = [];
 
-    private \DateTimeImmutable $expireDate;
+    private ExpireDate $expireDate;
 
-    private ?string $data = null;
+    private ?Values $data = null;
 
     private ?\DateTimeImmutable $dataSavedAt = null;
 
@@ -61,11 +66,35 @@ class Form
         ExpireDate $expireDate,
         ?\DateTimeImmutable $now = null,
     ) {
-        $this->id = $id->toUuid();
-        $this->definition = (string) $definition;
-        $this->model = $definition;
-        $this->expireDate = $expireDate->toDateTime();
+        $this->id = $id;
+        $this->definition = $definition;
+        $this->expireDate = $expireDate;
         $this->createdAt = self::utc($now ?? new \DateTimeImmutable());
+        $this->events[] = new FormCreated($id, $this->createdAt);
+    }
+
+    /**
+     * Restores a form that already exists. For adapters putting back together
+     * what they read: nothing is judged again — it was judged on the way in —
+     * and nothing is recorded, because reading is not something that happened
+     * to the form.
+     */
+    public static function fromState(
+        FormId $id,
+        Definition $definition,
+        ExpireDate $expireDate,
+        ?Values $values,
+        ?\DateTimeImmutable $dataSavedAt,
+        ?\DateTimeImmutable $confirmedAt,
+        \DateTimeImmutable $createdAt,
+    ): self {
+        $form = new self($id, $definition, $expireDate, $createdAt);
+        $form->data = $values;
+        $form->dataSavedAt = $dataSavedAt;
+        $form->confirmedAt = $confirmedAt;
+        $form->events = [];
+
+        return $form;
     }
 
     /**
@@ -85,10 +114,11 @@ class Form
             throw new FormLocked($this->id());
         }
 
-        $validator->assertFit($this->definition()->model(), $values, DeriveMode::Draft, $this->id());
+        $validator->assertFit($this->definition(), $values, DeriveMode::Draft, $this->id());
 
-        $this->data = (string) Values::fromDecoded($values);
+        $this->data = Values::fromDecoded($values);
         $this->dataSavedAt = self::utc($now ?? new \DateTimeImmutable());
+        $this->events[] = new DraftSaved($this->id(), $this->dataSavedAt);
     }
 
     /**
@@ -107,9 +137,10 @@ class Form
 
         $values = $this->values() ?? throw new FormHasNoData($this->id());
 
-        $validator->assertFit($this->definition()->model(), $values->document(), DeriveMode::Strict, $this->id());
+        $validator->assertFit($this->definition(), $values->document(), DeriveMode::Strict, $this->id());
 
         $this->confirmedAt = self::utc($now ?? new \DateTimeImmutable());
+        $this->events[] = new FormConfirmed($this->id(), $this->confirmedAt);
     }
 
     public function status(): FormStatus
@@ -128,41 +159,45 @@ class Form
 
     public function id(): FormId
     {
-        return FormId::of($this->id);
+        return $this->id;
+    }
+
+    /** What this form is made of. */
+    public function definition(): Definition
+    {
+        return $this->definition;
     }
 
     /**
-     * Hands over the parser a form read from storage needs to make sense of
-     * its own definition: hydration fills the fields directly, so a form
-     * arrives with the document but without the means to read it. The
-     * repository does this on the one path every read goes through.
+     * Hands over what happened here since the last time somebody asked, and
+     * forgets it — so a form does not carry the same transition twice, and
+     * whoever persists it can act on the change rather than diff the state.
+     *
+     * @return list<FormEvent>
      */
-    public function useParser(DefinitionParser $parser): void
+    public function releaseEvents(): array
     {
-        $this->model = Definition::stored($this->definition, $parser);
-    }
+        $events = $this->events;
+        $this->events = [];
 
-    /** What this form is made of — the document as stored, and the model behind it. */
-    public function definition(): Definition
-    {
-        return $this->model ?? throw new \LogicException('A form read from storage needs a definition parser before its definition can be used.');
+        return $events;
     }
 
     public function expireDate(): ExpireDate
     {
-        return ExpireDate::at($this->expireDate);
+        return $this->expireDate;
     }
 
     /** What was filled in, or null while the form is still empty. */
     public function values(): ?Values
     {
-        return $this->data === null ? null : Values::fromJson($this->data);
+        return $this->data;
     }
 
-    /** The values document as stored, for handing back to a client verbatim. */
+    /** The values document as text, for storing it or handing it back verbatim. */
     public function valuesJson(): ?string
     {
-        return $this->data;
+        return $this->data === null ? null : (string) $this->data;
     }
 
     public function dataSavedAt(): ?\DateTimeImmutable

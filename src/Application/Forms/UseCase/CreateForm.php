@@ -35,7 +35,7 @@ final class CreateForm
 
         $form = new Form(
             FormId::next(),
-            Definition::of($definition, json_encode($this->processor->normalize($definition), \JSON_THROW_ON_ERROR)),
+            $this->processor->document($definition),
             $expireDate,
         );
 

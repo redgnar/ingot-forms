@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Validation;
 
-use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Exception\ValuesNotValid;
+use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\Port\ValuesValidator;
 use App\Domain\Forms\UnknownFieldTypes;
+use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\FormId;
 use Ingot\Error\ErrorReport;
 use Ingot\Error\MappingError;
@@ -35,6 +36,7 @@ use Ingot\JsonPointer;
 final class StagedValuesValidator implements ValuesValidator
 {
     public function __construct(
+        private readonly FormDefinitionProcessor $definitions,
         private readonly DerivedSchemaValues $schema,
         private readonly SymfonyFormValues $form,
         private readonly UnknownFieldTypes $unknownFieldTypes,
@@ -43,7 +45,7 @@ final class StagedValuesValidator implements ValuesValidator
     /**
      * @throws ValuesNotValid when the values do not fit the form
      */
-    public function assertFit(FormDefinition $definition, mixed $values, DeriveMode $mode, FormId $formId): void
+    public function assertFit(Definition $definition, mixed $values, DeriveMode $mode, FormId $formId): void
     {
         $report = $this->check($definition, $values, $mode, $formId);
 
@@ -52,8 +54,10 @@ final class StagedValuesValidator implements ValuesValidator
         }
     }
 
-    private function check(FormDefinition $definition, mixed $values, DeriveMode $mode, FormId $formId): ErrorReport
+    private function check(Definition $definition, mixed $values, DeriveMode $mode, FormId $formId): ErrorReport
     {
+        // Before anything is parsed: a payload that is not an object at all
+        // cannot be judged against any definition.
         if (!$values instanceof \stdClass) {
             return ErrorReport::of(new MappingError(
                 JsonPointer::root(),
@@ -63,18 +67,20 @@ final class StagedValuesValidator implements ValuesValidator
             ));
         }
 
+        $model = $this->definitions->fromStored((string) $definition);
+
         if ($mode === DeriveMode::Strict) {
-            $unknown = $this->unknownFieldTypes->in($definition);
+            $unknown = $this->unknownFieldTypes->in($model);
 
             if (!$unknown->isEmpty()) {
                 return $unknown;
             }
         }
 
-        $schemaReport = $this->schema->validate($definition, $values, $mode, $formId);
+        $schemaReport = $this->schema->validate($model, $values, $mode, $formId);
 
         return $schemaReport->isEmpty()
-            ? $this->form->validate($definition, $values, $mode)
+            ? $this->form->validate($model, $values, $mode)
             : $schemaReport;
     }
 }

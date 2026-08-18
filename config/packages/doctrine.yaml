@@ -8,15 +8,15 @@ doctrine:
         # and the documents are stored as the exact JSON text the engine validated,
         # so the same mapping runs on PostgreSQL, MySQL/MariaDB or SQLite.
         naming_strategy: doctrine.orm.naming_strategy.underscore_number_aware
-        validate_xml_mapping: true
         controller_resolver:
             auto_mapping: false
         mappings:
             Forms:
-                # XML, not attributes: the aggregate is domain code and says
-                # nothing about how it is stored.
-                type: xml
+                # Attributes on the persistence model, which exists for exactly
+                # this. The domain model is not mapped at all — it is built from
+                # a record and written back onto one.
+                type: attribute
                 is_bundle: false
-                dir: '%kernel.project_dir%/config/doctrine'
-                prefix: 'App\Domain\Forms'
+                dir: '%kernel.project_dir%/src/Infrastructure/Persistence'
+                prefix: 'App\Infrastructure\Persistence'
                 alias: Forms

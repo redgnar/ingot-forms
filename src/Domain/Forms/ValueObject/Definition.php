@@ -4,50 +4,40 @@ declare(strict_types=1);
 
 namespace App\Domain\Forms\ValueObject;
 
-use App\Domain\Forms\Definition\FormDefinition;
-use App\Domain\Forms\Port\DefinitionParser;
-
 /**
- * What a form is made of, in both shapes it is needed in: the normalized
- * document, which is what gets stored and handed back to clients verbatim,
- * and the model behind it, which is what a rule can be asked about.
+ * A form definition that was accepted: the normalized document, exactly as it
+ * is stored and handed back to clients.
  *
- * The document is the truth and the model is derived from it, so the model is
- * built at most once and only when somebody asks — reading or deleting a form
- * never needs it, and those paths must not pay for parsing.
+ * Holding one means the document went through the definition gate — the
+ * meta-schema, the typed tree and the semantic rules — because that is the
+ * only way to obtain one: {@see \App\Domain\Forms\FormDefinitionProcessor}
+ * builds it from a model it just proved, and storage can only hand back what
+ * went in that way. What this type checks for itself is the one thing it can:
+ * that the document is a JSON object, so a corrupted or empty column is
+ * refused at the boundary instead of somewhere deeper.
  */
-final class Definition implements \Stringable
+final readonly class Definition implements \Stringable
 {
-    private ?FormDefinition $model = null;
-
-    /** @var \Closure(): FormDefinition */
-    private readonly \Closure $resolve;
+    private function __construct(
+        private string $document,
+    ) {}
 
     /**
-     * @param \Closure(): FormDefinition $resolve
+     * @throws \InvalidArgumentException when the text is not a JSON object
      */
-    private function __construct(
-        private readonly string $document,
-        \Closure $resolve,
-    ) {
-        $this->resolve = $resolve;
-    }
-
-    /** A definition just parsed from a client's document — the model is already there. */
-    public static function of(FormDefinition $model, string $document): self
+    public static function fromDocument(string $document): self
     {
-        return new self($document, static fn(): FormDefinition => $model);
-    }
+        try {
+            $decoded = json_decode($document, false, flags: \JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \InvalidArgumentException('A form definition must be a JSON document.', previous: $exception);
+        }
 
-    /** A definition read back from storage — parsed on demand, never twice. */
-    public static function stored(string $document, DefinitionParser $parser): self
-    {
-        return new self($document, static fn(): FormDefinition => $parser->fromStored($document));
-    }
+        if (!$decoded instanceof \stdClass) {
+            throw new \InvalidArgumentException('A form definition must be a JSON object.');
+        }
 
-    public function model(): FormDefinition
-    {
-        return $this->model ??= ($this->resolve)();
+        return new self($document);
     }
 
     public function __toString(): string

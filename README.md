@@ -133,10 +133,10 @@ uses the exact same document, so the contract cannot drift.
 src/Domain/Forms/          the model — aggregate, value objects, exceptions, and the port it
                            declares. Framework-free and storage-free.
 src/Application/Forms/     use cases (one class, one __invoke) and the ports they need
-src/Infrastructure/        the adapters: Doctrine, the schema cache, the validation stages
+src/Infrastructure/        the adapters: the row and its Doctrine mapping, the schema
+                           cache, the validation stages
 src/UserInterface/Http/    one invokable Action per endpoint, request DTOs, problem+json
 src/UserInterface/Cli/     console commands
-config/doctrine/           the ORM mapping, kept out of the model
 tools/build-docs.php       renders the generated contract into docs/ (dev tooling)
 ```
 
