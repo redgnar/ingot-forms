@@ -1,0 +1,164 @@
+# The API contract is generated from the code: routes, the request DTOs behind
+# #[MapRequestPayload]/#[MapQueryString] (with their Assert constraints and
+# #[OA\Property] prose), and the #[OA\Response] attributes on the controllers.
+#
+# What lives here is only what no route can state: the document's identity and
+# the shapes shared across operations — the RFC 9457 problem format, the form
+# envelope, and the three error responses every endpoint reuses.
+#
+# `make docs` dumps it to docs/openapi.yaml, which is what clients read and what
+# tests/Http/OpenApiComplianceTest.php validates real traffic against.
+nelmio_api_doc:
+    areas:
+        default:
+            path_patterns: ['^/api']
+    documentation:
+        openapi: 3.1.0
+        info:
+            title: ingot-forms API
+            version: 0.2.0
+            description: >-
+                Forms management backend. A form is a single fillable document: one
+                immutable definition plus one data set with a required expire date.
+                Lifecycle: empty → draft (repeatable lenient saves) → confirmed (strict
+                validation, locked forever). Expired forms answer 410 everywhere. Every
+                error response is an RFC 9457 `application/problem+json` document.
+            license:
+                name: MIT
+                identifier: MIT
+        servers:
+            - url: /
+        components:
+            schemas:
+                FormStatus:
+                    type: string
+                    enum: [empty, draft, confirmed]
+                    description: Derived, never stored — empty until the first save, confirmed once locked.
+                FormDefinition:
+                    type: object
+                    description: >-
+                        A form definition document. Its authoritative contract is the
+                        meta-schema at `src/Domain/Forms/form-definition.schema.json`
+                        (id, title, and 1–50 typed fields with unique names) — the
+                        constraints are deliberately not duplicated here.
+                FormValues:
+                    type: object
+                    description: >-
+                        Submitted values keyed by field name. This is the one payload no
+                        DTO can declare — its members come from the form's own definition —
+                        so the only rule stated here is that it must be a JSON object. The
+                        real contract is the schema derived from that form's definition,
+                        enforced on every save and served live by `GET /api/forms/{id}/schema`.
+                DataSchema:
+                    type: object
+                    description: A JSON Schema 2020-12 document describing one form's values.
+                FormEnvelope:
+                    type: object
+                    description: The canonical JSON shape of a form returned by every endpoint.
+                    required: [id, title, status, expireDate, createdAt, definition, data, dataSavedAt, confirmedAt]
+                    additionalProperties: false
+                    properties:
+                        id:
+                            type: string
+                            format: uuid
+                        title:
+                            type: string
+                        status:
+                            $ref: '#/components/schemas/FormStatus'
+                        expireDate:
+                            type: string
+                            format: date-time
+                        createdAt:
+                            type: string
+                            format: date-time
+                        definition:
+                            $ref: '#/components/schemas/FormDefinition'
+                        data:
+                            oneOf:
+                                - $ref: '#/components/schemas/FormValues'
+                                - type: 'null'
+                        dataSavedAt:
+                            type: [string, 'null']
+                            format: date-time
+                        confirmedAt:
+                            type: [string, 'null']
+                            format: date-time
+                ProblemError:
+                    type: object
+                    description: One validation error, mapped 1:1 from the engine's report or a constraint violation.
+                    required: [pointer, code, message]
+                    additionalProperties: false
+                    properties:
+                        pointer:
+                            type: string
+                            description: RFC 6901 JSON Pointer into the offending document ("" is its root).
+                        code:
+                            type: string
+                            description: Machine-readable code, e.g. `schema.required`, `request.range` or `form.field.duplicate-name`.
+                        message:
+                            type: string
+                        input:
+                            type: [string, number, boolean]
+                            description: The offending value — echoed only when it is a scalar.
+                Problem:
+                    type: object
+                    description: >-
+                        RFC 9457 problem details. `type` is a URN
+                        `urn:problem:ingot-forms:<slug>`; validation problems carry the
+                        `errors` extension member.
+                    required: [type, title, status]
+                    additionalProperties: false
+                    properties:
+                        type:
+                            type: string
+                            format: uri
+                        title:
+                            type: string
+                        status:
+                            type: integer
+                        detail:
+                            type: string
+                        errors:
+                            type: array
+                            items:
+                                $ref: '#/components/schemas/ProblemError'
+            responses:
+                MalformedJson:
+                    description: The request body is not valid JSON, or its media type is missing.
+                    content:
+                        application/problem+json:
+                            schema:
+                                $ref: '#/components/schemas/Problem'
+                            examples:
+                                malformed-json:
+                                    summary: Unparsable body
+                                    value:
+                                        type: 'urn:problem:ingot-forms:malformed-json'
+                                        title: Request body is not valid JSON.
+                                        status: 400
+                FormNotFound:
+                    description: No form with this id.
+                    content:
+                        application/problem+json:
+                            schema:
+                                $ref: '#/components/schemas/Problem'
+                            examples:
+                                form-not-found:
+                                    summary: Unknown id
+                                    value:
+                                        type: 'urn:problem:ingot-forms:form-not-found'
+                                        title: Form not found.
+                                        status: 404
+                FormGone:
+                    description: The form has expired; its data is scheduled for physical deletion.
+                    content:
+                        application/problem+json:
+                            schema:
+                                $ref: '#/components/schemas/Problem'
+                            examples:
+                                form-gone:
+                                    summary: Past its expire date
+                                    value:
+                                        type: 'urn:problem:ingot-forms:form-gone'
+                                        title: Form has expired.
+                                        status: 410
