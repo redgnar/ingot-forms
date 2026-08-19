@@ -2,8 +2,9 @@
 
 Backend-only forms management service built on the [ingot](https://github.com/redgnar/ingot)
 mapping engine. A **form is a single fillable document**: one JSON definition, one data set,
-a required expiry date. Definition templates, versioning, and multi-submission forms are
-deliberately out of scope for this MVP.
+a required expiry date. Definition templates, versioning, multi-submission forms and file
+uploads are deliberately out of scope for this MVP — see `CLAUDE.md` for why a file item is a
+different kind of problem, and the shape it would take if it arrives.
 
 ## Domain model
 

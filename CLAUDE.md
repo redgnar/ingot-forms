@@ -17,7 +17,17 @@ A form is a **single fillable document**: one immutable definition + one data se
 `expire_date`. Lifecycle: empty → draft (`PUT …/data`, repeatable, lenient validation without
 `required`) → confirmed (`POST …/confirm`, strict validation, locked forever). Definition
 change = delete + recreate. Expired forms answer 410 everywhere; `app:forms:purge-expired`
-deletes them physically. No templates, no versioning, no multi-submission — deliberately.
+deletes them physically. No templates, no versioning, no multi-submission, no file uploads —
+deliberately.
+
+**Why no file item.** Values are one JSON document stored byte for byte in one column, so a
+file needs a second store — and with it size and content-type limits, orphan collection when a
+repeatable draft save replaces an upload, and a purge that has to succeed in two places to keep
+the promise that expired data leaves the system. Its rules are also the first ones the derived
+schema could not state, and this codebase fixes that in the schema rather than enforcing past
+the contract. When it comes, it most likely comes as an upload endpoint returning an id, with
+the item holding a **reference**: values stay JSON, the contract stays the contract, and the
+weight lands where it belongs.
 
 ## Design principles
 
@@ -35,7 +45,7 @@ of that, not as a separate idea.
   service. A write never answers with the document a `GET` already serves — a second copy is
   a second truth.
 - **YAGNI**: the domain model says no on purpose (no templates, no versioning, no
-  multi-submission, no form list endpoint). Do not add a seam, an abstraction or a config
+  multi-submission, no file uploads, no form list endpoint). Do not add a seam, an abstraction or a config
   knob for a case nobody asked for; add it when the second caller appears.
 - **SOLID**: one action per endpoint and one `__invoke` per use case (S); the field catalogue
   grows by adding a variant, not by editing a switch (O); adapters are substitutable behind
