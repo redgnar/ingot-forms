@@ -1,6 +1,7 @@
 # 03 — rendering a form here
 
-**Status: proposed**, with the two questions the first draft left open now answered:
+**Status: implemented 2026-08-19**, in the four steps below, each its own commit with a green
+`make ci`. The two questions the first draft left open were answered before any code:
 
 - **(decided) Access**: the view lives behind the same network boundary as the API. Nothing new
   is exposed by it — this service has no authentication at all, so whoever can reach the port
@@ -91,17 +92,30 @@ because this is not the API.
   conversion layer repeating what the definition already says about types.
 - **PDF or print pipelines.**
 
-## Order & acceptance
+## Order & acceptance — as built
 
-Each step ends with a green `make ci`.
+1. **The renderer, without an endpoint** (`99f212c`). Twig, the port and its registry,
+   `CoreHtmlRenderer` and the templates, exercised by handing it a form directly.
+2. **The endpoint** (`1aa377d`). `ViewFormAction` over `ReadForm`, `409` for a kit nothing here
+   draws, `404` with no presentation, `410` for an expired form.
+3. **Submitting, proved in a browser** (`9bac5c2`). Panther drives headless Chromium as a
+   `browser` suite: what is typed reaches the API in the contract's types, a refusal lands beside
+   the control its pointer names, and confirming returns a read-only page.
+4. **Documents** (this step).
 
-1. **The renderer, without an endpoint.** Twig, the port and its registry, `CoreHtmlRenderer`
-   and the templates for what `core-html` draws, exercised by handing it a presentation and
-   values directly.
-2. **The endpoint.** `ViewFormAction` over `ReadForm`, locale resolution, `409` for an engine
-   nobody can draw, `404` with no presentation, `410` for an expired form.
-3. **Submitting.** The page module, the errors-by-pointer wiring, and the read-only rendering of
-   a confirmed form.
-4. **Documents.** README gains a section saying the service can also draw a form, what that
-   endpoint is not (not the API, not authenticated by itself), and how a locale is chosen;
-   `CLAUDE.md` gains the rule that the web layer is a second adapter over the same use cases.
+## What building it changed
+
+- **The locale is the framework's, not ours.** The plan proposed `?locale=` and explicitly
+  refused `Accept-Language`; the owner asked for Symfony's own mechanism, so `_locale` in the
+  path wins, the header decides otherwise, `default_locale` has the last word, and the response
+  varies on the header. A browser asking for `pl-PL` arrives as `pl_PL`, so resolution walks the
+  locale, then the language without its region, then the document's default, then the code.
+- **`problem+json` stayed in the API.** The page was throwing `ProblemException`, which answers a
+  browser with a document it is no client of. Web routes carry `_errors: html`, the API's
+  listener steps aside, and an `ErrorPageListener` answers with a page.
+- **`Http` became `Api`.** Once a second adapter spoke HTTP, the name told nobody anything:
+  `src/UserInterface/{Api,Web,Cli}`.
+- **Browser tests rather than a JavaScript toolchain.** The choice was between asserting the
+  page's contract server-side, unit-testing the module under jsdom, or driving a real browser.
+  The last one is what proves the loop, and it is what the owner asked for — with the cost being
+  Chromium in the image and a slower suite.

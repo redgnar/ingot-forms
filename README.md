@@ -215,6 +215,39 @@ implementation, and the published document cannot drift apart in any direction.
 The derived schema is what a future frontend validates against (Ajv/Zod) — the server
 uses the exact same document, so the contract cannot drift.
 
+## The page
+
+Besides answering with documents, the service can **draw a form for a person**:
+
+```
+GET /forms/{id}            the form, drawn by the kit its presentation names
+GET /{_locale}/forms/{id}  the same, in a language the URL pins
+```
+
+Deliberately **not** under `/api`. Everything there speaks JSON and reports problems as RFC 9457
+documents; a page for a person is a different contract, so it lives at a different root, answers
+failures as pages, and is absent from the published API document.
+
+**It is a client of the API, not a second way in.** The page reads through the same use case the
+JSON endpoints use, and what somebody types goes back through `PUT /api/forms/{id}/data` and
+`POST /api/forms/{id}/confirm` — from the browser, with a small module and no build step. There
+is no privileged path: whatever the page can do, any client can.
+
+**The language is the framework's negotiation**: `_locale` in the URL wins, `Accept-Language`
+decides otherwise, `default_locale` has the last word, and the response varies on that header. A
+code missing from the chosen language falls back to that language without its region, then to
+the document's `defaultLocale`, then to the code itself — visible rather than blank.
+
+**Read this before exposing it.** This service has no authentication of any kind, so the page is
+protected by exactly what protects the API: the network it sits behind. It exposes nothing new —
+whoever can reach the port can already `GET /api/forms/{id}/data` — but it does make that
+comfortable in a browser, which is a good reason to keep the boundary honest.
+
+A presentation written for a kit this deployment cannot draw answers `409`; a form nobody
+described, `404`. Adding a kit is adding a `PresentationEngine` (what it can draw) and a
+`FormRenderer` (how) — the pages are driven in a real browser by the `browser` test suite, so a
+new kit gets the same proof this one has.
+
 ## Architecture
 
 ```
@@ -224,7 +257,9 @@ src/Application/Forms/     use cases (one class, one __invoke) and the ports the
 src/Infrastructure/        the adapters: the row, its Doctrine mapping and the repository
                            that translates both ways, the schema cache, the validation stages
 src/UserInterface/Api/     one invokable Action per endpoint, request DTOs, problem+json
-src/UserInterface/Web/     the pages that draw a form, and the kits that draw them
+src/UserInterface/Web/     the pages that draw a form: an action, a renderer per engine, and
+                           the templates each draws with
+templates/, public/js/     what those pages are made of — markup and one small module
 src/UserInterface/Cli/     console commands
 tools/build-docs.php       renders the generated contract into docs/ (dev tooling)
 ```

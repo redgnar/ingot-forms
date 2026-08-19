@@ -95,6 +95,16 @@ src/UserInterface/
 
 Rules that follow from it, and that the tooling checks:
 
+- **The web pages are a second adapter, not a second way in.** `src/UserInterface/Web/` draws a
+  form for a person: it reads through the same use case the JSON endpoints use, and what
+  somebody types goes back through the API from the browser. No domain logic lives there, no
+  endpoint of its own writes anything, and nothing under `/api` renders. The two sides even
+  report failures differently — `problem+json` is the API's contract, a page answers with a page
+  (`_errors: html` on the web routes is what says which) — because a browser is no client of RFC
+  9457.
+- **A kit is two halves in two layers**: `PresentationEngine` in the domain says what can be
+  drawn (that is what a presentation is judged against), `FormRenderer` in the web layer draws
+  it. HTML never reaches the domain, and the vocabulary never leaves it.
 - **A controller is one action.** `#[Route]` + `#[OA\…]` + `__invoke()` in a class named after
   what it does (`SaveFormDataAction`), so a class only injects what that one endpoint needs.
   Never group endpoints to share a constructor.
@@ -211,10 +221,15 @@ Rules that follow from it, and that the tooling checks:
 
 - Every functionality gets a test; bodies follow **GIVEN / WHEN / THEN** comments; method
   names describe behavior; error-path tests assert JSON Pointer + error code.
-- Suites: `unit` (tests/Domain, tests/Application — no kernel, no DB) and `integration`
+- Suites: `unit` (tests/Domain, tests/Application — no kernel, no DB), `integration`
   (tests/Infrastructure, tests/UserInterface — real compose Postgres, per-test rollback via
-  dama/doctrine-test-bundle). Infection runs the unit suite over `src/Domain/`, so a rule that
+  dama/doctrine-test-bundle) and `browser` (tests/Browser — Panther driving headless Chromium
+  against a server it starts). Infection runs the unit suite over `src/Domain/`, so a rule that
   belongs to the model has to be pinned there to count.
+- **A browser test sets up through the API, never the database.** The browser talks to a
+  separate server process, so a fixture written inside the test's transaction is invisible to
+  it — and going through the API is what makes the test take the same path a person does.
+  Assertions wait for state (`eventually`) rather than assuming a click has landed.
 - **The item catalogue is tested by a battery, one class per type.** A new kind of item gets
   two subclasses and inherits everything else: `tests/Domain/Forms/Definition/Field/…Test`
   (which option combinations a definition may and may not carry, what the item contributes to
