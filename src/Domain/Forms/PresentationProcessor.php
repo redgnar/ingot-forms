@@ -27,13 +27,15 @@ final class PresentationProcessor implements PresentationParser
     ) {}
 
     /**
-     * @param array<string, mixed> $document
+     * @param \stdClass|array<string, mixed> $document decoded either way — a
+     *        request arrives as objects, so `{}` is still an object, while an
+     *        array from a fixture or a command has to be re-read to say so
      *
      * @throws PresentationNotValid one aggregated report
      */
-    public function parse(array $document): PresentationDocument
+    public function parse(\stdClass|array $document): PresentationDocument
     {
-        $result = $this->mapper->tryMap(PresentationDocument::class, Source::array(self::asJsonDocument($document)));
+        $result = $this->mapper->tryMap(PresentationDocument::class, Source::array(\is_array($document) ? self::asJsonDocument($document) : $document));
 
         if (!$result->isSuccess()) {
             throw new PresentationNotValid($result->errors());

@@ -50,6 +50,26 @@ final class OpenApiComplianceTest extends WebTestCase
         ],
     ];
 
+    private const string PRESENTATION = '{
+        "engine": "core-html",
+        "defaultLocale": "en",
+        "items": [
+            {"widget": "fieldset", "label": "contact.personal", "items": [
+                {"name": "email", "widget": "text", "label": "contact.email"},
+                {"name": "country", "widget": "radio", "label": "contact.country"}
+            ]},
+            {"widget": "paragraph", "label": "contact.note"}
+        ],
+        "translations": {
+            "en": {
+                "contact.personal": "Personal details",
+                "contact.email": "E-mail",
+                "contact.country": "Country",
+                "contact.note": "We reply within two days"
+            }
+        }
+    }';
+
     private const string PARTIAL_DATA = '{"age": 36}';
     private const string COMPLETE_DATA = '{"email": "ada@example.com", "country": "pl", "age": 36}';
 
@@ -255,6 +275,39 @@ final class OpenApiComplianceTest extends WebTestCase
                 $id = $test->createForm();
                 $test->putJson(\sprintf('/api/forms/%s/data', $id), self::PARTIAL_DATA);
                 $test->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
+            }],
+            ['PUT', '/api/forms/{id}/presentation', 204, true, '', static function (self $test): void {
+                $test->putJson(\sprintf('/api/forms/%s/presentation', $test->createForm()), self::PRESENTATION);
+            }],
+            ['PUT', '/api/forms/{id}/presentation', 400, false, '', static function (self $test): void {
+                $test->putJson(\sprintf('/api/forms/%s/presentation', $test->createForm()), '{broken');
+            }],
+            ['PUT', '/api/forms/{id}/presentation', 404, true, '', static function (self $test): void {
+                $test->putJson(\sprintf('/api/forms/%s/presentation', Uuid::v7()->toRfc4122()), self::PRESENTATION);
+            }],
+            ['PUT', '/api/forms/{id}/presentation', 410, true, '', static function (self $test): void {
+                $test->putJson(\sprintf('/api/forms/%s/presentation', $test->expiredForm()), self::PRESENTATION);
+            }],
+            ['PUT', '/api/forms/{id}/presentation', 415, false, '', static function (self $test): void {
+                $test->client->request('PUT', \sprintf('/api/forms/%s/presentation', $test->createForm()), server: ['CONTENT_TYPE' => 'text/plain'], content: self::PRESENTATION);
+            }],
+            ['PUT', '/api/forms/{id}/presentation', 422, true, '', static function (self $test): void {
+                // A valid document that shows an item this form does not declare
+                $test->putJson(
+                    \sprintf('/api/forms/%s/presentation', $test->createForm()),
+                    '{"engine": "core-html", "items": [{"name": "nickname"}]}',
+                );
+            }],
+            ['GET', '/api/forms/{id}/presentation', 200, true, '', static function (self $test): void {
+                $id = $test->createForm();
+                $test->putJson(\sprintf('/api/forms/%s/presentation', $id), self::PRESENTATION);
+                $test->client->request('GET', \sprintf('/api/forms/%s/presentation', $id));
+            }],
+            ['GET', '/api/forms/{id}/presentation', 404, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/forms/%s/presentation', $test->createForm()));
+            }],
+            ['GET', '/api/forms/{id}/presentation', 410, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/forms/%s/presentation', $test->expiredForm()));
             }],
         ];
 

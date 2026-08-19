@@ -20,6 +20,8 @@ this reference cannot drift from the implementation.
 | [`DELETE /api/forms/{id}`](#delete-apiformsid) | `deleteForm` | Delete a form | `204`, `404`, `410` |
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
 | [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `415`, `410`, `422` |
+| [`GET /api/forms/{id}/presentation`](#get-apiformsidpresentation) | `getFormPresentation` | Read how the form is shown | `200`, `404`, `410` |
+| [`PUT /api/forms/{id}/presentation`](#put-apiformsidpresentation) | `setFormPresentation` | Say how the form is shown | `204`, `400`, `404`, `410`, `415`, `422` |
 | [`GET /api/forms/{id}/schema`](#get-apiformsidschema) | `getFormDataSchema` | Read the values schema derived from the definition | `200`, `404`, `410`, `422` |
 
 ## Operations
@@ -145,6 +147,51 @@ Repeatable; overwrites the previous draft. Values are validated against the draf
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | The body is not a JSON object, or the values break the form-s own contract. |
 
+### GET /api/forms/{id}/presentation
+
+`operationId: getFormPresentation` — Read how the form is shown
+
+The document as it was set. Codes are served unresolved: which language a client shows is the client's to decide, so nothing here reads Accept-Language.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | `application/json` | [`FormPresentation`](#formpresentation) | The presentation document. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | Unknown form, or a form nobody has said anything about yet. |
+| `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
+
+### PUT /api/forms/{id}/presentation
+
+`operationId: setFormPresentation` — Say how the form is shown
+
+Replaces the whole presentation document. Repeatable at any time, including after confirmation — presentation holds no stored answer hostage. Items are referenced by the names the definition declares; text travels as translation codes.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Request body** (`application/json`, required): [`FormPresentation`](#formpresentation)
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `204` | — | empty | Stored. No body: read it back if you need it. |
+| `400` | `application/problem+json` | [`Problem`](#problem) | The request body is not valid JSON, or its media type is missing. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
+| `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
+| `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
+| `422` | `application/problem+json` | [`Problem`](#problem) | The document is not a valid presentation, or does not fit this form. |
+
 ### GET /api/forms/{id}/schema
 
 `operationId: getFormDataSchema` — Read the values schema derived from the definition
@@ -184,6 +231,12 @@ Type: `object`
 ### FormValues
 
 Submitted values keyed by field name. This is the one payload no DTO can declare — its members come from the form's own definition — so the only rule stated here is that it must be a JSON object. The real contract is the schema derived from that form's definition, enforced on every save and served live by `GET /api/forms/{id}/schema`.
+
+Type: `object`
+
+### FormPresentation
+
+How a form is shown. Its authoritative contract is the meta-schema at `src/Domain/Forms/Presentation/presentation.schema.json`: an engine, a tree of items — each either presenting a declared item of the form, or holding other items, or standing on its own — and an optional catalogue of translations. Text travels as codes, never as sentences, and the rules that need the form itself (an item exists, a widget is one the engine draws) are reported as `presentation.*` findings.
 
 Type: `object`
 
@@ -269,3 +322,9 @@ Type: `object`
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `values` | [`stdClass`](#stdclass) | yes |  |
+
+### SetPresentationRequest
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `presentation` | [`stdClass`](#stdclass) | yes |  |

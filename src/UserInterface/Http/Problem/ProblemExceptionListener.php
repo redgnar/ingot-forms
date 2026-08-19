@@ -10,6 +10,8 @@ use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
 use App\Domain\Forms\Exception\FormNotFound;
+use App\Domain\Forms\Exception\PresentationNotSet;
+use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Exception\ValuesNotValid;
 use Ingot\Error\ErrorReport;
 use Ingot\Error\MappingError;
@@ -70,6 +72,20 @@ final class ProblemExceptionListener
 
         if ($throwable instanceof ValuesNotValid) {
             $event->setResponse($this->validationResponse($throwable->report, 'request-not-valid', 'Request is not valid.'));
+
+            return;
+        }
+
+        if ($throwable instanceof PresentationNotValid) {
+            $event->setResponse($this->validationResponse($throwable->report, 'presentation-not-valid', 'Form presentation is not valid.'));
+
+            return;
+        }
+
+        // Nobody has said how to show this form, which is a document that is
+        // not there — not a conflict, and not a form that is missing.
+        if ($throwable instanceof PresentationNotSet) {
+            $event->setResponse($this->factory->simple(404, 'presentation-not-set', 'The form has no presentation.', $throwable->getMessage()));
 
             return;
         }

@@ -49,6 +49,16 @@ nelmio_api_doc:
                         so the only rule stated here is that it must be a JSON object. The
                         real contract is the schema derived from that form's definition,
                         enforced on every save and served live by `GET /api/forms/{id}/schema`.
+                FormPresentation:
+                    type: object
+                    description: >-
+                        How a form is shown. Its authoritative contract is the meta-schema at
+                        `src/Domain/Forms/Presentation/presentation.schema.json`: an engine, a
+                        tree of items — each either presenting a declared item of the form, or
+                        holding other items, or standing on its own — and an optional catalogue
+                        of translations. Text travels as codes, never as sentences, and the
+                        rules that need the form itself (an item exists, a widget is one the
+                        engine draws) are reported as `presentation.*` findings.
                 DataSchema:
                     type: object
                     description: A JSON Schema 2020-12 document describing one form's values.

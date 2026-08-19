@@ -218,6 +218,80 @@ paths:
                 form-data-not-valid:
                   summary: 'A value the derived schema refuses'
                   value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /age, code: schema.type, message: 'The data (string) must match the type: number' }] }
+  '/api/forms/{id}/presentation':
+    get:
+      summary: 'Read how the form is shown'
+      description: "The document as it was set. Codes are served unresolved: which language a client shows is the client's to decide, so nothing here reads Accept-Language."
+      operationId: getFormPresentation
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      responses:
+        '200':
+          description: 'The presentation document.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormPresentation'
+        '404':
+          description: 'Unknown form, or a form nobody has said anything about yet.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                presentation-not-set:
+                  summary: 'The form exists; how to show it was never said'
+                  value: { type: 'urn:problem:ingot-forms:presentation-not-set', title: 'The form has no presentation.', status: 404 }
+        '410':
+          $ref: '#/components/responses/FormGone'
+    put:
+      summary: 'Say how the form is shown'
+      description: 'Replaces the whole presentation document. Repeatable at any time, including after confirmation — presentation holds no stored answer hostage. Items are referenced by the names the definition declares; text travels as translation codes.'
+      operationId: setFormPresentation
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FormPresentation'
+      responses:
+        '204':
+          description: 'Stored. No body: read it back if you need it.'
+        '400':
+          $ref: '#/components/responses/MalformedJson'
+        '404':
+          $ref: '#/components/responses/FormNotFound'
+        '410':
+          $ref: '#/components/responses/FormGone'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          description: 'The document is not a valid presentation, or does not fit this form.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                presentation-not-valid:
+                  summary: 'It shows an item this form does not declare'
+                  value: { type: 'urn:problem:ingot-forms:presentation-not-valid', title: 'Form presentation is not valid.', status: 422, errors: [{ pointer: /items/0/name, code: presentation.item.unknown, message: 'This form declares no item named "nickname".', input: nickname }] }
+                widget-mismatch:
+                  summary: 'It asks for a control the engine does not draw for that item'
+                  value: { type: 'urn:problem:ingot-forms:presentation-not-valid', title: 'Form presentation is not valid.', status: 422, errors: [{ pointer: /items/1/widget, code: presentation.widget.mismatch, message: 'Engine "core-html" does not draw a "text" item as "radio".', input: radio }] }
   '/api/forms/{id}/schema':
     get:
       summary: 'Read the values schema derived from the definition'
@@ -280,6 +354,9 @@ components:
       type: object
     FormValues:
       description: "Submitted values keyed by field name. This is the one payload no DTO can declare — its members come from the form's own definition — so the only rule stated here is that it must be a JSON object. The real contract is the schema derived from that form's definition, enforced on every save and served live by `GET /api/forms/{id}/schema`."
+      type: object
+    FormPresentation:
+      description: 'How a form is shown. Its authoritative contract is the meta-schema at `src/Domain/Forms/Presentation/presentation.schema.json`: an engine, a tree of items — each either presenting a declared item of the form, or holding other items, or standing on its own — and an optional catalogue of translations. Text travels as codes, never as sentences, and the rules that need the form itself (an item exists, a widget is one the engine draws) are reported as `presentation.*` findings.'
       type: object
     DataSchema:
       description: "A JSON Schema 2020-12 document describing one form's values."
@@ -422,6 +499,13 @@ components:
         - values
       properties:
         values:
+          $ref: '#/components/schemas/stdClass'
+      type: object
+    SetPresentationRequest:
+      required:
+        - presentation
+      properties:
+        presentation:
           $ref: '#/components/schemas/stdClass'
       type: object
   responses:

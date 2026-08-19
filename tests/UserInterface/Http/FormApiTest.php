@@ -27,6 +27,26 @@ final class FormApiTest extends WebTestCase
         ],
     ];
 
+    private const string PRESENTATION = '{
+        "engine": "core-html",
+        "defaultLocale": "en",
+        "items": [
+            {"widget": "fieldset", "label": "contact.personal", "items": [
+                {"name": "email", "widget": "text", "label": "contact.email"},
+                {"name": "country", "widget": "radio", "label": "contact.country"}
+            ]},
+            {"widget": "paragraph", "label": "contact.note"}
+        ],
+        "translations": {
+            "en": {
+                "contact.personal": "Personal details",
+                "contact.email": "E-mail",
+                "contact.country": "Country",
+                "contact.note": "We reply within two days"
+            }
+        }
+    }';
+
     private KernelBrowser $client;
 
     protected function setUp(): void
@@ -216,6 +236,71 @@ final class FormApiTest extends WebTestCase
         self::assertSame('form.field.duplicate-name', $error['code']);
     }
 
+    public function testHowAFormIsShownIsSaidReadBackAndSaidAgain(): void
+    {
+        // GIVEN a form nobody has described
+        $id = $this->createForm();
+        $this->client->request('GET', \sprintf('/api/forms/%s/presentation', $id));
+        self::assertResponseStatusCodeSame(404);
+        self::assertSame('urn:problem:ingot-forms:presentation-not-set', $this->responseBody()['type']);
+
+        // WHEN a presentation is set
+        $this->putJson(\sprintf('/api/forms/%s/presentation', $id), self::PRESENTATION);
+
+        // THEN the answer is the status alone, and the document reads back whole
+        self::assertResponseStatusCodeSame(204);
+        self::assertSame('', $this->client->getResponse()->getContent());
+
+        $this->client->request('GET', \sprintf('/api/forms/%s/presentation', $id));
+        self::assertResponseStatusCodeSame(200);
+        $document = $this->responseBody();
+        self::assertSame('core-html', $document['engine']);
+        $group = self::arrayAt($document, 'items')[0];
+        self::assertIsArray($group);
+        $first = self::arrayAt($group, 'items')[0];
+        self::assertIsArray($first);
+        self::assertSame('email', $first['name']);
+        // codes are served unresolved: which language to show is the client's call
+        self::assertSame('contact.email', $first['label']);
+        self::assertIsArray($document['translations']);
+
+        // AND replacing it is just another PUT
+        $this->putJson(\sprintf('/api/forms/%s/presentation', $id), '{"engine": "core-html", "items": [{"name": "email", "widget": "textarea"}]}');
+        self::assertResponseStatusCodeSame(204);
+        $this->client->request('GET', \sprintf('/api/forms/%s/presentation', $id));
+        self::assertCount(1, self::arrayAt($this->responseBody(), 'items'));
+    }
+
+    public function testAPresentationIsJudgedAgainstTheFormItPresents(): void
+    {
+        // GIVEN a form whose definition declares no "nickname"
+        $id = $this->createForm();
+
+        // WHEN a presentation shows one anyway
+        $this->putJson(\sprintf('/api/forms/%s/presentation', $id), '{"engine": "core-html", "items": [{"name": "nickname"}]}');
+
+        // THEN the pointer walks into the document the client sent
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('urn:problem:ingot-forms:presentation-not-valid', $this->responseBody()['type']);
+        self::assertSame('/items/0/name', $this->firstError()['pointer']);
+        self::assertSame('presentation.item.unknown', $this->firstError()['code']);
+    }
+
+    public function testAConfirmedFormCanStillBeShownDifferently(): void
+    {
+        // GIVEN a form locked for good
+        $id = $this->createForm();
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"email": "ada@example.com", "country": "pl"}');
+        $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
+        self::assertResponseStatusCodeSame(204);
+
+        // WHEN its presentation is replaced
+        $this->putJson(\sprintf('/api/forms/%s/presentation', $id), self::PRESENTATION);
+
+        // THEN it is allowed: what a form holds is locked, how it looks is not
+        self::assertResponseStatusCodeSame(204);
+    }
+
     public function testUnknownFormIsA404Problem(): void
     {
         // GIVEN / WHEN
@@ -360,6 +445,19 @@ final class FormApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(201);
 
         return $id;
+    }
+
+    /**
+     * @param array<mixed> $document
+     *
+     * @return array<mixed>
+     */
+    private static function arrayAt(array $document, string $key): array
+    {
+        $value = $document[$key] ?? null;
+        self::assertIsArray($value);
+
+        return $value;
     }
 
     private function putJson(string $url, string $content, string $method = 'PUT'): void
