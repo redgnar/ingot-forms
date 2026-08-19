@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Application\Forms\UseCase;
 
 use App\Domain\Forms\Exception\FormHasNoData;
+use App\Domain\Forms\Exception\PresentationNotSet;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\ValueObject\FormId;
 
 /**
- * Reads a form, or just the values somebody filled in.
+ * Reads a form, or one of the documents it holds.
  */
 final class ReadForm
 {
@@ -31,5 +32,17 @@ final class ReadForm
     public function valuesJson(FormId $id): string
     {
         return $this->forms->get($id)->valuesJson() ?? throw new FormHasNoData($id);
+    }
+
+    /**
+     * How the form is shown, as the JSON document it was set with.
+     *
+     * @throws PresentationNotSet
+     */
+    public function presentationJson(FormId $id): string
+    {
+        $presentation = $this->forms->get($id)->presentation() ?? throw new PresentationNotSet($id);
+
+        return (string) $presentation;
     }
 }

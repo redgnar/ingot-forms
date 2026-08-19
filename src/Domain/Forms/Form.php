@@ -8,14 +8,18 @@ use App\Domain\Forms\Event\DraftSaved;
 use App\Domain\Forms\Event\FormConfirmed;
 use App\Domain\Forms\Event\FormCreated;
 use App\Domain\Forms\Event\FormEvent;
+use App\Domain\Forms\Event\PresentationChanged;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
+use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\Port\ValuesValidator;
+use App\Domain\Forms\Presentation\PresentationRules;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
+use App\Domain\Forms\ValueObject\Presentation;
 use App\Domain\Forms\ValueObject\Values;
 
 /**
@@ -54,6 +58,8 @@ final class Form
 
     private ?Values $data = null;
 
+    private ?Presentation $presentation = null;
+
     private ?\DateTimeImmutable $dataSavedAt = null;
 
     private ?\DateTimeImmutable $confirmedAt = null;
@@ -87,11 +93,13 @@ final class Form
         ?\DateTimeImmutable $dataSavedAt,
         ?\DateTimeImmutable $confirmedAt,
         \DateTimeImmutable $createdAt,
+        ?Presentation $presentation = null,
     ): self {
         $form = new self($id, $definition, $expireDate, $createdAt);
         $form->data = $values;
         $form->dataSavedAt = $dataSavedAt;
         $form->confirmedAt = $confirmedAt;
+        $form->presentation = $presentation;
         $form->events = [];
 
         return $form;
@@ -141,6 +149,36 @@ final class Form
 
         $this->confirmedAt = self::utc($now ?? new \DateTimeImmutable());
         $this->events[] = new FormConfirmed($this->id(), $this->confirmedAt);
+    }
+
+    /**
+     * Replaces how this form is shown. A presentation is only ever valid
+     * against a particular form — it names that form's items — so the judgment
+     * belongs here, with the rules handed in the way a values verdict is.
+     *
+     * Unlike what a form holds, this can be replaced at any time, confirmed or
+     * not: reordering fields or fixing a code invalidates no answer anybody
+     * gave. That is the whole difference between a definition and a
+     * presentation, and it is why one is immutable and the other is not.
+     *
+     * @throws PresentationNotValid when it does not fit this form
+     */
+    public function present(Presentation $presentation, PresentationRules $rules, ?\DateTimeImmutable $now = null): void
+    {
+        $report = $rules->check($this->definition, $presentation->structure());
+
+        if (!$report->isEmpty()) {
+            throw new PresentationNotValid($report);
+        }
+
+        $this->presentation = $presentation;
+        $this->events[] = new PresentationChanged($this->id(), self::utc($now ?? new \DateTimeImmutable()), $presentation);
+    }
+
+    /** How this form is shown, or null while nobody has said. */
+    public function presentation(): ?Presentation
+    {
+        return $this->presentation;
     }
 
     public function status(): FormStatus

@@ -8,15 +8,22 @@ use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Event\DraftSaved;
 use App\Domain\Forms\Event\FormConfirmed;
 use App\Domain\Forms\Event\FormCreated;
+use App\Domain\Forms\Event\PresentationChanged;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
+use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\Form;
+use App\Domain\Forms\FormMapperFactory;
 use App\Domain\Forms\FormStatus;
+use App\Domain\Forms\Presentation\Engine\EngineCatalogue;
+use App\Domain\Forms\Presentation\PresentationRules;
+use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
+use App\Domain\Forms\ValueObject\Presentation;
 use App\Domain\Forms\ValueObject\Values;
 use App\Tests\Domain\Forms\Fake\SpyParser;
 use App\Tests\Domain\Forms\Fake\StubValues;
@@ -203,6 +210,84 @@ final class FormTest extends TestCase
         }
     }
 
+    public function testHowAFormIsShownCanBeSaidAndSaidAgain(): void
+    {
+        // GIVEN a form nobody has said anything about yet
+        $form = self::form();
+        self::assertNull($form->presentation());
+        $form->releaseEvents();
+        $changed = new \DateTimeImmutable('2026-04-05T06:07:08+00:00');
+
+        // WHEN
+        $form->present(self::presentation('text'), self::rules(), $changed);
+
+        // THEN it is held, and the change is what gets recorded
+        self::assertStringContainsString('"widget":"text"', (string) $form->presentation());
+        $events = $form->releaseEvents();
+        self::assertInstanceOf(PresentationChanged::class, $events[0]);
+        self::assertCount(1, $events);
+        self::assertEquals($changed, $events[0]->occurredAt);
+        self::assertSame($form->presentation(), $events[0]->presentation);
+
+        // AND saying it differently replaces it, as often as anybody likes
+        $form->present(self::presentation('textarea'), self::rules());
+        self::assertStringContainsString('"widget":"textarea"', (string) $form->presentation());
+    }
+
+    public function testAPresentationThatDoesNotFitTheFormIsRefused(): void
+    {
+        // GIVEN a presentation naming an item this form does not declare
+        $form = self::form();
+        $form->releaseEvents();
+
+        // WHEN
+        try {
+            $form->present(self::presentation('text', name: 'nickname'), self::rules());
+            self::fail('Expected PresentationNotValid.');
+        } catch (PresentationNotValid $exception) {
+            // THEN nothing was held, and nothing happened
+            self::assertSame('presentation.item.unknown', $exception->report->errors[0]->code);
+            self::assertNull($form->presentation());
+            self::assertSame([], $form->releaseEvents());
+        }
+    }
+
+    public function testAConfirmedFormCanStillBeShownDifferently(): void
+    {
+        // GIVEN a form locked for good
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+        $form->confirm(new StubValues());
+        $form->releaseEvents();
+
+        // WHEN its presentation is replaced
+        $form->present(self::presentation('textarea'), self::rules());
+
+        // THEN it is: correcting how something is shown invalidates no answer
+        // anybody gave, which is why this is not locked with the values
+        self::assertStringContainsString('"widget":"textarea"', (string) $form->presentation());
+        self::assertInstanceOf(PresentationChanged::class, $form->releaseEvents()[0]);
+    }
+
+    public function testARestoredFormRemembersHowItIsShown(): void
+    {
+        // GIVEN state that includes a presentation
+        $form = Form::fromState(
+            FormId::next(),
+            Definition::stored(self::DEFINITION, new SpyParser()),
+            ExpireDate::at(new \DateTimeImmutable('+1 day')),
+            null,
+            null,
+            null,
+            new \DateTimeImmutable(),
+            self::presentation('text'),
+        );
+
+        // WHEN / THEN it comes back, and reading is still not an event
+        self::assertStringContainsString('"widget":"text"', (string) $form->presentation());
+        self::assertSame([], $form->releaseEvents());
+    }
+
     public function testExpiryIsDecidedByTheDateItCarries(): void
     {
         // GIVEN a form that expires at a known moment
@@ -309,6 +394,21 @@ final class FormTest extends TestCase
             ExpireDate::at($expires ?? new \DateTimeImmutable('+1 day')),
             $now,
         );
+    }
+
+    private static function presentation(string $widget, string $name = 'email'): Presentation
+    {
+        $processor = new PresentationProcessor(new FormMapperFactory()->create());
+
+        return $processor->document($processor->parse([
+            'engine' => 'core-html',
+            'items' => [['name' => $name, 'widget' => $widget]],
+        ]));
+    }
+
+    private static function rules(): PresentationRules
+    {
+        return new PresentationRules(new EngineCatalogue());
     }
 
     private static function values(string $json): \stdClass
