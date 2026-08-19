@@ -10,6 +10,7 @@ use App\Domain\Forms\Event\FormCreated;
 use App\Domain\Forms\Event\FormEvent;
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
+use App\Domain\Forms\Exception\FormUnreadable;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\Port\DefinitionParser;
 use App\Domain\Forms\Port\FormRepository;
@@ -21,6 +22,7 @@ use App\Domain\Forms\ValueObject\Presentation;
 use App\Domain\Forms\ValueObject\Values;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
+use Ingot\Error\MappingFailed;
 
 /**
  * The forms port, backed by Doctrine ORM — no platform-specific SQL, so the
@@ -146,8 +148,26 @@ final class DoctrineFormRepository implements FormRepository
         return $record;
     }
 
-    /** Builds back what was stored — the only place a row becomes an aggregate. */
+    /**
+     * Builds back what was stored — the only place a row becomes an aggregate.
+     *
+     * A document that was accepted once and no longer maps means the rules moved
+     * on, not that the server broke. Saying so with the findings is the
+     * difference between a form somebody can migrate and a 500 nobody can act
+     * on.
+     *
+     * @throws FormUnreadable
+     */
     private function toForm(FormRecord $record): Form
+    {
+        try {
+            return $this->rebuild($record);
+        } catch (MappingFailed $failure) {
+            throw new FormUnreadable(FormId::of($record->id), $failure->report(), $failure);
+        }
+    }
+
+    private function rebuild(FormRecord $record): Form
     {
         return Form::fromState(
             FormId::of($record->id),

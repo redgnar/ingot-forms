@@ -27,6 +27,28 @@ final class ReadFormAction
     #[OA\Get(operationId: 'getForm', summary: 'Read a form')]
     #[OA\Response(response: 200, description: 'The full form envelope.', content: new OA\JsonContent(ref: '#/components/schemas/FormEnvelope'))]
     #[OA\Response(response: 404, ref: '#/components/responses/FormNotFound')]
+    #[OA\Response(
+        response: 409,
+        description: 'The form is stored under rules that have since changed, so it cannot be read back. The findings say which.',
+        content: new OA\MediaType(
+            mediaType: 'application/problem+json',
+            schema: new OA\Schema(ref: '#/components/schemas/Problem'),
+            examples: [
+                new OA\Examples(
+                    example: 'form-unreadable',
+                    summary: 'A document accepted before a rule was tightened',
+                    value: [
+                        'type' => 'urn:problem:ingot-forms:form-unreadable',
+                        'title' => 'The stored form no longer satisfies the rules it is read with.',
+                        'status' => 409,
+                        'errors' => [
+                            ['pointer' => '/items', 'code' => 'presentation.confirm.missing', 'message' => 'A presentation must offer somewhere to confirm the form.', 'input' => 'confirm'],
+                        ],
+                    ],
+                ),
+            ],
+        ),
+    )]
     #[OA\Response(response: 410, ref: '#/components/responses/FormGone')]
     public function __invoke(Uuid $id): JsonResponse
     {

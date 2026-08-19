@@ -50,7 +50,10 @@ Three of those say something worth spelling out:
   bound a string in time — so the range is checked against the same document a client
   validates against, not somewhere behind it.
 - **`mustBeChecked` is not `required`.** For a box, `false` is an answer, so `required` means
-  "decide"; a consent means "agree", and that is published as `const: true`.
+  "decide"; a consent means "agree", and that is published as `const: true` — **in the strict
+  contract only**. Having to agree is something finishing the form requires, like `required`
+  itself, so a draft still holds a consent nobody has given yet; otherwise "save for later"
+  would refuse the very state it exists for.
 
 ## Presentation
 

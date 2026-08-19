@@ -13,6 +13,8 @@ use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
+use App\Infrastructure\Persistence\FormRecord;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Uid\Uuid;
@@ -151,6 +153,31 @@ final class ViewFormActionTest extends WebTestCase
         $this->client->request('GET', \sprintf('/forms/%s', $this->plant(expired: true)));
         self::assertResponseStatusCodeSame(410);
         self::assertStringContainsString('expired', (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testAFormStoredUnderOlderRulesSaysSoAsAPage(): void
+    {
+        // GIVEN a row written when a presentation needed no way to confirm
+        $id = Uuid::v7()->toRfc4122();
+        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+
+        $record = new FormRecord();
+        $record->id = Uuid::fromString($id);
+        $record->definition = json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR);
+        $record->expireDate = new \DateTimeImmutable('+1 day');
+        $record->createdAt = new \DateTimeImmutable();
+        $record->presentation = '{"engine":"core-html","items":[{"name":"email","widget":"text"}]}';
+        $entityManager->persist($record);
+        $entityManager->flush();
+
+        // WHEN somebody opens it
+        $this->client->request('GET', \sprintf('/forms/%s', $id));
+
+        // THEN a page, and a status that says whose problem it is — not a 500
+        self::assertResponseStatusCodeSame(409);
+        self::assertResponseHeaderSame('Content-Type', 'text/html; charset=UTF-8');
+        self::assertStringContainsString('rules that have since changed', (string) $this->client->getResponse()->getContent());
     }
 
     private function plant(bool $withPresentation = true, string $engine = 'core-html', bool $expired = false): string

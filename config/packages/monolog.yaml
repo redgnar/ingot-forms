@@ -1,0 +1,22 @@
+# Everything goes to stderr as one JSON object per line. A container has nowhere
+# else to put logs, and a line somebody's collector can parse is worth more than
+# a line that reads nicely in a terminal: whatever ships these on can filter,
+# search and alert on the fields rather than on a regex over prose.
+monolog:
+    handlers:
+        stderr:
+            type: stream
+            path: php://stderr
+            level: debug
+            formatter: monolog.formatter.json
+            # The exception, its previous exceptions and the stack trace travel
+            # with the record — a 500 nobody can explain is worse than a noisy log.
+            include_stacktraces: true
+
+when@test:
+    monolog:
+        handlers:
+            stderr:
+                # Tests assert behaviour, not output; a failure is reported by the
+                # assertion, not by a wall of records beside it.
+                level: error

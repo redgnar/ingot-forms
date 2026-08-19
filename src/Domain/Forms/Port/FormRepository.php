@@ -6,6 +6,7 @@ namespace App\Domain\Forms\Port;
 
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
+use App\Domain\Forms\Exception\FormUnreadable;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\ValueObject\FormId;
 
@@ -23,6 +24,8 @@ interface FormRepository
     /**
      * @throws FormNotFound
      * @throws FormGone
+     * @throws FormUnreadable when what was stored no longer satisfies the rules
+     *         it is read with — the row is intact, the rules moved on
      */
     public function get(FormId $id): Form;
 
@@ -32,6 +35,7 @@ interface FormRepository
      *
      * @throws FormNotFound
      * @throws FormGone
+     * @throws FormUnreadable
      */
     public function getForUpdate(FormId $id): Form;
 

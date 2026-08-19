@@ -73,9 +73,12 @@ final class DataSchemaDeriver
         }
 
         if ($field instanceof CheckboxField) {
-            // A box that must be ticked accepts exactly one value, which is
-            // something a schema can say outright.
-            return $field->mustBeChecked
+            // Having to tick a box is an obligation to finish, not a rule about
+            // what a value may be — the same category as `required`. So it holds
+            // at confirmation and not while somebody is still filling the form
+            // in: a draft that refuses "not yet agreed" is a draft nobody can
+            // save.
+            return $field->mustBeChecked && $mode === DeriveMode::Strict
                 ? ['type' => 'boolean', 'const' => true]
                 : ['type' => 'boolean'];
         }

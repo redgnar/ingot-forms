@@ -68,9 +68,3 @@ services:
         arguments:
             $pool: '@cache.data_schema'
 
-# The default HttpKernel logger prints to the test output, which PHPUnit's
-# beStrictAboutOutputDuringTests rightly flags — silence it in tests.
-when@test:
-    services:
-        logger:
-            class: Psr\Log\NullLogger

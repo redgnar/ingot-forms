@@ -6,7 +6,9 @@ namespace App\UserInterface\Web;
 
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
+use App\Domain\Forms\Exception\FormUnreadable;
 use App\Domain\Forms\Exception\PresentationNotSet;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
@@ -27,6 +29,7 @@ final class ErrorPageListener
 {
     public function __construct(
         private readonly Environment $twig,
+        private readonly LoggerInterface $logger,
     ) {}
 
     public function __invoke(ExceptionEvent $event): void
@@ -41,9 +44,19 @@ final class ErrorPageListener
             $throwable instanceof FormNotFound => [404, 'There is no such form.'],
             $throwable instanceof PresentationNotSet => [404, 'Nobody has said how to show this form.'],
             $throwable instanceof FormGone => [410, 'This form has expired.'],
+            $throwable instanceof FormUnreadable => [409, 'This form was stored under rules that have since changed, and cannot be shown.'],
             $throwable instanceof HttpExceptionInterface => [$throwable->getStatusCode(), $throwable->getMessage()],
             default => [500, 'Something went wrong.'],
         };
+
+        // Answering with a page ends the exception's journey, so nothing after
+        // this would record it: a listener that swallows a failure has to be the
+        // one that reports it, or a 500 leaves no trace at all.
+        $this->logger->log(
+            $status >= 500 ? 'error' : 'info',
+            \sprintf('%s answered %d: %s', $event->getRequest()->getPathInfo(), $status, $throwable->getMessage()),
+            ['exception' => $throwable],
+        );
 
         $event->setResponse(new Response(
             $this->twig->render('error.html.twig', ['status' => $status, 'message' => $message]),

@@ -10,6 +10,7 @@ use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
 use App\Domain\Forms\Exception\FormNotFound;
+use App\Domain\Forms\Exception\FormUnreadable;
 use App\Domain\Forms\Exception\PresentationNotSet;
 use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Exception\ValuesNotValid;
@@ -124,6 +125,14 @@ final class ProblemExceptionListener
         // and translates it itself — a missing document, not a conflict.
         if ($throwable instanceof FormHasNoData) {
             $event->setResponse($this->factory->simple(409, 'form-data-empty', 'There is no data to confirm.', $throwable->getMessage()));
+
+            return;
+        }
+
+        // The row is intact and today's rules cannot read it: a conflict between
+        // what was stored and what is now required, not a server that broke.
+        if ($throwable instanceof FormUnreadable) {
+            $event->setResponse($this->validationResponse($throwable->report, 'form-unreadable', 'The stored form no longer satisfies the rules it is read with.', 409));
 
             return;
         }

@@ -11,6 +11,8 @@ use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
+use App\Infrastructure\Persistence\FormRecord;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Uid\Uuid;
@@ -306,6 +308,25 @@ final class FormApiTest extends WebTestCase
         self::assertSame('presentation.item.not-a-container', $this->firstError()['code']);
     }
 
+    public function testAFormStoredUnderOlderRulesIsAConflictNotAServerError(): void
+    {
+        // GIVEN a row written when a presentation needed no way to confirm
+        $id = $this->plantUnreadable();
+
+        // WHEN it is read
+        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+
+        // THEN the answer says what happened and why: the row is intact, the
+        // rules moved on, and here is the finding to act on
+        self::assertResponseStatusCodeSame(409);
+        self::assertSame('urn:problem:ingot-forms:form-unreadable', $this->responseBody()['type']);
+        self::assertSame('presentation.confirm.missing', $this->firstError()['code']);
+
+        // AND it can still be got rid of
+        $this->client->request('DELETE', \sprintf('/api/forms/%s', $id));
+        self::assertResponseStatusCodeSame(204);
+    }
+
     public function testUnknownFormIsA404Problem(): void
     {
         // GIVEN / WHEN
@@ -442,6 +463,29 @@ final class FormApiTest extends WebTestCase
         $id = $this->responseBody()['id'] ?? '';
 
         return \is_string($id) ? $id : '';
+    }
+
+    /**
+     * A row that could not be created through the API any more, written straight
+     * through Doctrine — which is how a rule change leaves data behind.
+     */
+    private function plantUnreadable(): string
+    {
+        $id = Uuid::v7()->toRfc4122();
+        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+
+        $record = new FormRecord();
+        $record->id = Uuid::fromString($id);
+        $record->definition = json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR);
+        $record->expireDate = new \DateTimeImmutable('+1 day');
+        $record->createdAt = new \DateTimeImmutable();
+        $record->presentation = '{"engine":"core-html","items":[{"name":"email","widget":"text"}]}';
+
+        $entityManager->persist($record);
+        $entityManager->flush();
+
+        return $id;
     }
 
     private function createPresentedForm(): string

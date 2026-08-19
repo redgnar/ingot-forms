@@ -6,6 +6,7 @@ namespace App\Tests\Infrastructure\Persistence;
 
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
+use App\Domain\Forms\Exception\FormUnreadable;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\FormMapperFactory;
@@ -21,6 +22,7 @@ use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Presentation;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
 use App\Infrastructure\Persistence\DoctrineTransactions;
+use App\Infrastructure\Persistence\FormRecord;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -212,6 +214,59 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
 
         // WHEN / THEN an empty column is no presentation, not an empty one
         self::assertNull($this->repository->get($id)->presentation());
+    }
+
+    public function testAFormStoredUnderOlderRulesIsReportedNotExploded(): void
+    {
+        // GIVEN a row written when a presentation needed no way to confirm the
+        // form — valid then, refused by today's rules
+        $id = self::uuid();
+        $this->write($id, '{"engine":"core-html","items":[{"name":"email","widget":"text"}]}');
+
+        // WHEN it is read back
+        try {
+            $this->repository->get($id);
+            self::fail('Expected FormUnreadable.');
+        } catch (FormUnreadable $exception) {
+            // THEN the findings say which rule the stored document no longer
+            // satisfies, which is what somebody needs to migrate or drop it
+            self::assertSame('presentation.confirm.missing', $exception->report->errors[0]->code);
+            self::assertStringContainsString((string) $id, $exception->getMessage());
+        }
+    }
+
+    public function testAFormNobodyCanReadCanStillBeDeleted(): void
+    {
+        // GIVEN the same unreadable row
+        $id = self::uuid();
+        $this->write($id, '{"engine":"core-html","items":[{"name":"email","widget":"text"}]}');
+
+        // WHEN / THEN removing a row never has to understand it — otherwise a
+        // rule change would leave data nobody can get rid of
+        $this->repository->remove($id);
+
+        $this->expectException(FormNotFound::class);
+        $this->repository->get($id);
+    }
+
+    /**
+     * Writes a row straight through Doctrine: what it holds could not be created
+     * through the model any more, which is the whole point of the test.
+     */
+    private function write(FormId $id, string $presentation): void
+    {
+        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+
+        $record = new FormRecord();
+        $record->id = $id->toUuid();
+        $record->definition = self::DEFINITION;
+        $record->expireDate = new \DateTimeImmutable('+1 day');
+        $record->createdAt = new \DateTimeImmutable();
+        $record->presentation = $presentation;
+
+        $entityManager->persist($record);
+        $entityManager->flush();
     }
 
     private static function presentation(): Presentation

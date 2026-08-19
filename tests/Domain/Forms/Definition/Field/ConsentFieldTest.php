@@ -55,8 +55,9 @@ final class ConsentFieldTest extends FieldDefinitionTestCase
      */
     protected static function draftSchema(): array
     {
-        // Partial progress is storable, but a box that only accepts a tick
-        // accepts nothing else even while it is being filled in.
-        return ['type' => 'boolean', 'const' => true];
+        // Nothing about agreeing yet: having to tick the box is what finishing
+        // the form requires, and a draft is what somebody saves before they are
+        // finished.
+        return ['type' => 'boolean'];
     }
 }

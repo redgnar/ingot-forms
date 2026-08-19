@@ -6,13 +6,13 @@
 RUN   := docker compose run --rm --no-deps php
 RUNDB := docker compose run --rm php
 
-.PHONY: setup image up down install update require test test-unit test-integration test-browser test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
+.PHONY: setup image up down install update require db-reset test test-unit test-integration test-browser test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
 
-setup: ## Bring a fresh checkout all the way up: image, dependencies, both schemas, serving
+setup: ## Bring a fresh checkout all the way up: image, dependencies, an empty database, serving
 	@[ -d ../ingot ] || { echo 'The ingot library must sit next to this project: git clone https://github.com/redgnar/ingot.git ../ingot'; exit 1; }
 	$(MAKE) install
-	$(MAKE) migrate
-	$(MAKE) db-test
+	$(MAKE) down
+	$(MAKE) db-reset
 	$(MAKE) up
 	@echo 'Ready. `make ci` runs every gate; `make test-browser` drives the pages in a browser.'
 
@@ -37,6 +37,11 @@ require: ## Add a dependency: make require PACKAGES="symfony/twig-bundle" [DEV=1
 	$(RUN) composer require $(if $(DEV),--dev,) $(PACKAGES)
 
 migrate: ## Apply migrations to the dev database
+	$(RUNDB) bin/console doctrine:migrations:migrate --no-interaction
+
+db-reset: ## Throw the database away and build it again from the migrations
+	$(RUNDB) bin/console doctrine:database:drop --force --if-exists
+	$(RUNDB) bin/console doctrine:database:create
 	$(RUNDB) bin/console doctrine:migrations:migrate --no-interaction
 
 db-test: ## Create the test database and bring its schema up to date

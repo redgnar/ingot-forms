@@ -16,7 +16,7 @@ this reference cannot drift from the implementation.
 |---|---|---|---|
 | [`POST /api/forms/{id}/confirm`](#post-apiformsidconfirm) | `confirmForm` | Confirm the stored values | `204`, `404`, `409`, `410`, `422` |
 | [`POST /api/forms`](#post-apiforms) | `createForm` | Create a form | `201`, `400`, `415`, `422` |
-| [`GET /api/forms/{id}`](#get-apiformsid) | `getForm` | Read a form | `200`, `404`, `410` |
+| [`GET /api/forms/{id}`](#get-apiformsid) | `getForm` | Read a form | `200`, `404`, `409`, `410` |
 | [`DELETE /api/forms/{id}`](#delete-apiformsid) | `deleteForm` | Delete a form | `204`, `404`, `410` |
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
 | [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `415`, `410`, `422` |
@@ -80,6 +80,7 @@ Both documents a form is made of arrive here: what it asks, and optionally how i
 |---|---|---|---|
 | `200` | `application/json` | [`FormEnvelope`](#formenvelope) | The full form envelope. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
+| `409` | `application/problem+json` | [`Problem`](#problem) | The form is stored under rules that have since changed, so it cannot be read back. The findings say which. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 
 ### DELETE /api/forms/{id}

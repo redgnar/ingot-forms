@@ -120,6 +120,16 @@ paths:
                 $ref: '#/components/schemas/FormEnvelope'
         '404':
           $ref: '#/components/responses/FormNotFound'
+        '409':
+          description: 'The form is stored under rules that have since changed, so it cannot be read back. The findings say which.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                form-unreadable:
+                  summary: 'A document accepted before a rule was tightened'
+                  value: { type: 'urn:problem:ingot-forms:form-unreadable', title: 'The stored form no longer satisfies the rules it is read with.', status: 409, errors: [{ pointer: /items, code: presentation.confirm.missing, message: 'A presentation must offer somewhere to confirm the form.', input: confirm }] }
         '410':
           $ref: '#/components/responses/FormGone'
     delete:

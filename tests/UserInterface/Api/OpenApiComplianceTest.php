@@ -11,6 +11,8 @@ use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
+use App\Infrastructure\Persistence\FormRecord;
+use Doctrine\ORM\EntityManagerInterface;
 use League\OpenAPIValidation\PSR7\Exception\ValidationFailed;
 use League\OpenAPIValidation\PSR7\OperationAddress;
 use League\OpenAPIValidation\PSR7\RequestValidator;
@@ -208,6 +210,9 @@ final class OpenApiComplianceTest extends WebTestCase
             ['GET', '/api/forms/{id}', 404, true, '', static function (self $test): void {
                 $test->client->request('GET', \sprintf('/api/forms/%s', Uuid::v7()->toRfc4122()));
             }],
+            ['GET', '/api/forms/{id}', 409, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/forms/%s', $test->unreadableForm()));
+            }],
             ['GET', '/api/forms/{id}', 410, true, '', static function (self $test): void {
                 $test->client->request('GET', \sprintf('/api/forms/%s', $test->expiredForm()));
             }],
@@ -389,6 +394,28 @@ final class OpenApiComplianceTest extends WebTestCase
         self::assertIsString($body['id'] ?? null);
 
         return $body['id'];
+    }
+
+    /**
+     * A row that today's rules refuse to read: written straight through Doctrine,
+     * because the API would no longer accept it.
+     */
+    private function unreadableForm(): string
+    {
+        $id = Uuid::v7()->toRfc4122();
+        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+
+        $record = new FormRecord();
+        $record->id = Uuid::fromString($id);
+        $record->definition = json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR);
+        $record->expireDate = new \DateTimeImmutable('+1 day');
+        $record->createdAt = new \DateTimeImmutable();
+        $record->presentation = '{"engine":"core-html","items":[{"name":"email","widget":"text"}]}';
+        $entityManager->persist($record);
+        $entityManager->flush();
+
+        return $id;
     }
 
     private function presentedForm(): string

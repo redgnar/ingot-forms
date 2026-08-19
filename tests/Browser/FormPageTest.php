@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Browser;
 
+use Facebook\WebDriver\Exception\WebDriverException;
 use Facebook\WebDriver\WebDriverBy;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\Panther\Client;
@@ -91,6 +92,23 @@ final class FormPageTest extends PantherTestCase
         self::assertNull($this->values($id));
     }
 
+    public function testWorkInProgressIsSavedWithoutTheConsent(): void
+    {
+        // GIVEN a form somebody is halfway through, consent not given yet
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->browser->findElement(WebDriverBy::id('item-email'))->sendKeys('ada@example.com');
+
+        // WHEN they save for later
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="save"]'))->click();
+
+        // THEN it is kept: agreeing is what finishing needs, and they have not
+        // finished — a draft that refuses this is a draft nobody can save
+        $stored = $this->eventually(fn(): ?array => $this->values($id));
+
+        self::assertSame(['email' => 'ada@example.com', 'terms' => false], $stored);
+    }
+
     public function testAnUntickedConsentMarksTheBoxAndNothingElse(): void
     {
         // GIVEN a form filled in except for the consent
@@ -100,8 +118,8 @@ final class FormPageTest extends PantherTestCase
         $this->browser->findElement(WebDriverBy::id('item-age'))->sendKeys('36');
         $this->browser->findElement(WebDriverBy::cssSelector('[data-name="country"] input[value="pl"]'))->click();
 
-        // WHEN it is saved without ticking
-        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="save"]'))->click();
+        // WHEN they try to finish without ticking
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="confirm"]'))->click();
 
         // THEN the box is the only thing marked: the fields that are filled in
         // correctly must not be told they are wrong, and the message says what
@@ -113,6 +131,7 @@ final class FormPageTest extends PantherTestCase
         });
 
         self::assertSame('The value must be true.', $message);
+        self::assertSame('draft', $this->formStatus($id));
         self::assertFalse($this->browser->findElement(WebDriverBy::cssSelector('[data-error="email"]'))->isDisplayed());
         self::assertFalse($this->browser->findElement(WebDriverBy::cssSelector('[data-error="country"]'))->isDisplayed());
         self::assertFalse($this->browser->findElement(WebDriverBy::cssSelector('[data-error="age"]'))->isDisplayed());
@@ -238,7 +257,14 @@ final class FormPageTest extends PantherTestCase
         $deadline = microtime(true) + $seconds;
 
         do {
-            $result = $ready();
+            try {
+                $result = $ready();
+            } catch (WebDriverException) {
+                // The page can navigate under the check — confirming reloads it —
+                // and an element found a moment ago goes stale with it. That is
+                // "not there yet", not a failure.
+                $result = null;
+            }
 
             if ($result !== null) {
                 return $result;
