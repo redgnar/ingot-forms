@@ -159,7 +159,8 @@ Rules that follow from it, and that the tooling checks:
   changing either document means delete and recreate. It is one recursive shape (an item
   presents a value, or holds items, or stands alone — no fixed levels), its text is translation
   codes with an optional catalogue, and the widget vocabulary belongs to the engine the
-  document names. The `Form` constructor judges it against the definition it came with — the
+  document names — a `PresentationEngine` implementation, so a new kit is a new class rather
+  than an edited table. The `Form` constructor judges it against the definition it came with — the
   rules handed in the way a values validator is — so a form that exists is a form whose
   presentation fits it: every declared item shown, exactly once, with a control that engine
   draws. An item a client fills in rather than a person is drawn `hidden`, which says so

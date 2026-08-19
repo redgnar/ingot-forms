@@ -6,7 +6,8 @@ namespace App\Tests\Domain\Forms\Presentation;
 
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\FormMapperFactory;
-use App\Domain\Forms\Presentation\Engine\EngineCatalogue;
+use App\Domain\Forms\Presentation\Engine\CoreHtmlEngine;
+use App\Domain\Forms\Presentation\Engine\Engines;
 use App\Domain\Forms\Presentation\PresentationRules;
 use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\Definition;
@@ -247,12 +248,14 @@ final class PresentationRulesTest extends TestCase
         self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
     }
 
-    public function testTheEngineCatalogueKnowsWhatItKnows(): void
+    public function testAKitIsFoundByTheIdADocumentNamesItWith(): void
     {
-        // GIVEN / WHEN / THEN
-        $engines = new EngineCatalogue();
-        self::assertTrue($engines->knows('core-html'));
-        self::assertFalse($engines->knows('someones-vue-kit'));
+        // GIVEN the kits this deployment knows
+        $engines = new Engines([new CoreHtmlEngine()]);
+
+        // WHEN / THEN
+        self::assertSame('core-html', $engines->find('core-html')?->id());
+        self::assertNull($engines->find('someones-vue-kit'));
     }
 
     private static function typeOf(string $item): string
@@ -364,6 +367,6 @@ final class PresentationRulesTest extends TestCase
 
     private static function rules(): PresentationRules
     {
-        return new PresentationRules(new EngineCatalogue());
+        return new PresentationRules(new Engines([new CoreHtmlEngine()]));
     }
 }

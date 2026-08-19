@@ -11,7 +11,8 @@ use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\FormMapperFactory;
 use App\Domain\Forms\FormStatus;
 use App\Domain\Forms\Port\FormRepository;
-use App\Domain\Forms\Presentation\Engine\EngineCatalogue;
+use App\Domain\Forms\Presentation\Engine\CoreHtmlEngine;
+use App\Domain\Forms\Presentation\Engine\Engines;
 use App\Domain\Forms\Presentation\PresentationRules;
 use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\Definition;
@@ -123,7 +124,7 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         // GIVEN a form taken all the way through its life
         $id = self::uuid();
         $expireDate = ExpireDate::future(new \DateTimeImmutable('+1 day'));
-        $this->repository->add(new Form($id, self::definition(), $expireDate, self::presentation(), new PresentationRules(new EngineCatalogue())));
+        $this->repository->add(new Form($id, self::definition(), $expireDate, self::presentation(), new PresentationRules(new Engines([new CoreHtmlEngine()]))));
 
         $this->transactions->run(function () use ($id): void {
             $form = $this->repository->getForUpdate($id);

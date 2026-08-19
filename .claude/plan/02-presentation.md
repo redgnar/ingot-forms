@@ -86,9 +86,12 @@ A widget vocabulary is not universal: one kit draws a select as `radio`, another
 control and offers `chips`; a document that does not say which kit it means cannot be checked
 against any.
 
-So the vocabulary is **per engine**, and engines live in a catalogue the domain owns — adding
-one is adding an entry, never editing a rule (the same way the item catalogue grows). An engine
-declares, for each item type it supports, which widgets it draws.
+So the vocabulary is **per engine**, and an engine is an object the domain owns — adding a kit
+is adding a class that implements `PresentationEngine`, never editing a table. A kit is the
+authority on what it can draw: a control per kind of value, what may hold items, what may stand
+alone. How a refusal is worded and where it points stays with the rules, and so do the checks
+that hold whatever draws the form — an item exists, appears once, is shown at all — because
+repeating those per engine is how a new engine comes to forget one.
 
 An engine this application does not know is **accepted**, and then widgets go unchecked. That is
 the plugin bargain again: we do not judge the value contract of a type we do not understand, and
@@ -179,9 +182,9 @@ doing when a client asks for it, not before.
 ```
 src/Domain/Forms/Presentation/     PresentationDocument (root), PresentedItem (one recursive
                                    shape) + presentation.schema.json (the meta-schema)
-    Engine/                        EngineCatalogue — what an engine draws: a control per item
-                                   type, what may hold items, what may stand alone; data, not
-                                   rendering, because it is what the widget rules check
+    Engine/                        PresentationEngine (a kit: what it draws, what nests, what
+                                   stands alone), CoreHtmlEngine, and Engines — the kits this
+                                   deployment knows, collected by their interface
     Rule/                          the document's own rules, as mapper validators
     PresentationRules              the rules that need the form's definition and the engine
 src/Domain/Forms/ValueObject/       Presentation — the normalized document plus the structure,
@@ -321,6 +324,14 @@ the server has always enforced.
   a definition — which keeps its own constraints so it survives being mapped without a schema —
   a presentation is only ever read through this domain's mapper, so the schema is the one place
   its rules live.
+
+## Amended again: the engine is an object
+
+The first version made an engine three tables in an `EngineCatalogue`, with one rules class
+applying them. It became a `PresentationEngine` implementation instead, collected by a tagged
+iterator, because a kit that says what it can draw is the same thing that will one day draw it
+— and because a rule only one kit has ("my radio needs more than one option", "my slider needs
+both bounds") has nowhere to live in a table. Adding a kit is now adding a class.
 
 ## What is left
 

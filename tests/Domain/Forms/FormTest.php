@@ -16,7 +16,8 @@ use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\FormMapperFactory;
 use App\Domain\Forms\FormStatus;
-use App\Domain\Forms\Presentation\Engine\EngineCatalogue;
+use App\Domain\Forms\Presentation\Engine\CoreHtmlEngine;
+use App\Domain\Forms\Presentation\Engine\Engines;
 use App\Domain\Forms\Presentation\PresentationRules;
 use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\Definition;
@@ -396,7 +397,7 @@ final class FormTest extends TestCase
 
     private static function rules(): PresentationRules
     {
-        return new PresentationRules(new EngineCatalogue());
+        return new PresentationRules(new Engines([new CoreHtmlEngine()]));
     }
 
     private static function values(string $json): \stdClass

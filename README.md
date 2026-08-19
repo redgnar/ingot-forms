@@ -86,11 +86,12 @@ from a catalogue — the one carried in the document, or the client's own. The s
 resolves a locale and never reads `Accept-Language`: it serves the document whole, and picking
 a language is the client's job, exactly as picking a widget is.
 
-**The engine comes first** because a widget vocabulary is not universal. `core-html` draws
-`text`/`textarea`, `select`/`radio`, `number`, `date`, `checkbox`/`switch`, nests with
-`fieldset` and decorates with `heading`/`paragraph`. An engine this application does not know
-is accepted with its widgets unchecked — the bargain a plugin item type gets, and for the same
-reason.
+**The engine comes first** because a widget vocabulary is not universal. A kit is an object
+implementing `PresentationEngine` and is the authority on what it can draw, so adding one is
+adding a class; `core-html` draws `text`/`textarea`/`hidden`, `select`/`radio`, `number`,
+`date`, `checkbox`/`switch`, nests with `fieldset` and decorates with `heading`/`paragraph`. An
+engine this application does not know is accepted with its widgets unchecked — the bargain a
+plugin item type gets, and for the same reason.
 
 **What the server enforces**: the form is shown whole — every item the definition declares
 appears, exactly once, and a value a client fills in rather than a person is drawn `hidden`,

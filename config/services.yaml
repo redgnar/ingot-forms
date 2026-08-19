@@ -3,6 +3,12 @@ services:
         autowire: true
         autoconfigure: true
 
+    _instanceof:
+        # A kit that can draw forms announces itself by implementing the
+        # interface: adding one is adding a class, never editing a list.
+        App\Domain\Forms\Presentation\Engine\PresentationEngine:
+            tags: ['app.presentation_engine']
+
     App\:
         resource: '../src/'
         exclude:
@@ -35,6 +41,10 @@ services:
     App\Domain\Forms\PresentationProcessor:
         arguments:
             $mapper: '@forms.definition_mapper'
+
+    App\Domain\Forms\Presentation\Engine\Engines:
+        arguments:
+            $engines: !tagged_iterator app.presentation_engine
 
     # Ports, and the adapters that fill them. Nothing above the application
     # layer names an implementation.

@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Forms\Presentation;
 
 use App\Domain\Forms\Definition\Field;
-use App\Domain\Forms\Presentation\Engine\EngineCatalogue;
+use App\Domain\Forms\Presentation\Engine\Engines;
+use App\Domain\Forms\Presentation\Engine\PresentationEngine;
 use App\Domain\Forms\ValueObject\Definition;
 use Ingot\Error\ErrorReport;
 use Ingot\Error\MappingError;
@@ -17,20 +18,25 @@ use Ingot\JsonPointer;
  * widget has to be one that engine draws — for that kind of value, or as
  * something that holds items, or as something that just stands there.
  *
- * Pure domain logic — no schema, no framework, nothing to inject but the
- * catalogue of engines — which is why this is a domain service rather than a
+ * Pure domain logic — no schema, no framework, nothing to inject but the kits
+ * this deployment knows — which is why this is a domain service rather than a
  * port with an adapter behind it.
+ *
+ * The split with an engine is deliberate: a kit is the authority on what it can
+ * draw, and this is the authority on how a refusal is worded and where it
+ * points. The rules that hold whatever draws the form — an item exists, appears
+ * once, is shown at all — are asked here, so a new engine cannot forget one.
  */
 final class PresentationRules
 {
     public function __construct(
-        private readonly EngineCatalogue $engines,
+        private readonly Engines $engines,
     ) {}
 
     public function check(Definition $definition, PresentationDocument $presentation): ErrorReport
     {
         $declared = self::itemsByName($definition);
-        $errors = $this->walk($presentation->items, '/items', $presentation->engine, $declared);
+        $errors = self::walk($presentation->items, '/items', $this->engines->find($presentation->engine), $presentation->engine, $declared);
 
         return ErrorReport::of(...$errors, ...self::missing($declared, $presentation));
     }
@@ -76,19 +82,19 @@ final class PresentationRules
      *
      * @return list<MappingError>
      */
-    private function walk(array $items, string $path, string $engine, array $declared): array
+    private static function walk(array $items, string $path, ?PresentationEngine $engine, string $named, array $declared): array
     {
         $errors = [];
 
         foreach ($items as $index => $shown) {
             $here = \sprintf('%s/%d', $path, $index);
-            $error = $this->judge($shown, $here, $engine, $declared);
+            $error = self::judge($shown, $here, $engine, $named, $declared);
 
             if ($error !== null) {
                 $errors[] = $error;
             }
 
-            $errors = [...$errors, ...$this->walk($shown->items, $here . '/items', $engine, $declared)];
+            $errors = [...$errors, ...self::walk($shown->items, $here . '/items', $engine, $named, $declared)];
         }
 
         return $errors;
@@ -97,7 +103,7 @@ final class PresentationRules
     /**
      * @param array<string, Field> $declared
      */
-    private function judge(PresentedItem $shown, string $path, string $engine, array $declared): ?MappingError
+    private static function judge(PresentedItem $shown, string $path, ?PresentationEngine $engine, string $named, array $declared): ?MappingError
     {
         if ($shown->name !== null) {
             $item = $declared[$shown->name] ?? null;
@@ -106,20 +112,20 @@ final class PresentationRules
             // would be a second complaint about it.
             return $item === null
                 ? self::error($path . '/name', 'presentation.item.unknown', \sprintf('This form declares no item named "%s".', $shown->name), $shown->name)
-                : $this->judgeControl($shown, $item, $path, $engine);
+                : self::judgeControl($shown, $item, $path, $engine, $named);
         }
 
         return $shown->isContainer()
-            ? $this->judgeAgainst($shown, $path, $engine, $this->engines->containers($engine), 'hold other items')
-            : $this->judgeAgainst($shown, $path, $engine, $this->engines->decorations($engine), 'stand on its own');
+            ? self::judgeAgainst($shown, $path, $named, $engine?->containers(), 'hold other items')
+            : self::judgeAgainst($shown, $path, $named, $engine?->decorations(), 'stand on its own');
     }
 
-    private function judgeControl(PresentedItem $shown, Field $item, string $path, string $engine): ?MappingError
+    private static function judgeControl(PresentedItem $shown, Field $item, string $path, ?PresentationEngine $engine, string $named): ?MappingError
     {
         // No widget asked for means the natural one, which every engine that
         // draws this kind of item has by definition.
         $widget = $shown->widget;
-        $drawn = $widget === null ? null : $this->engines->draws($engine, $item);
+        $drawn = $widget === null ? null : $engine?->controlsFor($item);
 
         if ($widget === null || $drawn === null || \in_array($widget, $drawn, true)) {
             return null;
@@ -128,15 +134,15 @@ final class PresentationRules
         return self::error(
             $path . '/widget',
             'presentation.widget.mismatch',
-            \sprintf('Engine "%s" does not draw a "%s" item as "%s".', $engine, self::typeOf($item), $widget),
+            \sprintf('Engine "%s" does not draw a "%s" item as "%s".', $named, self::typeOf($item), $widget),
             $widget,
         );
     }
 
     /**
-     * @param list<string>|null $vocabulary null when the engine is unknown, and then nothing is checked
+     * @param list<string>|null $vocabulary null when nobody here knows the engine, and then nothing is checked
      */
-    private function judgeAgainst(PresentedItem $shown, string $path, string $engine, ?array $vocabulary, string $role): ?MappingError
+    private static function judgeAgainst(PresentedItem $shown, string $path, string $named, ?array $vocabulary, string $role): ?MappingError
     {
         $widget = $shown->widget;
 
@@ -147,7 +153,7 @@ final class PresentationRules
         return self::error(
             $path . '/widget',
             'presentation.widget.mismatch',
-            \sprintf('Engine "%s" has no "%s" that can %s.', $engine, $widget, $role),
+            \sprintf('Engine "%s" has no "%s" that can %s.', $named, $widget, $role),
             $widget,
         );
     }
