@@ -28,8 +28,12 @@ displayed, and correcting its wording does not touch what somebody agreed to.
 
 ## The document
 
-**(decided)** One level of grouping — sections, each with an ordered list of items. Steps and
-wizards are left out: without conditional logic they buy little, and with it they stop being
+**(decided)** One recursive shape, no fixed levels: a list of items, where an item either
+**presents a value** (it has a `name`, which the definition must declare) or **holds other
+items** (a container — a fieldset, a card) or **stands on its own** (a decoration — a heading, a
+paragraph). Sections were the first draft and are gone: a fixed level of grouping is an
+arbitrary guess that is either too shallow or in the way. Steps and wizards stay out for their
+own reason — without conditional logic they buy little, and with it they stop being
 presentation (see non-goals).
 
 **(decided)** Human text travels as **codes**, not as sentences, and the document may carry the
@@ -39,19 +43,14 @@ catalogue that resolves them:
 {
   "engine": "core-html",
   "defaultLocale": "en",
-  "sections": [
-    {
-      "key": "personal",
-      "titleCode": "contact.personal",
-      "items": [
-        { "name": "email", "widget": "text", "labelCode": "contact.email", "hintCode": "contact.email.hint" },
-        { "name": "country", "widget": "radio", "labelCode": "contact.country" }
-      ]
-    },
-    {
-      "key": "consents",
-      "items": [{ "name": "terms", "widget": "checkbox", "labelCode": "contact.terms" }]
-    }
+  "items": [
+    { "widget": "fieldset", "label": "contact.personal", "items": [
+      { "name": "email", "widget": "text", "label": "contact.email", "hint": "contact.email.hint" },
+      { "widget": "fieldset", "label": "contact.address", "items": [
+        { "name": "country", "widget": "radio", "label": "contact.country" }
+      ]}
+    ]},
+    { "name": "terms", "widget": "checkbox", "label": "contact.terms" }
   ],
   "translations": {
     "en": { "contact.personal": "Personal details", "contact.email": "E-mail", "contact.email.hint": "We only use it to reply", "contact.country": "Country", "contact.terms": "I accept the terms" },
@@ -60,8 +59,9 @@ catalogue that resolves them:
 }
 ```
 
-The `…Code` suffix is deliberate: it stops somebody putting one language's sentence where a key
-belongs and discovering it only when a second language appears. `translations` is optional — a
+Every piece of text in the document is a **code**, and the names do not repeat it because it
+holds for all of them: a section's `title`, an item's `label` and `hint`. `translations` is
+optional — a
 deployment with its own catalogue simply omits it — and the server never resolves a locale. It
 serves the document whole; picking a language is the client's job, the same way picking a widget
 is.
@@ -95,14 +95,16 @@ here reads them.
 
 Six rules, each of them something that can be stated and pointed at:
 
-| code | what it refuses | pointer |
-|---|---|---|
-| `presentation.item.unknown` | a name the form's definition does not declare | `/sections/{i}/items/{j}/name` |
-| `presentation.item.duplicate` | the same item shown twice in the document | `/sections/{i}/items/{j}/name` |
-| `presentation.widget.mismatch` | a widget the document's engine does not draw for that item type | `/sections/{i}/items/{j}/widget` |
-| `presentation.section.duplicate-key` | two sections with one key | `/sections/{i}/key` |
-| `presentation.translation.missing` | a code used but absent from the default locale | `/translations/{locale}` |
-| `presentation.locale.unknown` | a `defaultLocale` with no catalogue in `translations` | `/defaultLocale` |
+| code | what it refuses |
+|---|---|
+| `presentation.item.unknown` | a name the form's definition does not declare |
+| `presentation.item.duplicate` | the same item shown twice, anywhere in the tree |
+| `presentation.item.not-a-container` | an item that presents a value and also holds items |
+| `presentation.widget.mismatch` | a widget the engine does not draw — for that item's type, or as something that holds items, or as something standing on its own |
+| `presentation.translation.missing` | a code used but absent from the default locale |
+| `presentation.locale.unknown` | a `defaultLocale` with no catalogue in `translations` |
+
+Pointers walk the tree as it is written: `/items/0/items/2/name`.
 
 Incomplete non-default locales are **accepted**: a catalogue that has English and half of
 Polish is how translation actually progresses, and a client falls back to the default. Extra
@@ -118,14 +120,16 @@ definition's business alone — and pretending otherwise would put validation in
 engine**, with a passthrough for plugins. The built-in engine, `core-html`, is what the plan
 starts with:
 
-| item type | widgets `core-html` draws |
+| what is shown | widgets `core-html` draws |
 |---|---|
-| `text` | `text`, `textarea` |
-| `select` | `select`, `radio` |
-| `number` | `number` |
-| `date` | `date` |
-| `checkbox` | `checkbox`, `switch` |
-| unknown (plugin) type | any name, unchecked |
+| a `text` item | `text`, `textarea` |
+| a `select` item | `select`, `radio` |
+| a `number` item | `number` |
+| a `date` item | `date` |
+| a `checkbox` item | `checkbox`, `switch` |
+| an item of an unknown (plugin) type | any name, unchecked |
+| something holding other items | `fieldset` |
+| something standing on its own | `heading`, `paragraph` |
 
 A widget name the engine does not draw, on an item type this application knows, is refused —
 the mismatch rule is the whole point of having a vocabulary. On a plugin item nothing is refused,
@@ -155,17 +159,22 @@ doing when a client asks for it, not before.
 ## Model
 
 ```
-src/Domain/Forms/Presentation/     PresentationDocument (root), Section, PresentedItem, Widget
-                                   + presentation.schema.json (the meta-schema)
-    Engine/                        EngineCatalogue — which widgets an engine draws for which
-                                   item type; data, not rendering, because it is what rule 3
-                                   is checked against
-    Rule/                          UnknownItems, DuplicateItems, WidgetFitsItem, ...
+src/Domain/Forms/Presentation/     PresentationDocument (root), PresentedItem (one recursive
+                                   shape) + presentation.schema.json (the meta-schema)
+    Engine/                        EngineCatalogue — what an engine draws: a control per item
+                                   type, what may hold items, what may stand alone; data, not
+                                   rendering, because it is what the widget rules check
+    Rule/                          the document's own rules, as mapper validators
+    PresentationRules              the rules that need the form's definition and the engine
 src/Domain/Forms/ValueObject/       Presentation — the normalized document plus the structure,
                                    never one without the other (as Definition is)
-src/Domain/Forms/Port/              PresentationValidator — judges a presentation against the
-                                   definition it claims to present
 ```
+
+**Amended while building step 1**: the plan had a `PresentationValidator` port with an adapter
+behind it, mirroring `ValuesValidator`. It is not needed — judging a presentation against a
+definition takes no schema, no framework and nothing to inject but the engine catalogue, so
+`PresentationRules` is a plain domain service. A port whose implementation would never leave
+the domain is ceremony.
 
 `Form` gains one transition, and it is the aggregate's own rule for the same reason values are:
 a presentation is only valid *against this form's definition*.

@@ -1,0 +1,102 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Domain\Forms\Presentation;
+
+/**
+ * How one form is to be shown: which engine the document is written for, what it
+ * shows in order, and optionally the catalogue that resolves its codes.
+ *
+ * The engine comes first because it decides what the rest may say — a widget
+ * vocabulary is not universal, and a document that does not name its engine
+ * cannot be checked against any.
+ *
+ * Every piece of text in it is a **translation code**, not a sentence. The names
+ * do not repeat that, because it holds for all of them.
+ *
+ * Its rules live in one place, `presentation.schema.json`: unlike a definition —
+ * which carries its own constraints so it holds even when mapped without a
+ * meta-schema, the guarantee a standalone package would rely on — a presentation
+ * is only ever read through the mapper this domain configures, and that mapper
+ * always has the schema bound.
+ *
+ * A presentation need not show every item the definition declares. Hiding one
+ * changes nothing about what the form accepts: that is the definition's business
+ * alone, and saying it twice is how two places start disagreeing.
+ */
+final readonly class PresentationDocument
+{
+    /**
+     * @param list<PresentedItem>                  $items
+     * @param array<string, array<string, string>> $translations locale → code → text
+     */
+    public function __construct(
+        public string $engine,
+        public array $items,
+        public array $translations = [],
+        // Which catalogue answers when another one is missing a code. Required
+        // once catalogues are given, meaningless without them.
+        public ?string $defaultLocale = null,
+    ) {}
+
+    /**
+     * Every code this document uses, in the order they appear.
+     *
+     * @return list<string>
+     */
+    public function codes(): array
+    {
+        return self::codesIn($this->items);
+    }
+
+    /**
+     * Every item shown, containers and all, depth first — the order somebody
+     * reads them in.
+     *
+     * @return list<PresentedItem>
+     */
+    public function shown(): array
+    {
+        return self::flatten($this->items);
+    }
+
+    /**
+     * @param list<PresentedItem> $items
+     *
+     * @return list<string>
+     */
+    private static function codesIn(array $items): array
+    {
+        $codes = [];
+
+        foreach ($items as $item) {
+            foreach ([$item->label, $item->hint] as $code) {
+                if ($code !== null) {
+                    $codes[] = $code;
+                }
+            }
+
+            $codes = [...$codes, ...self::codesIn($item->items)];
+        }
+
+        return $codes;
+    }
+
+    /**
+     * @param list<PresentedItem> $items
+     *
+     * @return list<PresentedItem>
+     */
+    private static function flatten(array $items): array
+    {
+        $flat = [];
+
+        foreach ($items as $item) {
+            $flat[] = $item;
+            $flat = [...$flat, ...self::flatten($item->items)];
+        }
+
+        return $flat;
+    }
+}

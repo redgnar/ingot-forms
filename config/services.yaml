@@ -9,6 +9,8 @@ services:
             - '../src/Kernel.php'
             # the model itself: an aggregate, its data objects and its exceptions
             - '../src/Domain/Forms/{Definition,Event,Exception,ValueObject}/'
+            - '../src/Domain/Forms/Presentation/{PresentationDocument,Section,PresentedItem}.php'
+            - '../src/Domain/Forms/Presentation/Rule/'
             - '../src/Domain/Forms/{Form,FormStatus,DeriveMode}.php'
             - '../src/Infrastructure/Persistence/FormRecord.php'
             - '../src/UserInterface/Http/Problem/ProblemException.php'
@@ -30,10 +32,15 @@ services:
         arguments:
             $mapper: '@forms.definition_mapper'
 
+    App\Domain\Forms\PresentationProcessor:
+        arguments:
+            $mapper: '@forms.definition_mapper'
+
     # Ports, and the adapters that fill them. Nothing above the application
     # layer names an implementation.
     App\Domain\Forms\Port\FormRepository: '@App\Infrastructure\Persistence\DoctrineFormRepository'
     App\Domain\Forms\Port\DefinitionParser: '@App\Domain\Forms\FormDefinitionProcessor'
+    App\Domain\Forms\Port\PresentationParser: '@App\Domain\Forms\PresentationProcessor'
     App\Domain\Forms\Port\ValuesValidator: '@App\Infrastructure\Validation\StagedValuesValidator'
     App\Application\Forms\Port\Transactions: '@App\Infrastructure\Persistence\DoctrineTransactions'
     App\Application\Forms\Port\DataSchemas: '@App\Infrastructure\Cache\CachedDataSchemaProvider'

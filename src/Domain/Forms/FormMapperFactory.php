@@ -12,16 +12,21 @@ use App\Domain\Forms\Definition\GenericField;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\NumberRangeValidator;
 use App\Domain\Forms\Definition\UniqueFieldNamesValidator;
+use App\Domain\Forms\Presentation\PresentationDocument;
+use App\Domain\Forms\Presentation\Rule\NamedItemsHoldNothingValidator;
+use App\Domain\Forms\Presentation\Rule\TranslationsValidator;
+use App\Domain\Forms\Presentation\Rule\UniqueItemNamesValidator;
 use Ingot\MapperBuilder;
 use Ingot\Schema\Schema;
 use Ingot\TreeMapper;
 use Psr\Cache\CacheItemPoolInterface;
 
 /**
- * Builds the one mapper this domain speaks through: the definition
- * meta-schema, the semantic rules a schema cannot state (unique names, a range
- * that can be satisfied), and the fallback that turns an unknown field type
- * into a {@see GenericField} instead of a failure.
+ * Builds the one mapper this domain speaks through: the meta-schema of each
+ * document it accepts (a definition, a presentation), the semantic rules a
+ * schema cannot state (unique names, a range that can be satisfied, a usable
+ * catalogue), and the fallback that turns an unknown field type into a
+ * {@see GenericField} instead of a failure.
  *
  * Having it here rather than inside a consumer's constructor means the
  * configuration exists once, is injectable (`forms.definition_mapper` in
@@ -42,6 +47,10 @@ final class FormMapperFactory
             ->withValidator(FormDefinition::class, new UniqueFieldNamesValidator())
             ->withValidator(NumberField::class, new NumberRangeValidator())
             ->withValidator(DateField::class, new DateRangeValidator())
+            ->withSchema(PresentationDocument::class, Schema::fromFile(__DIR__ . '/Presentation/presentation.schema.json'))
+            ->withValidator(PresentationDocument::class, new NamedItemsHoldNothingValidator())
+            ->withValidator(PresentationDocument::class, new UniqueItemNamesValidator())
+            ->withValidator(PresentationDocument::class, new TranslationsValidator())
             ->withVariantFallback(Field::class, GenericField::class);
 
         if ($this->metadataCache !== null) {
