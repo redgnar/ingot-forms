@@ -16,9 +16,8 @@ final readonly class SelectField extends Field
         // A select with no options (or repeated ones) is a broken definition.
         #[Constraints(minItems: 1, uniqueItems: true)]
         public array $options,
-        string $label = '',
         bool $required = false,
     ) {
-        parent::__construct($name, $label, $required);
+        parent::__construct($name, $required);
     }
 }

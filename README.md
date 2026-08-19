@@ -16,6 +16,10 @@ deliberately out of scope for this MVP.
   the form for good.
 - **`expire_date` is required.** Past it, the form answers `410 Gone` everywhere, and
   `bin/console app:forms:purge-expired` (run it from cron) physically deletes the row.
+- **The definition holds no display text.** No item label, no form title: what a question
+  reads like, and in which language, belongs to whatever draws the form. The definition says
+  what is asked (`name`, `type`) and what an answer must satisfy — a client keys its own copy
+  by the item's name.
 - **A checkbox item is a boolean**, and `false` is an answer: `required` means there has to be
   one by confirmation time, while `mustBeChecked` is what a consent needs — published as
   `const: true`, so "you have to agree" is in the contract rather than in the server's head.

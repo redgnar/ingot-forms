@@ -17,7 +17,6 @@ final class NumberFieldTest extends FieldDefinitionTestCase
         return [
             'type' => 'number',
             'name' => 'age',
-            'label' => 'Age',
             'required' => true,
             'min' => 18.0,
             'max' => 120.0,

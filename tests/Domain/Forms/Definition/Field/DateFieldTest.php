@@ -21,7 +21,6 @@ final class DateFieldTest extends FieldDefinitionTestCase
         return [
             'type' => 'date',
             'name' => 'visit',
-            'label' => 'Date of visit',
             'required' => true,
             'min' => '2026-01-01',
             'max' => '2026-12-31',

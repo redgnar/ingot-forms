@@ -26,9 +26,8 @@ abstract readonly class Field
         // attribute here would never be enforced (GenericField even defaults
         // name to '' for payload-only plugin fields).
         public string $name,
-        // No defaults: every variant declares its own (that is what the
-        // engine hydrates) and forwards all three values explicitly.
-        public string $label,
+        // No default: every variant declares its own (that is what the engine
+        // hydrates) and forwards both values explicitly.
         public bool $required,
     ) {}
 }

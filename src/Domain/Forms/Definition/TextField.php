@@ -10,7 +10,6 @@ final readonly class TextField extends Field
 {
     public function __construct(
         string $name,
-        string $label = '',
         bool $required = false,
         // A zero or negative length limit could never be satisfied by any
         // submitted value — reject it in the definition, not at fill time.
@@ -19,6 +18,6 @@ final readonly class TextField extends Field
         #[Constraints(minLength: 1)]
         public ?string $pattern = null,
     ) {
-        parent::__construct($name, $label, $required);
+        parent::__construct($name, $required);
     }
 }

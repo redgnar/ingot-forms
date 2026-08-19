@@ -21,11 +21,10 @@ final readonly class GenericField extends Field
     public function __construct(
         public string $type,
         string $name = '',
-        string $label = '',
         bool $required = false,
         #[Extras]
         public array $extras = [],
     ) {
-        parent::__construct($name, $label, $required);
+        parent::__construct($name, $required);
     }
 }

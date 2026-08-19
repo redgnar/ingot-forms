@@ -10,7 +10,6 @@ final readonly class NumberField extends Field
 {
     public function __construct(
         string $name,
-        string $label = '',
         bool $required = false,
         public ?float $min = null,
         public ?float $max = null,
@@ -21,6 +20,6 @@ final readonly class NumberField extends Field
         #[Constraints(minimum: 0, maximum: 8)]
         public ?int $decimals = null,
     ) {
-        parent::__construct($name, $label, $required);
+        parent::__construct($name, $required);
     }
 }

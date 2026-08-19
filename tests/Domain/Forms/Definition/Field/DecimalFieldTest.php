@@ -18,7 +18,6 @@ final class DecimalFieldTest extends FieldDefinitionTestCase
         return [
             'type' => 'number',
             'name' => 'amount',
-            'label' => 'Amount',
             'required' => true,
             'min' => 0.0,
             'max' => 1000.0,

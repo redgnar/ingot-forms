@@ -59,7 +59,7 @@ final class FormValuesType extends AbstractType
                 default => [RawValueType::class, ['required' => false]],
             };
 
-            $builder->add($field->name, $type, [...$fieldOptions, 'label' => $field->label === '' ? $field->name : $field->label]);
+            $builder->add($field->name, $type, $fieldOptions);
         }
     }
 

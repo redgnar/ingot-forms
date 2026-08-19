@@ -18,7 +18,6 @@ final class ConsentFieldTest extends FieldDefinitionTestCase
         return [
             'type' => 'checkbox',
             'name' => 'terms',
-            'label' => 'I accept the terms',
             'required' => true,
             'mustBeChecked' => true,
         ];

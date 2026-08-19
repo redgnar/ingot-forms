@@ -17,7 +17,6 @@ final class SelectFieldTest extends FieldDefinitionTestCase
         return [
             'type' => 'select',
             'name' => 'country',
-            'label' => 'Country',
             'required' => true,
             'options' => ['pl', 'de', 'fr'],
         ];

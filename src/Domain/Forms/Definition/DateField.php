@@ -17,13 +17,12 @@ final readonly class DateField extends Field
 {
     public function __construct(
         string $name,
-        string $label = '',
         bool $required = false,
         // No length rule here: "ten characters" is not what a bound has to be,
         // "a day that exists" is — and that is one check, in one place.
         public ?string $min = null,
         public ?string $max = null,
     ) {
-        parent::__construct($name, $label, $required);
+        parent::__construct($name, $required);
     }
 }

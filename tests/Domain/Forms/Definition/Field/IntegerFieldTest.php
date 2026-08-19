@@ -19,7 +19,6 @@ final class IntegerFieldTest extends FieldDefinitionTestCase
         return [
             'type' => 'number',
             'name' => 'people',
-            'label' => 'People',
             'required' => true,
             'min' => 1.0,
             'decimals' => 0,

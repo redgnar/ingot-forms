@@ -18,7 +18,6 @@ final class CheckboxFieldTest extends FieldDefinitionTestCase
         return [
             'type' => 'checkbox',
             'name' => 'newsletter',
-            'label' => 'Send me the newsletter',
             'required' => true,
         ];
     }

@@ -17,7 +17,6 @@ final class TextFieldTest extends FieldDefinitionTestCase
         return [
             'type' => 'text',
             'name' => 'email',
-            'label' => 'E-mail',
             'required' => true,
             'maxLength' => 120,
             'pattern' => '^[^@]+@[^@]+$',
@@ -47,6 +46,14 @@ final class TextFieldTest extends FieldDefinitionTestCase
             ['type' => 'text', 'name' => 'email', 'maxLength' => -1],
             '/items/0/maxLength',
             'mapping.exclusive_minimum',
+        ];
+
+        // Display text belongs to whatever draws the form, so a definition
+        // carrying it is a definition talking about the wrong thing.
+        yield 'a label, which is not the definition\'s business' => [
+            ['type' => 'text', 'name' => 'email', 'label' => 'E-mail'],
+            '/items/0/label',
+            'mapping.unexpected_key',
         ];
 
         yield 'an empty pattern is not a rule' => [

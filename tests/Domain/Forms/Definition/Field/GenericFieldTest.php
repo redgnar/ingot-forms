@@ -19,7 +19,6 @@ final class GenericFieldTest extends FieldDefinitionTestCase
         return [
             'type' => 'signature',
             'name' => 'sig',
-            'label' => 'Sign here',
             'required' => true,
             'vendor' => ['pad' => '2.0'],
             'strokeWidth' => 3,

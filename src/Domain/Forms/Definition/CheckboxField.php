@@ -17,10 +17,9 @@ final readonly class CheckboxField extends Field
 {
     public function __construct(
         string $name,
-        string $label = '',
         bool $required = false,
         public bool $mustBeChecked = false,
     ) {
-        parent::__construct($name, $label, $required);
+        parent::__construct($name, $required);
     }
 }
