@@ -92,17 +92,17 @@ a language is the client's job, exactly as picking a widget is.
 is accepted with its widgets unchecked — the bargain a plugin item type gets, and for the same
 reason.
 
-**What the server enforces**: every name exists in the definition and appears once; an item
-that presents a value holds nothing; a widget is one the engine draws for that item, or one it
-can nest with, or one that stands alone; and a carried catalogue names a default locale that is
-complete. Other locales may lag behind — that is how translating goes — and codes nobody uses
+**What the server enforces**: the form is shown whole — every item the definition declares
+appears, exactly once, and a value a client fills in rather than a person is drawn `hidden`,
+which is a decision written down instead of an omission; an item that presents a value holds
+nothing; a widget is one the engine draws for that item, or one it can nest with, or one that
+stands alone; and a carried catalogue names a default locale that is complete. Other locales may lag behind — that is how translating goes — and codes nobody uses
 are fine. Findings carry `presentation.*` codes and pointers into the document as sent
 (`/items/0/items/1/name`).
 
 **What it deliberately is not**: no styling, no conditional visibility (that changes what an
-answer must satisfy, so it belongs to the definition), no completeness rule — a presentation
-may show some of the items, and hiding one changes nothing about what the form accepts — and no
-way to change it afterwards, because the description of a fixed thing has no reason to drift.
+answer must satisfy, so it belongs to the definition), and no way to change it afterwards,
+because the description of a fixed thing has no reason to drift.
 
 ## Requirements
 

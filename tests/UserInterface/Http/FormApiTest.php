@@ -33,7 +33,8 @@ final class FormApiTest extends WebTestCase
         "items": [
             {"widget": "fieldset", "label": "contact.personal", "items": [
                 {"name": "email", "widget": "text", "label": "contact.email"},
-                {"name": "country", "widget": "radio", "label": "contact.country"}
+                {"name": "country", "widget": "radio", "label": "contact.country"},
+                {"name": "age", "widget": "number", "label": "contact.age"}
             ]},
             {"widget": "paragraph", "label": "contact.note"}
         ],
@@ -42,6 +43,7 @@ final class FormApiTest extends WebTestCase
                 "contact.personal": "Personal details",
                 "contact.email": "E-mail",
                 "contact.country": "Country",
+                "contact.age": "Age",
                 "contact.note": "We reply within two days"
             }
         }

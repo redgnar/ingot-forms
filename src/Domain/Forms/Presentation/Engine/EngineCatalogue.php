@@ -29,7 +29,9 @@ final class EngineCatalogue
     /** @var array<string, array<class-string<Field>, list<string>>> */
     private const array CONTROLS = [
         'core-html' => [
-            TextField::class => ['text', 'textarea'],
+            // `hidden` is not a special case: it is a text item drawn where
+            // nobody looks, for a value a client fills in rather than a person.
+            TextField::class => ['text', 'textarea', 'hidden'],
             SelectField::class => ['select', 'radio'],
             NumberField::class => ['number'],
             DateField::class => ['date'],

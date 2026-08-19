@@ -36,12 +36,31 @@ final class PresentationRulesTest extends TestCase
         self::assertTrue($report->isEmpty());
     }
 
-    public function testShowingSomeItemsIsEnough(): void
+    public function testAFormHasToBeShownWhole(): void
     {
         // GIVEN a presentation that leaves most of the form out
-        // WHEN / THEN hiding a field changes nothing about what the form accepts,
-        // so it is not this document's business to be complete
-        self::assertTrue(self::rules()->check(self::definition(), self::presentation([['name' => 'email']]))->isEmpty());
+        $presentation = self::presentation([['name' => 'email']], complete: false);
+
+        // WHEN
+        $report = self::rules()->check(self::definition(), $presentation);
+
+        // THEN each unshown item is named: an item nobody can see is a question
+        // nobody can answer, and a required one makes the form unconfirmable
+        self::assertSame(
+            ['country', 'age', 'visit', 'terms', 'sig'],
+            array_map(static fn($error): mixed => $error->input, $report->errors),
+        );
+        self::assertSame('presentation.item.missing', $report->errors[0]->code);
+        self::assertSame('/items', $report->errors[0]->pointer->toString());
+    }
+
+    public function testSomethingDrawnWhereNobodyLooksStillCounts(): void
+    {
+        // GIVEN a value a client fills in rather than a person
+        $presentation = self::presentation([['name' => 'email', 'widget' => 'hidden']]);
+
+        // WHEN / THEN "not visible" is a decision written down, not an omission
+        self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
     }
 
     public function testAnItemTheFormDoesNotDeclareIsRefused(): void
@@ -248,14 +267,60 @@ final class PresentationRulesTest extends TestCase
     }
 
     /**
+     * A document showing what the test is about, plus every other item the form
+     * declares — a presentation has to be complete, and only the tests about
+     * completeness say otherwise.
+     *
      * @param list<array<string, mixed>> $items
      */
-    private static function presentation(array $items, string $engine = 'core-html'): \App\Domain\Forms\Presentation\PresentationDocument
+    private static function presentation(array $items, string $engine = 'core-html', bool $complete = true): \App\Domain\Forms\Presentation\PresentationDocument
     {
         return new PresentationProcessor(new FormMapperFactory()->create())->parse([
             'engine' => $engine,
-            'items' => $items,
+            'items' => $complete ? [...$items, ...self::everythingElse($items)] : $items,
         ]);
+    }
+
+    /**
+     * @param array<mixed>        $items
+     * @param array<string, true> $shown
+     */
+    private static function namesIn(array $items, array &$shown): void
+    {
+        foreach ($items as $item) {
+            if (!\is_array($item)) {
+                continue;
+            }
+
+            if (isset($item['name']) && \is_string($item['name'])) {
+                $shown[$item['name']] = true;
+            }
+
+            if (isset($item['items']) && \is_array($item['items'])) {
+                self::namesIn($item['items'], $shown);
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function everythingElse(array $items): array
+    {
+        $shown = [];
+        self::namesIn($items, $shown);
+
+        $rest = [];
+
+        foreach (self::declaredNames() as $name) {
+            if (!isset($shown[$name])) {
+                $rest[] = ['name' => $name];
+            }
+        }
+
+        return $rest;
     }
 
     private static function definition(): Definition
@@ -263,6 +328,20 @@ final class PresentationRulesTest extends TestCase
         $processor = new FormDefinitionProcessor(new FormMapperFactory()->create());
 
         return $processor->document($processor->parse(self::definitionDocument()));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function declaredNames(): array
+    {
+        $names = [];
+
+        foreach (self::definition()->structure()->items as $item) {
+            $names[] = $item->name;
+        }
+
+        return $names;
     }
 
     /**

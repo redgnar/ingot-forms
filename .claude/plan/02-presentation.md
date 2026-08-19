@@ -19,13 +19,21 @@ same row, the same lifecycle. A separate service would be a cleaner split of res
 paper, but nobody could then check that a presentation refers to items that exist, and every
 client would have to ask two places to draw one form.
 
-## Why it is mutable, when the definition is not
+## Why it is fixed, like the definition
 
-The definition is immutable because stored values depend on it: changing it would mean data no
-longer fits the contract that accepted it. A presentation has no such hold on anything —
-reordering fields or fixing a typo invalidates nothing. So it is replaced whole, idempotently,
-as often as anybody likes, **including after confirmation**: a confirmed form is still
-displayed, and correcting its wording does not touch what somebody agreed to.
+A form is described once, when it is created, and neither document changes afterwards.
+
+The first version of this plan argued the opposite, and the argument was not wrong on its own
+terms: the definition is immutable because stored values were judged against it, while a
+presentation holds nothing hostage — reordering fields or fixing a code invalidates no answer.
+What it missed is that "nothing forbids it" is not a reason to allow it. Nobody could say what
+they would change a presentation *for*, and a rule that applies to one document and not the
+other has to be explained every time somebody meets it. One rule — describe the form when you
+create it, delete and recreate to change either document — is smaller to hold and smaller to
+build: no endpoint, no transition, no event, no use case.
+
+The cost is stated plainly: a typo in a code cannot be fixed without discarding the form and
+whatever was filled into it. That is exactly what a typo in a definition costs today.
 
 ## The document
 
@@ -100,6 +108,7 @@ Six rules, each of them something that can be stated and pointed at:
 |---|---|
 | `presentation.item.unknown` | a name the form's definition does not declare |
 | `presentation.item.duplicate` | the same item shown twice, anywhere in the tree |
+| `presentation.item.missing` | an item the definition declares and the presentation does not show |
 | `presentation.item.not-a-container` | an item that presents a value and also holds items |
 | `presentation.widget.mismatch` | a widget the engine does not draw — for that item's type, or as something that holds items, or as something standing on its own |
 | `presentation.translation.missing` | a code used but absent from the default locale |
@@ -111,9 +120,12 @@ Incomplete non-default locales are **accepted**: a catalogue that has English an
 Polish is how translation actually progresses, and a client falls back to the default. Extra
 codes nobody uses are accepted too — a shared catalogue may carry more than one form needs.
 
-It does **not** enforce completeness: a presentation may show some of the items and omit the
-rest. Hiding a field changes nothing about what the form accepts, because that is the
-definition's business alone — and pretending otherwise would put validation in two places.
+**Amended after building it**: completeness *is* enforced. The original argument — hiding a
+field changes nothing about what a form accepts — was true and beside the point: an item nobody
+can see is a question nobody can answer, and a required one makes the form impossible to
+confirm, with a `422` on every attempt and nothing in the interface to explain it. So every
+declared item must appear, exactly once, and a value a client fills in rather than a person is
+drawn with the `hidden` widget — a decision written down rather than an omission.
 
 ### Widgets
 
@@ -123,7 +135,7 @@ starts with:
 
 | what is shown | widgets `core-html` draws |
 |---|---|
-| a `text` item | `text`, `textarea` |
+| a `text` item | `text`, `textarea`, `hidden` |
 | a `select` item | `select`, `radio` |
 | a `number` item | `number` |
 | a `date` item | `date` |
@@ -143,13 +155,18 @@ bounded within one month.
 
 | method & path | purpose |
 |---|---|
-| `PUT /api/forms/{id}/presentation` | replace the whole document. `204`; `422` with the report; `404` unknown form; `410` expired; `415` non-JSON body |
-| `GET /api/forms/{id}/presentation` | the document as stored. `200`; `404` when none was ever set (`urn:problem:ingot-forms:presentation-not-set`); `410` expired |
+| `POST /api/forms` | the document arrives here, optional, beside the definition. `201`; `422` with the report when it is not a presentation or does not fit the definition it came with |
+| `GET /api/forms/{id}/presentation` | the document as stored. `200`; `404` when the form was created without one (`urn:problem:ingot-forms:presentation-not-set`); `410` expired |
 
-Deliberately not there: no `DELETE` (a `PUT` replaces; removing presentation entirely is a case
-nobody has), and **the form envelope does not carry it** — `GET /api/forms/{id}` keeps serving
-the definition and the data, and a second copy of the presentation inside it would be a second
-truth. A client drawing a form asks twice, and both answers are cacheable.
+Deliberately not there: nothing that changes a presentation after creation, and **the form
+envelope does not carry it** — `GET /api/forms/{id}` keeps serving the definition and the data,
+and a second copy of the presentation inside it would be a second truth. A client drawing a
+form asks twice, and both answers are cacheable.
+
+Findings about the document are rooted where the client sent it (`/presentation/items/0/name`),
+whether they come from the meta-schema or from the rules that need the definition. The create
+action re-roots the latter, because the form points inside the document and the client sent it
+as one member of a request.
 
 The published contract gains the document's shape as a component; the six semantic rules are
 documented as the error codes they produce, exactly as the definition's rules are today.
@@ -177,24 +194,26 @@ definition takes no schema, no framework and nothing to inject but the engine ca
 `PresentationRules` is a plain domain service. A port whose implementation would never leave
 the domain is ceremony.
 
-`Form` gains one transition, and it is the aggregate's own rule for the same reason values are:
-a presentation is only valid *against this form's definition*.
+`Form` takes the document in its constructor, together with the rules that judge it — the same
+double dispatch a values verdict uses, and for the same reason: whether a presentation fits is
+a question about *this* form's definition.
 
 ```php
-public function present(Presentation $presentation, PresentationValidator $validator, ?\DateTimeImmutable $now = null): void
+public function __construct(FormId $id, Definition $definition, ExpireDate $expireDate, ?Presentation $presentation = null, ?PresentationRules $rules = null, ?\DateTimeImmutable $now = null)
 ```
 
-It records `PresentationChanged`, carrying the document — so the repository writes from what
-happened, like every other transition. It refuses nothing on account of status: `FormLocked`
-does not apply here, which is the point of the mutability argument above.
+So a form that exists is a form whose presentation fits it, and there is no transition to
+record: creation is the only moment this can happen. `fromState()` assigns it without judging —
+what was stored was judged on its way in — and handing over a document without the rules is a
+programming error rather than a quiet acceptance.
 
 `Form::presentation(): ?Presentation` reads it back. The parsing on read follows `Definition`:
 the repository holds the parser and builds a whole value object, or leaves it null when the
 column is empty.
 
-Application: `SetFormPresentation` (transaction, locked read, `present()`, `save()`) and
-`ReadFormPresentation` (`get()`, then the document or `PresentationNotSet`). No new port for
-either — they need what is already declared.
+Application: `CreateForm` takes the presentation beside the definition; `ReadForm` answers with
+the document or `PresentationNotSet`. No new port for either — they need what is already
+declared.
 
 ## Storage
 
@@ -207,15 +226,16 @@ need no changes, and `FormRecord` grows one field. The migration goes through th
 - **Unit** — the document's own rules, one class per rule, plus a `WidgetCompatibilityTest`
   table (item type × widget → accepted or `presentation.widget.mismatch`) that grows with the
   catalogue the same way the item battery does.
-- **Unit** — `FormTest`: presenting records `PresentationChanged`; a presentation referring to
-  an item the definition lacks is refused and nothing is stored; a confirmed form still accepts
-  a new presentation.
+- **Unit** — `FormTest`: a form is created with its presentation and creation is still one
+  event; a presentation naming an item the definition lacks means no form comes into existence;
+  a document handed over without the rules that judge it is a programming error.
 - **Integration** — the round-trip test grows to cover the third document, so a presentation
   that survives save but not read is caught here.
-- **Integration/HTTP** — both endpoints across every documented status, and a compliance
-  scenario per operation + status, as the contract tests demand.
-- **`tests/_requests`** — a `05-presentation.http` walking set → read → replace → the three
-  refusals.
+- **Integration/HTTP** — creation with and without the document, the read endpoint across every
+  documented status, and a compliance scenario per operation + status, as the contract tests
+  demand.
+- **`tests/_requests`** — a `05-presentation.http` walking create → read → each way a document
+  is refused, run against the dev server rather than eyeballed.
 
 ## What comes after this
 
@@ -253,7 +273,10 @@ Each step ended with a green `make ci`.
    whose requests were run against the dev server rather than eyeballed, since nothing tests
    them automatically.
 
-## Reversed after building it: a presentation is set once
+Steps 2 and 4 built a presentation that could be replaced; `70ea64f` took that back, for the
+reason the next section gives. The sections above describe where it landed.
+
+## Reversed after building it (`70ea64f`): a presentation is set once
 
 Shipped, the layer let a presentation be replaced at any time, and the argument for it was that
 it holds no stored answer hostage. Used, that freedom had no purpose: if a definition is fixed
@@ -270,6 +293,14 @@ is the price of one rule instead of two.
 The create body is decoded non-associatively, which the retired `PUT` did for its own document:
 without it `"translations": {"en": {}}` arrives as an empty list and a client gets a puzzling
 `schema.type`. Both processors now take an object or an array.
+
+Two things surfaced only because the `.http` examples were run rather than read. Findings about
+one document were rooted two different ways — `/presentation/translations/en` from the
+meta-schema, `/items/0/name` from the rules that need the definition — and the create action now
+re-roots the latter. And the compliance scenario for an unknown member had been passing on a
+`minProperties` generated from a constraint that went away with the array-typed definition, so
+the published `CreateFormRequest` now says `additionalProperties: false` outright, which is what
+the server has always enforced.
 
 ## What building it changed
 

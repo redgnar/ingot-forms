@@ -29,12 +29,45 @@ final class PresentationRules
 
     public function check(Definition $definition, PresentationDocument $presentation): ErrorReport
     {
-        return ErrorReport::of(...$this->walk(
-            $presentation->items,
-            '/items',
-            $presentation->engine,
-            self::itemsByName($definition),
-        ));
+        $declared = self::itemsByName($definition);
+        $errors = $this->walk($presentation->items, '/items', $presentation->engine, $declared);
+
+        return ErrorReport::of(...$errors, ...self::missing($declared, $presentation));
+    }
+
+    /**
+     * A form describes itself once and completely: an item the definition asks
+     * for and the presentation leaves out is a question nobody can answer, and
+     * if it is required the form can never be confirmed at all. Drawing it where
+     * nobody looks is what a `hidden` widget is for — that is a decision written
+     * down, not an omission.
+     *
+     * @param array<string, Field> $declared
+     *
+     * @return list<MappingError>
+     */
+    private static function missing(array $declared, PresentationDocument $presentation): array
+    {
+        $shown = [];
+
+        foreach ($presentation->shown() as $item) {
+            if ($item->name !== null) {
+                $shown[] = $item->name;
+            }
+        }
+
+        $errors = [];
+
+        foreach (array_diff(array_keys($declared), $shown) as $name) {
+            $errors[] = self::error(
+                '/items',
+                'presentation.item.missing',
+                \sprintf('This form asks for "%s", and the presentation does not show it.', $name),
+                $name,
+            );
+        }
+
+        return $errors;
     }
 
     /**
