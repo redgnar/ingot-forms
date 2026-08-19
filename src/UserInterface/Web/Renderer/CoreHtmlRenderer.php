@@ -116,9 +116,11 @@ final class CoreHtmlRenderer implements FormRenderer
     }
 
     /**
-     * A code is resolved in the language asked for, then in the one the document
-     * falls back to, and otherwise shown as itself — visible and diagnosable,
-     * rather than silently blank.
+     * A code is resolved in the language asked for, then in that language
+     * without its region — a browser asking for `pl_PL` is answered by a
+     * catalogue written for `pl` — then in the one the document falls back to,
+     * and otherwise shown as itself: visible and diagnosable rather than
+     * silently blank.
      *
      * @param array<string, array<string, string>> $translations
      */
@@ -128,8 +130,26 @@ final class CoreHtmlRenderer implements FormRenderer
             return null;
         }
 
-        return $translations[$locale][$code]
-            ?? ($default === null ? $code : ($translations[$default][$code] ?? $code));
+        foreach (self::candidates($locale, $default) as $candidate) {
+            if (isset($translations[$candidate][$code])) {
+                return $translations[$candidate][$code];
+            }
+        }
+
+        return $code;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function candidates(string $locale, ?string $default): array
+    {
+        $language = preg_replace('/[_-].*$/', '', $locale) ?? $locale;
+
+        return array_values(array_unique(array_filter(
+            [$locale, $language, $default],
+            static fn(?string $candidate): bool => $candidate !== null && $candidate !== '',
+        )));
     }
 
     private static function naturalWidget(Field $field): string

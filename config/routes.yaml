@@ -1,3 +1,9 @@
-controllers:
+# One resource per adapter: the API speaks JSON under /api, the web pages draw a
+# form for a person under / — different contracts, so different roots.
+api:
     resource: ../src/UserInterface/Http/Action/
+    type: attribute
+
+web:
+    resource: ../src/UserInterface/Web/Action/
     type: attribute
