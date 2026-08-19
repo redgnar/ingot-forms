@@ -16,6 +16,9 @@ deliberately out of scope for this MVP.
   the form for good.
 - **`expire_date` is required.** Past it, the form answers `410 Gone` everywhere, and
   `bin/console app:forms:purge-expired` (run it from cron) physically deletes the row.
+- **A checkbox item is a boolean**, and `false` is an answer: `required` means there has to be
+  one by confirmation time, while `mustBeChecked` is what a consent needs — published as
+  `const: true`, so "you have to agree" is in the contract rather than in the server's head.
 - **A date item is a calendar day** answered as `YYYY-MM-DD`, optionally confined to a
   period. The period is published in the schema too (`formatMinimum` / `formatMaximum`, the
   keywords ajv-formats uses), so the range is enforced by the same document a client

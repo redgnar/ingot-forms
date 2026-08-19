@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Validation;
 
+use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\NumberField;
@@ -11,6 +12,7 @@ use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\DeriveMode;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\NumberType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
@@ -47,6 +49,10 @@ final class FormValuesType extends AbstractType
                 // published schema, and enforced there; here it is the text it
                 // travels as, so this stage cannot end up stricter.
                 $field instanceof DateField => [TextType::class, self::dateOptions($field, $strict)],
+                // Whether a box may be left undecided, and whether it has to be
+                // ticked, are both said in the published schema and enforced
+                // there; this stage only takes the boolean as it came.
+                $field instanceof CheckboxField => [CheckboxType::class, ['required' => false, 'false_values' => [null]]],
                 // A field type this application does not know: its value is
                 // stored as it came. Confirmation refuses such a form outright,
                 // so only drafts ever reach this branch.

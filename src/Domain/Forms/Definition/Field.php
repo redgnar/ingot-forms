@@ -16,6 +16,7 @@ use Ingot\Attribute\Discriminator;
     'select' => SelectField::class,
     'number' => NumberField::class,
     'date' => DateField::class,
+    'checkbox' => CheckboxField::class,
 ])]
 abstract readonly class Field
 {

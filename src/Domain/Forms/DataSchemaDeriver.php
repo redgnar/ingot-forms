@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Forms;
 
+use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FormDefinition;
@@ -69,6 +70,14 @@ final class DataSchemaDeriver
             }
 
             return $schema;
+        }
+
+        if ($field instanceof CheckboxField) {
+            // A box that must be ticked accepts exactly one value, which is
+            // something a schema can say outright.
+            return $field->mustBeChecked
+                ? ['type' => 'boolean', 'const' => true]
+                : ['type' => 'boolean'];
         }
 
         if ($field instanceof DateField) {
