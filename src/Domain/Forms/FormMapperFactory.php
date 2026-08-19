@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Forms;
 
+use App\Domain\Forms\Definition\DateField;
+use App\Domain\Forms\Definition\DateRangeValidator;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\GenericField;
@@ -39,6 +41,7 @@ final class FormMapperFactory
             ->withSchema(FormDefinition::class, Schema::fromFile(__DIR__ . '/form-definition.schema.json'))
             ->withValidator(FormDefinition::class, new UniqueFieldNamesValidator())
             ->withValidator(NumberField::class, new NumberRangeValidator())
+            ->withValidator(DateField::class, new DateRangeValidator())
             ->withVariantFallback(Field::class, GenericField::class);
 
         if ($this->metadataCache !== null) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Validation;
 
+use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
@@ -42,6 +43,10 @@ final class FormValuesType extends AbstractType
                 $field instanceof TextField => [TextType::class, self::textOptions($field, $strict)],
                 $field instanceof SelectField => [ChoiceType::class, self::selectOptions($field, $strict)],
                 $field instanceof NumberField => [NumberType::class, self::numberOptions($field, $strict)],
+                // What a date is and which period it falls in is said in the
+                // published schema, and enforced there; here it is the text it
+                // travels as, so this stage cannot end up stricter.
+                $field instanceof DateField => [TextType::class, self::dateOptions($field, $strict)],
                 // A field type this application does not know: its value is
                 // stored as it came. Confirmation refuses such a form outright,
                 // so only drafts ever reach this branch.
@@ -85,6 +90,20 @@ final class FormValuesType extends AbstractType
 
         if ($field->pattern !== null) {
             $constraints[] = new Assert\Regex(pattern: '{' . $field->pattern . '}', message: 'This value does not match the expected pattern.');
+        }
+
+        return ['required' => false, 'constraints' => $constraints];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function dateOptions(DateField $field, bool $strict): array
+    {
+        $constraints = [];
+
+        if ($strict && $field->required) {
+            $constraints[] = new Assert\NotBlank(message: 'This field is required.', payload: ['code' => 'form.value.required']);
         }
 
         return ['required' => false, 'constraints' => $constraints];

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Forms;
 
+use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\NumberField;
@@ -65,6 +66,23 @@ final class DataSchemaDeriver
 
             if ($field->pattern !== null) {
                 $schema['pattern'] = $field->pattern;
+            }
+
+            return $schema;
+        }
+
+        if ($field instanceof DateField) {
+            // A day, as text: `format` is what makes it a date rather than any
+            // ten characters, and the two bounds are how a period is said —
+            // standard JSON Schema has no way to bound a string in time.
+            $schema = ['type' => 'string', 'format' => 'date'];
+
+            if ($field->min !== null) {
+                $schema['formatMinimum'] = $field->min;
+            }
+
+            if ($field->max !== null) {
+                $schema['formatMaximum'] = $field->max;
             }
 
             return $schema;

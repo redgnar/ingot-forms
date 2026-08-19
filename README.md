@@ -16,6 +16,11 @@ deliberately out of scope for this MVP.
   the form for good.
 - **`expire_date` is required.** Past it, the form answers `410 Gone` everywhere, and
   `bin/console app:forms:purge-expired` (run it from cron) physically deletes the row.
+- **A date item is a calendar day** answered as `YYYY-MM-DD`, optionally confined to a
+  period. The period is published in the schema too (`formatMinimum` / `formatMaximum`, the
+  keywords ajv-formats uses), so the range is enforced by the same document a client
+  validates against — standard JSON Schema cannot bound a string in time, which is why ingot
+  adds those two keywords.
 - **A number item may bound its precision**: `decimals: 0` means whole numbers and is
   published as JSON Schema's `integer`; `decimals: 2` is money, published as the step every
   value must land on (`multipleOf: 0.01`). Without it, any number goes.

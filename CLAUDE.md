@@ -143,7 +143,10 @@ Rules that follow from it, and that the tooling checks:
   with swagger-php's `#[OA\Property]`, and NelmioApiDocBundle turns routes + DTOs +
   `#[OA\Response]` into the published contract (`make docs`).
 - **ingot owns the form definition** — meta-schema, typed tree, semantic rules — and derives
-  the per-form JSON Schema. It receives decoded structures (`Source::array()`), never JSON
+  the per-form JSON Schema. When a rule cannot be expressed in that schema, the schema is
+  where to fix it: a date range is published and enforced as `formatMinimum` /
+  `formatMaximum` (ingot's own keywords, spelled the way ajv-formats spells them) rather than
+  enforced past the contract in the form stage. It receives decoded structures (`Source::array()`), never JSON
   text. The definition mapper is a service (`FormMapperFactory` → `forms.definition_mapper`);
   never rebuild a mapper inside a class that uses it.
 - **Submitted values pass two gates, cheapest first**: the derived schema (cached per form and
