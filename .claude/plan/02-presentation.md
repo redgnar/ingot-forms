@@ -1,7 +1,8 @@
 # 02 — the presentation layer
 
-**Status: proposed.** Nothing here is implemented. Decisions already taken with the owner are
-marked **(decided)**; everything else is a recommendation open to change before work starts.
+**Status: implemented 2026-08-19**, in the five steps below, each its own commit with a green
+`make ci`. Decisions taken with the owner are marked **(decided)**; where building changed the
+plan, the section says so and why.
 
 Builds on the rule written down in `CLAUDE.md`: *a definition says what is asked, never how it
 looks*. That rule left a hole — display text and widget choice have to live somewhere — and
@@ -235,17 +236,45 @@ dependencies and its own risks — `03-rendering.md`.
 - **Presentations shared between forms.** A form has one definition of its own, so it has one
   presentation of its own; reuse is a templating question, and templates are a decided non-goal.
 
-## Order & acceptance
+## Order & acceptance — as built
 
-Each step ends with a green `make ci`, and nothing is committed without the owner asking.
+Each step ended with a green `make ci`.
 
-1. **The document, alone.** Model, meta-schema, processor, the six rules, unit tests. Nothing
-   in the aggregate yet, so the whole step is provable without a kernel or a database.
-2. **The transition.** `Form::present()`, the `PresentationValidator` port, the
-   `PresentationChanged` event, the two use cases against in-memory fakes.
-3. **Storage.** Column, migration, `FormRecord`, the write applied from the event, the
-   round-trip test extended.
-4. **HTTP.** Request DTO, two actions, the `presentation-not-set` problem, the contract
-   regenerated (`make docs`) and the compliance scenarios.
-5. **Documents.** README's item catalogue gains a presentation section, `CLAUDE.md` gains the
-   rules this settled on, `tests/_requests` gains its examples.
+1. **The document, alone** (`94ade06`). Model, meta-schema, processor, the rules, unit tests —
+   provable without a kernel or a database, as intended.
+2. **The transition** (`38657e7`). `Form::present()`, the `PresentationChanged` event, the two
+   use cases against in-memory fakes.
+3. **Storage** (`2976fcb`). A nullable `presentation` column, its migration, and the write
+   applied from the event — one branch in the repository's `match`, and nothing else moved.
+   The round-trip test now drives all three documents through storage and back.
+4. **HTTP** (`9b196a1`). The request DTO and its denormalizer, both actions, two new problem
+   types, the regenerated contract and a compliance scenario per documented status.
+5. **Documents** (`10116cc`). README, `CLAUDE.md`, and `tests/_requests/05-presentation.http` —
+   whose requests were run against the dev server rather than eyeballed, since nothing tests
+   them automatically.
+
+## What building it changed
+
+- **Sections became a tree.** The first draft grouped items one level deep. A fixed level is a
+  guess that ends up either too shallow or in the way, so an item now either presents a value,
+  holds other items, or stands on its own — and the engine catalogue gained the two vocabularies
+  that go with it (what may nest, what may stand alone).
+- **`titleCode` / `labelCode` / `hintCode` lost the suffix.** Every piece of text in the
+  document is a code; the names do not each repeat it, the class docblocks say it once.
+- **No numeric limits.** No `minItems`, no `maxItems`, no depth cap: a presentation may show
+  nothing, and nesting is bounded in practice by what JSON decoding will take.
+- **The `PresentationValidator` port never happened.** Judging a presentation against a
+  definition needs no schema, no framework and nothing injectable but the engine catalogue, so
+  `PresentationRules` is a plain domain service. A port whose implementation would never leave
+  the domain is ceremony.
+- **The model carries no constraint attributes.** Mutation testing found twenty escapees that
+  were all the same mistake: the attributes repeated what the meta-schema already said. Unlike
+  a definition — which keeps its own constraints so it survives being mapped without a schema —
+  a presentation is only ever read through this domain's mapper, so the schema is the one place
+  its rules live.
+
+## What is left
+
+Rendering a form here, which is `03-rendering.md` and deliberately not part of this: it brings
+a template engine, a locale decision the API dodges, and the question of authentication, which
+this service does not have at all.
