@@ -33,7 +33,7 @@ Content-Type: application/json
 
 ### Read it back: definition, derived status, timestamps.
 # @name getForm
-GET {{host}}/api/forms/01a01724-0b3a-79d9-b0fd-2ac0fde67f7b
+GET {{host}}/api/forms/{{presentedFormId}}
 
 > {%
     client.test("200 with the full envelope", function () {
@@ -44,7 +44,7 @@ GET {{host}}/api/forms/01a01724-0b3a-79d9-b0fd-2ac0fde67f7b
 
 ### Save partial progress. Repeatable, and "required" does not apply yet.
 # @name saveDraft
-PUT {{host}}/api/forms/01a01724-0b3a-79d9-b0fd-2ac0fde67f7b/data
+PUT {{host}}/api/forms/{{presentedFormId}}/data
 Content-Type: application/json
 
 {
@@ -60,7 +60,7 @@ Content-Type: application/json
 
 ### Read the values back.
 # @name getFormData
-GET {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/data
+GET {{host}}/api/forms/{{presentedFormId}}/data
 
 > {%
     client.test("200 with the stored values", function () {
@@ -71,7 +71,7 @@ GET {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/data
 
 ### Confirming an incomplete draft fails: this is where "required" starts to matter.
 # @name confirmIncomplete
-POST {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/confirm
+POST {{host}}/api/forms/{{presentedFormId}}/confirm
 
 > {%
     client.test("422 — the published schema names what is still missing", function () {
@@ -83,7 +83,7 @@ POST {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/confirm
 
 ### Fill everything in. This overwrites the previous draft.
 # @name saveComplete
-PUT {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/data
+PUT {{host}}/api/forms/{{presentedFormId}}/data
 Content-Type: application/json
 
 {
@@ -100,7 +100,7 @@ Content-Type: application/json
 
 ### Confirm: validates the stored data strictly and locks the form for good.
 # @name confirmForm
-POST {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/confirm
+POST {{host}}/api/forms/{{presentedFormId}}/confirm
 
 > {%
     client.test("204 and no body", function () {
@@ -111,7 +111,7 @@ POST {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/confirm
 
 ### Editing a confirmed form is refused — confirmation is final.
 # @name saveAfterConfirm
-PUT {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/data
+PUT {{host}}/api/forms/{{presentedFormId}}/data
 Content-Type: application/json
 
 {
@@ -127,7 +127,7 @@ Content-Type: application/json
 
 ### Confirming twice is refused as well.
 # @name confirmAgain
-POST {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/confirm
+POST {{host}}/api/forms/{{presentedFormId}}/confirm
 
 > {%
     client.test("409 form-already-confirmed", function () {
@@ -138,7 +138,7 @@ POST {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f/confirm
 
 ### Delete it. This is the only way to "change" a definition: delete and create anew.
 # @name deleteForm
-DELETE {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f
+DELETE {{host}}/api/forms/{{presentedFormId}}
 
 > {%
     client.test("204 and it is gone", function () {
@@ -147,7 +147,7 @@ DELETE {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f
 %}
 
 ### Reading a deleted form is a 404.
-GET {{host}}/api/forms/01a01528-3e92-7211-9b0b-4e1e3154080f
+GET {{host}}/api/forms/{{presentedFormId}}
 
 > {%
     client.test("404 form-not-found", function () {
