@@ -142,6 +142,12 @@ Rules that follow from it, and that the tooling checks:
   `request.unexpected_key`); query strings ignore unknown parameters. A DTO documents itself
   with swagger-php's `#[OA\Property]`, and NelmioApiDocBundle turns routes + DTOs +
   `#[OA\Response]` into the published contract (`make docs`).
+- **A definition says what is asked, never how it looks.** There is no presentation in it:
+  `textarea` is one way to show a text item, `radio` one way to show a select, and both are
+  the client's business. So an item type is added when it brings **rules of its own** — a date
+  has a shape and a period, a checkbox has a value that must be exactly `true` — and never
+  when it would only tell a frontend which widget to draw. A type with no rules of its own is
+  a second name for one we already have, and every rule it copies is a rule that can drift.
 - **ingot owns the form definition** — meta-schema, typed tree, semantic rules — and derives
   the per-form JSON Schema. When a rule cannot be expressed in that schema, the schema is
   where to fix it: a date range is published and enforced as `formatMinimum` /
