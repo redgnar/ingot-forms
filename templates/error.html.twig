@@ -1,0 +1,17 @@
+{# The whole error page: a status and a sentence. Anything more would be a second
+   place to keep what the API already says properly. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{{ status }}</title>
+    <style>
+        body { font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 32rem; padding: 4rem 1rem; }
+        h1 { font-size: 3rem; margin: 0; }
+    </style>
+</head>
+<body>
+    <h1>{{ status }}</h1>
+    <p>{{ message }}</p>
+</body>
+</html>

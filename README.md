@@ -136,7 +136,7 @@ All request/response bodies are `application/json`; every error is an RFC 9457
 type-mapping, and semantic errors (it comes straight from ingot's `ErrorReport`).
 
 Requests are mapped into **DTOs by Symfony** before an action runs
-(`#[MapRequestPayload]`, `#[MapQueryString]` over `src/UserInterface/Http/Request/`), and validated by
+(`#[MapRequestPayload]`, `#[MapQueryString]` over `src/UserInterface/Api/Request/`), and validated by
 `symfony/validator`. Every DTO member is non-nullable, so an instance means a complete
 request; what the mapper could not supply is reported at its pointer before validation
 runs. Ids are `Uuid` value objects, request bodies are accepted as `application/json` and nothing
@@ -164,7 +164,7 @@ schema answers in ~60 µs where building and running the form costs ~670 µs, so
 that was never going to fit is rejected without that work.
 
 The definition meets Symfony validation through a custom constraint
-(`src/UserInterface/Http/Request/Constraint/ValidFormDefinition`) on the create DTO; values
+(`src/UserInterface/Api/Request/Constraint/ValidFormDefinition`) on the create DTO; values
 are checked by the aggregate itself — `Form::saveDraft()` and `Form::confirm()` judge them
 through the `ValuesValidator` port before anything is stored, so unfit values are refused by
 the model rather than by whoever remembered to ask. Findings keep their JSON Pointer, and `ViolationReportFactory` turns every violation back into the
@@ -206,7 +206,7 @@ come from a route — the document's identity and the shapes shared across opera
 | `docs/openapi.yaml` | the contract, dumped by `bin/console nelmio:apidoc:dump` |
 | `docs/api.md` | browsable Markdown reference rendered from the same document |
 
-`tests/UserInterface/Http/OpenApiComplianceTest.php` validates **both halves of every exchange** against
+`tests/UserInterface/Api/OpenApiComplianceTest.php` validates **both halves of every exchange** against
 `docs/openapi.yaml`: each request must match the operation it targets (or, when a scenario
 deliberately breaks the contract, must be refused by it), each response must match the
 documented status, and every documented operation + status needs a scenario. So a DTO, the
@@ -223,7 +223,8 @@ src/Domain/Forms/          the model — aggregate, value objects, events, excep
 src/Application/Forms/     use cases (one class, one __invoke) and the ports they need
 src/Infrastructure/        the adapters: the row, its Doctrine mapping and the repository
                            that translates both ways, the schema cache, the validation stages
-src/UserInterface/Http/    one invokable Action per endpoint, request DTOs, problem+json
+src/UserInterface/Api/     one invokable Action per endpoint, request DTOs, problem+json
+src/UserInterface/Web/     the pages that draw a form, and the kits that draw them
 src/UserInterface/Cli/     console commands
 tools/build-docs.php       renders the generated contract into docs/ (dev tooling)
 ```
@@ -282,7 +283,7 @@ handed back to clients verbatim. Status is derived from the row (`data IS NULL` 
 | `make test` / `make test-unit` | full PHPUnit (needs postgres) / fast domain-only loop |
 | `make test-integration` | Http + Infrastructure suite only |
 | `make test-filter FILTER=…` | one test or a group: `make test-filter FILTER=FormApiTest::testSaveDraft` |
-| `make test-file FILE=…` | one file or directory: `make test-file FILE=tests/UserInterface/Http/FormApiTest.php` |
+| `make test-file FILE=…` | one file or directory: `make test-file FILE=tests/UserInterface/Api/FormApiTest.php` |
 | `make schema DEFINITION=…` | print the values schema a definition derives (`MODE=draft` for the relaxed one) |
 | `make check-values DEFINITION=… VALUES=…` | would the API take this JSON? validates it against that schema |
 | `make lint` | `php -l` over every PHP file, in the pinned image |

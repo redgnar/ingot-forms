@@ -8,7 +8,7 @@ use Ingot\Error\ErrorReport;
 
 /**
  * Submitted values the form they belong to refuses. Mapped to problem+json by
- * {@see \App\UserInterface\Http\Problem\ProblemExceptionListener}, like every other report.
+ * {@see \App\UserInterface\Api\Problem\ProblemExceptionListener}, like every other report.
  */
 final class ValuesNotValid extends \RuntimeException
 {

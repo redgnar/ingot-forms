@@ -86,8 +86,10 @@ src/Infrastructure/        the adapters filling those ports
     Cache/                 CachedDataSchemaProvider
     Validation/            the schema gate, the Symfony form and the staged validator
 src/UserInterface/
-    Http/Action/           one invokable class per endpoint, suffixed Action
-    Http/Request|Problem/  request DTOs, problem+json mapping
+    Api/Action/            one invokable class per endpoint, suffixed Action
+    Api/Request|Problem/   request DTOs, problem+json mapping
+    Web/                   the pages that draw a form: an action, a renderer per
+                           engine, and the templates each draws with
     Cli/                   console commands
 ```
 
@@ -146,7 +148,7 @@ Rules that follow from it, and that the tooling checks:
   problems carry `errors: [{pointer, code, message, input?}]` mapped 1:1 from ingot's
   `ErrorReport` (`ProblemExceptionListener` is the single mapping point).
 - **Requests arrive as DTOs**: actions take `#[MapRequestPayload]` / `#[MapQueryString]`
-  arguments from `src/UserInterface/Http/Request/`, validated by `symfony/validator` — never
+  arguments from `src/UserInterface/Api/Request/`, validated by `symfony/validator` — never
   read `Request` directly, never hand-roll envelope validation. Every DTO member is
   non-nullable, so an instance means a complete request. Bodies are JSON only
   (`acceptFormat: 'json'` → 415 otherwise) and closed (`ALLOW_EXTRA_ATTRIBUTES => false` →

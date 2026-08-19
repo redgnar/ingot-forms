@@ -1,9 +1,12 @@
-# One resource per adapter: the API speaks JSON under /api, the web pages draw a
-# form for a person under / — different contracts, so different roots.
+# One resource per adapter, and they answer failures differently: everything
+# under /api speaks JSON and reports problems as RFC 9457 documents, while a page
+# for a person answers with a page. `_errors` is how each side says which.
 api:
-    resource: ../src/UserInterface/Http/Action/
+    resource: ../src/UserInterface/Api/Action/
     type: attribute
 
 web:
     resource: ../src/UserInterface/Web/Action/
     type: attribute
+    defaults:
+        _errors: html

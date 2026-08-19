@@ -23,11 +23,11 @@ services:
             - '../src/Domain/Forms/Presentation/Rule/'
             - '../src/Domain/Forms/{Form,FormStatus,DeriveMode}.php'
             - '../src/Infrastructure/Persistence/FormRecord.php'
-            - '../src/UserInterface/Http/Problem/ProblemException.php'
+            - '../src/UserInterface/Api/Problem/ProblemException.php'
             - '../src/UserInterface/Web/Renderer/RenderedForm.php'
             # request DTOs and the attributes/constraints describing them
-            - '../src/UserInterface/Http/Request/{CreateFormRequest,DataSchemaQuery,SaveFormDataRequest}.php'
-            - '../src/UserInterface/Http/Request/Constraint/{ValidFormDefinition,ViolationPointer}.php'
+            - '../src/UserInterface/Api/Request/{CreateFormRequest,DataSchemaQuery,SaveFormDataRequest}.php'
+            - '../src/UserInterface/Api/Request/Constraint/{ValidFormDefinition,ViolationPointer}.php'
 
     # The definition mapper is configuration, not a consumer's private detail:
     # one named service, built by a domain factory, injected where it is needed.

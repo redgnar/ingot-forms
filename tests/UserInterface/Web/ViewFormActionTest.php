@@ -116,10 +116,11 @@ final class ViewFormActionTest extends WebTestCase
         // GIVEN a form created without a presentation
         $id = $this->plant(withPresentation: false);
 
-        // WHEN / THEN
+        // WHEN / THEN it says what is missing, as a page rather than a document
         $this->client->request('GET', \sprintf('/forms/%s', $id));
 
         self::assertResponseStatusCodeSame(404);
+        self::assertStringContainsString('how to show this form', (string) $this->client->getResponse()->getContent());
     }
 
     public function testAPresentationForAKitNobodyHereDrawsIsAConflictNotABlankPage(): void
@@ -130,11 +131,12 @@ final class ViewFormActionTest extends WebTestCase
         // WHEN
         $this->client->request('GET', \sprintf('/forms/%s', $id));
 
-        // THEN the document is fine; this deployment simply cannot draw it
+        // THEN the document is fine; this deployment simply cannot draw it — and
+        // it says so as a page, because a browser is not a client of the API's
+        // problem+json contract
         self::assertResponseStatusCodeSame(409);
-        $body = json_decode((string) $this->client->getResponse()->getContent(), true, flags: \JSON_THROW_ON_ERROR);
-        self::assertIsArray($body);
-        self::assertSame('urn:problem:ingot-forms:presentation-engine-unsupported', $body['type']);
+        self::assertResponseHeaderSame('Content-Type', 'text/html; charset=UTF-8');
+        self::assertStringContainsString('someones-vue-kit', (string) $this->client->getResponse()->getContent());
     }
 
     public function testAnUnknownFormIsNotFoundAndAnExpiredOneIsGone(): void
@@ -142,9 +144,11 @@ final class ViewFormActionTest extends WebTestCase
         // GIVEN / WHEN / THEN
         $this->client->request('GET', \sprintf('/forms/%s', Uuid::v7()->toRfc4122()));
         self::assertResponseStatusCodeSame(404);
+        self::assertResponseHeaderSame('Content-Type', 'text/html; charset=UTF-8');
 
         $this->client->request('GET', \sprintf('/forms/%s', $this->plant(expired: true)));
         self::assertResponseStatusCodeSame(410);
+        self::assertStringContainsString('expired', (string) $this->client->getResponse()->getContent());
     }
 
     private function plant(bool $withPresentation = true, string $engine = 'core-html', bool $expired = false): string

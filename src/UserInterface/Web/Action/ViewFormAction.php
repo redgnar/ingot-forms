@@ -7,11 +7,11 @@ namespace App\UserInterface\Web\Action;
 use App\Application\Forms\UseCase\ReadForm;
 use App\Domain\Forms\Exception\PresentationNotSet;
 use App\Domain\Forms\ValueObject\FormId;
-use App\UserInterface\Http\Problem\ProblemException;
 use App\UserInterface\Web\Renderer\RenderedForm;
 use App\UserInterface\Web\Renderer\Renderers;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Requirement\Requirement;
 use Symfony\Component\Uid\Uuid;
@@ -44,12 +44,7 @@ final class ViewFormAction
         $presentation = $form->presentation() ?? throw new PresentationNotSet(FormId::of($id));
         $engine = $presentation->structure()->engine;
         $renderer = $this->renderers->find($engine)
-            ?? throw new ProblemException(
-                409,
-                'presentation-engine-unsupported',
-                'This deployment cannot draw that presentation.',
-                \sprintf('The presentation names engine "%s", which nothing here renders.', $engine),
-            );
+            ?? throw new ConflictHttpException(\sprintf('Nothing here draws presentations written for "%s".', $engine));
 
         // The locale is whatever the framework negotiated: `_locale` from the
         // URL when it is there, Accept-Language otherwise, and the configured

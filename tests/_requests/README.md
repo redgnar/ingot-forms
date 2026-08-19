@@ -40,5 +40,5 @@ after you wait.
 - The ids captured with `client.global.set(...)` live in PhpStorm's global variables, so
   they survive between files while the IDE is open.
 - The authoritative contract is `docs/openapi.yaml` (generated — see `make docs`). If a
-  response here surprises you, that document and `tests/UserInterface/Http/OpenApiComplianceTest.php`
+  response here surprises you, that document and `tests/UserInterface/Api/OpenApiComplianceTest.php`
   are the two places that define the truth.
