@@ -153,6 +153,14 @@ Rules that follow from it, and that the tooling checks:
   `request.unexpected_key`); query strings ignore unknown parameters. A DTO documents itself
   with swagger-php's `#[OA\Property]`, and NelmioApiDocBundle turns routes + DTOs +
   `#[OA\Response]` into the published contract (`make docs`).
+- **How a form is shown is a second document, not a corner of the first.** A presentation
+  hangs off the same form, names its items, and is replaced whole at any point in the form's
+  life — confirmed included, because it holds no answer hostage; that difference is the whole
+  reason a definition is immutable and this is not. It is one recursive shape (an item presents
+  a value, or holds items, or stands alone — no fixed levels), its text is translation codes
+  with an optional catalogue, and the widget vocabulary belongs to the engine the document
+  names. `Form::present()` judges it against the form's own definition, exactly as the values
+  are judged, and the repository writes it from `PresentationChanged`.
 - **A definition says what is asked, never how it looks.** There is no presentation in it:
   `textarea` is one way to show a text item, `radio` one way to show a select, and both are
   the client's business. So an item type is added when it brings **rules of its own** — a date

@@ -24,6 +24,7 @@ These are **not** part of the PHPUnit suites (`make test` only looks at `tests/D
 | `02-schema.http` | the derived values schema, strict and draft, plus an unknown mode |
 | `03-validation-errors.http` | 400, 415 and the whole 422 catalogue: envelope (`request.*`) and values (`form.value.*`) |
 | `04-state-and-expiry.http` | 404 / 409 conflicts, and 410 once a form's expire date passes |
+| `05-presentation.http` | how a form is shown: set it, read it back, and every way a document can be refused |
 
 `04-state-and-expiry.http` is the one file to run by hand rather than in one go: it
 creates a form that expires in five seconds, so the last requests only answer `410`

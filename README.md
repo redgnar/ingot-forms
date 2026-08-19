@@ -52,6 +52,56 @@ Three of those say something worth spelling out:
 - **`mustBeChecked` is not `required`.** For a box, `false` is an answer, so `required` means
   "decide"; a consent means "agree", and that is published as `const: true`.
 
+## Presentation
+
+A definition says what is asked; **how a form is shown is a second document**, attached to the
+same form and referenced by the same item names. It is replaced whole with `PUT`, as often as
+anybody likes — including after confirmation, because reordering fields or fixing a code holds
+no stored answer hostage. That is exactly why the definition is immutable and this is not.
+
+```json
+{
+  "engine": "core-html",
+  "defaultLocale": "en",
+  "items": [
+    { "widget": "fieldset", "label": "contact.personal", "items": [
+      { "name": "email", "widget": "text", "label": "contact.email", "hint": "contact.email.hint" }
+    ]},
+    { "name": "terms", "widget": "checkbox", "label": "contact.terms" }
+  ],
+  "translations": {
+    "en": { "contact.personal": "Personal details", "contact.email": "E-mail", "contact.email.hint": "We only use it to reply", "contact.terms": "I accept the terms" }
+  }
+}
+```
+
+**One recursive shape, no fixed levels.** An item either presents a value (it has a `name` the
+definition declares, and holds nothing), or holds other items (a container), or stands on its
+own (a decoration). Sections were the first draft: a fixed level of grouping is a guess that
+ends up either too shallow or in the way.
+
+**Text is codes, never sentences.** What a code reads like, and in which language, is resolved
+from a catalogue — the one carried in the document, or the client's own. The server never
+resolves a locale and never reads `Accept-Language`: it serves the document whole, and picking
+a language is the client's job, exactly as picking a widget is.
+
+**The engine comes first** because a widget vocabulary is not universal. `core-html` draws
+`text`/`textarea`, `select`/`radio`, `number`, `date`, `checkbox`/`switch`, nests with
+`fieldset` and decorates with `heading`/`paragraph`. An engine this application does not know
+is accepted with its widgets unchecked — the bargain a plugin item type gets, and for the same
+reason.
+
+**What the server enforces**: every name exists in the definition and appears once; an item
+that presents a value holds nothing; a widget is one the engine draws for that item, or one it
+can nest with, or one that stands alone; and a carried catalogue names a default locale that is
+complete. Other locales may lag behind — that is how translating goes — and codes nobody uses
+are fine. Findings carry `presentation.*` codes and pointers into the document as sent
+(`/items/0/items/1/name`).
+
+**What it deliberately is not**: no styling, no conditional visibility (that changes what an
+answer must satisfy, so it belongs to the definition), no completeness rule — a presentation
+may show some of the items, and hiding one changes nothing about what the form accepts.
+
 ## Requirements
 
 - Docker (all tools run inside the pinned `php:8.4-cli-alpine` image — the host PHP is never used)
@@ -125,6 +175,8 @@ contract clients validate against cannot drift from what the server enforces.
 | `GET /api/forms/{id}` | Full envelope: definition, status, data, timestamps. |
 | `DELETE /api/forms/{id}` | `204`. The "definition changed" path is delete + recreate. |
 | `GET /api/forms/{id}/schema` | Derived JSON Schema of the form's *values* (`application/schema+json`). `?mode=draft` returns the relaxed variant. |
+| `PUT /api/forms/{id}/presentation` | Replace how the form is shown. `204`; `422` with the report when it does not fit the form. |
+| `GET /api/forms/{id}/presentation` | The presentation document as it was set (`404 presentation-not-set` when none). |
 | `PUT /api/forms/{id}/data` | Save a draft (repeatable). `204`, `409 form-locked` once confirmed. |
 | `POST /api/forms/{id}/confirm` | Strictly validate the stored data and lock the form. `204`; `409` when already confirmed or empty, `422` with the report when invalid. |
 | `GET /api/forms/{id}/data` | The current values (`404 form-data-empty` when none). |
