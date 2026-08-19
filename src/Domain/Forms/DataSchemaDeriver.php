@@ -75,7 +75,13 @@ final class DataSchemaDeriver
         }
 
         if ($field instanceof NumberField) {
-            $schema = ['type' => 'number'];
+            // A whole number is its own JSON type; anything finer is said as
+            // the step the value must land on.
+            $schema = $field->decimals === 0 ? ['type' => 'integer'] : ['type' => 'number'];
+
+            if ($field->decimals !== null && $field->decimals > 0) {
+                $schema['multipleOf'] = 10 ** -$field->decimals;
+            }
 
             if ($field->min !== null) {
                 $schema['minimum'] = $field->min;

@@ -16,6 +16,9 @@ deliberately out of scope for this MVP.
   the form for good.
 - **`expire_date` is required.** Past it, the form answers `410 Gone` everywhere, and
   `bin/console app:forms:purge-expired` (run it from cron) physically deletes the row.
+- **A number item may bound its precision**: `decimals: 0` means whole numbers and is
+  published as JSON Schema's `integer`; `decimals: 2` is money, published as the step every
+  value must land on (`multipleOf: 0.01`). Without it, any number goes.
 - Definitions may contain **unknown (plugin) field types** — they round-trip losslessly
   (`GenericField` + `#[Extras]`), can be drafted, but a form containing one can never be
   confirmed: the server refuses to vouch for a value contract it does not know.
@@ -67,7 +70,7 @@ derives the per-form JSON Schema published to clients. **Submitted values pass t
 1. the **derived schema**, cached per form and mode — the same document
    `GET /api/forms/{id}/schema` serves, so the server can never be looser than its own
    published contract. Findings carry `schema.*` codes.
-2. the **Symfony form** built from that definition — text, select and number fields become
+2. the **Symfony form** built from that definition — text, select and number items become
    the matching form types with their constraints, unknown (plugin) field types pass
    through untouched, and richer rules have somewhere to live as the field catalogue grows.
    Findings carry `form.value.*` codes.

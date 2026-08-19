@@ -134,6 +134,6 @@ final class FormValuesType extends AbstractType
             $constraints[] = new Assert\Range(max: $field->max, maxMessage: 'This value must be {{ limit }} or less.');
         }
 
-        return ['required' => false, 'html5' => false, 'scale' => null, 'constraints' => $constraints];
+        return ['required' => false, 'html5' => false, 'scale' => $field->decimals, 'constraints' => $constraints];
     }
 }
