@@ -6,7 +6,7 @@
 RUN   := docker compose run --rm --no-deps php
 RUNDB := docker compose run --rm php
 
-.PHONY: image install update test test-unit test-integration test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
+.PHONY: image install update require test test-unit test-integration test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
 
 image: ## Build the dev/test image
 	docker compose build
@@ -16,6 +16,10 @@ install: image
 
 update: image
 	$(RUN) composer update
+
+require: ## Add a dependency: make require PACKAGES="symfony/twig-bundle" [DEV=1]
+	@[ -n "$(PACKAGES)" ] || { echo 'Set PACKAGES, e.g. make require PACKAGES="symfony/twig-bundle"'; exit 1; }
+	$(RUN) composer require $(if $(DEV),--dev,) $(PACKAGES)
 
 migrate: ## Apply migrations to the dev database
 	$(RUNDB) bin/console doctrine:migrations:migrate --no-interaction

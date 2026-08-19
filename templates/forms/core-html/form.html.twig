@@ -1,0 +1,137 @@
+{# The page a person fills a form in. It decides nothing: the renderer hands it a
+   resolved tree — what to draw, with what text, holding which value — and this
+   turns that into controls. #}
+<!DOCTYPE html>
+<html lang="{{ locale }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Form {{ id }}</title>
+    <style>
+        body { font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 42rem; padding: 2rem 1rem; }
+        fieldset { border: 1px solid #ccc; border-radius: .25rem; margin: 0 0 1.5rem; padding: 1rem 1.25rem; }
+        legend { font-weight: 600; padding: 0 .25rem; }
+        .item { margin: 0 0 1rem; }
+        .item > label { display: block; font-weight: 600; margin-bottom: .25rem; }
+        .hint { color: #555; font-size: .875rem; }
+        .error { color: #b00020; font-size: .875rem; margin-top: .25rem; }
+        input[type=text], input[type=date], input[type=number], select, textarea { box-sizing: border-box; padding: .375rem .5rem; width: 100%; }
+        .choice label { display: block; font-weight: 400; }
+        .actions { display: flex; gap: .75rem; margin-top: 1.5rem; }
+        .notice { background: #eef; border-radius: .25rem; margin-bottom: 1.5rem; padding: .75rem 1rem; }
+    </style>
+</head>
+<body data-form="{{ id }}" data-read-only="{{ readOnly ? 'yes' : 'no' }}">
+{% if readOnly %}
+    <p class="notice">This form is confirmed. It can be read, not changed.</p>
+{% endif %}
+
+<form id="form">
+    {{ _self.nodes(nodes, readOnly) }}
+
+    {% if not readOnly %}
+        <div class="actions">
+            <button type="button" id="save">Save draft</button>
+            <button type="button" id="confirm">Confirm</button>
+        </div>
+        <p class="error" id="form-error" hidden></p>
+    {% endif %}
+</form>
+
+<script type="module" src="/js/core-html-form.js"></script>
+</body>
+</html>
+
+{% macro nodes(nodes, readOnly) %}
+    {% for node in nodes %}
+        {% if node.kind == 'container' %}
+            <fieldset>
+                {% if node.label %}<legend>{{ node.label }}</legend>{% endif %}
+                {{ _self.nodes(node.children, readOnly) }}
+            </fieldset>
+        {% elseif node.kind == 'decoration' %}
+            {% if node.widget == 'heading' %}
+                <h2>{{ node.label }}</h2>
+            {% else %}
+                <p>{{ node.label }}</p>
+            {% endif %}
+        {% else %}
+            {{ _self.item(node, readOnly) }}
+        {% endif %}
+    {% endfor %}
+{% endmacro %}
+
+{% macro item(node, readOnly) %}
+    {# One map of attributes per control, rendered in one place: quoting and
+       escaping happen once, instead of in every branch below. #}
+    {% set common = {
+        'id': 'item-' ~ node.name,
+        'name': node.name,
+        'data-name': node.name,
+        'data-type': node.type,
+        'disabled': readOnly,
+    } %}
+    <div class="item" data-item="{{ node.name }}"{% if node.widget == 'hidden' %} hidden{% endif %}>
+        {% if node.widget != 'hidden' %}
+            <label for="item-{{ node.name }}">{{ node.label }}{% if node.required %} *{% endif %}</label>
+            {% if node.hint %}<p class="hint">{{ node.hint }}</p>{% endif %}
+        {% endif %}
+
+        {% if node.widget == 'textarea' %}
+            <textarea{{ _self.attributes(common|merge({'rows': 4, 'maxlength': node.maxLength}))|raw }}>{{ node.value }}</textarea>
+        {% elseif node.widget == 'select' %}
+            <select{{ _self.attributes(common)|raw }}>
+                <option value=""></option>
+                {% for option in node.options %}
+                    <option value="{{ option }}"{% if node.value == option %} selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+            </select>
+        {% elseif node.widget == 'radio' %}
+            <div class="choice" data-name="{{ node.name }}" data-type="{{ node.type }}">
+                {% for option in node.options %}
+                    <label>
+                        <input{{ _self.attributes({
+                            'type': 'radio',
+                            'name': node.name,
+                            'value': option,
+                            'checked': node.value == option,
+                            'disabled': readOnly,
+                        })|raw }}>
+                        {{ option }}
+                    </label>
+                {% endfor %}
+            </div>
+        {% elseif node.widget == 'checkbox' or node.widget == 'switch' %}
+            <input{{ _self.attributes(common|merge({'type': 'checkbox', 'checked': node.value ? true : false}))|raw }}>
+        {% elseif node.widget == 'number' %}
+            <input{{ _self.attributes(common|merge({
+                'type': 'number',
+                'min': node.min,
+                'max': node.max,
+                'step': node.step,
+                'value': node.value,
+            }))|raw }}>
+        {% elseif node.widget == 'date' %}
+            <input{{ _self.attributes(common|merge({'type': 'date', 'min': node.min, 'max': node.max, 'value': node.value}))|raw }}>
+        {% else %}
+            <input{{ _self.attributes(common|merge({
+                'type': node.widget == 'hidden' ? 'hidden' : 'text',
+                'maxlength': node.maxLength,
+                'pattern': node.pattern,
+                'value': node.value,
+            }))|raw }}>
+        {% endif %}
+
+        <p class="error" data-error="{{ node.name }}" hidden></p>
+    </div>
+{% endmacro %}
+
+{# `true` writes the bare attribute, `false` and null write nothing, everything
+   else is escaped as an attribute value — the one place quoting happens. #}
+{% macro attributes(attrs) %}
+    {%- for name, value in attrs -%}
+        {%- if value is same as(true) %} {{ name }}
+        {%- elseif value is not same as(false) and value is not null %} {{ name }}="{{ value|e('html_attr') }}"
+        {%- endif -%}
+    {%- endfor -%}
+{% endmacro %}

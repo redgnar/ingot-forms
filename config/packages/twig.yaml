@@ -1,0 +1,5 @@
+# Templates exist for one reason: drawing a form for a person to look at. The API
+# never renders anything, and nothing here is available to it.
+twig:
+    file_name_pattern: '*.twig'
+    strict_variables: true

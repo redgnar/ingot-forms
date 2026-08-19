@@ -9,6 +9,10 @@ services:
         App\Domain\Forms\Presentation\Engine\PresentationEngine:
             tags: ['app.presentation_engine']
 
+        # A kit that can actually draw one announces itself the same way.
+        App\UserInterface\Web\Renderer\FormRenderer:
+            tags: ['app.form_renderer']
+
     App\:
         resource: '../src/'
         exclude:
@@ -20,6 +24,7 @@ services:
             - '../src/Domain/Forms/{Form,FormStatus,DeriveMode}.php'
             - '../src/Infrastructure/Persistence/FormRecord.php'
             - '../src/UserInterface/Http/Problem/ProblemException.php'
+            - '../src/UserInterface/Web/Renderer/RenderedForm.php'
             # request DTOs and the attributes/constraints describing them
             - '../src/UserInterface/Http/Request/{CreateFormRequest,DataSchemaQuery,SaveFormDataRequest}.php'
             - '../src/UserInterface/Http/Request/Constraint/{ValidFormDefinition,ViolationPointer}.php'
@@ -45,6 +50,10 @@ services:
     App\Domain\Forms\Presentation\Engine\Engines:
         arguments:
             $engines: !tagged_iterator app.presentation_engine
+
+    App\UserInterface\Web\Renderer\Renderers:
+        arguments:
+            $renderers: !tagged_iterator app.form_renderer
 
     # Ports, and the adapters that fill them. Nothing above the application
     # layer names an implementation.
