@@ -5,7 +5,7 @@ files. They are documentation you can execute: each request carries `client.test
 assertions, so a whole file either passes or points at what changed.
 
 These are **not** part of the PHPUnit suites (`make test` only looks at `tests/Domain`,
-`tests/Infrastructure` and `tests/Http`) — they talk to a running service over HTTP.
+`tests/Infrastructure` and `tests/UserInterface`) — they talk to a running service over HTTP.
 
 ## Running them
 
@@ -39,5 +39,5 @@ after you wait.
 - The ids captured with `client.global.set(...)` live in PhpStorm's global variables, so
   they survive between files while the IDE is open.
 - The authoritative contract is `docs/openapi.yaml` (generated — see `make docs`). If a
-  response here surprises you, that document and `tests/Http/OpenApiComplianceTest.php`
+  response here surprises you, that document and `tests/UserInterface/Http/OpenApiComplianceTest.php`
   are the two places that define the truth.

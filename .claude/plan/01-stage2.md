@@ -3,6 +3,10 @@
 **Status: implemented 2026-08-17** (as-built deltas at the end). Builds on `00-mvp.md`.
 Each step ended with a green `make ci`.
 
+**This is a record, in order, of what each step changed and why** — paths and names are those
+of the time, and the sections further down say where they moved. For what the code does now,
+read `README.md` and `CLAUDE.md`.
+
 ## 1. CI pipeline (GitHub Actions)
 
 `.github/workflows/ci.yml` running **exactly what developers run**: the Makefile targets

@@ -21,20 +21,36 @@ different kind of problem, and the shape it would take if it arrives.
   reads like, and in which language, belongs to whatever draws the form. The definition says
   what is asked (`name`, `type`) and what an answer must satisfy — a client keys its own copy
   by the item's name.
-- **A checkbox item is a boolean**, and `false` is an answer: `required` means there has to be
-  one by confirmation time, while `mustBeChecked` is what a consent needs — published as
-  `const: true`, so "you have to agree" is in the contract rather than in the server's head.
-- **A date item is a calendar day** answered as `YYYY-MM-DD`, optionally confined to a
-  period. The period is published in the schema too (`formatMinimum` / `formatMaximum`, the
-  keywords ajv-formats uses), so the range is enforced by the same document a client
-  validates against — standard JSON Schema cannot bound a string in time, which is why ingot
-  adds those two keywords.
-- **A number item may bound its precision**: `decimals: 0` means whole numbers and is
-  published as JSON Schema's `integer`; `decimals: 2` is money, published as the step every
-  value must land on (`multipleOf: 0.01`). Without it, any number goes.
-- Definitions may contain **unknown (plugin) field types** — they round-trip losslessly
+- Definitions may contain **unknown (plugin) item types** — they round-trip losslessly
   (`GenericField` + `#[Extras]`), can be drafted, but a form containing one can never be
   confirmed: the server refuses to vouch for a value contract it does not know.
+
+## Item catalogue
+
+Every item declares a `name` and may declare `required` (which only bites at confirmation).
+An item type exists here because it brings rules of its own — never to tell a frontend which
+widget to draw.
+
+| `type` | value on the wire | its own options |
+|---|---|---|
+| `text` | JSON string (non-empty when required) | `maxLength`, `pattern` |
+| `select` | one of the declared options | `options` — at least one, no repeats |
+| `number` | JSON number | `min`, `max`, `decimals` |
+| `date` | `YYYY-MM-DD`, a day that exists | `min`, `max` — calendar dates, `min` no later than `max` |
+| `checkbox` | JSON boolean | `mustBeChecked` |
+| anything else | whatever it came as | the plugin's own keys, kept in `extras` |
+
+Three of those say something worth spelling out:
+
+- **`decimals` bounds precision.** `0` means whole numbers and is published as JSON Schema's
+  `integer`; `2` is money, published as the step every value must land on (`multipleOf: 0.01`).
+  Without it, any number goes.
+- **A date range is published, not just enforced.** `formatMinimum` / `formatMaximum` are the
+  keywords ajv-formats uses, and ingot implements them, because standard JSON Schema cannot
+  bound a string in time — so the range is checked against the same document a client
+  validates against, not somewhere behind it.
+- **`mustBeChecked` is not `required`.** For a box, `false` is an answer, so `required` means
+  "decide"; a consent means "agree", and that is published as `const: true`.
 
 ## Requirements
 
@@ -83,10 +99,12 @@ derives the per-form JSON Schema published to clients. **Submitted values pass t
 1. the **derived schema**, cached per form and mode — the same document
    `GET /api/forms/{id}/schema` serves, so the server can never be looser than its own
    published contract. Findings carry `schema.*` codes.
-2. the **Symfony form** built from that definition — text, select and number items become
-   the matching form types with their constraints, unknown (plugin) field types pass
-   through untouched, and richer rules have somewhere to live as the field catalogue grows.
-   Findings carry `form.value.*` codes.
+2. the **Symfony form** built from that definition — every item type becomes the matching
+   form type, unknown (plugin) types pass through untouched, and rules a schema cannot state
+   have somewhere to live as the catalogue grows. Findings carry `form.value.*` codes. Today
+   the schema says everything the catalogue can say, so this stage rarely speaks; the battery
+   in `tests/Infrastructure/Validation/Field/` proves it never refuses what the schema
+   accepts.
 
 Values refused by the schema never reach the form: on this project's example definition the
 schema answers in ~60 µs where building and running the form costs ~670 µs, so a payload
@@ -134,7 +152,7 @@ come from a route — the document's identity and the shapes shared across opera
 | `docs/openapi.yaml` | the contract, dumped by `bin/console nelmio:apidoc:dump` |
 | `docs/api.md` | browsable Markdown reference rendered from the same document |
 
-`tests/Http/OpenApiComplianceTest.php` validates **both halves of every exchange** against
+`tests/UserInterface/Http/OpenApiComplianceTest.php` validates **both halves of every exchange** against
 `docs/openapi.yaml`: each request must match the operation it targets (or, when a scenario
 deliberately breaks the contract, must be refused by it), each response must match the
 documented status, and every documented operation + status needs a scenario. So a DTO, the
@@ -210,7 +228,7 @@ handed back to clients verbatim. Status is derived from the row (`data IS NULL` 
 | `make test` / `make test-unit` | full PHPUnit (needs postgres) / fast domain-only loop |
 | `make test-integration` | Http + Infrastructure suite only |
 | `make test-filter FILTER=…` | one test or a group: `make test-filter FILTER=FormApiTest::testSaveDraft` |
-| `make test-file FILE=…` | one file or directory: `make test-file FILE=tests/Http/FormApiTest.php` |
+| `make test-file FILE=…` | one file or directory: `make test-file FILE=tests/UserInterface/Http/FormApiTest.php` |
 | `make schema DEFINITION=…` | print the values schema a definition derives (`MODE=draft` for the relaxed one) |
 | `make check-values DEFINITION=… VALUES=…` | would the API take this JSON? validates it against that schema |
 | `make lint` | `php -l` over every PHP file, in the pinned image |

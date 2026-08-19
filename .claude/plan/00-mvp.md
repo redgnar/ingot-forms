@@ -3,6 +3,12 @@
 **Status: implemented 2026-08-17.** This is the approved implementation plan, annotated with
 as-built deltas at the end.
 
+**Read this for the decisions and their reasons, not for what the code looks like now.** The
+current architecture is described in `README.md` and `CLAUDE.md`; since this was written the
+layout moved to four layers, storage moved from DBAL with `jsonb` to Doctrine ORM with
+portable types and a persistence model separate from the aggregate, and the definition lost
+its `title` and its per-item `label`. `01-stage2.md` records those steps in order.
+
 ## Context
 
 `ingot` (sibling checkout at `../ingot`) is a generic JSON→typed-PHP-tree library,

@@ -7,7 +7,7 @@
 # envelope, and the three error responses every endpoint reuses.
 #
 # `make docs` dumps it to docs/openapi.yaml, which is what clients read and what
-# tests/Http/OpenApiComplianceTest.php validates real traffic against.
+# tests/UserInterface/Http/OpenApiComplianceTest.php validates real traffic against.
 nelmio_api_doc:
     areas:
         default:

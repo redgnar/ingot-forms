@@ -2,10 +2,11 @@
 
 Backend-only forms management service (Symfony 7.4 API, Doctrine ORM — portable across
 database platforms)
-built on the [ingot](https://github.com/redgnar/ingot) mapping engine. Design docs live in
-`.claude/plan/` — read `00-mvp.md` (domain model + as-built architecture) before touching
-anything; `01-stage2.md` documents stage 2 (implemented: CI workflow, mutation testing,
-OpenAPI contract + compliance tests).
+built on the [ingot](https://github.com/redgnar/ingot) mapping engine. **What the code does now is described here and in `README.md`** — those two are kept current.
+`.claude/plan/00-mvp.md` and `01-stage2.md` are the record of how it got here: the decisions,
+their reasons, and what each stage changed, in the words of the time. Read them for *why*, not
+for *what is*: paths, names and mechanisms in them have since moved on, and each stage's later
+sections say where.
 
 ## Language
 
@@ -196,8 +197,10 @@ Rules that follow from it, and that the tooling checks:
 
 - Every functionality gets a test; bodies follow **GIVEN / WHEN / THEN** comments; method
   names describe behavior; error-path tests assert JSON Pointer + error code.
-- Suites: `unit` (tests/Domain — no kernel, no DB) and `integration` (tests/Infrastructure,
-  tests/Http — real compose Postgres, per-test rollback via dama/doctrine-test-bundle).
+- Suites: `unit` (tests/Domain, tests/Application — no kernel, no DB) and `integration`
+  (tests/Infrastructure, tests/UserInterface — real compose Postgres, per-test rollback via
+  dama/doctrine-test-bundle). Infection runs the unit suite over `src/Domain/`, so a rule that
+  belongs to the model has to be pinned there to count.
 - **The item catalogue is tested by a battery, one class per type.** A new kind of item gets
   two subclasses and inherits everything else: `tests/Domain/Forms/Definition/Field/…Test`
   (which option combinations a definition may and may not carry, what the item contributes to
