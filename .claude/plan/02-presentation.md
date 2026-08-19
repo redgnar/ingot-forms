@@ -253,6 +253,24 @@ Each step ended with a green `make ci`.
    whose requests were run against the dev server rather than eyeballed, since nothing tests
    them automatically.
 
+## Reversed after building it: a presentation is set once
+
+Shipped, the layer let a presentation be replaced at any time, and the argument for it was that
+it holds no stored answer hostage. Used, that freedom had no purpose: if a definition is fixed
+at creation, there is no reason for its description to drift either, and "why can I change one
+and not the other" is a question with no good answer.
+
+So a presentation is given at `POST /api/forms` beside the definition, optional, and immutable
+with it. `PUT /api/forms/{id}/presentation` is gone, along with `Form::present()`, the
+`PresentationChanged` event and the `SetFormPresentation` use case; the constructor judges the
+document against the definition it arrives with, and the repository writes it with the row.
+Fixing a typo in a code now costs what fixing a definition costs — delete and recreate — which
+is the price of one rule instead of two.
+
+The create body is decoded non-associatively, which the retired `PUT` did for its own document:
+without it `"translations": {"en": {}}` arrives as an empty list and a client gets a puzzling
+`schema.type`. Both processors now take an object or an array.
+
 ## What building it changed
 
 - **Sections became a tree.** The first draft grouped items one level deep. A fixed level is a

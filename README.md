@@ -54,10 +54,11 @@ Three of those say something worth spelling out:
 
 ## Presentation
 
-A definition says what is asked; **how a form is shown is a second document**, attached to the
-same form and referenced by the same item names. It is replaced whole with `PUT`, as often as
-anybody likes — including after confirmation, because reordering fields or fixing a code holds
-no stored answer hostage. That is exactly why the definition is immutable and this is not.
+A definition says what is asked; **how a form is shown is a second document**, given at
+creation beside it and referencing the same item names. It is optional — a client that draws
+forms its own way needs none — and, like the definition, immutable: a form is described once,
+and changing that description means deleting the form and creating a new one, exactly as
+changing what it asks does.
 
 ```json
 {
@@ -100,7 +101,8 @@ are fine. Findings carry `presentation.*` codes and pointers into the document a
 
 **What it deliberately is not**: no styling, no conditional visibility (that changes what an
 answer must satisfy, so it belongs to the definition), no completeness rule — a presentation
-may show some of the items, and hiding one changes nothing about what the form accepts.
+may show some of the items, and hiding one changes nothing about what the form accepts — and no
+way to change it afterwards, because the description of a fixed thing has no reason to drift.
 
 ## Requirements
 
@@ -171,12 +173,11 @@ contract clients validate against cannot drift from what the server enforces.
 
 | Method & path | Purpose |
 |---|---|
-| `POST /api/forms` | Create a form. Body: `{"expireDate": "<RFC 3339>", "definition": {…}}`. `201` + `Location`, answering with `{"id": …}` alone. |
+| `POST /api/forms` | Create a form. Body: `{"expireDate": "<RFC 3339>", "definition": {…}, "presentation": {…}?}`. `201` + `Location`, answering with `{"id": …}` alone. |
 | `GET /api/forms/{id}` | Full envelope: definition, status, data, timestamps. |
 | `DELETE /api/forms/{id}` | `204`. The "definition changed" path is delete + recreate. |
 | `GET /api/forms/{id}/schema` | Derived JSON Schema of the form's *values* (`application/schema+json`). `?mode=draft` returns the relaxed variant. |
-| `PUT /api/forms/{id}/presentation` | Replace how the form is shown. `204`; `422` with the report when it does not fit the form. |
-| `GET /api/forms/{id}/presentation` | The presentation document as it was set (`404 presentation-not-set` when none). |
+| `GET /api/forms/{id}/presentation` | How the form is shown, as it was given at creation (`404 presentation-not-set` when none). |
 | `PUT /api/forms/{id}/data` | Save a draft (repeatable). `204`, `409 form-locked` once confirmed. |
 | `POST /api/forms/{id}/confirm` | Strictly validate the stored data and lock the form. `204`; `409` when already confirmed or empty, `422` with the report when invalid. |
 | `GET /api/forms/{id}/data` | The current values (`404 form-data-empty` when none). |

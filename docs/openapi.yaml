@@ -59,7 +59,7 @@ paths:
   /api/forms:
     post:
       summary: 'Create a form'
-      description: 'The definition is immutable after creation — changing it means delete and recreate. Problems inside the definition are reported with JSON Pointers rooted at `/definition`.'
+      description: 'Both documents a form is made of arrive here: what it asks, and optionally how it is shown. Both are immutable afterwards — changing either means delete and recreate. Problems inside a document are reported with JSON Pointers rooted at `/definition` or `/presentation`.'
       operationId: createForm
       requestBody:
         required: true
@@ -96,6 +96,9 @@ paths:
                 definition-not-valid:
                   summary: 'The definition breaks the meta-schema or a semantic rule'
                   value: { type: 'urn:problem:ingot-forms:definition-not-valid', title: 'Form definition is not valid.', status: 422, errors: [{ pointer: /definition/items/1/name, code: form.field.duplicate-name, message: 'Field name "email" is not unique.', input: email }] }
+                presentation-not-valid:
+                  summary: 'The presentation shows an item the definition does not declare'
+                  value: { type: 'urn:problem:ingot-forms:presentation-not-valid', title: 'Form presentation is not valid.', status: 422, errors: [{ pointer: /presentation/items/0/name, code: presentation.item.unknown, message: 'This form declares no item named "nickname".', input: nickname }] }
   '/api/forms/{id}':
     get:
       summary: 'Read a form'
@@ -250,48 +253,6 @@ paths:
                   value: { type: 'urn:problem:ingot-forms:presentation-not-set', title: 'The form has no presentation.', status: 404 }
         '410':
           $ref: '#/components/responses/FormGone'
-    put:
-      summary: 'Say how the form is shown'
-      description: 'Replaces the whole presentation document. Repeatable at any time, including after confirmation — presentation holds no stored answer hostage. Items are referenced by the names the definition declares; text travels as translation codes.'
-      operationId: setFormPresentation
-      parameters:
-        -
-          name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/FormPresentation'
-      responses:
-        '204':
-          description: 'Stored. No body: read it back if you need it.'
-        '400':
-          $ref: '#/components/responses/MalformedJson'
-        '404':
-          $ref: '#/components/responses/FormNotFound'
-        '410':
-          $ref: '#/components/responses/FormGone'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '422':
-          description: 'The document is not a valid presentation, or does not fit this form.'
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-              examples:
-                presentation-not-valid:
-                  summary: 'It shows an item this form does not declare'
-                  value: { type: 'urn:problem:ingot-forms:presentation-not-valid', title: 'Form presentation is not valid.', status: 422, errors: [{ pointer: /items/0/name, code: presentation.item.unknown, message: 'This form declares no item named "nickname".', input: nickname }] }
-                widget-mismatch:
-                  summary: 'It asks for a control the engine does not draw for that item'
-                  value: { type: 'urn:problem:ingot-forms:presentation-not-valid', title: 'Form presentation is not valid.', status: 422, errors: [{ pointer: /items/1/widget, code: presentation.widget.mismatch, message: 'Engine "core-html" does not draw a "text" item as "radio".', input: radio }] }
   '/api/forms/{id}/schema':
     get:
       summary: 'Read the values schema derived from the definition'
@@ -480,7 +441,21 @@ components:
                 type: text
                 name: email
                 required: true
+        presentation:
+          description: 'How the form is shown, per the meta-schema in src/Domain/Forms/Presentation/presentation.schema.json. Optional — a client that draws forms its own way needs none. Immutable with the definition: changing either means deleting the form and creating a new one.'
+          type:
+            - object
+            - 'null'
+          example:
+            engine: core-html
+            items:
+              -
+                name: email
+                widget: text
+                label: contact.email
+          default: null
       type: object
+      additionalProperties: false
     DataSchemaQuery:
       properties:
         mode:
@@ -499,13 +474,6 @@ components:
         - values
       properties:
         values:
-          $ref: '#/components/schemas/stdClass'
-      type: object
-    SetPresentationRequest:
-      required:
-        - presentation
-      properties:
-        presentation:
           $ref: '#/components/schemas/stdClass'
       type: object
   responses:

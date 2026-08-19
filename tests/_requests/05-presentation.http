@@ -1,9 +1,9 @@
-# How a form is shown: a second document beside the definition, replaced whole,
-# as often as anybody likes. Items are referenced by the names the definition
+# How a form is shown: a second document, given at creation beside the definition
+# and immutable with it. Items are referenced by the names the definition
 # declares; all text is translation codes, resolved by whoever draws the form.
 
-### A form to describe.
-# @name createFormToPresent
+### A form created with both documents at once.
+# @name createPresentedForm
 POST {{host}}/api/forms
 Content-Type: application/json
 
@@ -16,6 +16,36 @@ Content-Type: application/json
       { "type": "select", "name": "country", "options": ["pl", "de", "fr"], "required": true },
       { "type": "checkbox", "name": "terms", "required": true, "mustBeChecked": true }
     ]
+  },
+  "presentation": {
+    "engine": "core-html",
+    "defaultLocale": "en",
+    "items": [
+      { "widget": "heading", "label": "contact.heading" },
+      {
+        "widget": "fieldset",
+        "label": "contact.personal",
+        "items": [
+          { "name": "email", "widget": "text", "label": "contact.email", "hint": "contact.email.hint" },
+          { "name": "country", "widget": "radio", "label": "contact.country", "options": { "columns": 3 } }
+        ]
+      },
+      { "name": "terms", "widget": "switch", "label": "contact.terms" }
+    ],
+    "translations": {
+      "en": {
+        "contact.heading": "Contact us",
+        "contact.personal": "Personal details",
+        "contact.email": "E-mail",
+        "contact.email.hint": "We only use it to reply",
+        "contact.country": "Country",
+        "contact.terms": "I accept the terms"
+      },
+      "pl": {
+        "contact.heading": "Napisz do nas",
+        "contact.email": "E-mail"
+      }
+    }
   }
 }
 
@@ -26,61 +56,7 @@ Content-Type: application/json
     client.global.set("presentedFormId", response.body.id);
 %}
 
-### Nobody has said how to show it yet: that is a document that is not there.
-# @name presentationBeforeItIsSet
-GET {{host}}/api/forms/{{presentedFormId}}/presentation
-
-> {%
-    client.test("404 presentation-not-set", function () {
-        client.assert(response.status === 404, "Expected 404, got " + response.status);
-        client.assert(response.body.type === "urn:problem:ingot-forms:presentation-not-set", "Expected the presentation-not-set problem type");
-    });
-%}
-
-### Say it. Groups nest as deep as the form needs; text travels as codes.
-# @name setPresentation
-PUT {{host}}/api/forms/{{presentedFormId}}/presentation
-Content-Type: application/json
-
-{
-  "engine": "core-html",
-  "defaultLocale": "en",
-  "items": [
-    { "widget": "heading", "label": "contact.heading" },
-    {
-      "widget": "fieldset",
-      "label": "contact.personal",
-      "items": [
-        { "name": "email", "widget": "text", "label": "contact.email", "hint": "contact.email.hint" },
-        { "name": "country", "widget": "radio", "label": "contact.country", "options": { "columns": 3 } }
-      ]
-    },
-    { "name": "terms", "widget": "switch", "label": "contact.terms" }
-  ],
-  "translations": {
-    "en": {
-      "contact.heading": "Contact us",
-      "contact.personal": "Personal details",
-      "contact.email": "E-mail",
-      "contact.email.hint": "We only use it to reply",
-      "contact.country": "Country",
-      "contact.terms": "I accept the terms"
-    },
-    "pl": {
-      "contact.heading": "Napisz do nas",
-      "contact.email": "E-mail"
-    }
-  }
-}
-
-> {%
-    client.test("204", function () {
-        client.assert(response.status === 204, "Expected 204, got " + response.status);
-        client.assert(!response.body, "A write answers with the status alone");
-    });
-%}
-
-### Read it back: the document as it was set, codes unresolved.
+### Read it back: the document as it was given, codes unresolved.
 # @name readPresentation
 GET {{host}}/api/forms/{{presentedFormId}}/presentation
 
@@ -93,69 +69,105 @@ GET {{host}}/api/forms/{{presentedFormId}}/presentation
     });
 %}
 
-### An item this form does not declare. The pointer walks into what was sent.
-# @name presentationWithUnknownItem
-PUT {{host}}/api/forms/{{presentedFormId}}/presentation
+### A form described by nobody: the document is simply not there.
+# @name formWithoutPresentation
+POST {{host}}/api/forms
 Content-Type: application/json
 
 {
-  "engine": "core-html",
-  "items": [{ "name": "nickname", "widget": "text" }]
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] }
+}
+
+> {%
+    client.test("201", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+    client.global.set("bareFormId", response.body.id);
+%}
+
+###
+# @name presentationOfABareForm
+GET {{host}}/api/forms/{{bareFormId}}/presentation
+
+> {%
+    client.test("404 presentation-not-set", function () {
+        client.assert(response.status === 404, "Expected 404, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:presentation-not-set", "Expected the presentation-not-set problem type");
+    });
+%}
+
+### An item the definition does not declare. No form comes into existence.
+# @name presentationWithUnknownItem
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
+  "presentation": { "engine": "core-html", "items": [{ "name": "nickname", "widget": "text" }] }
 }
 
 > {%
     client.test("422 presentation.item.unknown", function () {
         client.assert(response.status === 422, "Expected 422, got " + response.status);
-        client.assert(response.body.errors[0].pointer === "/items/0/name", "Expected the pointer inside the document");
+        client.assert(response.body.errors[0].pointer === "/presentation/items/0/name", "Expected the pointer rooted where the document was sent");
         client.assert(response.body.errors[0].code === "presentation.item.unknown", "Expected presentation.item.unknown");
     });
 %}
 
 ### A control the engine does not draw for that kind of item.
 # @name presentationWithWrongWidget
-PUT {{host}}/api/forms/{{presentedFormId}}/presentation
+POST {{host}}/api/forms
 Content-Type: application/json
 
 {
-  "engine": "core-html",
-  "items": [{ "name": "email", "widget": "radio" }]
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
+  "presentation": { "engine": "core-html", "items": [{ "name": "email", "widget": "radio" }] }
 }
 
 > {%
     client.test("422 presentation.widget.mismatch", function () {
         client.assert(response.status === 422, "Expected 422, got " + response.status);
-        client.assert(response.body.errors[0].pointer === "/items/0/widget", "Expected the pointer at the widget");
         client.assert(response.body.errors[0].code === "presentation.widget.mismatch", "Expected presentation.widget.mismatch");
     });
 %}
 
-### A value that also holds items: a field is not a group.
+### A value that also holds items: a field is not a group. Refused by the
+### document's own meta-schema, so the pointer is rooted where it was sent.
 # @name presentationWithValueHoldingItems
-PUT {{host}}/api/forms/{{presentedFormId}}/presentation
+POST {{host}}/api/forms
 Content-Type: application/json
 
 {
-  "engine": "core-html",
-  "items": [{ "name": "email", "items": [{ "name": "country" }] }]
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }, { "type": "text", "name": "country" }] },
+  "presentation": { "engine": "core-html", "items": [{ "name": "email", "items": [{ "name": "country" }] }] }
 }
 
 > {%
     client.test("422 presentation.item.not-a-container", function () {
         client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/presentation/items/0/items", "Expected the pointer under /presentation");
         client.assert(response.body.errors[0].code === "presentation.item.not-a-container", "Expected presentation.item.not-a-container");
     });
 %}
 
 ### A catalogue missing a code it uses, in the language it falls back to.
 # @name presentationWithIncompleteDefaultLocale
-PUT {{host}}/api/forms/{{presentedFormId}}/presentation
+POST {{host}}/api/forms
 Content-Type: application/json
 
 {
-  "engine": "core-html",
-  "defaultLocale": "en",
-  "items": [{ "name": "email", "label": "contact.email" }],
-  "translations": { "en": { "contact.something-else": "..." } }
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
+  "presentation": {
+    "engine": "core-html",
+    "defaultLocale": "en",
+    "items": [{ "name": "email", "label": "contact.email" }],
+    "translations": { "en": { "contact.something-else": "..." } }
+  }
 }
 
 > {%
@@ -167,57 +179,20 @@ Content-Type: application/json
 
 ### An engine nobody here knows: accepted, widgets unchecked.
 # @name presentationForAnUnknownEngine
-PUT {{host}}/api/forms/{{presentedFormId}}/presentation
+POST {{host}}/api/forms
 Content-Type: application/json
 
 {
-  "engine": "someones-vue-kit",
-  "items": [
-    { "widget": "accordion", "items": [{ "name": "email", "widget": "fancy-editor" }] }
-  ]
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
+  "presentation": {
+    "engine": "someones-vue-kit",
+    "items": [{ "widget": "accordion", "items": [{ "name": "email", "widget": "fancy-editor" }] }]
+  }
 }
 
 > {%
-    client.test("204 — its controls are its own business", function () {
-        client.assert(response.status === 204, "Expected 204, got " + response.status);
-    });
-%}
-
-### Confirming the form does not close the door on how it looks.
-# @name fillAndConfirmThePresentedForm
-PUT {{host}}/api/forms/{{presentedFormId}}/data
-Content-Type: application/json
-
-{ "email": "ada@example.com", "country": "pl", "terms": true }
-
-> {%
-    client.test("204", function () {
-        client.assert(response.status === 204, "Expected 204, got " + response.status);
-    });
-%}
-
-###
-# @name confirmThePresentedForm
-POST {{host}}/api/forms/{{presentedFormId}}/confirm
-
-> {%
-    client.test("204", function () {
-        client.assert(response.status === 204, "Expected 204, got " + response.status);
-    });
-%}
-
-### Still replaceable: what a form holds is locked, how it looks is not.
-# @name presentationAfterConfirmation
-PUT {{host}}/api/forms/{{presentedFormId}}/presentation
-Content-Type: application/json
-
-{
-  "engine": "core-html",
-  "items": [{ "name": "email", "widget": "textarea" }]
-}
-
-> {%
-    client.test("204 after confirmation", function () {
-        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    client.test("201 — its controls are its own business", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
     });
 %}

@@ -236,21 +236,19 @@ final class FormApiTest extends WebTestCase
         self::assertSame('form.field.duplicate-name', $error['code']);
     }
 
-    public function testHowAFormIsShownIsSaidReadBackAndSaidAgain(): void
+    public function testAFormIsCreatedWithHowItIsShownAndReadsBackWhole(): void
     {
-        // GIVEN a form nobody has described
-        $id = $this->createForm();
-        $this->client->request('GET', \sprintf('/api/forms/%s/presentation', $id));
+        // GIVEN a form created without a presentation
+        $this->client->request('GET', \sprintf('/api/forms/%s/presentation', $this->createForm()));
+
+        // THEN a document nobody wrote is a document that is not there
         self::assertResponseStatusCodeSame(404);
         self::assertSame('urn:problem:ingot-forms:presentation-not-set', $this->responseBody()['type']);
 
-        // WHEN a presentation is set
-        $this->putJson(\sprintf('/api/forms/%s/presentation', $id), self::PRESENTATION);
+        // WHEN a form is created with one
+        $id = $this->createPresentedForm();
 
-        // THEN the answer is the status alone, and the document reads back whole
-        self::assertResponseStatusCodeSame(204);
-        self::assertSame('', $this->client->getResponse()->getContent());
-
+        // THEN it reads back as it was sent
         $this->client->request('GET', \sprintf('/api/forms/%s/presentation', $id));
         self::assertResponseStatusCodeSame(200);
         $document = $this->responseBody();
@@ -263,42 +261,43 @@ final class FormApiTest extends WebTestCase
         // codes are served unresolved: which language to show is the client's call
         self::assertSame('contact.email', $first['label']);
         self::assertIsArray($document['translations']);
-
-        // AND replacing it is just another PUT
-        $this->putJson(\sprintf('/api/forms/%s/presentation', $id), '{"engine": "core-html", "items": [{"name": "email", "widget": "textarea"}]}');
-        self::assertResponseStatusCodeSame(204);
-        $this->client->request('GET', \sprintf('/api/forms/%s/presentation', $id));
-        self::assertCount(1, self::arrayAt($this->responseBody(), 'items'));
     }
 
-    public function testAPresentationIsJudgedAgainstTheFormItPresents(): void
+    public function testAPresentationIsJudgedAgainstTheDefinitionItArrivesWith(): void
     {
-        // GIVEN a form whose definition declares no "nickname"
-        $id = $this->createForm();
+        // GIVEN a definition that declares no "nickname", and a presentation showing one
+        $payload = json_encode([
+            'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
+            'definition' => self::DEFINITION,
+            'presentation' => ['engine' => 'core-html', 'items' => [['name' => 'nickname']]],
+        ], \JSON_THROW_ON_ERROR);
 
-        // WHEN a presentation shows one anyway
-        $this->putJson(\sprintf('/api/forms/%s/presentation', $id), '{"engine": "core-html", "items": [{"name": "nickname"}]}');
+        // WHEN
+        $this->putJson('/api/forms', $payload, method: 'POST');
 
-        // THEN the pointer walks into the document the client sent
+        // THEN no form comes into existence, and the pointer walks into what was sent
         self::assertResponseStatusCodeSame(422);
         self::assertSame('urn:problem:ingot-forms:presentation-not-valid', $this->responseBody()['type']);
-        self::assertSame('/items/0/name', $this->firstError()['pointer']);
+        self::assertSame('/presentation/items/0/name', $this->firstError()['pointer']);
         self::assertSame('presentation.item.unknown', $this->firstError()['code']);
     }
 
-    public function testAConfirmedFormCanStillBeShownDifferently(): void
+    public function testADocumentThatIsNotAPresentationIsRefusedUnderItsOwnPointer(): void
     {
-        // GIVEN a form locked for good
-        $id = $this->createForm();
-        $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"email": "ada@example.com", "country": "pl"}');
-        $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
-        self::assertResponseStatusCodeSame(204);
+        // GIVEN a presentation whose item both presents a value and holds items
+        $payload = json_encode([
+            'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
+            'definition' => self::DEFINITION,
+            'presentation' => ['engine' => 'core-html', 'items' => [['name' => 'email', 'items' => [['name' => 'country']]]]],
+        ], \JSON_THROW_ON_ERROR);
 
-        // WHEN its presentation is replaced
-        $this->putJson(\sprintf('/api/forms/%s/presentation', $id), self::PRESENTATION);
+        // WHEN
+        $this->putJson('/api/forms', $payload, method: 'POST');
 
-        // THEN it is allowed: what a form holds is locked, how it looks is not
-        self::assertResponseStatusCodeSame(204);
+        // THEN the pointer is rooted where the client sent the document
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('/presentation/items/0/items', $this->firstError()['pointer']);
+        self::assertSame('presentation.item.not-a-container', $this->firstError()['code']);
     }
 
     public function testUnknownFormIsA404Problem(): void
@@ -433,6 +432,22 @@ final class FormApiTest extends WebTestCase
         ], \JSON_THROW_ON_ERROR);
 
         $this->putJson('/api/forms', $payload, method: 'POST');
+
+        $id = $this->responseBody()['id'] ?? '';
+
+        return \is_string($id) ? $id : '';
+    }
+
+    private function createPresentedForm(): string
+    {
+        $payload = json_encode([
+            'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
+            'definition' => self::DEFINITION,
+            'presentation' => json_decode(self::PRESENTATION, true, flags: \JSON_THROW_ON_ERROR),
+        ], \JSON_THROW_ON_ERROR);
+
+        $this->putJson('/api/forms', $payload, method: 'POST');
+        self::assertResponseStatusCodeSame(201);
 
         $id = $this->responseBody()['id'] ?? '';
 

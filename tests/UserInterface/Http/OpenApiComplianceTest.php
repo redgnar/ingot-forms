@@ -189,6 +189,9 @@ final class OpenApiComplianceTest extends WebTestCase
                 // A past date is a valid date-time — only the app can know it is too late
                 $test->postJson('/api/forms', self::createPayload(new \DateTimeImmutable('-1 hour')));
             }],
+            ['POST', '/api/forms', 422, true, 'presentation does not fit', static function (self $test): void {
+                $test->postJson('/api/forms', self::createPayload(presentation: '{"engine": "core-html", "items": [{"name": "nickname"}]}'));
+            }],
             ['POST', '/api/forms', 422, false, 'unknown key', static function (self $test): void {
                 // The request DTO closes the body, and so does the published schema
                 $test->postJson('/api/forms', '{"expireDate": "2999-01-01T00:00:00+00:00", "definition": {}, "bogus": 1}');
@@ -276,32 +279,8 @@ final class OpenApiComplianceTest extends WebTestCase
                 $test->putJson(\sprintf('/api/forms/%s/data', $id), self::PARTIAL_DATA);
                 $test->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
             }],
-            ['PUT', '/api/forms/{id}/presentation', 204, true, '', static function (self $test): void {
-                $test->putJson(\sprintf('/api/forms/%s/presentation', $test->createForm()), self::PRESENTATION);
-            }],
-            ['PUT', '/api/forms/{id}/presentation', 400, false, '', static function (self $test): void {
-                $test->putJson(\sprintf('/api/forms/%s/presentation', $test->createForm()), '{broken');
-            }],
-            ['PUT', '/api/forms/{id}/presentation', 404, true, '', static function (self $test): void {
-                $test->putJson(\sprintf('/api/forms/%s/presentation', Uuid::v7()->toRfc4122()), self::PRESENTATION);
-            }],
-            ['PUT', '/api/forms/{id}/presentation', 410, true, '', static function (self $test): void {
-                $test->putJson(\sprintf('/api/forms/%s/presentation', $test->expiredForm()), self::PRESENTATION);
-            }],
-            ['PUT', '/api/forms/{id}/presentation', 415, false, '', static function (self $test): void {
-                $test->client->request('PUT', \sprintf('/api/forms/%s/presentation', $test->createForm()), server: ['CONTENT_TYPE' => 'text/plain'], content: self::PRESENTATION);
-            }],
-            ['PUT', '/api/forms/{id}/presentation', 422, true, '', static function (self $test): void {
-                // A valid document that shows an item this form does not declare
-                $test->putJson(
-                    \sprintf('/api/forms/%s/presentation', $test->createForm()),
-                    '{"engine": "core-html", "items": [{"name": "nickname"}]}',
-                );
-            }],
             ['GET', '/api/forms/{id}/presentation', 200, true, '', static function (self $test): void {
-                $id = $test->createForm();
-                $test->putJson(\sprintf('/api/forms/%s/presentation', $id), self::PRESENTATION);
-                $test->client->request('GET', \sprintf('/api/forms/%s/presentation', $id));
+                $test->client->request('GET', \sprintf('/api/forms/%s/presentation', $test->presentedForm()));
             }],
             ['GET', '/api/forms/{id}/presentation', 404, true, '', static function (self $test): void {
                 $test->client->request('GET', \sprintf('/api/forms/%s/presentation', $test->createForm()));
@@ -371,12 +350,18 @@ final class OpenApiComplianceTest extends WebTestCase
         return \sprintf('%s %s → %d', $method, $path, $status);
     }
 
-    private static function createPayload(?\DateTimeImmutable $expireDate = null): string
+    private static function createPayload(?\DateTimeImmutable $expireDate = null, ?string $presentation = null): string
     {
-        return json_encode([
+        $payload = [
             'expireDate' => ($expireDate ?? new \DateTimeImmutable('+1 day'))->format(\DateTimeInterface::ATOM),
             'definition' => self::DEFINITION,
-        ], \JSON_THROW_ON_ERROR);
+        ];
+
+        if ($presentation !== null) {
+            $payload['presentation'] = json_decode($presentation, true, flags: \JSON_THROW_ON_ERROR);
+        }
+
+        return json_encode($payload, \JSON_THROW_ON_ERROR);
     }
 
     private static function messageChain(\Throwable $throwable): string
@@ -393,6 +378,16 @@ final class OpenApiComplianceTest extends WebTestCase
     private function createForm(): string
     {
         $this->postJson('/api/forms', self::createPayload());
+        $body = json_decode((string) $this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        self::assertIsArray($body);
+        self::assertIsString($body['id'] ?? null);
+
+        return $body['id'];
+    }
+
+    private function presentedForm(): string
+    {
+        $this->postJson('/api/forms', self::createPayload(presentation: self::PRESENTATION));
         $body = json_decode((string) $this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
         self::assertIsArray($body);
         self::assertIsString($body['id'] ?? null);

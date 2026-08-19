@@ -153,14 +153,15 @@ Rules that follow from it, and that the tooling checks:
   `request.unexpected_key`); query strings ignore unknown parameters. A DTO documents itself
   with swagger-php's `#[OA\Property]`, and NelmioApiDocBundle turns routes + DTOs +
   `#[OA\Response]` into the published contract (`make docs`).
-- **How a form is shown is a second document, not a corner of the first.** A presentation
-  hangs off the same form, names its items, and is replaced whole at any point in the form's
-  life — confirmed included, because it holds no answer hostage; that difference is the whole
-  reason a definition is immutable and this is not. It is one recursive shape (an item presents
-  a value, or holds items, or stands alone — no fixed levels), its text is translation codes
-  with an optional catalogue, and the widget vocabulary belongs to the engine the document
-  names. `Form::present()` judges it against the form's own definition, exactly as the values
-  are judged, and the repository writes it from `PresentationChanged`.
+- **How a form is shown is a second document, given with the first and just as immutable.**
+  A presentation arrives with `POST /api/forms`, optional, names the definition's items, and
+  never changes afterwards: a fixed thing has no reason for its description to drift, and
+  changing either document means delete and recreate. It is one recursive shape (an item
+  presents a value, or holds items, or stands alone — no fixed levels), its text is translation
+  codes with an optional catalogue, and the widget vocabulary belongs to the engine the
+  document names. The `Form` constructor judges it against the definition it came with — the
+  rules handed in the way a values validator is — so a form that exists is a form whose
+  presentation fits it.
 - **A definition says what is asked, never how it looks.** There is no presentation in it:
   `textarea` is one way to show a text item, `radio` one way to show a select, and both are
   the client's business. So an item type is added when it brings **rules of its own** — a date

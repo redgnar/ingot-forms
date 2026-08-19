@@ -21,7 +21,6 @@ this reference cannot drift from the implementation.
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
 | [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `415`, `410`, `422` |
 | [`GET /api/forms/{id}/presentation`](#get-apiformsidpresentation) | `getFormPresentation` | Read how the form is shown | `200`, `404`, `410` |
-| [`PUT /api/forms/{id}/presentation`](#put-apiformsidpresentation) | `setFormPresentation` | Say how the form is shown | `204`, `400`, `404`, `410`, `415`, `422` |
 | [`GET /api/forms/{id}/schema`](#get-apiformsidschema) | `getFormDataSchema` | Read the values schema derived from the definition | `200`, `404`, `410`, `422` |
 
 ## Operations
@@ -52,7 +51,7 @@ Validates the stored data against the full strict schema and locks the form fore
 
 `operationId: createForm` — Create a form
 
-The definition is immutable after creation — changing it means delete and recreate. Problems inside the definition are reported with JSON Pointers rooted at `/definition`.
+Both documents a form is made of arrive here: what it asks, and optionally how it is shown. Both are immutable afterwards — changing either means delete and recreate. Problems inside a document are reported with JSON Pointers rooted at `/definition` or `/presentation`.
 
 **Request body** (`application/json`, required): [`CreateFormRequest`](#createformrequest)
 
@@ -166,31 +165,6 @@ The document as it was set. Codes are served unresolved: which language a client
 | `200` | `application/json` | [`FormPresentation`](#formpresentation) | The presentation document. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | Unknown form, or a form nobody has said anything about yet. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
-
-### PUT /api/forms/{id}/presentation
-
-`operationId: setFormPresentation` — Say how the form is shown
-
-Replaces the whole presentation document. Repeatable at any time, including after confirmation — presentation holds no stored answer hostage. Items are referenced by the names the definition declares; text travels as translation codes.
-
-**Parameters**
-
-| Name | In | Required | Type | Description |
-|---|---|---|---|---|
-| `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
-
-**Request body** (`application/json`, required): [`FormPresentation`](#formpresentation)
-
-**Responses**
-
-| Status | Content type | Body | Description |
-|---|---|---|---|
-| `204` | — | empty | Stored. No body: read it back if you need it. |
-| `400` | `application/problem+json` | [`Problem`](#problem) | The request body is not valid JSON, or its media type is missing. |
-| `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
-| `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
-| `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
-| `422` | `application/problem+json` | [`Problem`](#problem) | The document is not a valid presentation, or does not fit this form. |
 
 ### GET /api/forms/{id}/schema
 
@@ -306,6 +280,9 @@ No other properties are allowed.
 |---|---|---|---|
 | `expireDate` | `string` (`date-time`) | yes | When the form stops being fillable, as an RFC 3339 date-time. Must lie in the future; past it the form answers 410 everywhere and the purge command deletes it. |
 | `definition` | `object` | yes | The form definition: an id and 1–50 typed items with unique names, per the meta-schema in src/Domain/Forms/form-definition.schema.json. Immutable once created — changing it means deleting the form and creating a new one. |
+| `presentation` | `object \| null` | no | How the form is shown, per the meta-schema in src/Domain/Forms/Presentation/presentation.schema.json. Optional — a client that draws forms its own way needs none. Immutable with the definition: changing either means deleting the form and creating a new one. |
+
+No other properties are allowed.
 
 ### DataSchemaQuery
 
@@ -322,9 +299,3 @@ Type: `object`
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `values` | [`stdClass`](#stdclass) | yes |  |
-
-### SetPresentationRequest
-
-| Property | Type | Required | Description |
-|---|---|---|---|
-| `presentation` | [`stdClass`](#stdclass) | yes |  |

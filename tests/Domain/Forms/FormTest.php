@@ -8,7 +8,6 @@ use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Event\DraftSaved;
 use App\Domain\Forms\Event\FormConfirmed;
 use App\Domain\Forms\Event\FormCreated;
-use App\Domain\Forms\Event\PresentationChanged;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
@@ -210,68 +209,55 @@ final class FormTest extends TestCase
         }
     }
 
-    public function testHowAFormIsShownCanBeSaidAndSaidAgain(): void
+    public function testAFormIsCreatedWithHowItIsShown(): void
     {
-        // GIVEN a form nobody has said anything about yet
-        $form = self::form();
-        self::assertNull($form->presentation());
-        $form->releaseEvents();
-        $changed = new \DateTimeImmutable('2026-04-05T06:07:08+00:00');
+        // GIVEN / WHEN a form created with both documents
+        $form = self::form(presentation: self::presentation('text'));
 
-        // WHEN
-        $form->present(self::presentation('text'), self::rules(), $changed);
-
-        // THEN it is held, and the change is what gets recorded
+        // THEN it holds the presentation, and creating it is still one event
         self::assertStringContainsString('"widget":"text"', (string) $form->presentation());
         $events = $form->releaseEvents();
-        self::assertInstanceOf(PresentationChanged::class, $events[0]);
+        self::assertInstanceOf(FormCreated::class, $events[0]);
         self::assertCount(1, $events);
-        self::assertEquals($changed, $events[0]->occurredAt);
-        self::assertSame($form->presentation(), $events[0]->presentation);
+    }
 
-        // AND saying it differently replaces it, as often as anybody likes
-        $form->present(self::presentation('textarea'), self::rules());
-        self::assertStringContainsString('"widget":"textarea"', (string) $form->presentation());
+    public function testAFormNeedNotSayHowItIsShown(): void
+    {
+        // GIVEN / WHEN a client that draws forms its own way describes none
+        // THEN nothing is held, and nothing is missing
+        self::assertNull(self::form()->presentation());
     }
 
     public function testAPresentationThatDoesNotFitTheFormIsRefused(): void
     {
-        // GIVEN a presentation naming an item this form does not declare
-        $form = self::form();
-        $form->releaseEvents();
-
-        // WHEN
+        // GIVEN / WHEN a presentation naming an item the definition does not declare
         try {
-            $form->present(self::presentation('text', name: 'nickname'), self::rules());
+            self::form(presentation: self::presentation('text', name: 'nickname'));
             self::fail('Expected PresentationNotValid.');
         } catch (PresentationNotValid $exception) {
-            // THEN nothing was held, and nothing happened
+            // THEN no form came into existence at all
             self::assertSame('presentation.item.unknown', $exception->report->errors[0]->code);
-            self::assertNull($form->presentation());
-            self::assertSame([], $form->releaseEvents());
         }
     }
 
-    public function testAConfirmedFormCanStillBeShownDifferently(): void
+    public function testAPresentationCannotBeAcceptedWithoutTheRulesThatJudgeIt(): void
     {
-        // GIVEN a form locked for good
-        $form = self::form();
-        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
-        $form->confirm(new StubValues());
-        $form->releaseEvents();
+        // GIVEN / WHEN a caller that hands over a document but no rules
+        // THEN the form refuses to take it on trust
+        $this->expectException(\LogicException::class);
 
-        // WHEN its presentation is replaced
-        $form->present(self::presentation('textarea'), self::rules());
-
-        // THEN it is: correcting how something is shown invalidates no answer
-        // anybody gave, which is why this is not locked with the values
-        self::assertStringContainsString('"widget":"textarea"', (string) $form->presentation());
-        self::assertInstanceOf(PresentationChanged::class, $form->releaseEvents()[0]);
+        new Form(
+            FormId::next(),
+            Definition::stored(self::DEFINITION, new SpyParser()),
+            ExpireDate::at(new \DateTimeImmutable('+1 day')),
+            self::presentation('text'),
+        );
     }
 
-    public function testARestoredFormRemembersHowItIsShown(): void
+    public function testARestoredFormRemembersHowItIsShownWithoutBeingJudgedAgain(): void
     {
-        // GIVEN state that includes a presentation
+        // GIVEN state that includes a presentation, restored without any rules
+        // to judge it — it was judged on its way in
         $form = Form::fromState(
             FormId::next(),
             Definition::stored(self::DEFINITION, new SpyParser()),
@@ -386,12 +372,14 @@ final class FormTest extends TestCase
         }
     }
 
-    private static function form(?\DateTimeImmutable $now = null, ?\DateTimeImmutable $expires = null): Form
+    private static function form(?\DateTimeImmutable $now = null, ?\DateTimeImmutable $expires = null, ?Presentation $presentation = null): Form
     {
         return new Form(
             FormId::next(),
             Definition::stored(self::DEFINITION, new SpyParser()),
             ExpireDate::at($expires ?? new \DateTimeImmutable('+1 day')),
+            $presentation,
+            self::rules(),
             $now,
         );
     }

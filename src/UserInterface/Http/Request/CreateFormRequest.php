@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\UserInterface\Http\Request;
 
 use App\UserInterface\Http\Request\Constraint\ValidFormDefinition;
+use App\UserInterface\Http\Request\Constraint\ValidFormPresentation;
 use OpenApi\Attributes as OA;
 use Symfony\Component\Validator\Constraints as Assert;
 
@@ -23,11 +24,9 @@ use Symfony\Component\Validator\Constraints as Assert;
  * definition document itself is not declared here — {@see ValidFormDefinition}
  * hands it to the ingot engine, which owns that contract.
  */
+#[OA\Schema(additionalProperties: false)]
 final readonly class CreateFormRequest
 {
-    /**
-     * @param array<string, mixed> $definition
-     */
     public function __construct(
         #[OA\Property(
             description: 'When the form stops being fillable, as an RFC 3339 date-time. Must lie in the future; past it the form answers 410 everywhere and the purge command deletes it.',
@@ -43,10 +42,18 @@ final readonly class CreateFormRequest
         #[OA\Property(
             description: 'The form definition: an id and 1–50 typed items with unique names, per the meta-schema in src/Domain/Forms/form-definition.schema.json. Immutable once created — changing it means deleting the form and creating a new one.',
             type: 'object',
+            minProperties: 1,
             example: ['id' => 'contact', 'items' => [['type' => 'text', 'name' => 'email', 'required' => true]]],
         )]
-        #[Assert\Count(min: 1, minMessage: 'definition must not be empty.', payload: ['code' => 'request.required'])]
         #[ValidFormDefinition]
-        public array $definition,
+        public \stdClass $definition,
+        #[OA\Property(
+            description: 'How the form is shown, per the meta-schema in src/Domain/Forms/Presentation/presentation.schema.json. Optional — a client that draws forms its own way needs none. Immutable with the definition: changing either means deleting the form and creating a new one.',
+            type: 'object',
+            nullable: true,
+            example: ['engine' => 'core-html', 'items' => [['name' => 'email', 'widget' => 'text', 'label' => 'contact.email']]],
+        )]
+        #[ValidFormPresentation]
+        public ?\stdClass $presentation = null,
     ) {}
 }

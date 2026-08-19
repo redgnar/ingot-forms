@@ -8,7 +8,6 @@ use App\Domain\Forms\Event\DraftSaved;
 use App\Domain\Forms\Event\FormConfirmed;
 use App\Domain\Forms\Event\FormCreated;
 use App\Domain\Forms\Event\FormEvent;
-use App\Domain\Forms\Event\PresentationChanged;
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
 use App\Domain\Forms\Form;
@@ -51,6 +50,7 @@ final class DoctrineFormRepository implements FormRepository
         $record->definition = (string) $form->definition();
         $record->expireDate = $form->expireDate()->toDateTime();
         $record->createdAt = $form->createdAt();
+        $record->presentation = $form->presentation() === null ? null : (string) $form->presentation();
 
         $this->entityManager->persist($record);
         $this->entityManager->flush();
@@ -180,7 +180,6 @@ final class DoctrineFormRepository implements FormRepository
         match (true) {
             $event instanceof DraftSaved => $this->store($record, $event),
             $event instanceof FormConfirmed => $record->confirmedAt = $event->occurredAt,
-            $event instanceof PresentationChanged => $record->presentation = (string) $event->presentation,
             // A form is inserted as a whole; nothing about its creation is an
             // update to an existing row.
             $event instanceof FormCreated => null,

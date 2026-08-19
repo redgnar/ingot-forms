@@ -8,7 +8,6 @@ use App\Domain\Forms\Event\DraftSaved;
 use App\Domain\Forms\Event\FormConfirmed;
 use App\Domain\Forms\Event\FormCreated;
 use App\Domain\Forms\Event\FormEvent;
-use App\Domain\Forms\Event\PresentationChanged;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
@@ -66,16 +65,43 @@ final class Form
 
     private \DateTimeImmutable $createdAt;
 
+    /**
+     * Everything a form is made of arrives here, and none of it changes
+     * afterwards: the definition because the values are judged against it, and
+     * the presentation because there is no reason for the description of a
+     * fixed thing to drift. Changing either means deleting the form and
+     * creating a new one.
+     *
+     * The rules are handed in the way a values validator is: whether a
+     * presentation fits is a question about *this* form's definition, so it is
+     * answered here rather than by whoever happened to call.
+     *
+     * @throws PresentationNotValid when the presentation does not fit the definition
+     */
     public function __construct(
         FormId $id,
         Definition $definition,
         ExpireDate $expireDate,
+        ?Presentation $presentation = null,
+        ?PresentationRules $rules = null,
         ?\DateTimeImmutable $now = null,
     ) {
         $this->id = $id;
         $this->definition = $definition;
         $this->expireDate = $expireDate;
         $this->createdAt = self::utc($now ?? new \DateTimeImmutable());
+
+        if ($presentation !== null) {
+            $report = ($rules ?? throw new \LogicException('A presentation cannot be accepted without the rules that judge it.'))
+                ->check($definition, $presentation->structure());
+
+            if (!$report->isEmpty()) {
+                throw new PresentationNotValid($report);
+            }
+
+            $this->presentation = $presentation;
+        }
+
         $this->events[] = new FormCreated($id, $this->createdAt);
     }
 
@@ -95,10 +121,12 @@ final class Form
         \DateTimeImmutable $createdAt,
         ?Presentation $presentation = null,
     ): self {
-        $form = new self($id, $definition, $expireDate, $createdAt);
+        $form = new self($id, $definition, $expireDate, now: $createdAt);
         $form->data = $values;
         $form->dataSavedAt = $dataSavedAt;
         $form->confirmedAt = $confirmedAt;
+        // Assigned rather than handed to the constructor: what was stored was
+        // judged on its way in, and reading is not the moment to judge again.
         $form->presentation = $presentation;
         $form->events = [];
 
@@ -149,30 +177,6 @@ final class Form
 
         $this->confirmedAt = self::utc($now ?? new \DateTimeImmutable());
         $this->events[] = new FormConfirmed($this->id(), $this->confirmedAt);
-    }
-
-    /**
-     * Replaces how this form is shown. A presentation is only ever valid
-     * against a particular form — it names that form's items — so the judgment
-     * belongs here, with the rules handed in the way a values verdict is.
-     *
-     * Unlike what a form holds, this can be replaced at any time, confirmed or
-     * not: reordering fields or fixing a code invalidates no answer anybody
-     * gave. That is the whole difference between a definition and a
-     * presentation, and it is why one is immutable and the other is not.
-     *
-     * @throws PresentationNotValid when it does not fit this form
-     */
-    public function present(Presentation $presentation, PresentationRules $rules, ?\DateTimeImmutable $now = null): void
-    {
-        $report = $rules->check($this->definition, $presentation->structure());
-
-        if (!$report->isEmpty()) {
-            throw new PresentationNotValid($report);
-        }
-
-        $this->presentation = $presentation;
-        $this->events[] = new PresentationChanged($this->id(), self::utc($now ?? new \DateTimeImmutable()), $presentation);
     }
 
     /** How this form is shown, or null while nobody has said. */

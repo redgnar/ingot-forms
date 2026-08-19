@@ -123,13 +123,12 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         // GIVEN a form taken all the way through its life
         $id = self::uuid();
         $expireDate = ExpireDate::future(new \DateTimeImmutable('+1 day'));
-        $this->repository->add(new Form($id, self::definition(), $expireDate));
+        $this->repository->add(new Form($id, self::definition(), $expireDate, self::presentation(), new PresentationRules(new EngineCatalogue())));
 
         $this->transactions->run(function () use ($id): void {
             $form = $this->repository->getForUpdate($id);
             $form->saveDraft(json_decode('{"email": "ada@example.com"}', false, flags: \JSON_THROW_ON_ERROR), new StubValues());
             $form->confirm(new StubValues());
-            $form->present(self::presentation(), new PresentationRules(new EngineCatalogue()));
             $this->repository->save($form);
         });
 

@@ -4,25 +4,26 @@ declare(strict_types=1);
 
 namespace App\UserInterface\Http\Request\Constraint;
 
-use App\Domain\Forms\Exception\DefinitionNotValid;
-use App\Domain\Forms\FormDefinitionProcessor;
+use App\Domain\Forms\Exception\PresentationNotValid;
+use App\Domain\Forms\PresentationProcessor;
 use Ingot\Error\ErrorReport;
 use Symfony\Component\Validator\Constraint;
 use Symfony\Component\Validator\ConstraintValidator;
 use Symfony\Component\Validator\Exception\UnexpectedTypeException;
 
-final class ValidFormDefinitionValidator extends ConstraintValidator
+final class ValidFormPresentationValidator extends ConstraintValidator
 {
     public function __construct(
-        private readonly FormDefinitionProcessor $processor,
+        private readonly PresentationProcessor $processor,
     ) {}
 
     public function validate(mixed $value, Constraint $constraint): void
     {
-        if (!$constraint instanceof ValidFormDefinition) {
-            throw new UnexpectedTypeException($constraint, ValidFormDefinition::class);
+        if (!$constraint instanceof ValidFormPresentation) {
+            throw new UnexpectedTypeException($constraint, ValidFormPresentation::class);
         }
 
+        // Absent is fine: a client that draws forms its own way describes none.
         // A payload of the wrong shape was already reported by the mapping pass.
         if (!$value instanceof \stdClass) {
             return;
@@ -30,15 +31,14 @@ final class ValidFormDefinitionValidator extends ConstraintValidator
 
         try {
             $this->processor->parse($value);
-        } catch (DefinitionNotValid $exception) {
+        } catch (PresentationNotValid $exception) {
             $this->report($exception->report);
         }
     }
 
     /**
-     * Every ingot finding becomes one violation, keeping the pointer the
-     * engine computed — re-rooted to where the client actually sent the
-     * document, which is what the surrounding property path says.
+     * Every finding becomes one violation, keeping the pointer the engine
+     * computed — re-rooted to where the client sent the document.
      */
     private function report(ErrorReport $report): void
     {

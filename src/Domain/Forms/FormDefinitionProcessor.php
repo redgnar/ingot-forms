@@ -28,14 +28,16 @@ final class FormDefinitionProcessor implements DefinitionParser
      * Parses an already-decoded definition document — the shape a framework
      * hands over after mapping the request envelope.
      *
-     * @param array<string, mixed> $document
+     * @param \stdClass|array<string, mixed> $document decoded either way: a
+     *        request arrives as objects, so `{}` is still an object, while an
+     *        array from a fixture or a command has to be re-read to say so
      *
      * @throws DefinitionNotValid when the document fails the meta-schema,
      *         type mapping, or semantic rules — one aggregated report
      */
-    public function parse(array $document): FormDefinition
+    public function parse(\stdClass|array $document): FormDefinition
     {
-        $result = $this->mapper->tryMap(FormDefinition::class, Source::array(self::asJsonDocument($document)));
+        $result = $this->mapper->tryMap(FormDefinition::class, Source::array(\is_array($document) ? self::asJsonDocument($document) : $document));
 
         if (!$result->isSuccess()) {
             throw new DefinitionNotValid($result->errors());
