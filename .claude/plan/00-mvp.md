@@ -84,7 +84,9 @@ CREATE TABLE forms (
 CREATE INDEX idx_forms_expire ON forms (expire_date);
 ```
 
-- Status is derived, never stored. No `title` column — listing selects `definition->>'title'`.
+- Status is derived, never stored, and no part of the definition gets a column of its own —
+  the document is served whole. (Both halves of the original note have since gone: a
+  definition no longer carries a `title`, and no endpoint lists forms.)
 - Every repository read/write guards `expire_date > now()` (expired → `FormGone` → 410);
   `app:forms:purge-expired` physically deletes expired rows.
 - State transitions run inside `transactional()` + `SELECT ... FOR UPDATE`, so validation and
