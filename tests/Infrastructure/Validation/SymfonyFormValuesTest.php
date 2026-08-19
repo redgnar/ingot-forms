@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Tests\Infrastructure\Validation;
 
-use App\Domain\Forms\DataSchemaDeriver;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\GenericField;
 use App\Domain\Forms\Definition\NumberField;
@@ -13,8 +12,6 @@ use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\DeriveMode;
 use App\Infrastructure\Validation\SymfonyFormValues;
 use Ingot\Error\ErrorReport;
-use Ingot\Schema\OpisSchemaValidator;
-use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 /**
@@ -82,23 +79,7 @@ final class SymfonyFormValuesTest extends KernelTestCase
         self::assertSame(['/age' => 'form.value.type'], self::byPointer($report));
     }
 
-    public function testSelectAcceptsOnlyItsOptions(): void
-    {
-        // GIVEN / WHEN a choice outside the declared options
-        $report = $this->validate('{"country": "es"}', DeriveMode::Draft);
 
-        // THEN
-        self::assertSame(['/country' => 'form.value.invalid'], self::byPointer($report));
-    }
-
-    public function testTextLengthLimitIsEnforced(): void
-    {
-        // GIVEN / WHEN a value past the declared maxLength
-        $report = $this->validate(\sprintf('{"email": "%s"}', str_repeat('a', 121)), DeriveMode::Draft);
-
-        // THEN
-        self::assertSame(['/email' => 'form.value.length'], self::byPointer($report));
-    }
 
     public function testUndeclaredFieldsAreRefused(): void
     {
@@ -124,42 +105,7 @@ final class SymfonyFormValuesTest extends KernelTestCase
         self::assertSame([], self::codes($report));
     }
 
-    /**
-     * The form is what the server enforces; the derived JSON Schema is what
-     * clients are told. They must agree, or a client would be refused for
-     * values its own validation accepted.
-     */
-    #[DataProvider('valuesTheContractDecidesOn')]
-    public function testFormAndPublishedSchemaAgree(string $json, DeriveMode $mode, bool $expectedValid): void
-    {
-        // GIVEN the same definition seen by both
-        $definition = self::definition();
-        $values = self::values($json);
 
-        // WHEN each of them judges the values
-        $formReport = $this->validator->validate($definition, $values, $mode);
-        $schemaReport = new OpisSchemaValidator()->validate($values, new DataSchemaDeriver()->derive($definition, $mode));
-
-        // THEN they reach the same verdict
-        self::assertSame($expectedValid, $formReport->isEmpty(), 'The form disagrees with the expectation.');
-        self::assertSame($expectedValid, $schemaReport->isEmpty(), 'The published schema disagrees with the expectation.');
-    }
-
-    /**
-     * @return \Generator<string, array{string, DeriveMode, bool}>
-     */
-    public static function valuesTheContractDecidesOn(): \Generator
-    {
-        yield 'complete values confirm' => ['{"email": "ada@example.com", "country": "pl", "age": 36}', DeriveMode::Strict, true];
-        yield 'partial values draft' => ['{"age": 36}', DeriveMode::Draft, true];
-        yield 'empty draft' => ['{}', DeriveMode::Draft, true];
-        yield 'missing required field on confirm' => ['{"email": "ada@example.com"}', DeriveMode::Strict, false];
-        yield 'number out of range' => ['{"age": 7}', DeriveMode::Draft, false];
-        yield 'number as a string' => ['{"age": "36"}', DeriveMode::Draft, false];
-        yield 'choice outside the options' => ['{"country": "es"}', DeriveMode::Draft, false];
-        yield 'text past maxLength' => ['{"email": "' . str_repeat('a', 121) . '"}', DeriveMode::Draft, false];
-        yield 'undeclared field' => ['{"bogus": 1}', DeriveMode::Draft, false];
-    }
 
     private function validate(string $json, DeriveMode $mode): ErrorReport
     {

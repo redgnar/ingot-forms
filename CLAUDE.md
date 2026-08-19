@@ -179,6 +179,16 @@ Rules that follow from it, and that the tooling checks:
   names describe behavior; error-path tests assert JSON Pointer + error code.
 - Suites: `unit` (tests/Domain — no kernel, no DB) and `integration` (tests/Infrastructure,
   tests/Http — real compose Postgres, per-test rollback via dama/doctrine-test-bundle).
+- **The item catalogue is tested by a battery, one class per type.** A new kind of item gets
+  two subclasses and inherits everything else: `tests/Domain/Forms/Definition/Field/…Test`
+  (which option combinations a definition may and may not carry, what the item contributes to
+  the strict and draft schema, and that every option survives being stored) and
+  `tests/Infrastructure/Validation/Field/…ValuesTest` (a table of values with the pointer and
+  code each must produce, judged through the whole staged validator). The values table is
+  also what proves the form never refuses what the published schema accepts — the server may
+  not be stricter than its own contract; the other direction is fine, since the schema runs
+  first and is what clients were told. Test what a type accepts on **both** sides of every
+  boundary: the refused side alone leaves the limit itself unpinned.
 - Tests mirror `src/` under `tests/`, layer for layer. Use cases are tested against in-memory
   fakes of their ports (`tests/Application/Forms/Fake/`) — no kernel, no database — so what
   they check is the orchestration: the transaction, the locked read, the order of steps.

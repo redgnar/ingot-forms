@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Tests\Domain\Forms\Definition;
 
 use App\Domain\Forms\Definition\FormDefinition;
-use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
 use Ingot\MapperBuilder;
 use Ingot\MappingResult;
@@ -69,49 +68,8 @@ final class DefinitionConstraintsTest extends TestCase
         self::assertSame(['mapping.max_items'], self::codesAt($tooMany, '/items'));
     }
 
-    public function testTextMaxLengthMustBePositive(): void
-    {
-        // GIVEN
-        $mapper = self::bareMapper();
 
-        // WHEN mapping the smallest useful limit and the first impossible one
-        $one = $mapper->tryMap(TextField::class, Source::json('{"name": "a", "maxLength": 1}'));
-        $zero = $mapper->tryMap(TextField::class, Source::json('{"name": "a", "maxLength": 0}'));
 
-        // THEN a limit of 1 is fine, 0 could never be satisfied
-        self::assertTrue($one->isSuccess());
-        self::assertSame(['mapping.exclusive_minimum'], self::codesAt($zero, '/maxLength'));
-    }
-
-    public function testTextPatternMustNotBeEmpty(): void
-    {
-        // GIVEN
-        $mapper = self::bareMapper();
-
-        // WHEN mapping a one-character pattern and an empty one
-        $dot = $mapper->tryMap(TextField::class, Source::json('{"name": "a", "pattern": "."}'));
-        $empty = $mapper->tryMap(TextField::class, Source::json('{"name": "a", "pattern": ""}'));
-
-        // THEN
-        self::assertTrue($dot->isSuccess());
-        self::assertSame(['mapping.min_length'], self::codesAt($empty, '/pattern'));
-    }
-
-    public function testSelectOptionsMustBeNonEmptyAndUnique(): void
-    {
-        // GIVEN
-        $mapper = self::bareMapper();
-
-        // WHEN mapping a single option, no options, and a repeated option
-        $single = $mapper->tryMap(SelectField::class, Source::json('{"name": "a", "options": ["x"]}'));
-        $none = $mapper->tryMap(SelectField::class, Source::json('{"name": "a", "options": []}'));
-        $repeated = $mapper->tryMap(SelectField::class, Source::json('{"name": "a", "options": ["x", "x"]}'));
-
-        // THEN
-        self::assertTrue($single->isSuccess());
-        self::assertSame(['mapping.min_items'], self::codesAt($none, '/options'));
-        self::assertSame(['mapping.unique_items'], self::codesAt($repeated, '/options/1'));
-    }
 
     public function testFieldsAreOptionalByDefault(): void
     {

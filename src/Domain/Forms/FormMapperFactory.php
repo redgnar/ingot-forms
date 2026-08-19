@@ -7,6 +7,8 @@ namespace App\Domain\Forms;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\GenericField;
+use App\Domain\Forms\Definition\NumberField;
+use App\Domain\Forms\Definition\NumberRangeValidator;
 use App\Domain\Forms\Definition\UniqueFieldNamesValidator;
 use Ingot\MapperBuilder;
 use Ingot\Schema\Schema;
@@ -15,8 +17,9 @@ use Psr\Cache\CacheItemPoolInterface;
 
 /**
  * Builds the one mapper this domain speaks through: the definition
- * meta-schema, the uniqueness rule, and the fallback that turns an unknown
- * field type into a {@see GenericField} instead of a failure.
+ * meta-schema, the semantic rules a schema cannot state (unique names, a range
+ * that can be satisfied), and the fallback that turns an unknown field type
+ * into a {@see GenericField} instead of a failure.
  *
  * Having it here rather than inside a consumer's constructor means the
  * configuration exists once, is injectable (`forms.definition_mapper` in
@@ -35,6 +38,7 @@ final class FormMapperFactory
         $builder = MapperBuilder::create()
             ->withSchema(FormDefinition::class, Schema::fromFile(__DIR__ . '/form-definition.schema.json'))
             ->withValidator(FormDefinition::class, new UniqueFieldNamesValidator())
+            ->withValidator(NumberField::class, new NumberRangeValidator())
             ->withVariantFallback(Field::class, GenericField::class);
 
         if ($this->metadataCache !== null) {
