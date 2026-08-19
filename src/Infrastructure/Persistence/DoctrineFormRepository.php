@@ -8,14 +8,17 @@ use App\Domain\Forms\Event\DraftSaved;
 use App\Domain\Forms\Event\FormConfirmed;
 use App\Domain\Forms\Event\FormCreated;
 use App\Domain\Forms\Event\FormEvent;
+use App\Domain\Forms\Event\PresentationChanged;
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\Port\DefinitionParser;
 use App\Domain\Forms\Port\FormRepository;
+use App\Domain\Forms\Port\PresentationParser;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
+use App\Domain\Forms\ValueObject\Presentation;
 use App\Domain\Forms\ValueObject\Values;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
@@ -36,6 +39,7 @@ final class DoctrineFormRepository implements FormRepository
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly DefinitionParser $definitions,
+        private readonly PresentationParser $presentations,
     ) {}
 
     public function add(Form $form): void
@@ -153,6 +157,7 @@ final class DoctrineFormRepository implements FormRepository
             $record->dataSavedAt,
             $record->confirmedAt,
             $record->createdAt,
+            $record->presentation === null ? null : Presentation::stored($record->presentation, $this->presentations),
         );
     }
 
@@ -175,6 +180,7 @@ final class DoctrineFormRepository implements FormRepository
         match (true) {
             $event instanceof DraftSaved => $this->store($record, $event),
             $event instanceof FormConfirmed => $record->confirmedAt = $event->occurredAt,
+            $event instanceof PresentationChanged => $record->presentation = (string) $event->presentation,
             // A form is inserted as a whole; nothing about its creation is an
             // update to an existing row.
             $event instanceof FormCreated => null,

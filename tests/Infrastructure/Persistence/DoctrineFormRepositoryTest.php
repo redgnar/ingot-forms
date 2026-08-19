@@ -11,9 +11,13 @@ use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\FormMapperFactory;
 use App\Domain\Forms\FormStatus;
 use App\Domain\Forms\Port\FormRepository;
+use App\Domain\Forms\Presentation\Engine\EngineCatalogue;
+use App\Domain\Forms\Presentation\PresentationRules;
+use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
+use App\Domain\Forms\ValueObject\Presentation;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
 use App\Infrastructure\Persistence\DoctrineTransactions;
 use App\Tests\Domain\Forms\Fake\StubValues;
@@ -125,6 +129,7 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
             $form = $this->repository->getForUpdate($id);
             $form->saveDraft(json_decode('{"email": "ada@example.com"}', false, flags: \JSON_THROW_ON_ERROR), new StubValues());
             $form->confirm(new StubValues());
+            $form->present(self::presentation(), new PresentationRules(new EngineCatalogue()));
             $this->repository->save($form);
         });
 
@@ -143,6 +148,8 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         self::assertNotNull($read->dataSavedAt());
         self::assertNotNull($read->confirmedAt());
         self::assertSame(FormStatus::Confirmed, $read->status());
+        self::assertSame((string) self::presentation(), (string) $read->presentation());
+        self::assertSame('email', $read->presentation()?->structure()->items[0]->name);
 
         // AND a form that was only read has done nothing worth recording
         self::assertSame([], $read->releaseEvents());
@@ -195,6 +202,26 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         self::assertTrue($liveId->equals($this->repository->get($liveId)->id()));
         $this->expectException(FormNotFound::class);
         $this->repository->get($expiredId);
+    }
+
+    public function testAFormNobodyDescribedComesBackWithoutOne(): void
+    {
+        // GIVEN a form that was only ever created
+        $id = self::uuid();
+        $this->repository->add(new Form($id, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+
+        // WHEN / THEN an empty column is no presentation, not an empty one
+        self::assertNull($this->repository->get($id)->presentation());
+    }
+
+    private static function presentation(): Presentation
+    {
+        $processor = new PresentationProcessor(new FormMapperFactory()->create());
+
+        return $processor->document($processor->parse([
+            'engine' => 'core-html',
+            'items' => [['name' => 'email', 'widget' => 'textarea', 'label' => 'contact.email']],
+        ]));
     }
 
     private static function definition(): Definition

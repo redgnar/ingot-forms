@@ -34,6 +34,9 @@ class FormRecord
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     public ?string $data = null;
 
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    public ?string $presentation = null;
+
     #[ORM\Column(name: 'data_saved_at', type: Types::DATETIME_IMMUTABLE, nullable: true)]
     public ?\DateTimeImmutable $dataSavedAt = null;
 
