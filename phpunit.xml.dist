@@ -24,6 +24,11 @@
             <directory>tests/Infrastructure</directory>
             <directory>tests/UserInterface</directory>
         </testsuite>
+        <!-- Driven in a real browser, against a real server: slower than the rest
+             and the only thing that proves a page works where pages run. -->
+        <testsuite name="browser">
+            <directory>tests/Browser</directory>
+        </testsuite>
     </testsuites>
     <extensions>
         <bootstrap class="DAMA\DoctrineTestBundle\PHPUnit\PHPUnitExtension"/>

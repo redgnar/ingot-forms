@@ -6,7 +6,7 @@
 RUN   := docker compose run --rm --no-deps php
 RUNDB := docker compose run --rm php
 
-.PHONY: image install update require test test-unit test-integration test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
+.PHONY: image install update require test test-unit test-integration test-browser test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
 
 image: ## Build the dev/test image
 	docker compose build
@@ -34,8 +34,11 @@ test: db-test
 test-unit: ## Fast loop: domain tests only, no database
 	$(RUN) vendor/bin/phpunit --testsuite unit
 
-test-integration: db-test ## Http + Infrastructure tests against the compose postgres
+test-integration: db-test ## Api + Web + Infrastructure tests against the compose postgres
 	$(RUNDB) vendor/bin/phpunit --testsuite integration
+
+test-browser: db-test ## Drive the pages in a real (headless) browser
+	$(RUNDB) vendor/bin/phpunit --testsuite browser
 
 test-filter: db-test ## One test or a group of them: make test-filter FILTER=FormApiTest::testSaveDraft
 	@[ -n "$(FILTER)" ] || { echo 'Set FILTER, e.g. make test-filter FILTER=FormApiTest'; exit 1; }
