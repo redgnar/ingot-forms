@@ -36,7 +36,9 @@ final class FormApiTest extends WebTestCase
                 {"name": "country", "widget": "radio", "label": "contact.country"},
                 {"name": "age", "widget": "number", "label": "contact.age"}
             ]},
-            {"widget": "paragraph", "label": "contact.note"}
+            {"widget": "paragraph", "label": "contact.note"},
+            {"widget": "save", "label": "contact.save", "options": {"appearance": "link"}},
+            {"widget": "confirm", "label": "contact.send"}
         ],
         "translations": {
             "en": {
@@ -44,7 +46,9 @@ final class FormApiTest extends WebTestCase
                 "contact.email": "E-mail",
                 "contact.country": "Country",
                 "contact.age": "Age",
-                "contact.note": "We reply within two days"
+                "contact.note": "We reply within two days",
+                "contact.save": "Save for later",
+                "contact.send": "Send"
             }
         }
     }';
@@ -271,7 +275,7 @@ final class FormApiTest extends WebTestCase
         $payload = json_encode([
             'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
             'definition' => self::DEFINITION,
-            'presentation' => ['engine' => 'core-html', 'items' => [['name' => 'nickname']]],
+            'presentation' => ['engine' => 'core-html', 'items' => [['name' => 'nickname'], ['widget' => 'confirm']]],
         ], \JSON_THROW_ON_ERROR);
 
         // WHEN
@@ -290,7 +294,7 @@ final class FormApiTest extends WebTestCase
         $payload = json_encode([
             'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
             'definition' => self::DEFINITION,
-            'presentation' => ['engine' => 'core-html', 'items' => [['name' => 'email', 'items' => [['name' => 'country']]]]],
+            'presentation' => ['engine' => 'core-html', 'items' => [['name' => 'email', 'items' => [['name' => 'country']]], ['widget' => 'confirm']]],
         ], \JSON_THROW_ON_ERROR);
 
         // WHEN

@@ -11,6 +11,7 @@ use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\FormStatus;
+use App\Domain\Forms\Presentation\PresentationActions;
 use App\Domain\Forms\Presentation\PresentedItem;
 use Twig\Environment;
 
@@ -77,11 +78,23 @@ final class CoreHtmlRenderer implements FormRenderer
             $hint = self::text($item->hint, $translations, $locale, $default);
 
             if ($item->name === null) {
+                $widget = $item->widget ?? ($item->isContainer() ? 'fieldset' : 'paragraph');
+                $isAction = \in_array($widget, PresentationActions::all(), true);
+
                 $nodes[] = [
-                    'kind' => $item->isContainer() ? 'container' : 'decoration',
-                    'widget' => $item->widget ?? ($item->isContainer() ? 'fieldset' : 'paragraph'),
-                    'label' => $label,
+                    'kind' => match (true) {
+                        $item->isContainer() => 'container',
+                        $isAction => 'action',
+                        default => 'decoration',
+                    },
+                    'widget' => $widget,
+                    // A kit's own wording, for a document that did not bring its
+                    // own: an action still has to say what it does.
+                    'label' => $label ?? ($isAction ? ucfirst($widget) : null),
                     'hint' => $hint,
+                    // How it looks is the document's to ask for and this kit's to
+                    // honour; anything it does not know draws as a button.
+                    'appearance' => ($item->options['appearance'] ?? null) === 'link' ? 'link' : 'button',
                     'children' => $this->nodes($item->items, $declared, $values, $translations, $locale, $default),
                 ];
 

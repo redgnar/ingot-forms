@@ -10,6 +10,7 @@ use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
+use App\Domain\Forms\Presentation\PresentationActions;
 
 /**
  * The kit this application ships with: plain HTML controls, one per kind of
@@ -49,5 +50,10 @@ final class CoreHtmlEngine implements PresentationEngine
     public function decorations(): array
     {
         return ['heading', 'paragraph'];
+    }
+
+    public function actions(): array
+    {
+        return [PresentationActions::SAVE, PresentationActions::CONFIRM];
     }
 }

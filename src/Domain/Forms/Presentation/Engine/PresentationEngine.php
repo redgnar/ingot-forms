@@ -48,4 +48,16 @@ interface PresentationEngine
      * @return list<string>
      */
     public function decorations(): array;
+
+    /**
+     * Widgets that do something rather than show something: saving a draft,
+     * confirming the form.
+     *
+     * These names are not a kit's to invent — they say what a form does, and
+     * every form does the same things — so a kit declares how it draws them,
+     * not whether they exist.
+     *
+     * @return list<string>
+     */
+    public function actions(): array;
 }

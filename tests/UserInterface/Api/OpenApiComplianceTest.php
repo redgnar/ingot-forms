@@ -59,7 +59,9 @@ final class OpenApiComplianceTest extends WebTestCase
                 {"name": "country", "widget": "radio", "label": "contact.country"},
                 {"name": "age", "widget": "number", "label": "contact.age"}
             ]},
-            {"widget": "paragraph", "label": "contact.note"}
+            {"widget": "paragraph", "label": "contact.note"},
+            {"widget": "save", "label": "contact.save", "options": {"appearance": "link"}},
+            {"widget": "confirm", "label": "contact.send"}
         ],
         "translations": {
             "en": {
@@ -67,7 +69,9 @@ final class OpenApiComplianceTest extends WebTestCase
                 "contact.email": "E-mail",
                 "contact.country": "Country",
                 "contact.age": "Age",
-                "contact.note": "We reply within two days"
+                "contact.note": "We reply within two days",
+                "contact.save": "Save for later",
+                "contact.send": "Send"
             }
         }
     }';
@@ -192,7 +196,7 @@ final class OpenApiComplianceTest extends WebTestCase
                 $test->postJson('/api/forms', self::createPayload(new \DateTimeImmutable('-1 hour')));
             }],
             ['POST', '/api/forms', 422, true, 'presentation does not fit', static function (self $test): void {
-                $test->postJson('/api/forms', self::createPayload(presentation: '{"engine": "core-html", "items": [{"name": "nickname"}]}'));
+                $test->postJson('/api/forms', self::createPayload(presentation: '{"engine": "core-html", "items": [{"name": "nickname"}, {"widget": "confirm"}]}'));
             }],
             ['POST', '/api/forms', 422, false, 'unknown key', static function (self $test): void {
                 // The request DTO closes the body, and so does the published schema

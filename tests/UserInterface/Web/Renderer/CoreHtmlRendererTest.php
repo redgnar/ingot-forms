@@ -55,6 +55,8 @@ final class CoreHtmlRendererTest extends KernelTestCase
             ['name' => 'visit', 'widget' => 'date', 'label' => 'contact.visit'],
             ['name' => 'terms', 'widget' => 'switch', 'label' => 'contact.terms'],
             ['name' => 'campaign', 'widget' => 'hidden'],
+            ['widget' => 'save', 'label' => 'contact.save', 'options' => ['appearance' => 'link']],
+            ['widget' => 'confirm', 'label' => 'contact.send'],
         ],
         'translations' => [
             'en' => [
@@ -67,6 +69,8 @@ final class CoreHtmlRendererTest extends KernelTestCase
                 'contact.age' => 'Age',
                 'contact.visit' => 'Date of visit',
                 'contact.terms' => 'I accept the terms',
+                'contact.save' => 'Save for later',
+                'contact.send' => 'Send it',
             ],
             'pl' => ['contact.email' => 'E-mail (pl)'],
         ],
@@ -150,6 +154,18 @@ final class CoreHtmlRendererTest extends KernelTestCase
         self::assertNotNull($page->filter('[data-name="country"] input[value="de"]')->attr('checked'));
     }
 
+    public function testTheTriggersAreDrawnWhereTheDocumentPutsThem(): void
+    {
+        // GIVEN a document asking for a link to save and a button to send
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::form(), 'en')));
+
+        // THEN each is drawn as asked, labelled as asked, and says what it does
+        self::assertSame('Send it', $page->filter('button[data-action="confirm"]')->text());
+        self::assertSame('Save for later', $page->filter('a[data-action="save"]')->text());
+        // and nothing adds a pair of its own at the bottom
+        self::assertCount(1, $page->filter('button'));
+    }
+
     public function testAConfirmedFormIsDrawnToBeReadNotChanged(): void
     {
         // GIVEN a form locked for good
@@ -162,7 +178,7 @@ final class CoreHtmlRendererTest extends KernelTestCase
 
         // THEN nothing can be typed into it and nothing offers to send it
         self::assertNotNull($page->filter('#item-email')->attr('disabled'));
-        self::assertCount(0, $page->filter('button'));
+        self::assertCount(0, $page->filter('[data-action]'));
     }
 
     public function testACodeIsResolvedInTheLanguageAskedForThenTheDefaultThenItself(): void

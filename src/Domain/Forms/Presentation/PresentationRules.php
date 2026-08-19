@@ -117,7 +117,13 @@ final class PresentationRules
 
         return $shown->isContainer()
             ? self::judgeAgainst($shown, $path, $named, $engine?->containers(), 'hold other items')
-            : self::judgeAgainst($shown, $path, $named, $engine?->decorations(), 'stand on its own');
+            : self::judgeAgainst(
+                $shown,
+                $path,
+                $named,
+                $engine === null ? null : [...$engine->decorations(), ...$engine->actions()],
+                'stand on its own',
+            );
     }
 
     private static function judgeControl(PresentedItem $shown, Field $item, string $path, ?PresentationEngine $engine, string $named): ?MappingError

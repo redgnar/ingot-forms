@@ -6,10 +6,25 @@
 RUN   := docker compose run --rm --no-deps php
 RUNDB := docker compose run --rm php
 
-.PHONY: image install update require test test-unit test-integration test-browser test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
+.PHONY: setup image up down install update require test test-unit test-integration test-browser test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
+
+setup: ## Bring a fresh checkout all the way up: image, dependencies, both schemas, serving
+	@[ -d ../ingot ] || { echo 'The ingot library must sit next to this project: git clone https://github.com/redgnar/ingot.git ../ingot'; exit 1; }
+	$(MAKE) install
+	$(MAKE) migrate
+	$(MAKE) db-test
+	$(MAKE) up
+	@echo 'Ready. `make ci` runs every gate; `make test-browser` drives the pages in a browser.'
 
 image: ## Build the dev/test image
 	docker compose build
+
+up: ## Serve the app on http://localhost:8000 (API under /api, pages under /forms)
+	docker compose up -d
+	@echo 'Serving on http://localhost:8000 — API: /api/forms, pages: /forms/{id}.'
+
+down: ## Stop the stack (the database volume survives; `docker compose down -v` drops it)
+	docker compose down
 
 install: image
 	$(RUN) composer install

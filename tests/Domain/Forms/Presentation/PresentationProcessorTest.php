@@ -41,6 +41,7 @@ final class PresentationProcessorTest extends TestCase
                     ],
                 ],
                 ['name' => 'terms', 'label' => 'contact.terms'],
+                ['widget' => 'confirm', 'label' => 'contact.send'],
             ],
             'translations' => [
                 'en' => [
@@ -50,6 +51,7 @@ final class PresentationProcessorTest extends TestCase
                     'contact.address' => 'Address',
                     'contact.country' => 'Country',
                     'contact.terms' => 'I accept the terms',
+                    'contact.send' => 'Send',
                 ],
                 'pl' => ['contact.email' => 'E-mail'],
             ],
@@ -63,7 +65,7 @@ final class PresentationProcessorTest extends TestCase
 
         // THEN the tree is there, as deep as it was written
         self::assertSame('core-html', $presentation->engine);
-        self::assertCount(2, $presentation->items);
+        self::assertCount(3, $presentation->items);
 
         $group = $presentation->items[0];
         self::assertNull($group->name);
@@ -75,6 +77,9 @@ final class PresentationProcessorTest extends TestCase
         // an item that asks for no widget gets the natural one, later
         self::assertNull($presentation->items[1]->widget);
         self::assertFalse($presentation->items[1]->isContainer());
+        // and the way to finish the form is an item like any other, placed by
+        // whoever wrote the document
+        self::assertSame('confirm', $presentation->items[2]->widget);
     }
 
     public function testItReadsInTheOrderItIsWritten(): void
@@ -84,7 +89,7 @@ final class PresentationProcessorTest extends TestCase
 
         // THEN
         self::assertSame(
-            [null, 'email', null, 'country', 'terms'],
+            [null, 'email', null, 'country', 'terms', null],
             array_map(static fn($item): ?string => $item->name, $shown),
         );
     }
@@ -102,6 +107,7 @@ final class PresentationProcessorTest extends TestCase
             'contact.address',
             'contact.country',
             'contact.terms',
+            'contact.send',
         ], $codes);
     }
 
@@ -171,13 +177,13 @@ final class PresentationProcessorTest extends TestCase
         ];
 
         yield 'a misspelled member' => [
-            ['engine' => 'core-html', 'items' => [['name' => 'email', 'lable' => 'x']]],
+            ['engine' => 'core-html', 'items' => [['name' => 'email', 'lable' => 'x'], ['widget' => 'confirm']]],
             '/items/0/lable',
             'schema.additionalProperties',
         ];
 
         yield 'a member misspelled deep in the tree' => [
-            ['engine' => 'core-html', 'items' => [['widget' => 'fieldset', 'items' => [['name' => 'email', 'hnit' => 'x']]]]],
+            ['engine' => 'core-html', 'items' => [['widget' => 'fieldset', 'items' => [['name' => 'email', 'hnit' => 'x']]], ['widget' => 'confirm']]],
             '/items/0/items/0/hnit',
             'schema.additionalProperties',
         ];
@@ -186,13 +192,14 @@ final class PresentationProcessorTest extends TestCase
             ['engine' => 'core-html', 'items' => [
                 ['widget' => 'fieldset', 'items' => [['name' => 'email']]],
                 ['widget' => 'fieldset', 'items' => [['name' => 'email']]],
+                ['widget' => 'confirm'],
             ]],
             '/items/1/items/0/name',
             'presentation.item.duplicate',
         ];
 
         yield 'a value that also holds items' => [
-            ['engine' => 'core-html', 'items' => [['name' => 'email', 'items' => [['name' => 'country']]]]],
+            ['engine' => 'core-html', 'items' => [['name' => 'email', 'items' => [['name' => 'country']]], ['widget' => 'confirm']]],
             '/items/0/items',
             'presentation.item.not-a-container',
         ];
@@ -200,20 +207,21 @@ final class PresentationProcessorTest extends TestCase
         yield 'the same, one group down' => [
             ['engine' => 'core-html', 'items' => [
                 ['widget' => 'fieldset', 'items' => [['name' => 'email', 'items' => [['name' => 'country']]]]],
+                ['widget' => 'confirm'],
             ]],
             '/items/0/items/0/items',
             'presentation.item.not-a-container',
         ];
 
         yield 'a catalogue with no default locale' => [
-            ['engine' => 'core-html', 'items' => [['name' => 'email']], 'translations' => ['en' => ['x' => 'X']]],
+            ['engine' => 'core-html', 'items' => [['name' => 'email'], ['widget' => 'confirm']], 'translations' => ['en' => ['x' => 'X']]],
             '/defaultLocale',
             'presentation.locale.unknown',
         ];
 
         yield 'a code the default locale does not have' => [
             ['engine' => 'core-html', 'defaultLocale' => 'en',
-                'items' => [['name' => 'email', 'label' => 'contact.email']],
+                'items' => [['name' => 'email', 'label' => 'contact.email'], ['widget' => 'confirm']],
                 'translations' => ['en' => ['contact.other' => 'Something else']]],
             '/translations/en',
             'presentation.translation.missing',
@@ -221,7 +229,7 @@ final class PresentationProcessorTest extends TestCase
 
         yield 'a code used deep in the tree and translated nowhere' => [
             ['engine' => 'core-html', 'defaultLocale' => 'en',
-                'items' => [['widget' => 'fieldset', 'items' => [['name' => 'email', 'hint' => 'contact.email.hint']]]],
+                'items' => [['widget' => 'fieldset', 'items' => [['name' => 'email', 'hint' => 'contact.email.hint']]], ['widget' => 'confirm']],
                 'translations' => ['en' => ['contact.other' => 'Something else']]],
             '/translations/en',
             'presentation.translation.missing',
@@ -246,12 +254,32 @@ final class PresentationProcessorTest extends TestCase
         }
     }
 
-    public function testAPresentationMayShowNothingAtAll(): void
+    public function testAPresentationHasToOfferAWayToFinishTheForm(): void
     {
-        // GIVEN a document with an empty list
-        // WHEN / THEN nothing to draw is not a contradiction, and no rule here
-        // invents a minimum nobody asked for
-        self::assertSame([], self::processor()->parse(['engine' => 'core-html', 'items' => []])->items);
+        // GIVEN a document that shows a form and no way to submit it
+        try {
+            self::processor()->parse(['engine' => 'core-html', 'items' => [['name' => 'email']]]);
+            self::fail('Expected PresentationNotValid.');
+        } catch (PresentationNotValid $exception) {
+            // THEN it is refused: where the trigger goes and what it says is the
+            // document's business, but a page nobody can finish is not a design
+            self::assertSame('presentation.confirm.missing', $exception->report->errors[0]->code);
+            self::assertSame('/items', $exception->report->errors[0]->pointer->toString());
+        }
+    }
+
+    public function testSavingADraftIsOptionalWhereConfirmingIsNot(): void
+    {
+        // GIVEN a form somebody fills in one sitting
+        $document = self::processor()->parse([
+            'engine' => 'core-html',
+            'items' => [['name' => 'email'], ['widget' => 'confirm', 'options' => ['appearance' => 'link']]],
+        ]);
+
+        // WHEN / THEN no halfway house is needed, and the way it is drawn is the
+        // document's to ask for
+        self::assertSame('confirm', $document->items[1]->widget);
+        self::assertSame(['appearance' => 'link'], $document->items[1]->options);
     }
 
     private static function processor(): PresentationProcessor

@@ -391,7 +391,7 @@ final class FormTest extends TestCase
 
         return $processor->document($processor->parse([
             'engine' => 'core-html',
-            'items' => [['name' => $name, 'widget' => $widget]],
+            'items' => [['name' => $name, 'widget' => $widget], ['widget' => 'confirm']],
         ]));
     }
 

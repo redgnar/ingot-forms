@@ -30,7 +30,9 @@ Content-Type: application/json
           { "name": "country", "widget": "radio", "label": "contact.country", "options": { "columns": 3 } }
         ]
       },
-      { "name": "terms", "widget": "switch", "label": "contact.terms" }
+      { "name": "terms", "widget": "switch", "label": "contact.terms" },
+      { "widget": "save", "label": "contact.save", "options": { "appearance": "link" } },
+      { "widget": "confirm", "label": "contact.send" }
     ],
     "translations": {
       "en": {
@@ -39,7 +41,9 @@ Content-Type: application/json
         "contact.email": "E-mail",
         "contact.email.hint": "We only use it to reply",
         "contact.country": "Country",
-        "contact.terms": "I accept the terms"
+        "contact.terms": "I accept the terms",
+        "contact.save": "Save for later",
+        "contact.send": "Send"
       },
       "pl": {
         "contact.heading": "Napisz do nas",
@@ -105,7 +109,7 @@ Content-Type: application/json
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
-  "presentation": { "engine": "core-html", "items": [{ "name": "email" }, { "name": "nickname", "widget": "text" }] }
+  "presentation": { "engine": "core-html", "items": [{ "name": "email" }, { "name": "nickname", "widget": "text" }, { "widget": "confirm" }] }
 }
 
 > {%
@@ -124,7 +128,7 @@ Content-Type: application/json
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
-  "presentation": { "engine": "core-html", "items": [{ "name": "email", "widget": "radio" }] }
+  "presentation": { "engine": "core-html", "items": [{ "name": "email", "widget": "radio" }, { "widget": "confirm" }] }
 }
 
 > {%
@@ -143,7 +147,7 @@ Content-Type: application/json
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }, { "type": "text", "name": "country" }] },
-  "presentation": { "engine": "core-html", "items": [{ "name": "email", "items": [{ "name": "country" }] }] }
+  "presentation": { "engine": "core-html", "items": [{ "name": "email", "items": [{ "name": "country" }, { "widget": "confirm" }] }] }
 }
 
 > {%
@@ -169,7 +173,7 @@ Content-Type: application/json
       { "type": "text", "name": "phone" }
     ]
   },
-  "presentation": { "engine": "core-html", "items": [{ "name": "email" }] }
+  "presentation": { "engine": "core-html", "items": [{ "name": "email" }, { "widget": "confirm" }] }
 }
 
 > {%
@@ -199,7 +203,8 @@ Content-Type: application/json
     "engine": "core-html",
     "items": [
       { "name": "email", "widget": "text", "label": "contact.email" },
-      { "name": "campaign", "widget": "hidden" }
+      { "name": "campaign", "widget": "hidden" },
+      { "widget": "confirm" }
     ]
   }
 }
@@ -207,6 +212,24 @@ Content-Type: application/json
 > {%
     client.test("201", function () {
         client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+%}
+
+### A document that shows a form and offers no way to finish it.
+# @name presentationWithoutAWayToConfirm
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
+  "presentation": { "engine": "core-html", "items": [{ "name": "email", "widget": "text" }] }
+}
+
+> {%
+    client.test("422 presentation.confirm.missing", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "presentation.confirm.missing", "Expected presentation.confirm.missing");
     });
 %}
 
@@ -221,7 +244,7 @@ Content-Type: application/json
   "presentation": {
     "engine": "core-html",
     "defaultLocale": "en",
-    "items": [{ "name": "email", "label": "contact.email" }],
+    "items": [{ "name": "email", "label": "contact.email" }, { "widget": "confirm" }],
     "translations": { "en": { "contact.something-else": "..." } }
   }
 }
@@ -243,7 +266,7 @@ Content-Type: application/json
   "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
   "presentation": {
     "engine": "someones-vue-kit",
-    "items": [{ "widget": "accordion", "items": [{ "name": "email", "widget": "fancy-editor" }] }]
+    "items": [{ "widget": "accordion", "items": [{ "name": "email", "widget": "fancy-editor" }] }, { "widget": "confirm" }]
   }
 }
 

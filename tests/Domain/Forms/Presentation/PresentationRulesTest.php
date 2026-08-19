@@ -235,6 +235,32 @@ final class PresentationRulesTest extends TestCase
         self::assertSame('/items/0/items/0/items/0/name', $report->errors[0]->pointer->toString());
     }
 
+    public function testAKitDrawsTheThingsAFormDoes(): void
+    {
+        // GIVEN both triggers, placed where the document wants them
+        $presentation = self::presentation([
+            ['name' => 'email'],
+            ['widget' => 'save', 'label' => 'contact.save'],
+            ['widget' => 'confirm', 'label' => 'contact.send'],
+        ]);
+
+        // WHEN / THEN a kit says how it draws them, not whether they exist
+        self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
+    }
+
+    public function testAWordThisKitDoesNotKnowIsNotATrigger(): void
+    {
+        // GIVEN something that sounds like an action and is not one of the two
+        $presentation = self::presentation([['name' => 'email'], ['widget' => 'submit']]);
+
+        // WHEN
+        $report = self::rules()->check(self::definition(), $presentation);
+
+        // THEN
+        self::assertSame('presentation.widget.mismatch', $report->errors[0]->code);
+        self::assertSame('submit', $report->errors[0]->input);
+    }
+
     public function testAnEngineNobodyKnowsDrawsAnythingUnchecked(): void
     {
         // GIVEN a document written for a kit this application has never heard of
@@ -280,7 +306,7 @@ final class PresentationRulesTest extends TestCase
     {
         return new PresentationProcessor(new FormMapperFactory()->create())->parse([
             'engine' => $engine,
-            'items' => $complete ? [...$items, ...self::everythingElse($items)] : $items,
+            'items' => [...($complete ? [...$items, ...self::everythingElse($items)] : $items), ['widget' => 'confirm']],
         ]);
     }
 

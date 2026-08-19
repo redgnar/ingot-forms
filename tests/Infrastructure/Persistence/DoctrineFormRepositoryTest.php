@@ -220,7 +220,7 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
 
         return $processor->document($processor->parse([
             'engine' => 'core-html',
-            'items' => [['name' => 'email', 'widget' => 'textarea', 'label' => 'contact.email']],
+            'items' => [['name' => 'email', 'widget' => 'textarea', 'label' => 'contact.email'], ['widget' => 'confirm']],
         ]));
     }
 

@@ -31,6 +31,19 @@ final class FormPageTest extends PantherTestCase
         $this->api = HttpClient::create(['base_uri' => self::$baseUri]);
     }
 
+    public function testTheTriggersAreWhereTheDocumentPutThemAndLookAsItAsked(): void
+    {
+        // GIVEN a document asking for a link to save and a button to send
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+        // THEN that is what a person sees, with the wording the document gave
+        self::assertSame('a', $this->browser->findElement(WebDriverBy::cssSelector('[data-action="save"]'))->getTagName());
+        self::assertSame('Save for later', $this->browser->findElement(WebDriverBy::cssSelector('[data-action="save"]'))->getText());
+        self::assertSame('button', $this->browser->findElement(WebDriverBy::cssSelector('[data-action="confirm"]'))->getTagName());
+        self::assertSame('Send', $this->browser->findElement(WebDriverBy::cssSelector('[data-action="confirm"]'))->getText());
+    }
+
     public function testSomebodyFillsTheFormInAndItIsSaved(): void
     {
         // GIVEN a form drawn for a person
@@ -42,7 +55,7 @@ final class FormPageTest extends PantherTestCase
         $this->browser->findElement(WebDriverBy::id('item-age'))->sendKeys('36');
         $this->browser->findElement(WebDriverBy::cssSelector('[data-name="country"] input[value="pl"]'))->click();
         $this->browser->findElement(WebDriverBy::id('item-terms'))->click();
-        $this->browser->findElement(WebDriverBy::id('save'))->click();
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="save"]'))->click();
 
         // THEN the API holds exactly what was typed, in the types the contract
         // asks for — the page turned a control's text into JSON
@@ -64,7 +77,7 @@ final class FormPageTest extends PantherTestCase
         $this->browser->findElement(WebDriverBy::id('item-age'))->sendKeys('7');
 
         // WHEN they save
-        $this->browser->findElement(WebDriverBy::id('save'))->click();
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="save"]'))->click();
 
         // THEN the message from the API is shown where the mistake is, because
         // its pointer names the item
@@ -78,6 +91,34 @@ final class FormPageTest extends PantherTestCase
         self::assertNull($this->values($id));
     }
 
+    public function testAnUntickedConsentMarksTheBoxAndNothingElse(): void
+    {
+        // GIVEN a form filled in except for the consent
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->browser->findElement(WebDriverBy::id('item-email'))->sendKeys('ada@example.com');
+        $this->browser->findElement(WebDriverBy::id('item-age'))->sendKeys('36');
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-name="country"] input[value="pl"]'))->click();
+
+        // WHEN it is saved without ticking
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="save"]'))->click();
+
+        // THEN the box is the only thing marked: the fields that are filled in
+        // correctly must not be told they are wrong, and the message says what
+        // would satisfy the rule rather than naming a schema keyword
+        $message = $this->eventually(function (): ?string {
+            $slot = $this->browser->findElement(WebDriverBy::cssSelector('[data-error="terms"]'));
+
+            return $slot->isDisplayed() ? $slot->getText() : null;
+        });
+
+        self::assertSame('The value must be true.', $message);
+        self::assertFalse($this->browser->findElement(WebDriverBy::cssSelector('[data-error="email"]'))->isDisplayed());
+        self::assertFalse($this->browser->findElement(WebDriverBy::cssSelector('[data-error="country"]'))->isDisplayed());
+        self::assertFalse($this->browser->findElement(WebDriverBy::cssSelector('[data-error="age"]'))->isDisplayed());
+        self::assertFalse($this->browser->findElement(WebDriverBy::id('form-error'))->isDisplayed());
+    }
+
     public function testConfirmingLocksTheFormAndTheNextViewSaysSo(): void
     {
         // GIVEN a form filled in completely
@@ -89,7 +130,7 @@ final class FormPageTest extends PantherTestCase
         $this->browser->findElement(WebDriverBy::id('item-terms'))->click();
 
         // WHEN they confirm
-        $this->browser->findElement(WebDriverBy::id('confirm'))->click();
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="confirm"]'))->click();
 
         // THEN the page comes back read-only, with nothing left to press
         $this->eventually(function (): ?bool {
@@ -98,7 +139,7 @@ final class FormPageTest extends PantherTestCase
             return ($inputs[0] ?? null)?->getAttribute('disabled') === 'true' ? true : null;
         });
 
-        self::assertCount(0, $this->browser->findElements(WebDriverBy::tagName('button')));
+        self::assertCount(0, $this->browser->findElements(WebDriverBy::cssSelector('[data-action]')));
         self::assertSame('confirmed', $this->formStatus($id));
     }
 
@@ -129,6 +170,8 @@ final class FormPageTest extends PantherTestCase
                         ]],
                         ['name' => 'country', 'widget' => 'radio', 'label' => 'contact.country'],
                         ['name' => 'terms', 'widget' => 'switch', 'label' => 'contact.terms'],
+                        ['widget' => 'save', 'label' => 'contact.save', 'options' => ['appearance' => 'link']],
+                        ['widget' => 'confirm', 'label' => 'contact.send'],
                     ],
                     'translations' => [
                         'en' => [
@@ -137,6 +180,8 @@ final class FormPageTest extends PantherTestCase
                             'contact.age' => 'Age',
                             'contact.country' => 'Country',
                             'contact.terms' => 'I accept the terms',
+                            'contact.save' => 'Save for later',
+                            'contact.send' => 'Send',
                         ],
                     ],
                 ],

@@ -82,10 +82,23 @@ async function send(path, method, body) {
     return false;
 }
 
-document.getElementById('save')?.addEventListener('click', () => send('/data', 'PUT', collect()));
+// Triggers are wherever the presentation put them, and there may be several of
+// each: they are bound by what they do, not by where they are.
+for (const trigger of document.querySelectorAll('[data-action="save"]')) {
+    trigger.addEventListener('click', (event) => {
+        event.preventDefault();
+        send('/data', 'PUT', collect());
+    });
+}
 
-document.getElementById('confirm')?.addEventListener('click', async () => {
-    if (await send('/data', 'PUT', collect())) {
-        if (await send('/confirm', 'POST')) window.location.reload();
-    }
-});
+for (const trigger of document.querySelectorAll('[data-action="confirm"]')) {
+    trigger.addEventListener('click', async (event) => {
+        event.preventDefault();
+
+        // Confirming judges what the form holds, so what is on the page has to
+        // be in it first.
+        if (await send('/data', 'PUT', collect())) {
+            if (await send('/confirm', 'POST')) window.location.reload();
+        }
+    });
+}

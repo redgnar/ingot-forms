@@ -68,7 +68,9 @@ changing what it asks does.
     { "widget": "fieldset", "label": "contact.personal", "items": [
       { "name": "email", "widget": "text", "label": "contact.email", "hint": "contact.email.hint" }
     ]},
-    { "name": "terms", "widget": "checkbox", "label": "contact.terms" }
+    { "name": "terms", "widget": "checkbox", "label": "contact.terms" },
+    { "widget": "save", "label": "contact.save", "options": { "appearance": "link" } },
+    { "widget": "confirm", "label": "contact.send" }
   ],
   "translations": {
     "en": { "contact.personal": "Personal details", "contact.email": "E-mail", "contact.email.hint": "We only use it to reply", "contact.terms": "I accept the terms" }
@@ -92,6 +94,13 @@ adding a class; `core-html` draws `text`/`textarea`/`hidden`, `select`/`radio`, 
 `date`, `checkbox`/`switch`, nests with `fieldset` and decorates with `heading`/`paragraph`. An
 engine this application does not know is accepted with its widgets unchecked — the bargain a
 plugin item type gets, and for the same reason.
+
+**Saving and confirming are items too.** `save` and `confirm` are placed wherever the document
+wants them, labelled by a code like everything else, and drawn as a button or — with
+`options.appearance: link` — as a link. Those names are not a kit's to invent: they say what a
+form does, so a kit declares how it draws them, not whether they exist. **At least one `confirm`
+is required**, because where the trigger goes is a design decision and leaving it out is not one:
+the page would be unfinishable. Nothing is added at the bottom of the page by the renderer.
 
 **What the server enforces**: the form is shown whole — every item the definition declares
 appears, exactly once, and a value a client fills in rather than a person is drawn `hidden`,
@@ -119,14 +128,17 @@ because the description of a fixed thing has no reason to drift.
 ## Setup
 
 ```bash
-make install    # build the image + composer install
-make migrate    # apply migrations to the dev database (starts postgres)
+make setup      # image, dependencies, both schemas, and the stack serving on :8000
 make ci         # validate + cs + openapi + docs + stan + deptrac + test + mutation + audit
 ```
 
-Serve locally (dev only): `docker compose up -d` → API at `http://localhost:8000`
-(the `php` service runs PHP's built-in dev server; `docker compose run` invocations
-from the Makefile and PhpStorm override that command, so tooling is unaffected).
+`make setup` is the whole bootstrap for a fresh checkout; it refuses early with an explanation
+if the `ingot` library is not checked out next to this project, which is the one thing it cannot
+do for you. Afterwards `make up` and `make down` start and stop the stack — the database volume
+survives a `down`, so the data is still there next time.
+
+The `php` service runs PHP's built-in dev server; `docker compose run` invocations from the
+Makefile and PhpStorm override that command, so tooling never conflicts with it.
 
 ## API
 

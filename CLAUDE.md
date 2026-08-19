@@ -175,7 +175,8 @@ Rules that follow from it, and that the tooling checks:
   than an edited table. The `Form` constructor judges it against the definition it came with — the
   rules handed in the way a values validator is — so a form that exists is a form whose
   presentation fits it: every declared item shown, exactly once, with a control that engine
-  draws. An item a client fills in rather than a person is drawn `hidden`, which says so
+  draws, and at least one `confirm` trigger — where it goes is the document's business, leaving
+  it out would only make the page unfinishable. An item a client fills in rather than a person is drawn `hidden`, which says so
   instead of leaving it out.
 - **A definition says what is asked, never how it looks.** There is no presentation in it:
   `textarea` is one way to show a text item, `radio` one way to show a select, and both are

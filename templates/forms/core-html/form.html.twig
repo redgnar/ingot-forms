@@ -17,7 +17,8 @@
         .error { color: #b00020; font-size: .875rem; margin-top: .25rem; }
         input[type=text], input[type=date], input[type=number], select, textarea { box-sizing: border-box; padding: .375rem .5rem; width: 100%; }
         .choice label { display: block; font-weight: 400; }
-        .actions { display: flex; gap: .75rem; margin-top: 1.5rem; }
+        button, .action-link { font: inherit; }
+        .action-link { background: none; border: 0; color: #0645ad; cursor: pointer; padding: 0; text-decoration: underline; }
         .notice { background: #eef; border-radius: .25rem; margin-bottom: 1.5rem; padding: .75rem 1rem; }
     </style>
 </head>
@@ -27,15 +28,12 @@
 {% endif %}
 
 <form id="form">
+    {# Where the buttons go is the presentation's business, so nothing is added
+       here: a document that offers none draws none. It cannot offer none by
+       accident — a presentation without a way to confirm is refused. #}
     {{ _self.nodes(nodes, readOnly) }}
 
-    {% if not readOnly %}
-        <div class="actions">
-            <button type="button" id="save">Save draft</button>
-            <button type="button" id="confirm">Confirm</button>
-        </div>
-        <p class="error" id="form-error" hidden></p>
-    {% endif %}
+    <p class="error" id="form-error" hidden></p>
 </form>
 
 <script type="module" src="/js/core-html-form.js"></script>
@@ -49,6 +47,14 @@
                 {% if node.label %}<legend>{{ node.label }}</legend>{% endif %}
                 {{ _self.nodes(node.children, readOnly) }}
             </fieldset>
+        {% elseif node.kind == 'action' %}
+            {% if not readOnly %}
+                {% if node.appearance == 'link' %}
+                    <a href="#" class="action-link" data-action="{{ node.widget }}">{{ node.label }}</a>
+                {% else %}
+                    <button type="button" data-action="{{ node.widget }}">{{ node.label }}</button>
+                {% endif %}
+            {% endif %}
         {% elseif node.kind == 'decoration' %}
             {% if node.widget == 'heading' %}
                 <h2>{{ node.label }}</h2>

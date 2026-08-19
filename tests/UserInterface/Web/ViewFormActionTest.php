@@ -39,10 +39,11 @@ final class ViewFormActionTest extends WebTestCase
         'items' => [
             ['name' => 'email', 'widget' => 'text', 'label' => 'contact.email'],
             ['name' => 'country', 'widget' => 'radio', 'label' => 'contact.country'],
+            ['widget' => 'confirm', 'label' => 'contact.send'],
         ],
         'translations' => [
-            'en' => ['contact.email' => 'E-mail', 'contact.country' => 'Country'],
-            'pl' => ['contact.email' => 'Adres e-mail', 'contact.country' => 'Kraj'],
+            'en' => ['contact.email' => 'E-mail', 'contact.country' => 'Country', 'contact.send' => 'Send'],
+            'pl' => ['contact.email' => 'Adres e-mail', 'contact.country' => 'Kraj', 'contact.send' => 'Wyślij'],
         ],
     ];
 
@@ -80,6 +81,7 @@ final class ViewFormActionTest extends WebTestCase
         // THEN
         self::assertResponseIsSuccessful();
         self::assertSame('Adres e-mail *', $crawler->filter('label[for="item-email"]')->text());
+        self::assertSame('Wyślij', $crawler->filter('[data-action="confirm"]')->text());
         self::assertSame('pl', $crawler->filter('html')->attr('lang'));
     }
 

@@ -16,7 +16,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class PresentationTest extends TestCase
 {
-    private const string DOCUMENT = '{"engine":"core-html","items":[{"widget":"fieldset","label":"personal","items":[{"name":"email"}]}]}';
+    private const string DOCUMENT = '{"engine":"core-html","items":[{"widget":"fieldset","label":"personal","items":[{"name":"email"}]},{"widget":"confirm"}]}';
 
     public function testAPresentationJustAcceptedCarriesItsStructureAlready(): void
     {
@@ -39,8 +39,8 @@ final class PresentationTest extends TestCase
         // THEN both shapes are there straight away
         self::assertSame(self::DOCUMENT, (string) $presentation);
         self::assertSame('core-html', $presentation->structure()->engine);
-        self::assertSame(['personal', 'email'], array_map(
-            static fn(\App\Domain\Forms\Presentation\PresentedItem $item): string => $item->label ?? (string) $item->name,
+        self::assertSame(['personal', 'email', 'Confirm'], array_map(
+            static fn(\App\Domain\Forms\Presentation\PresentedItem $item): string => $item->label ?? $item->name ?? ucfirst((string) $item->widget),
             $presentation->structure()->shown(),
         ));
     }
