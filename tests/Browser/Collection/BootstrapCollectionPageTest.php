@@ -30,4 +30,9 @@ final class BootstrapCollectionPageTest extends CollectionPageTestCase
     {
         return 'stepper';
     }
+
+    protected static function choiceWidget(): string
+    {
+        return 'radio-buttons';
+    }
 }

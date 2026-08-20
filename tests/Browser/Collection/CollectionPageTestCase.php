@@ -6,6 +6,7 @@ namespace App\Tests\Browser\Collection;
 
 use Facebook\WebDriver\Exception\WebDriverException;
 use Facebook\WebDriver\WebDriverBy;
+use Facebook\WebDriver\WebDriverElement;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\Panther\Client;
 use Symfony\Component\Panther\PantherTestCase;
@@ -39,6 +40,9 @@ abstract class CollectionPageTestCase extends PantherTestCase
     /** The widget this kit draws a count with. */
     abstract protected static function countWidget(): string;
 
+    /** ...and a choice, as something to pick from rather than a list to open. */
+    abstract protected static function choiceWidget(): string;
+
     protected function setUp(): void
     {
         $this->browser = self::createPantherClient(['browser' => static::CHROME]);
@@ -64,7 +68,7 @@ abstract class CollectionPageTestCase extends PantherTestCase
         $stored = $this->eventually(fn(): ?array => $this->values($id));
         self::assertIsArray($stored);
         self::assertSame(
-            [['sku' => 'A-1', 'quantity' => 2], ['sku' => 'B-2', 'quantity' => 5]],
+            [['sku' => 'A-1', 'quantity' => 2, 'unit' => 'pc'], ['sku' => 'B-2', 'quantity' => 5]],
             $stored['lines'] ?? null,
         );
     }
@@ -98,7 +102,7 @@ abstract class CollectionPageTestCase extends PantherTestCase
         // THEN what is stored is what is on the page
         $stored = $this->eventually(fn(): ?array => $this->values($id));
         self::assertIsArray($stored);
-        self::assertSame([['sku' => 'C-3', 'quantity' => 2]], $stored['lines'] ?? null);
+        self::assertSame([['sku' => 'C-3', 'quantity' => 2, 'unit' => 'pc']], $stored['lines'] ?? null);
     }
 
     public function testAnEntryThatBreaksARuleIsMarkedInThatEntry(): void
@@ -128,7 +132,37 @@ abstract class CollectionPageTestCase extends PantherTestCase
         self::assertSame('', $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] [data-error="quantity"]'))[0]->getText());
 
         // AND nothing moved: a refused save leaves the form holding what it held
-        self::assertSame([['sku' => 'A-1', 'quantity' => 2]], ($this->values($id) ?? [])['lines'] ?? null);
+        self::assertSame([['sku' => 'A-1', 'quantity' => 2, 'unit' => 'pc']], ($this->values($id) ?? [])['lines'] ?? null);
+    }
+
+    public function testAChoiceInOneEntryIsNotTheSameGroupAsAnother(): void
+    {
+        // GIVEN a list whose entries offer a choice, the first one already made
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->click('[data-entry] details summary');
+        self::assertTrue($this->option(0, 'pc')->isSelected());
+
+        // WHEN a second entry is added and answered differently
+        $this->click(static::addTrigger());
+        $this->fill('sku', 1, 'B-2');
+        $this->fill('quantity', 1, '5');
+        $this->pick(1, 'kg');
+
+        // THEN the first entry keeps its own answer. Radios sharing a name are
+        // one group, so without a group per entry, picking here would unpick
+        // there — which is what "the radio does not work" looks like
+        self::assertTrue($this->option(1, 'kg')->isSelected());
+        self::assertTrue($this->option(0, 'pc')->isSelected());
+
+        // AND both answers reach the API, each in its own entry
+        $this->click('[data-action="save"], [data-action="click->form#save"]');
+        $stored = $this->eventually(fn(): ?array => $this->values($id));
+        self::assertIsArray($stored);
+        self::assertSame(
+            [['sku' => 'A-1', 'quantity' => 2, 'unit' => 'pc'], ['sku' => 'B-2', 'quantity' => 5, 'unit' => 'kg']],
+            $stored['lines'] ?? null,
+        );
     }
 
     public function testTheButtonsObeyTheCountsTheDefinitionGives(): void
@@ -183,6 +217,30 @@ abstract class CollectionPageTestCase extends PantherTestCase
         );
     }
 
+    final protected function option(int $entry, string $value): WebDriverElement
+    {
+        $options = $this->browser->findElements(
+            WebDriverBy::cssSelector(\sprintf('[data-entry] [data-item="unit"] input[value="%s"]', $value)),
+        );
+
+        self::assertArrayHasKey($entry, $options);
+
+        return $options[$entry];
+    }
+
+    /**
+     * Picks it the way a person does: by the thing they can see. A toggle hides
+     * its own input, so what is clicked is the label pointing at it.
+     */
+    final protected function pick(int $entry, string $value): void
+    {
+        $input = $this->option($entry, $value);
+        $id = (string) $input->getAttribute('id');
+        $labels = $id === '' ? [] : $this->browser->findElements(WebDriverBy::cssSelector(\sprintf('label[for="%s"]', $id)));
+
+        ($labels[0] ?? $input)->click();
+    }
+
     final protected function click(string $selector): void
     {
         $this->browser->findElement(WebDriverBy::cssSelector($selector))->click();
@@ -205,6 +263,7 @@ abstract class CollectionPageTestCase extends PantherTestCase
                     ['type' => 'collection', 'name' => 'lines', 'min' => 1, 'max' => 3, 'items' => [
                         ['type' => 'text', 'name' => 'sku', 'required' => true, 'maxLength' => 8],
                         ['type' => 'number', 'name' => 'quantity', 'required' => true, 'min' => 1, 'decimals' => 0],
+                        ['type' => 'select', 'name' => 'unit', 'options' => ['pc', 'kg']],
                     ]],
                 ]],
                 'presentation' => [
@@ -214,6 +273,8 @@ abstract class CollectionPageTestCase extends PantherTestCase
                         ['name' => 'lines', 'widget' => 'table', 'label' => 't.lines', 'columns' => ['sku'], 'items' => [
                             ['name' => 'sku', 'widget' => 'text', 'label' => 't.sku'],
                             ['name' => 'quantity', 'widget' => static::countWidget(), 'label' => 't.qty'],
+                            ['name' => 'unit', 'widget' => static::choiceWidget(), 'label' => 't.unit',
+                                'choices' => ['pc' => 't.pc', 'kg' => 't.kg']],
                         ]],
                         ['widget' => 'save', 'label' => 't.save'],
                         ['widget' => 'confirm', 'label' => 't.send'],
@@ -222,11 +283,14 @@ abstract class CollectionPageTestCase extends PantherTestCase
                         't.lines' => 'Lines',
                         't.sku' => 'SKU',
                         't.qty' => 'Quantity',
+                        't.unit' => 'Unit',
+                        't.pc' => 'pieces',
+                        't.kg' => 'kilos',
                         't.save' => 'Save for later',
                         't.send' => 'Send',
                     ]],
                 ],
-                'data' => ['lines' => [['sku' => 'A-1', 'quantity' => 2]]],
+                'data' => ['lines' => [['sku' => 'A-1', 'quantity' => 2, 'unit' => 'pc']]],
             ],
         ]);
 

@@ -14,11 +14,13 @@ export default class extends Controller {
     static values = {
         min: { type: Number, default: 0 },
         max: { type: Number, default: Number.MAX_SAFE_INTEGER },
+        pending: String,
         ticked: String,
         unticked: String,
     };
 
     connect() {
+        this.claimed = 0;
         this.#guard();
     }
 
@@ -27,12 +29,30 @@ export default class extends Controller {
 
         const added = this.blankTarget.content.cloneNode(true);
 
+        this.#claim(added, `n${++this.claimed}`);
+
         // A new entry has nothing in its row yet, so the only thing to do with
         // it is answer it: it arrives unfolded.
         for (const form of added.querySelectorAll('details')) form.open = true;
 
         this.tableTarget.append(added);
         this.#guard();
+    }
+
+    // A blank entry has no place in the list, so the server left a token where
+    // an entry's own scope would be. Replacing it is what makes a cloned entry
+    // its own: an id names one thing, and radios sharing a name are one group —
+    // two entries with the same group would unpick each other.
+    #claim(entry, mine) {
+        for (const element of entry.querySelectorAll('[id], [for], [name]')) {
+            for (const attribute of ['id', 'for', 'name']) {
+                const value = element.getAttribute(attribute);
+
+                if (value !== null && value.includes(this.pendingValue)) {
+                    element.setAttribute(attribute, value.replace(this.pendingValue, mine));
+                }
+            }
+        }
     }
 
     remove(event) {

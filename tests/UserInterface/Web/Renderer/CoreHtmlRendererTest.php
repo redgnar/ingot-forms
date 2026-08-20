@@ -291,13 +291,43 @@ final class CoreHtmlRendererTest extends KernelTestCase
         self::assertSame('B-2', $second->filter('[data-name="sku"]')->attr('value'));
         self::assertSame('kg', $second->filter('select[data-name="unit"] option[selected]')->attr('value'));
 
-        // AND nothing inside an entry carries an id: the same form is drawn once
-        // per entry, and an id can only belong to one of them
-        self::assertCount(0, $second->filter('[id]'));
+        // AND its ids carry the entry they belong to, because the same form is
+        // drawn once per entry and an id names one thing on a page
+        self::assertSame('item-lines-1-sku', $second->filter('[data-name="sku"]')->attr('id'));
+        self::assertSame('item-lines-1-sku', $second->filter('label[for]')->first()->attr('for'));
+
         self::assertSame(
             'Urgent',
             trim($second->filter('[data-item="urgent"] label')->text()),
         );
+    }
+
+    public function testNothingOnThePageSharesAnIdAndNoTwoEntriesShareARadioGroup(): void
+    {
+        // GIVEN a page with a list, whose entries offer a choice as radios
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::listForm(asRadios: true), 'en')));
+
+        // THEN every id belongs to one thing: a label in the second entry cannot
+        // point at the first entry's control
+        $ids = $page->filter('[id]')->each(static fn(Crawler $node): ?string => $node->attr('id'));
+        self::assertSame($ids, array_values(array_unique($ids)));
+
+        // AND radios of one entry are a group of their own. Sharing a name would
+        // make them one group across the whole page, so picking an option in one
+        // entry would unpick another's — which is exactly what a person sees as
+        // "the radio does not work"
+        $groups = $page->filter('[data-item="unit"] input[type="radio"]')->each(
+            static fn(Crawler $input): ?string => $input->attr('name'),
+        );
+
+        // The last pair is the blank entry waiting in its template: it has no
+        // place in the list yet, so it carries the token a page replaces with
+        // something of its own when it clones one
+        self::assertSame([
+            'unit--lines-0', 'unit--lines-0',
+            'unit--lines-1', 'unit--lines-1',
+            'unit--lines-NEW', 'unit--lines-NEW',
+        ], $groups);
     }
 
     public function testAListKeepsOneBlankEntryAsideForAddingAnother(): void
@@ -353,7 +383,7 @@ final class CoreHtmlRendererTest extends KernelTestCase
     /**
      * A form asking one question repeatedly, with two answers already given.
      */
-    private static function listForm(bool $withColumns = true): Form
+    private static function listForm(bool $withColumns = true, bool $asRadios = false): Form
     {
         $definitions = new FormDefinitionProcessor(self::mapper());
         $definition = $definitions->document($definitions->parse(['items' => [
@@ -377,7 +407,7 @@ final class CoreHtmlRendererTest extends KernelTestCase
                     'items' => [
                         ['name' => 'sku', 'widget' => 'text', 'label' => 'list.sku'],
                         ['name' => 'quantity', 'widget' => 'number', 'label' => 'list.qty'],
-                        ['name' => 'unit', 'widget' => 'select', 'label' => 'list.unit', 'choices' => ['pc' => 'list.pc', 'kg' => 'list.kg']],
+                        ['name' => 'unit', 'widget' => $asRadios ? 'radio' : 'select', 'label' => 'list.unit', 'choices' => ['pc' => 'list.pc', 'kg' => 'list.kg']],
                         ['name' => 'urgent', 'widget' => 'checkbox', 'label' => 'list.urgent'],
                     ],
                 ], static fn(mixed $value): bool => $value !== []),

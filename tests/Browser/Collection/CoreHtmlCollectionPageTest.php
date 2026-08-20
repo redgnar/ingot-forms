@@ -29,4 +29,9 @@ final class CoreHtmlCollectionPageTest extends CollectionPageTestCase
     {
         return 'number';
     }
+
+    protected static function choiceWidget(): string
+    {
+        return 'radio';
+    }
 }

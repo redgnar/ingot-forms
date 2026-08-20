@@ -77,7 +77,7 @@
                 <p>{{ node.label }}</p>
             {% endif %}
         {% else %}
-            {{ _self.item(node, readOnly, inEntry) }}
+            {{ _self.item(node, readOnly) }}
         {% endif %}
     {% endfor %}
 {% endmacro %}
@@ -87,7 +87,7 @@
    another. The counts are on the wrapper so the page can grey out its own
    buttons — the server is still what decides. #}
 {% macro entries(node, readOnly) %}
-    <div class="entries" data-collection="{{ node.name }}"
+    <div class="entries" data-collection="{{ node.name }}" data-pending="{{ node.pending }}"
          data-ticked="{{ 'page.ticked'|trans }}" data-unticked="{{ 'page.unticked'|trans }}"
          {%- if node.min is not null %} data-min="{{ node.min }}"{% endif %}
          {%- if node.max is not null %} data-max="{{ node.max }}"{% endif %}>
@@ -141,34 +141,34 @@
     </tbody>
 {% endmacro %}
 
-{% macro item(node, readOnly, inEntry) %}
-    {# Inside an entry the label wraps its control instead of pointing at it by
-       id: the same form is drawn once per entry, and an id can only belong to
-       one of them. Nesting says the same thing and cannot collide. #}
+{% macro item(node, readOnly) %}
+    {# An id names one thing on a page, and the same form is drawn once per entry
+       — so inside an entry every id carries the entry's own scope. The label
+       points at it as everywhere else. #}
+    {% set id = 'item-' ~ (node.scope ? node.scope ~ '-' : '') ~ node.name %}
     <div class="item" data-item="{{ node.name }}"{% if node.widget == 'hidden' %} hidden{% endif %}>
-        {% if node.widget == 'hidden' %}
-            {{ _self.control(node, readOnly, inEntry) }}
-        {% elseif inEntry %}
-            <label>{{ node.label }}{% if node.required %} *{% endif %}
-                {% if node.hint %}<span class="hint">{{ node.hint }}</span>{% endif %}
-                {{ _self.control(node, readOnly, inEntry) }}
-            </label>
-        {% else %}
-            <label for="item-{{ node.name }}">{{ node.label }}{% if node.required %} *{% endif %}</label>
+        {% if node.widget != 'hidden' %}
+            {# A group of radios is not one control, so its caption points at
+               nothing: each option's own label does the pointing. #}
+            <label{% if node.widget != 'radio' %} for="{{ id }}"{% endif %}>{{ node.label }}{% if node.required %} *{% endif %}</label>
             {% if node.hint %}<p class="hint">{{ node.hint }}</p>{% endif %}
-            {{ _self.control(node, readOnly, inEntry) }}
         {% endif %}
+        {{ _self.control(node, readOnly, id) }}
 
         <p class="error" data-error="{{ node.name }}" hidden></p>
     </div>
 {% endmacro %}
 
-{% macro control(node, readOnly, inEntry) %}
+{% macro control(node, readOnly, id) %}
     {# One map of attributes per control, rendered in one place: quoting and
-       escaping happen once, instead of in every branch below. #}
+       escaping happen once, instead of in every branch below.
+
+       `name` groups radios, and a group belongs to one entry: without the scope,
+       picking an option in one entry would unpick another's. #}
+    {% set group = node.name ~ (node.scope ? '--' ~ node.scope : '') %}
     {% set common = {
-        'id': inEntry ? null : 'item-' ~ node.name,
-        'name': node.name,
+        'id': id,
+        'name': group,
         'data-name': node.name,
         'data-type': node.type,
         'disabled': readOnly,
@@ -188,7 +188,7 @@
                     <label>
                         <input{{ html.attributes({
                             'type': 'radio',
-                            'name': node.name,
+                            'name': group,
                             'value': choice.value,
                             'checked': node.value == choice.value,
                             'disabled': readOnly,

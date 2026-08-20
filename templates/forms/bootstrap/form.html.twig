@@ -107,7 +107,7 @@
     {% elseif node.kind == 'collection' %}
         {{ _self.entries(node, readOnly) }}
     {% else %}
-        {{ _self.item(node, readOnly, inEntry) }}
+        {{ _self.item(node, readOnly) }}
     {% endif %}
 {% endmacro %}
 
@@ -117,7 +117,7 @@
    greys out its own buttons — the server is still what decides. #}
 {% macro entries(node, readOnly) %}
     <div class="mb-4" data-collection="{{ node.name }}"
-         {%- if not readOnly %} data-controller="entries"
+         {%- if not readOnly %} data-controller="entries" data-entries-pending-value="{{ node.pending }}"
          data-entries-ticked-value="{{ 'page.ticked'|trans }}" data-entries-unticked-value="{{ 'page.unticked'|trans }}"
          {%- if node.min is not null %} data-entries-min-value="{{ node.min }}"{% endif %}
          {%- if node.max is not null %} data-entries-max-value="{{ node.max }}"{% endif %}
@@ -180,34 +180,37 @@
     </tbody>
 {% endmacro %}
 
-{% macro item(node, readOnly, inEntry) %}
+{% macro item(node, readOnly) %}
     {# One map of attributes per control: what the definition says about the
        value — its limits, its type on the wire — plus what the controller needs
        to find it again. #}
+    {# An id names one thing on a page, and the same form is drawn once per entry
+       — so inside an entry every id carries the entry's own scope. #}
+    {% set id = 'item-' ~ (node.scope ? node.scope ~ '-' : '') ~ node.name %}
     <div class="mb-3" data-item="{{ node.name }}"{% if node.widget == 'hidden' %} hidden{% endif %}>
         {% if node.widget != 'hidden' %}
-            {# Inside an entry the label wraps its control rather than pointing at
-               it by id: the same form is drawn once per entry, and an id can only
-               belong to one of them. #}
-            <label class="form-label"{% if not inEntry %} for="item-{{ node.name }}"{% endif %}>
-                {{- node.label }}{% if node.required %} *{% endif %}
-                {%- if inEntry %} {{ _self.control(node, readOnly, inEntry) }}{% endif %}
-            </label>
+            {# A group of choices is not one control, so its caption points at
+               nothing: each option's own label does the pointing. #}
+            <label class="form-label"{% if node.widget not in ['radio', 'radio-buttons'] %} for="{{ id }}"{% endif %}>{{ node.label }}{% if node.required %} *{% endif %}</label>
         {% endif %}
-        {% if not inEntry or node.widget == 'hidden' %}{{ _self.control(node, readOnly, inEntry) }}{% endif %}
+        {{ _self.control(node, readOnly, id) }}
 
         {% if node.hint %}<div class="form-text">{{ node.hint }}</div>{% endif %}
         <div class="form-text text-danger d-none" data-form-target="error" data-error="{{ node.name }}"></div>
     </div>
 {% endmacro %}
 
-{% macro control(node, readOnly, inEntry) %}
+{% macro control(node, readOnly, id) %}
     {# One map of attributes per control: what the definition says about the
        value — its limits, its type on the wire — plus what the controller needs
-       to find it again. #}
+       to find it again.
+
+       `name` groups radios, and a group belongs to one entry: without the scope,
+       picking an option in one entry would unpick another's. #}
+    {% set group = node.name ~ (node.scope ? '--' ~ node.scope : '') %}
     {% set common = {
-        'id': inEntry ? null : 'item-' ~ node.name,
-        'name': node.name,
+        'id': id,
+        'name': group,
         'data-name': node.name,
         'data-type': node.type,
         'data-form-target': 'control',
@@ -233,13 +236,13 @@
                         <input{{ html.attributes({
                             'type': 'radio',
                             'class': 'form-check-input',
-                            'id': 'item-' ~ node.name ~ '-' ~ loop.index,
-                            'name': node.name,
+                            'id': id ~ '-' ~ loop.index,
+                            'name': group,
                             'value': choice.value,
                             'checked': node.value == choice.value,
                             'disabled': readOnly,
                         })|raw }}>
-                        <label class="form-check-label" for="item-{{ node.name }}-{{ loop.index }}">{{ choice.text }}</label>
+                        <label class="form-check-label" for="{{ id }}-{{ loop.index }}">{{ choice.text }}</label>
                     </div>
                 {% endfor %}
             </div>
@@ -256,14 +259,14 @@
                     <input{{ html.attributes({
                         'type': 'radio',
                         'class': 'btn-check',
-                        'id': 'item-' ~ node.name ~ '-' ~ loop.index,
-                        'name': node.name,
+                        'id': id ~ '-' ~ loop.index,
+                        'name': group,
                         'value': choice.value,
                         'checked': node.value == choice.value,
                         'disabled': readOnly,
                         'autocomplete': 'off',
                     })|raw }}>
-                    <label class="btn btn-outline-primary" for="item-{{ node.name }}-{{ loop.index }}">{{ choice.text }}</label>
+                    <label class="btn btn-outline-primary" for="{{ id }}-{{ loop.index }}">{{ choice.text }}</label>
                 {% endfor %}
             </div>
         {% elseif node.widget == 'checkbox' or node.widget == 'switch' %}

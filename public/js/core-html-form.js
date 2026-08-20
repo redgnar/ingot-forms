@@ -209,9 +209,26 @@ function guard(list) {
     }
 }
 
+// A blank entry has no place in the list, so the server left a token where an
+// entry's own scope would be. Replacing it is what makes a cloned entry its own:
+// an id names one thing, and radios sharing a name are one group — two entries
+// with the same group would unpick each other.
+function claim(entry, pending, mine) {
+    for (const element of entry.querySelectorAll('[id], [for], [name]')) {
+        for (const attribute of ['id', 'for', 'name']) {
+            const value = element.getAttribute(attribute);
+
+            if (value !== null && value.includes(pending)) {
+                element.setAttribute(attribute, value.replace(pending, mine));
+            }
+        }
+    }
+}
+
 for (const list of document.querySelectorAll('[data-collection]')) {
     const table = list.querySelector('table');
     const blank = list.querySelector('template[data-blank]');
+    let claimed = 0;
 
     list.addEventListener('click', (event) => {
         const trigger = event.target.closest('[data-action]');
@@ -220,6 +237,7 @@ for (const list of document.querySelectorAll('[data-collection]')) {
         if (trigger.dataset.action === 'add-entry' && blank) {
             event.preventDefault();
             const added = blank.content.cloneNode(true);
+            claim(added, list.dataset.pending, `n${++claimed}`);
             // A new entry has nothing in its row yet, so the only thing to do
             // with it is answer it: it arrives unfolded.
             for (const form of added.querySelectorAll('details')) form.open = true;

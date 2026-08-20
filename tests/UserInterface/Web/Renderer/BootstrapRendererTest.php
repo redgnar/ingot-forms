@@ -383,9 +383,39 @@ final class BootstrapRendererTest extends KernelTestCase
             self::assertCount(1, $entry->filter(\sprintf('[data-form-target="error"][data-error="%s"]', $name)), $name);
         }
 
-        // AND nothing in it carries an id: one form is drawn once per entry, and
-        // an id can only belong to one of them
-        self::assertCount(0, $entry->filter('[id]'));
+        // AND its ids carry the entry they belong to: one form is drawn once per
+        // entry, and an id names one thing on a page
+        self::assertSame('item-lines-0-sku', $entry->filter('[data-name="sku"]')->attr('id'));
+
+        // AND no id on the whole page belongs to two things
+        $ids = $page->filter('[id]')->each(static fn(Crawler $node): ?string => $node->attr('id'));
+        self::assertSame($ids, array_values(array_unique($ids)));
+    }
+
+    public function testNoTwoEntriesShareARadioGroup(): void
+    {
+        // GIVEN entries offering a choice as a group of toggles
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::listForm(asToggles: true), 'en')));
+
+        // THEN each entry's toggles are a group of their own, and each toggle's
+        // label points at its own input — sharing either would make picking in
+        // one entry unpick another's
+        // The last pair of each list is the blank entry waiting in its template,
+        // carrying the token a page replaces when it clones one
+        self::assertSame([
+            'unit--lines-0', 'unit--lines-0',
+            'unit--lines-1', 'unit--lines-1',
+            'unit--lines-NEW', 'unit--lines-NEW',
+        ], $page->filter('[data-item="unit"] input[type="radio"]')->each(static fn(Crawler $input): ?string => $input->attr('name')));
+
+        // AND every label that points somewhere points at an option of its own
+        // entry; the group's caption points nowhere, because a group of choices
+        // is not one control
+        self::assertSame([
+            'item-lines-0-unit-1', 'item-lines-0-unit-2',
+            'item-lines-1-unit-1', 'item-lines-1-unit-2',
+            'item-lines-NEW-unit-1', 'item-lines-NEW-unit-2',
+        ], $page->filter('[data-item="unit"] label[for]')->each(static fn(Crawler $label): ?string => $label->attr('for')));
     }
 
     public function testAListKeepsOneBlankEntryAsideAndSomethingToPress(): void
@@ -426,7 +456,7 @@ final class BootstrapRendererTest extends KernelTestCase
     /**
      * A form asking one question repeatedly, with two answers already given.
      */
-    private static function listForm(): Form
+    private static function listForm(bool $asToggles = false): Form
     {
         $definitions = new FormDefinitionProcessor(self::mapper());
         $definition = $definitions->document($definitions->parse(['items' => [
@@ -449,7 +479,7 @@ final class BootstrapRendererTest extends KernelTestCase
                     ['name' => 'lines', 'widget' => 'table', 'label' => 'l.lines', 'columns' => ['sku', 'quantity'], 'items' => [
                         ['name' => 'sku', 'widget' => 'text', 'label' => 'l.sku'],
                         ['name' => 'quantity', 'widget' => 'stepper', 'label' => 'l.qty'],
-                        ['name' => 'unit', 'widget' => 'select', 'label' => 'l.unit', 'choices' => ['pc' => 'l.pc', 'kg' => 'l.kg']],
+                        ['name' => 'unit', 'widget' => $asToggles ? 'radio-buttons' : 'select', 'label' => 'l.unit', 'choices' => ['pc' => 'l.pc', 'kg' => 'l.kg']],
                     ]],
                     ['widget' => 'confirm', 'label' => 'l.send'],
                 ],

@@ -30,6 +30,14 @@ use App\Domain\Forms\Presentation\PresentedItem;
 final class PresentedNodes
 {
     /**
+     * The token a blank entry's scope carries, which a page replaces with
+     * something unique of its own when it clones one. Nothing on a rendered
+     * page keeps it: a scope names the entry it belongs to, and a blank entry
+     * has no place in the list yet.
+     */
+    public const string PENDING = 'NEW';
+
+    /**
      * @return list<array<string, mixed>>
      */
     public function of(RenderedForm $request, string $container, string $decoration): array
@@ -59,6 +67,7 @@ final class PresentedNodes
             $document->defaultLocale,
             $container,
             $decoration,
+            null,
         );
     }
 
@@ -79,6 +88,7 @@ final class PresentedNodes
         ?string $default,
         string $container,
         string $decoration,
+        ?string $scope,
     ): array {
         $nodes = [];
 
@@ -105,7 +115,7 @@ final class PresentedNodes
                     // How it looks is the document's to ask for and a kit's to
                     // honour; anything it does not know draws as a button.
                     'appearance' => ($item->options['appearance'] ?? null) === 'link' ? 'link' : 'button',
-                    'children' => $this->nodes($item->items, $declared, $values, $translations, $locale, $default, $container, $decoration),
+                    'children' => $this->nodes($item->items, $declared, $values, $translations, $locale, $default, $container, $decoration, $scope),
                 ];
 
                 continue;
@@ -118,7 +128,7 @@ final class PresentedNodes
             }
 
             if ($field instanceof CollectionField) {
-                $nodes[] = $this->collection($item, $field, $label, $hint, $values, $translations, $locale, $default, $container, $decoration);
+                $nodes[] = $this->collection($item, $field, $label, $hint, $values, $translations, $locale, $default, $container, $decoration, $scope);
 
                 continue;
             }
@@ -126,6 +136,10 @@ final class PresentedNodes
             $nodes[] = [
                 'kind' => 'value',
                 'name' => $item->name,
+                // Which entry this belongs to, if any: what makes an id unique
+                // when the same form is drawn once per entry, and what keeps one
+                // entry's radios from being the same group as another's.
+                'scope' => $scope,
                 'widget' => $item->widget ?? self::naturalWidget($field),
                 'type' => self::wireType($field),
                 'label' => $label ?? $item->name,
@@ -182,6 +196,7 @@ final class PresentedNodes
         ?string $default,
         string $container,
         string $decoration,
+        ?string $scope,
     ): array {
         $declared = [];
 
@@ -189,16 +204,18 @@ final class PresentedNodes
             $declared[$declaredItem->name] = $declaredItem;
         }
 
-        $blank = $this->nodes($item->items, $declared, [], $translations, $locale, $default, $container, $decoration);
+        $of = static fn(string|int $entry): string => ($scope === null ? '' : $scope . '-') . $item->name . '-' . $entry;
+
+        $blank = $this->nodes($item->items, $declared, [], $translations, $locale, $default, $container, $decoration, $of(self::PENDING));
         $entries = [];
 
         /** @var list<mixed> $stored */
         $stored = \is_array($values[$item->name] ?? null) ? array_values($values[$item->name]) : [];
 
-        foreach ($stored as $entry) {
+        foreach ($stored as $index => $entry) {
             /** @var array<string, mixed> $answers */
             $answers = \is_array($entry) ? $entry : [];
-            $nodes = $this->nodes($item->items, $declared, $answers, $translations, $locale, $default, $container, $decoration);
+            $nodes = $this->nodes($item->items, $declared, $answers, $translations, $locale, $default, $container, $decoration, $of($index));
 
             $entries[] = ['nodes' => $nodes, 'cells' => self::cells($nodes, $item->columns)];
         }
@@ -206,6 +223,7 @@ final class PresentedNodes
         return [
             'kind' => 'collection',
             'name' => $item->name,
+            'scope' => $scope,
             'widget' => $item->widget ?? 'table',
             'label' => $label ?? $item->name,
             'hint' => $hint,
@@ -213,6 +231,10 @@ final class PresentedNodes
             'min' => $field->min,
             'max' => $field->max,
             'columns' => self::columns($blank, $item->columns),
+            // What a page replaces in a cloned entry, so ids and radio groups
+            // stay its own: the token is the server's, not something two kits
+            // agreed on separately.
+            'pending' => self::PENDING,
             'entries' => $entries,
             // The same form again, holding nothing: what a page clones when
             // somebody asks for one more entry.
