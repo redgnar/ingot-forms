@@ -29,7 +29,7 @@ final class BootstrapEngineTest extends TestCase
      */
     public static function values(): \Generator
     {
-        yield 'text' => [new TextField('email'), ['text', 'textarea', 'floating', 'hidden']];
+        yield 'text' => [new TextField('email'), ['text', 'textarea', 'hidden']];
         yield 'select' => [new SelectField('country', ['pl', 'de']), ['select', 'radio', 'radio-buttons', 'autocomplete']];
         yield 'number' => [new NumberField('seats'), ['number', 'range', 'stepper']];
         yield 'date' => [new DateField('starts'), ['date']];
@@ -91,7 +91,7 @@ final class BootstrapEngineTest extends TestCase
         // THEN the plain controls are deliberately the same names in both — a
         // text field is a text field — and what is left is what this kit brought:
         // ways of asking the other one has no markup for at all
-        self::assertSame(['floating', 'radio-buttons', 'autocomplete', 'range', 'stepper'], $added);
+        self::assertSame(['radio-buttons', 'autocomplete', 'range', 'stepper'], $added);
 
         // AND the ways of grouping share nothing: a fieldset is not a card
         self::assertSame([], array_intersect($plain->containers(), $rich->containers()));

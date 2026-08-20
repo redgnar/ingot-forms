@@ -27,9 +27,15 @@ use App\Domain\Forms\Presentation\PresentationActions;
  *   options that deserve to be seen at once;
  * - `range` and `stepper` are a number moved rather than typed, which needs the
  *   definition's own bounds to move between;
- * - `floating` is a label that lives inside its control, for a dense form;
  * - `card`, `accordion` and `row` group in the three ways this kit groups:
  *   framed, folded away, side by side.
+ *
+ * What is deliberately *not* here is a floating label. Bootstrap can only float
+ * one over a text box or a select, so a form with a choice group, a switch or a
+ * slider in it would label some items inside their control and the rest above —
+ * and no page can be talked out of that mixture. It would also be the same
+ * question asked the same way with the text moved, which is a style, not a
+ * vocabulary: a kit's names are for ways of asking.
  *
  * A document written for `core-html` therefore does not draw here, and that is
  * the point: it names the kit it was written for, and a kit is asked what it can
@@ -39,7 +45,7 @@ final class BootstrapEngine implements PresentationEngine
 {
     /** @var array<class-string<Field>, list<string>> */
     private const array CONTROLS = [
-        TextField::class => ['text', 'textarea', 'floating', 'hidden'],
+        TextField::class => ['text', 'textarea', 'hidden'],
         SelectField::class => ['select', 'radio', 'radio-buttons', 'autocomplete'],
         NumberField::class => ['number', 'range', 'stepper'],
         DateField::class => ['date'],

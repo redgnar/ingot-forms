@@ -52,10 +52,9 @@ final class BootstrapFormPageTest extends PantherTestCase
         );
     }
 
-    public function testControlsInARowLineUpEvenWhenTheyAreLabelledDifferently(): void
+    public function testControlsInARowLineUp(): void
     {
-        // GIVEN a row holding a control labelled above and one labelling itself
-        // from the inside
+        // GIVEN a row holding two controls
         $id = $this->plant();
         $this->browser->request('GET', \sprintf('/forms/%s', $id));
 
@@ -63,9 +62,9 @@ final class BootstrapFormPageTest extends PantherTestCase
         $email = $this->browser->findElement(WebDriverBy::id('item-email'))->getLocation()->getY();
         $nickname = $this->browser->findElement(WebDriverBy::id('item-nickname'))->getLocation()->getY();
 
-        // THEN they start at the same height: a label that lives inside its
-        // control must not pull the control out of line with its neighbour, and
-        // only a browser can say whether it does
+        // THEN they start at the same height — every item in this kit is labelled
+        // the same way, so nothing can pull one out of line with its neighbour,
+        // and only a browser can say whether something does
         self::assertLessThanOrEqual(2, abs($email - $nickname), \sprintf('%dpx apart.', abs($email - $nickname)));
     }
 
@@ -238,7 +237,7 @@ final class BootstrapFormPageTest extends PantherTestCase
                         ['widget' => 'card', 'label' => 't.who', 'items' => [
                             ['widget' => 'row', 'items' => [
                                 ['name' => 'email', 'widget' => 'text', 'label' => 't.email', 'options' => ['width' => 8]],
-                                ['name' => 'nickname', 'widget' => 'floating', 'label' => 't.nickname', 'options' => ['width' => 4]],
+                                ['name' => 'nickname', 'widget' => 'text', 'label' => 't.nickname', 'options' => ['width' => 4]],
                             ]],
                             ['name' => 'country', 'widget' => 'autocomplete', 'label' => 't.country'],
                             ['name' => 'plan', 'widget' => 'radio-buttons', 'label' => 't.plan'],

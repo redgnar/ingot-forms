@@ -112,12 +112,14 @@ Rules that follow from it, and that the tooling checks:
   it. HTML never reaches the domain, and the vocabulary never leaves it. Two kits ship:
   `core-html` (plain controls, no machinery at all, one hand-written module in `public/js/`)
   and `bootstrap` (Bootstrap 5 with `card`/`accordion`/`row`, `autocomplete`, `range`,
-  `stepper`, `floating`, `radio-buttons`; behaviour in Stimulus controllers under
+  `stepper`, `radio-buttons`; behaviour in Stimulus controllers under
   `assets/controllers/`, delivered by AssetMapper). What is shared is the *resolved tree*
   (`PresentedNodes`) and a markup convention — `data-name`/`data-type` on the thing holding a
   value, `data-error` where a refusal goes — never the machinery: adding a control to a kit
   never means touching the other one. A widget a kit adds must be a different way of **asking**,
-  never a second name for a control the other kit already draws.
+  never a second name for a control the other kit already draws — and never a restyling of one
+  (a floating label was tried and removed: it moved the same question's text, and it could not
+  be applied to a choice group or a slider, so every page mixing them was labelled two ways).
 - **Front-end assets are AssetMapper's, and only where a kit asked for them.** `importmap.php`
   names what the browser may import, `assets/vendor/` is committed (so a clone, CI and the
   browser suite need no network), `make assets` refreshes it and a deploy runs

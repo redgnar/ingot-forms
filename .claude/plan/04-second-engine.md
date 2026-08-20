@@ -46,7 +46,7 @@ something `core-html` already had:
 |---|---|---|
 | group | `fieldset` | `card`, `accordion`, `row` |
 | say something | `heading`, `paragraph` | `heading`, `paragraph`, `alert`, `divider` |
-| text | `text`, `textarea`, `hidden` | + `floating` |
+| text | `text`, `textarea`, `hidden` | `text`, `textarea`, `hidden` |
 | choice | `select`, `radio` | + `radio-buttons`, `autocomplete` |
 | number | `number` | + `range`, `stepper` |
 | date | `date` | `date` |
@@ -88,13 +88,15 @@ touches it, so a form drawn with one sends a number from the first save. That is
 of the widget, not a bug to work around — a document that wants "no answer yet" to be
 possible should ask for `number` instead.
 
-**A row that mixes labelling styles is the kit's problem, not the document's.** A `floating`
-label lives inside its control, so next to a control labelled above it the two boxes start 32
-pixels apart and the row looks broken. Where a row mixes the two, the floating ones reserve the
-space a label would have taken — an invisible, `aria-hidden` label, decided in the renderer
-rather than in Twig, and measured in a browser (the only place that can tell). Where a row
-labels everything the same way, nothing is reserved: this is a fix for a mismatch, not a margin
-somebody has to undo.
+**A floating label was tried and taken back out.** It was in the first cut of the kit and it
+was a mistake twice over. Bootstrap can only float a label over a text box or a select, so any
+form with a choice group, a switch or a slider labels some items inside their control and the
+rest above — a mixture no page can be talked out of, and the owner saw it immediately. And it
+was the same question asked the same way with the text moved somewhere else, which is a style,
+not a way of asking: exactly what this kit's names are not for. The alignment rule written to
+prop it up (reserving the space a label would have taken, so a mixed row stayed level) went out
+with it. A widget that needs the layout patched around it is worth re-reading before it is
+worth patching.
 
 **The page's JavaScript is not shared between kits.** `core-html` keeps its one hand-written
 module in `public/js/`; `bootstrap` has Stimulus controllers in `assets/`. The *convention*

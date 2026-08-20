@@ -61,7 +61,7 @@ final class BootstrapRendererTest extends KernelTestCase
             ['widget' => 'card', 'label' => 't.who', 'items' => [
                 ['widget' => 'row', 'items' => [
                     ['name' => 'email', 'widget' => 'text', 'label' => 't.email', 'hint' => 't.email.hint', 'options' => ['width' => 8]],
-                    ['name' => 'nickname', 'widget' => 'floating', 'label' => 't.nickname', 'options' => ['width' => 4]],
+                    ['name' => 'nickname', 'widget' => 'text', 'label' => 't.nickname', 'options' => ['width' => 4]],
                 ]],
                 ['name' => 'country', 'widget' => 'autocomplete', 'label' => 't.country'],
                 ['name' => 'plan', 'widget' => 'radio-buttons', 'label' => 't.plan'],
@@ -155,31 +155,6 @@ final class BootstrapRendererTest extends KernelTestCase
         ));
     }
 
-    public function testALabelInsideItsControlStaysLevelWithTheOneNextToIt(): void
-    {
-        // GIVEN a row mixing the two ways of labelling: one above the control,
-        // one inside it
-        $page = new Crawler($this->render());
-
-        // THEN the floating one reserves the space a label would have taken, so
-        // both boxes start level — invisible, and out of a screen reader's way
-        $reserved = $page->filter('[data-item="nickname"] label.invisible');
-        self::assertCount(1, $reserved);
-        self::assertSame('true', $reserved->attr('aria-hidden'));
-
-        // AND where a row labels everything the same way, nothing is reserved:
-        // this is a fix for a mismatch, not a margin somebody has to undo
-        $document = self::PRESENTATION;
-        $document['items'][2]['items'][0]['items'] = [
-            ['name' => 'email', 'widget' => 'floating', 'label' => 't.email', 'options' => ['width' => 8]],
-            ['name' => 'nickname', 'widget' => 'floating', 'label' => 't.nickname', 'options' => ['width' => 4]],
-        ];
-        $floatingOnly = new Crawler($this->renderer->render(new RenderedForm(self::formFrom($document), 'en')));
-
-        self::assertCount(0, $floatingOnly->filter('label.invisible'));
-        self::assertCount(2, $floatingOnly->filter('.form-floating'));
-    }
-
     public function testWhatIsSaidBetweenGroupsIsDrawnAsAsked(): void
     {
         // GIVEN / WHEN
@@ -206,9 +181,10 @@ final class BootstrapRendererTest extends KernelTestCase
         // AND radios asked to sit in a row do
         self::assertCount(3, $page->filter('[data-name="size"] .form-check-inline'));
 
-        // AND a floating label lives inside its control's box, drawn once
-        self::assertCount(1, $page->filter('.form-floating')->children('label[for="item-nickname"]'));
-        self::assertCount(1, $page->filter('label[for="item-nickname"]'));
+        // AND every label is where every other label is: above its control,
+        // once — this kit has no second way of labelling to be inconsistent with
+        self::assertCount(0, $page->filter('.form-floating'));
+        self::assertSame('Nickname', $page->filter('label[for="item-nickname"]')->text());
 
         // AND the rest are what they say: a slider, a switch, a box, a day
         self::assertSame('range', $page->filter('[data-name="rating"]')->attr('type'));

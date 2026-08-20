@@ -40,7 +40,7 @@ Content-Type: application/json
             "widget": "row",
             "items": [
               { "name": "email", "widget": "text", "label": "t.email", "hint": "t.email.hint", "options": { "width": 8 } },
-              { "name": "nickname", "widget": "floating", "label": "t.nickname", "options": { "width": 4 } }
+              { "name": "nickname", "widget": "text", "label": "t.nickname", "options": { "width": 4 } }
             ]
           },
           { "name": "country", "widget": "autocomplete", "label": "t.country" },
