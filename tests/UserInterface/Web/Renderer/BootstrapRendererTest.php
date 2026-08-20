@@ -342,6 +342,142 @@ final class BootstrapRendererTest extends KernelTestCase
         return $this->renderer->render(new RenderedForm(self::form(), 'en'));
     }
 
+    public function testAListIsDrawnAsATableWithTheEntryFormUnderEachRow(): void
+    {
+        // GIVEN a form asking one question repeatedly, answered twice
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::listForm(), 'en')));
+        $list = $page->filter('[data-collection="lines"]');
+
+        // THEN the behaviour is declared where it happens, with the counts it
+        // guards its own buttons by
+        self::assertSame('entries', $list->attr('data-controller'));
+        self::assertSame('1', $list->attr('data-entries-min-value'));
+        self::assertSame('3', $list->attr('data-entries-max-value'));
+
+        // AND the columns are the ones asked for, headed by the labels the entry
+        // form gives those items
+        self::assertSame(
+            ['SKU', 'Quantity'],
+            $list->filter('thead th[data-column]')->each(static fn(Crawler $th): string => trim($th->text())),
+        );
+
+        // AND one entry per answer, each reading in words, each with its own
+        // form folded under its row
+        $entries = $list->filter('table')->children('[data-entry]');
+        self::assertCount(2, $entries);
+        self::assertSame(['A-1', '2'], $entries->eq(0)->filter('[data-cell]')->each(static fn(Crawler $cell): string => trim($cell->text())));
+        self::assertSame('kg', $entries->eq(1)->filter('select[data-name="unit"] option[selected]')->attr('value'));
+        self::assertCount(1, $entries->eq(1)->filter('details.card'));
+    }
+
+    public function testEveryControlInAnEntryIsStillSomethingTheBehaviourCanFind(): void
+    {
+        // GIVEN / WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::listForm(), 'en')));
+        $entry = $page->filter('[data-collection="lines"] table')->children('[data-entry]')->eq(0);
+
+        // THEN each item of the entry carries its name, its type on the wire and
+        // a place for a refusal about it — the convention both kits share
+        foreach (['sku', 'quantity', 'unit'] as $name) {
+            self::assertCount(1, $entry->filter(\sprintf('[data-form-target="control"][data-name="%s"]', $name)), $name);
+            self::assertCount(1, $entry->filter(\sprintf('[data-form-target="error"][data-error="%s"]', $name)), $name);
+        }
+
+        // AND nothing in it carries an id: one form is drawn once per entry, and
+        // an id can only belong to one of them
+        self::assertCount(0, $entry->filter('[id]'));
+    }
+
+    public function testAListKeepsOneBlankEntryAsideAndSomethingToPress(): void
+    {
+        // GIVEN / WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::listForm(), 'en')));
+        $list = $page->filter('[data-collection="lines"]');
+
+        // THEN the blank entry is markup the server rendered, waiting to be
+        // cloned rather than built in JavaScript
+        $blank = new Crawler('<table>' . $list->filter('template[data-entries-target="blank"]')->html() . '</table>');
+        self::assertCount(1, $blank->filter('[data-entry]'));
+        self::assertNull($blank->filter('[data-name="sku"]')->attr('value'));
+
+        // AND both triggers say what they do in Stimulus's words
+        self::assertSame('click->entries#add', $list->filter('[data-entries-target="add"]')->attr('data-action'));
+        self::assertCount(2, $list->filter('table [data-entries-target="remove"]'));
+        self::assertSame('input->entries#touched', $list->attr('data-action'));
+    }
+
+    public function testAConfirmedListIsDrawnToBeReadNotChanged(): void
+    {
+        // GIVEN a form locked for good
+        $form = self::listForm();
+        $form->confirm(new StubValues());
+
+        // WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm($form, 'en')));
+
+        // THEN the answers are readable and nothing is listening: no entry to
+        // add, none to remove, nothing to clone
+        self::assertCount(2, $page->filter('[data-entry]'));
+        self::assertNotNull($page->filter('[data-name="sku"]')->attr('disabled'));
+        self::assertCount(0, $page->filter('[data-controller="entries"]'));
+        self::assertCount(0, $page->filter('template'));
+    }
+
+    /**
+     * A form asking one question repeatedly, with two answers already given.
+     */
+    private static function listForm(): Form
+    {
+        $definitions = new FormDefinitionProcessor(self::mapper());
+        $definition = $definitions->document($definitions->parse(['items' => [
+            ['type' => 'collection', 'name' => 'lines', 'min' => 1, 'max' => 3, 'items' => [
+                ['type' => 'text', 'name' => 'sku', 'required' => true, 'maxLength' => 8],
+                ['type' => 'number', 'name' => 'quantity', 'required' => true, 'min' => 1, 'decimals' => 0],
+                ['type' => 'select', 'name' => 'unit', 'options' => ['pc', 'kg'], 'required' => true],
+            ]],
+        ]]));
+
+        $presentations = new PresentationProcessor(self::mapper());
+        $form = new Form(
+            FormId::next(),
+            $definition,
+            ExpireDate::future(new \DateTimeImmutable('+1 day')),
+            $presentations->document($presentations->parse([
+                'engine' => 'bootstrap',
+                'defaultLocale' => 'en',
+                'items' => [
+                    ['name' => 'lines', 'widget' => 'table', 'label' => 'l.lines', 'columns' => ['sku', 'quantity'], 'items' => [
+                        ['name' => 'sku', 'widget' => 'text', 'label' => 'l.sku'],
+                        ['name' => 'quantity', 'widget' => 'stepper', 'label' => 'l.qty'],
+                        ['name' => 'unit', 'widget' => 'select', 'label' => 'l.unit', 'choices' => ['pc' => 'l.pc', 'kg' => 'l.kg']],
+                    ]],
+                    ['widget' => 'confirm', 'label' => 'l.send'],
+                ],
+                'translations' => ['en' => [
+                    'l.lines' => 'Lines',
+                    'l.sku' => 'SKU',
+                    'l.qty' => 'Quantity',
+                    'l.unit' => 'Unit',
+                    'l.pc' => 'pieces',
+                    'l.kg' => 'kilos',
+                    'l.send' => 'Send',
+                ]],
+            ])),
+            new PresentationRules(new Engines([new BootstrapEngine()])),
+        );
+
+        $form->saveDraft(
+            json_decode(
+                '{"lines": [{"sku": "A-1", "quantity": 2, "unit": "pc"}, {"sku": "B-2", "quantity": 5, "unit": "kg"}]}',
+                false,
+                flags: \JSON_THROW_ON_ERROR,
+            ),
+            new StubValues(),
+        );
+
+        return $form;
+    }
+
     private static function form(): Form
     {
         return self::formFrom(self::PRESENTATION);

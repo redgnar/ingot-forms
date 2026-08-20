@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Browser;
+namespace App\Tests\Browser\Collection;
 
 use Facebook\WebDriver\Exception\WebDriverException;
 use Facebook\WebDriver\WebDriverBy;
@@ -12,17 +12,32 @@ use Symfony\Component\Panther\PantherTestCase;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
- * A list of entries, driven where it actually runs. This is the one part of the
- * feature a server-side test cannot prove: whether adding an entry, filling it
- * in and sending the page produces the nested document the API expects — the
- * whole convention being that structure carries identity, so nothing is
- * renumbered when a row appears or goes.
+ * A list of entries, driven where it actually runs. This is the part of the
+ * feature no server-side test can prove: whether adding an entry, answering it
+ * and sending the page produces the nested document the API expects — the whole
+ * convention being that structure carries identity, so nothing is renumbered
+ * when a row appears or goes.
+ *
+ * Every kit answers the same questions, so a kit is a subclass saying which
+ * engine it is and how its own triggers are found.
  */
-final class CollectionPageTest extends PantherTestCase
+abstract class CollectionPageTestCase extends PantherTestCase
 {
-    private Client $browser;
+    protected Client $browser;
 
     private HttpClientInterface $api;
+
+    /** The engine the document is written for. */
+    abstract protected static function engine(): string;
+
+    /** How this kit words "one more entry". */
+    abstract protected static function addTrigger(): string;
+
+    /** ...and "this one goes". */
+    abstract protected static function removeTrigger(): string;
+
+    /** The widget this kit draws a count with. */
+    abstract protected static function countWidget(): string;
 
     protected function setUp(): void
     {
@@ -30,20 +45,19 @@ final class CollectionPageTest extends PantherTestCase
         $this->api = HttpClient::create(['base_uri' => self::$baseUri]);
     }
 
-    public function testSomebodyAddsAnEntryFillsItInAndItIsSaved(): void
+    public function testSomebodyAddsAnEntryAnswersItAndItIsSaved(): void
     {
         // GIVEN a form asking one question repeatedly, answered once so far
         $id = $this->plant();
         $this->browser->request('GET', \sprintf('/forms/%s', $id));
 
         // WHEN they ask for one more entry and answer it
-        $this->browser->findElement(WebDriverBy::cssSelector('[data-collection="lines"] [data-action="add-entry"]'))->click();
-        $entries = $this->browser->findElements(WebDriverBy::cssSelector('[data-collection="lines"] table > tbody[data-entry]'));
-        self::assertCount(2, $entries);
+        $this->click(static::addTrigger());
+        self::assertCount(2, $this->entries());
 
-        $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] [data-name="sku"]'))[1]->sendKeys('B-2');
-        $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] [data-name="quantity"]'))[1]->sendKeys('5');
-        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="save"]'))->click();
+        $this->fill('sku', 1, 'B-2');
+        $this->fill('quantity', 1, '5');
+        $this->click('[data-action="save"], [data-action="click->form#save"]');
 
         // THEN the API holds both entries, in the order they are on the page,
         // each a document of its own
@@ -62,8 +76,8 @@ final class CollectionPageTest extends PantherTestCase
         $this->browser->request('GET', \sprintf('/forms/%s', $id));
 
         // WHEN they unfold the entry, as a person does, and change an answer
-        $this->browser->findElement(WebDriverBy::cssSelector('[data-entry] details summary'))->click();
-        $control = $this->browser->findElement(WebDriverBy::cssSelector('[data-entry] [data-name="sku"]'));
+        $this->click('[data-entry] details summary');
+        $control = $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] [data-name="sku"]'))[0];
         $control->clear();
         $control->sendKeys('C-3');
 
@@ -77,9 +91,9 @@ final class CollectionPageTest extends PantherTestCase
         self::assertSame('C-3', $cell);
 
         // WHEN a second entry is added and then removed again
-        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="add-entry"]'))->click();
-        $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] [data-action="remove-entry"]'))[1]->click();
-        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="save"]'))->click();
+        $this->click(static::addTrigger());
+        $this->browser->findElements(WebDriverBy::cssSelector(static::removeTrigger()))[1]->click();
+        $this->click('[data-action="save"], [data-action="click->form#save"]');
 
         // THEN what is stored is what is on the page
         $stored = $this->eventually(fn(): ?array => $this->values($id));
@@ -94,14 +108,12 @@ final class CollectionPageTest extends PantherTestCase
         // then there is nothing for a server to refuse
         $id = $this->plant();
         $this->browser->request('GET', \sprintf('/forms/%s', $id));
-        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="add-entry"]'))->click();
-        // The entry that was just added is already unfolded — there is nothing
-        // in its row to read, only something to answer
-        $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] [data-name="sku"]'))[1]->sendKeys('B-2');
-        $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] [data-name="quantity"]'))[1]->sendKeys('0');
+        $this->click(static::addTrigger());
+        $this->fill('sku', 1, 'B-2');
+        $this->fill('quantity', 1, '0');
 
         // WHEN they save
-        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="save"]'))->click();
+        $this->click('[data-action="save"], [data-action="click->form#save"]');
 
         // THEN the message lands in the entry it is about, and the first entry
         // is left alone — the pointer named the second one
@@ -114,14 +126,77 @@ final class CollectionPageTest extends PantherTestCase
 
         self::assertNotSame('', $message);
         self::assertSame('', $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] [data-error="quantity"]'))[0]->getText());
+
         // AND nothing moved: a refused save leaves the form holding what it held
         self::assertSame([['sku' => 'A-1', 'quantity' => 2]], ($this->values($id) ?? [])['lines'] ?? null);
+    }
+
+    public function testTheButtonsObeyTheCountsTheDefinitionGives(): void
+    {
+        // GIVEN a list that must hold one entry and may hold three
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+        // THEN with one entry there is nothing to remove — the minimum says so
+        self::assertFalse($this->browser->findElement(WebDriverBy::cssSelector(static::removeTrigger()))->isEnabled());
+
+        // WHEN it is filled to the maximum
+        $this->click(static::addTrigger());
+        $this->click(static::addTrigger());
+
+        // THEN there is nothing left to add, and now something to remove. The
+        // server still decides; these buttons only stop the obvious
+        self::assertCount(3, $this->entries());
+        self::assertFalse($this->browser->findElement(WebDriverBy::cssSelector(static::addTrigger()))->isEnabled());
+        self::assertTrue($this->browser->findElement(WebDriverBy::cssSelector(static::removeTrigger()))->isEnabled());
+    }
+
+    public function testAListCanBeFinishedAndComesBackReadOnly(): void
+    {
+        // GIVEN a list answered as far as its rules ask
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+        // WHEN the form is confirmed
+        $this->click('[data-action="confirm"], [data-action="click->form#confirm"]');
+
+        // THEN the page comes back with the answers readable and nothing to
+        // press: no entry to add, none to remove
+        $this->eventually(function (): ?bool {
+            $controls = $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] [data-name="sku"]'));
+
+            return ($controls[0] ?? null)?->getAttribute('disabled') === 'true' ? true : null;
+        });
+
+        self::assertCount(0, $this->browser->findElements(WebDriverBy::cssSelector(static::addTrigger())));
+        self::assertCount(0, $this->browser->findElements(WebDriverBy::cssSelector(static::removeTrigger())));
+        self::assertSame('confirmed', $this->formStatus($id));
+    }
+
+    /**
+     * @return list<\Facebook\WebDriver\WebDriverElement>
+     */
+    final protected function entries(): array
+    {
+        return array_values(
+            $this->browser->findElements(WebDriverBy::cssSelector('[data-collection="lines"] table > tbody[data-entry]')),
+        );
+    }
+
+    final protected function click(string $selector): void
+    {
+        $this->browser->findElement(WebDriverBy::cssSelector($selector))->click();
+    }
+
+    final protected function fill(string $name, int $entry, string $value): void
+    {
+        $this->browser->findElements(WebDriverBy::cssSelector(\sprintf('[data-entry] [data-name="%s"]', $name)))[$entry]->sendKeys($value);
     }
 
     /**
      * Creates the form through the API, exactly as anything else would.
      */
-    private function plant(): string
+    final protected function plant(): string
     {
         $response = $this->api->request('POST', '/api/forms', [
             'json' => [
@@ -133,12 +208,12 @@ final class CollectionPageTest extends PantherTestCase
                     ]],
                 ]],
                 'presentation' => [
-                    'engine' => 'core-html',
+                    'engine' => static::engine(),
                     'defaultLocale' => 'en',
                     'items' => [
                         ['name' => 'lines', 'widget' => 'table', 'label' => 't.lines', 'columns' => ['sku'], 'items' => [
                             ['name' => 'sku', 'widget' => 'text', 'label' => 't.sku'],
-                            ['name' => 'quantity', 'widget' => 'number', 'label' => 't.qty'],
+                            ['name' => 'quantity', 'widget' => static::countWidget(), 'label' => 't.qty'],
                         ]],
                         ['widget' => 'save', 'label' => 't.save'],
                         ['widget' => 'confirm', 'label' => 't.send'],
@@ -166,7 +241,7 @@ final class CollectionPageTest extends PantherTestCase
     /**
      * @return array<string, mixed>|null null while the form holds nothing
      */
-    private function values(string $id): ?array
+    final protected function values(string $id): ?array
     {
         $response = $this->api->request('GET', \sprintf('/api/forms/%s/data', $id));
 
@@ -180,7 +255,20 @@ final class CollectionPageTest extends PantherTestCase
         return $values;
     }
 
-    private function eventually(callable $ready, float $seconds = 5.0): mixed
+    final protected function formStatus(string $id): string
+    {
+        $body = json_decode(
+            $this->api->request('GET', \sprintf('/api/forms/%s', $id))->getContent(),
+            true,
+            flags: \JSON_THROW_ON_ERROR,
+        );
+        self::assertIsArray($body);
+        self::assertIsString($body['status']);
+
+        return $body['status'];
+    }
+
+    final protected function eventually(callable $ready, float $seconds = 5.0): mixed
     {
         $deadline = microtime(true) + $seconds;
 
@@ -188,6 +276,7 @@ final class CollectionPageTest extends PantherTestCase
             try {
                 $result = $ready();
             } catch (WebDriverException) {
+                // The page can navigate under the check — confirming reloads it.
                 $result = null;
             }
 

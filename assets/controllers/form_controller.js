@@ -41,10 +41,13 @@ export default class extends Controller {
         this.savedTarget.classList.add('d-none');
     }
 
-    #collect() {
+    // Structure carries identity: what a control answers is read from where it
+    // sits, so a list's entries are collected in the order they appear on the
+    // page and nothing has to be renumbered when one is added or removed.
+    #collect(scope = this.element) {
         const values = {};
 
-        for (const control of this.controlTargets) {
+        for (const control of this.#ownControls(scope)) {
             const name = control.dataset.name;
 
             if (control.dataset.choice !== undefined) {
@@ -64,7 +67,35 @@ export default class extends Controller {
             values[name] = control.dataset.type === 'number' ? Number(raw) : raw;
         }
 
+        for (const list of this.#ownLists(scope)) {
+            values[list.dataset.collection] = this.#entriesOf(list).map((entry) => this.#collect(entry));
+        }
+
         return values;
+    }
+
+    // Everything belonging to this scope rather than to a list inside it. A
+    // blank entry waiting to be cloned belongs to nobody until it is added.
+    #ownControls(scope) {
+        return this.controlTargets.filter((control) => scope.contains(control) && this.#listOwning(control, scope) === null);
+    }
+
+    #ownLists(scope) {
+        return [...scope.querySelectorAll('[data-collection]')].filter(
+            (list) => this.#listOwning(list.parentElement, scope) === null && list.closest('template') === null,
+        );
+    }
+
+    #listOwning(element, scope) {
+        const found = element?.closest('[data-collection]');
+
+        return found !== null && found !== undefined && found !== scope && scope.contains(found) ? found : null;
+    }
+
+    #entriesOf(list) {
+        return [...list.querySelectorAll('[data-entry]')].filter(
+            (entry) => entry.closest('[data-collection]') === list && entry.closest('template') === null,
+        );
     }
 
     async #send(path, method, body) {
@@ -98,16 +129,44 @@ export default class extends Controller {
         }
     }
 
-    // A refusal points at the item it is about (`/email`), so each message lands
-    // beside the control it belongs to; anything else is shown once, on top.
+    // A refusal points at the item it is about — `/email`, or `/lines/2/quantity`
+    // for the third entry of a list — so the pointer is walked the same way the
+    // values were collected, and the message lands beside the control it belongs
+    // to. Anything else is shown once, on top.
+    #slotFor(pointer) {
+        const steps = pointer.split('/').filter((step) => step !== '');
+        let scope = this.element;
+
+        while (steps.length > 0) {
+            const step = steps.shift();
+
+            if (/^\d+$/.test(step)) {
+                scope = this.#entriesOf(scope)[Number(step)];
+                if (scope === undefined) return null;
+                continue;
+            }
+
+            if (steps.length > 0) {
+                scope = this.#ownLists(scope).find((list) => list.dataset.collection === step);
+                if (scope === undefined) return null;
+                continue;
+            }
+
+            return this.errorTargets.find(
+                (slot) => scope.contains(slot) && this.#listOwning(slot, scope) === null && slot.dataset.error === step,
+            ) ?? null;
+        }
+
+        return null;
+    }
+
     #showErrors(body) {
         const rest = [];
 
         for (const error of body.errors ?? []) {
-            const name = (error.pointer ?? '').replace(/^\//, '');
-            const slot = this.errorTargets.find((candidate) => candidate.dataset.error === name);
+            const slot = this.#slotFor(error.pointer ?? '');
 
-            if (slot === undefined) {
+            if (slot === null) {
                 rest.push(error.message);
                 continue;
             }
@@ -115,8 +174,12 @@ export default class extends Controller {
             slot.textContent = error.message;
             slot.classList.remove('d-none');
 
+            const entry = slot.closest('[data-entry]') ?? this.element;
+
             for (const control of this.controlTargets) {
-                if (control.dataset.name === name) control.classList.add('is-invalid');
+                if (control.dataset.name === slot.dataset.error && (control.closest('[data-entry]') ?? this.element) === entry) {
+                    control.classList.add('is-invalid');
+                }
             }
         }
 
