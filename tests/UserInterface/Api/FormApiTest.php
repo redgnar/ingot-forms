@@ -413,6 +413,38 @@ final class FormApiTest extends WebTestCase
         self::assertSame('/items/3/type', $error['pointer']);
     }
 
+    public function testAConsentIsAskedForAtConfirmationAndNotBefore(): void
+    {
+        // GIVEN a form with a consent box, whose draft schema has already been
+        // served — so both gates below answer from the cached document rather
+        // than from a fresh derivation
+        $definition = self::DEFINITION;
+        $definition['items'][] = ['type' => 'checkbox', 'name' => 'terms', 'required' => true, 'mustBeChecked' => true];
+        $id = $this->postForm($definition, new \DateTimeImmutable('+1 day'));
+        self::assertResponseStatusCodeSame(201);
+
+        $this->client->request('GET', \sprintf('/api/forms/%s/schema?mode=draft', $id));
+        $properties = self::arrayAt($this->responseBody(), 'properties');
+        self::assertSame(['type' => 'boolean'], $properties['terms']);
+
+        // WHEN saving work in progress with the box left untouched
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"email": "ada@example.com", "country": "pl", "terms": false}');
+
+        // THEN nothing is refused: agreeing is an obligation to finish, and a
+        // draft that insists on it is a draft nobody can save
+        self::assertResponseStatusCodeSame(204);
+
+        // WHEN finishing the form with the same values
+        $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
+
+        // THEN the consent is asked for, and only the consent
+        self::assertResponseStatusCodeSame(422);
+        self::assertCount(1, self::arrayAt($this->responseBody(), 'errors'));
+        $error = $this->firstError();
+        self::assertSame('schema.const', $error['code']);
+        self::assertSame('/terms', $error['pointer']);
+    }
+
     public function testReadingDataOfAnEmptyFormIsA404Problem(): void
     {
         // GIVEN

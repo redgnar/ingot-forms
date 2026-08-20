@@ -6,12 +6,13 @@
 RUN   := docker compose run --rm --no-deps php
 RUNDB := docker compose run --rm php
 
-.PHONY: setup image up down install update require db-reset test test-unit test-integration test-browser test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
+.PHONY: setup image up down install update require db-reset cache-clear test test-unit test-integration test-browser test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
 
 setup: ## Bring a fresh checkout all the way up: image, dependencies, an empty database, serving
 	@[ -d ../ingot ] || { echo 'The ingot library must sit next to this project: git clone https://github.com/redgnar/ingot.git ../ingot'; exit 1; }
 	$(MAKE) install
 	$(MAKE) down
+	$(MAKE) cache-clear
 	$(MAKE) db-reset
 	$(MAKE) up
 	@echo 'Ready. `make ci` runs every gate; `make test-browser` drives the pages in a browser.'
@@ -43,6 +44,14 @@ db-reset: ## Throw the database away and build it again from the migrations
 	$(RUNDB) bin/console doctrine:database:drop --force --if-exists
 	$(RUNDB) bin/console doctrine:database:create
 	$(RUNDB) bin/console doctrine:migrations:migrate --no-interaction
+
+# The pools first (that reaches a Redis or an in-memory one too), then the cache
+# directory itself, which is where a filesystem pool keeps its files — and where
+# entries written before a pool was reconfigured stay behind. Both environments a
+# developer has on disk; a deploy runs the same commands with APP_ENV=prod.
+cache-clear: ## Throw away what this code derived (data schemas, mapper metadata) — after a rules change
+	$(RUN) sh -c 'bin/console cache:pool:clear --all && bin/console cache:clear \
+		&& bin/console cache:pool:clear --all --env=test && bin/console cache:clear --env=test'
 
 db-test: ## Create the test database and bring its schema up to date
 	$(RUNDB) bin/console doctrine:database:create --env=test --if-not-exists

@@ -25,11 +25,24 @@ framework:
         utf8: true
     cache:
         pools:
-            # ingot mapper metadata — keys derive from class names only, so this
-            # pool must be cleared on every deploy: bin/console cache:pool:clear cache.ingot_mapper
+            # ingot mapper metadata — keys derive from class names only
             cache.ingot_mapper: ~
-            # derived data schemas, keyed by immutable form UUID — never needs clearing
+            # derived data schemas, keyed by immutable form UUID and mode
             cache.data_schema: ~
+
+# Both pools hold something *derived by this code*, and their keys say nothing
+# about the code that derived it: a form UUID and a class name both outlive a
+# changed rule. On a deploy they are cleared (`make cache-clear`); while
+# developing, clearing them by hand is a rule waiting to be forgotten, so
+# nothing is kept past the process that derived it.
+when@dev:
+    framework:
+        cache:
+            pools:
+                cache.ingot_mapper:
+                    adapter: cache.adapter.array
+                cache.data_schema:
+                    adapter: cache.adapter.array
 
 when@test:
     framework:

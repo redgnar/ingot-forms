@@ -15,10 +15,17 @@ use Psr\Cache\CacheItemPoolInterface;
 
 /**
  * Serves the derived data schema of a form as a JSON string. A form's
- * definition is immutable, so cache entries never go stale: no TTL, no
- * invalidation (UUIDs are never reused; entries of deleted forms are
- * unreachable). Existence and expiry are re-checked on every call — the
- * cache only skips re-deriving, never the gone/not-found guard.
+ * definition is immutable and a UUID is never reused, so no entry is ever
+ * wrong about the form it belongs to: no TTL, no invalidation, and entries of
+ * deleted forms are simply unreachable. Existence and expiry are re-checked on
+ * every call — the cache only skips re-deriving, never the gone/not-found
+ * guard.
+ *
+ * What the key cannot say is which rules derived the document. An entry
+ * therefore stays right for exactly as long as {@see DataSchemaDeriver} does:
+ * change what a definition derives and the pool has to be cleared with it
+ * (`make cache-clear`, and on every deploy). In dev it is in-memory, so
+ * nothing outlives the process that derived it.
  */
 final class CachedDataSchemaProvider implements DataSchemas
 {

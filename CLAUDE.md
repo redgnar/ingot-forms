@@ -195,6 +195,13 @@ Rules that follow from it, and that the tooling checks:
   mode, ~10× cheaper) answers first, so the server can never be looser than its published
   contract; the Symfony form built from the definition then adds what a schema cannot say.
   Keep that order.
+- **A cached artifact is only as current as the code that derived it.** `cache.data_schema`
+  keys on the form's UUID and the mode, `cache.ingot_mapper` on class names — neither key
+  says a word about the rules behind the entry, so a changed rule leaves both serving
+  yesterday's document. Change what a definition derives and `make cache-clear` is part of
+  the change, not an afterthought; a deploy runs the same command. In dev both pools are
+  in-memory (`when@dev` in `config/packages/framework.yaml`), because a clear that has to be
+  remembered while developing is a clear that will be forgotten.
 - **A use case orchestrates, it does not decide.** State transitions run inside
   `Transactions::run()` + `FormRepository::getForUpdate()`, so the state the form checks
   cannot change between the check and the write — but what may happen is the aggregate's
@@ -260,6 +267,7 @@ Local PHP is 8.1 — all tools run inside the pinned Docker image (`docker/Docke
 |---|---|
 | `make install` / `make update` | composer install/update (Docker) |
 | `make migrate` / `make db-test` | migrations for dev / test database |
+| `make cache-clear` | drop the derived pools (data schemas, mapper metadata) — after a rules change |
 | `make test` / `make test-unit` | full PHPUnit (starts postgres) / fast domain-only loop |
 | `make test-integration` | Http + Infrastructure suite only |
 | `make test-filter FILTER=…` / `make test-file FILE=…` | one test (or group) / one file or directory |

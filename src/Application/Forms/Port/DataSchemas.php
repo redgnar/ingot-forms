@@ -9,7 +9,8 @@ use App\Domain\Forms\ValueObject\FormId;
 
 /**
  * The values schema of a form, as the JSON document clients are served.
- * Definitions are immutable, so an implementation is free to cache forever.
+ * Definitions are immutable, so an implementation is free to cache a document
+ * for as long as the rules that derive it hold — no longer.
  */
 interface DataSchemas
 {

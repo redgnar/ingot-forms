@@ -166,7 +166,9 @@ derives the per-form JSON Schema published to clients. **Submitted values pass t
 
 1. the **derived schema**, cached per form and mode — the same document
    `GET /api/forms/{id}/schema` serves, so the server can never be looser than its own
-   published contract. Findings carry `schema.*` codes.
+   published contract. Findings carry `schema.*` codes. The cache holds something this code
+   derived, so it is thrown away whenever those rules change (`make cache-clear`); in dev it
+   is in-memory and never outlives the process.
 2. the **Symfony form** built from that definition — every item type becomes the matching
    form type, unknown (plugin) types pass through untouched, and rules a schema cannot state
    have somewhere to live as the catalogue grows. Findings carry `form.value.*` codes. Today
@@ -318,9 +320,13 @@ handed back to clients verbatim. Status is derived from the row (`data IS NULL` 
 
 ## Operations notes
 
-- **Deploy:** clear the ingot mapper metadata pool — its keys derive from class names
-  only: `bin/console cache:pool:clear cache.ingot_mapper`. The derived-schema pool
-  (`cache.data_schema`) never goes stale (definitions are immutable, UUIDs never reused).
+- **Deploy:** clear the pools that hold what this code derived — `bin/console
+  cache:pool:clear --all`, which is what `make cache-clear` runs. Neither pool's key says
+  anything about the rules behind the entry: `cache.ingot_mapper` keys on class names, and
+  `cache.data_schema` on the form UUID and the mode. Both entries stay right for as long as
+  the code that produced them does, and a tightened or relaxed rule that is not followed by a
+  clear is served from yesterday's document. In dev both pools are in-memory for exactly that
+  reason.
 - **Cron:** `bin/console app:forms:purge-expired` — expired forms are already invisible
   to the API (410); this fulfils the promise that expired data leaves the system.
 
@@ -330,6 +336,7 @@ handed back to clients verbatim. Status is derived from the row (`data IS NULL` 
 |---|---|
 | `make install` / `make update` | composer install/update (Docker, PHP 8.4) |
 | `make migrate` / `make db-test` | migrations for the dev / test database |
+| `make cache-clear` | throw away what this code derived (data schemas, mapper metadata) |
 | `make test` / `make test-unit` | full PHPUnit (needs postgres) / fast domain-only loop |
 | `make test-integration` | Http + Infrastructure suite only |
 | `make test-filter FILTER=…` | one test or a group: `make test-filter FILTER=FormApiTest::testSaveDraft` |
