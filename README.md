@@ -15,6 +15,11 @@ different kind of problem, and the shape it would take if it arrives.
   set are enforced; required fields are not — partial progress is storable). Confirming
   (`POST …/confirm`) validates the stored data against the full strict contract and locks
   the form for good.
+- **A form may be born a draft.** Values a client already knows arrive as `data` in the
+  creation request, and they are not a third document or a new state: they are the form's
+  first draft, saved by the same transition every later one goes through, judged under the
+  same lenient contract, and refused *before* the form exists — a form is never created
+  holding something it would not accept later. Findings are rooted at `/data`.
 - **`expire_date` is required.** Past it, the form answers `410 Gone` everywhere, and
   `bin/console app:forms:purge-expired` (run it from cron) physically deletes the row.
 - **The definition holds no display text.** No item label, no form title: what a question
@@ -206,7 +211,7 @@ contract clients validate against cannot drift from what the server enforces.
 
 | Method & path | Purpose |
 |---|---|
-| `POST /api/forms` | Create a form. Body: `{"expireDate": "<RFC 3339>", "definition": {…}, "presentation": {…}?}`. `201` + `Location`, answering with `{"id": …}` alone. |
+| `POST /api/forms` | Create a form. Body: `{"expireDate": "<RFC 3339>", "definition": {…}, "presentation": {…}?, "data": {…}?}`. `201` + `Location`, answering with `{"id": …}` alone. |
 | `GET /api/forms/{id}` | Full envelope: definition, status, data, timestamps. |
 | `DELETE /api/forms/{id}` | `204`. The "definition changed" path is delete + recreate. |
 | `GET /api/forms/{id}/schema` | Derived JSON Schema of the form's *values* (`application/schema+json`). `?mode=draft` returns the relaxed variant. |

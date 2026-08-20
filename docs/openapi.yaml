@@ -59,7 +59,7 @@ paths:
   /api/forms:
     post:
       summary: 'Create a form'
-      description: 'Both documents a form is made of arrive here: what it asks, and optionally how it is shown. Both are immutable afterwards — changing either means delete and recreate. Problems inside a document are reported with JSON Pointers rooted at `/definition` or `/presentation`.'
+      description: 'Both documents a form is made of arrive here: what it asks, and optionally how it is shown. Both are immutable afterwards — changing either means delete and recreate. A form may also be born holding values a client already knows (`data`), judged under the draft contract, which makes it a draft from the start. Problems inside a document are reported with JSON Pointers rooted at `/definition`, `/presentation` or `/data`.'
       operationId: createForm
       requestBody:
         required: true
@@ -84,7 +84,7 @@ paths:
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
-          description: 'The request envelope or the definition is not valid.'
+          description: 'The request envelope, the definition, the presentation or the values the form would be born with are not valid.'
           content:
             application/problem+json:
               schema:
@@ -96,6 +96,9 @@ paths:
                 definition-not-valid:
                   summary: 'The definition breaks the meta-schema or a semantic rule'
                   value: { type: 'urn:problem:ingot-forms:definition-not-valid', title: 'Form definition is not valid.', status: 422, errors: [{ pointer: /definition/items/1/name, code: form.field.duplicate-name, message: 'Field name "email" is not unique.', input: email }] }
+                data-not-valid:
+                  summary: 'A value the form is asked to be born with does not fit the item it belongs to'
+                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /data/age, code: schema.minimum, message: 'The number must be at least 18.', input: 7 }] }
                 presentation-not-valid:
                   summary: 'The presentation shows an item the definition does not declare'
                   value: { type: 'urn:problem:ingot-forms:presentation-not-valid', title: 'Form presentation is not valid.', status: 422, errors: [{ pointer: /presentation/items/0/name, code: presentation.item.unknown, message: 'This form declares no item named "nickname".', input: nickname }] }
@@ -463,6 +466,14 @@ components:
                 name: email
                 widget: text
                 label: contact.email
+          default: null
+        data:
+          description: "What the form already holds, keyed by item name — for values a client knows before anybody opens the form. Optional. Judged against this form's own definition under the *draft* contract, so an incomplete document is fine and `required` items may be left out; a value that breaks its item's rules is reported at `/data/<item>`. A form created with this is born a draft: it can be filled in further, and confirmed when it is complete."
+          type:
+            - object
+            - 'null'
+          example:
+            email: ada@example.com
           default: null
       type: object
       additionalProperties: false

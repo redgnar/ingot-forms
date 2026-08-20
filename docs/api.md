@@ -51,7 +51,7 @@ Validates the stored data against the full strict schema and locks the form fore
 
 `operationId: createForm` — Create a form
 
-Both documents a form is made of arrive here: what it asks, and optionally how it is shown. Both are immutable afterwards — changing either means delete and recreate. Problems inside a document are reported with JSON Pointers rooted at `/definition` or `/presentation`.
+Both documents a form is made of arrive here: what it asks, and optionally how it is shown. Both are immutable afterwards — changing either means delete and recreate. A form may also be born holding values a client already knows (`data`), judged under the draft contract, which makes it a draft from the start. Problems inside a document are reported with JSON Pointers rooted at `/definition`, `/presentation` or `/data`.
 
 **Request body** (`application/json`, required): [`CreateFormRequest`](#createformrequest)
 
@@ -62,7 +62,7 @@ Both documents a form is made of arrive here: what it asks, and optionally how i
 | `201` | `application/json` | [`CreatedForm`](#createdform) | Form created. The body carries the new id and nothing else — everything else the client already sent, or can read back from `Location`. |
 | `400` | `application/problem+json` | [`Problem`](#problem) | The request body is not valid JSON, or its media type is missing. |
 | `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
-| `422` | `application/problem+json` | [`Problem`](#problem) | The request envelope or the definition is not valid. |
+| `422` | `application/problem+json` | [`Problem`](#problem) | The request envelope, the definition, the presentation or the values the form would be born with are not valid. |
 
 ### GET /api/forms/{id}
 
@@ -282,6 +282,7 @@ No other properties are allowed.
 | `expireDate` | `string` (`date-time`) | yes | When the form stops being fillable, as an RFC 3339 date-time. Must lie in the future; past it the form answers 410 everywhere and the purge command deletes it. |
 | `definition` | `object` | yes | The form definition: an id and 1–50 typed items with unique names, per the meta-schema in src/Domain/Forms/form-definition.schema.json. Immutable once created — changing it means deleting the form and creating a new one. |
 | `presentation` | `object \| null` | no | How the form is shown, per the meta-schema in src/Domain/Forms/Presentation/presentation.schema.json. Optional — a client that draws forms its own way needs none. Immutable with the definition: changing either means deleting the form and creating a new one. |
+| `data` | `object \| null` | no | What the form already holds, keyed by item name — for values a client knows before anybody opens the form. Optional. Judged against this form's own definition under the *draft* contract, so an incomplete document is fine and `required` items may be left out; a value that breaks its item's rules is reported at `/data/<item>`. A form created with this is born a draft: it can be filled in further, and confirmed when it is complete. |
 
 No other properties are allowed.
 

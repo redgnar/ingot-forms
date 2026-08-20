@@ -155,3 +155,60 @@ GET {{host}}/api/forms/{{presentedFormId}}
         client.assert(response.body.type === "urn:problem:ingot-forms:form-not-found", "Expected the form-not-found problem type");
     });
 %}
+
+### A form born holding what a client already knows.
+# The values are its first draft: judged leniently, so an incomplete document is
+# fine, and refused before the form exists if something does not fit.
+# @name createSeededForm
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "id": "contact",
+    "items": [
+      { "type": "text", "name": "email", "required": true, "maxLength": 120 },
+      { "type": "number", "name": "age", "min": 18, "max": 120, "decimals": 0 }
+    ]
+  },
+  "data": { "email": "ada@example.com" }
+}
+
+> {%
+    client.global.set("seededFormId", response.body.id);
+    client.test("201 — created", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+%}
+
+### And it is a draft from the start, holding exactly that.
+GET {{host}}/api/forms/{{seededFormId}}
+
+> {%
+    client.test("draft, holding the seeded values", function () {
+        client.assert(response.body.status === "draft", "Expected draft, got " + response.body.status);
+        client.assert(response.body.data.email === "ada@example.com", "Expected the seeded value");
+        client.assert(response.body.dataSavedAt !== null, "Expected dataSavedAt to be set");
+    });
+%}
+
+### A value the form would refuse later cannot be its first one.
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "id": "contact",
+    "items": [{ "type": "number", "name": "age", "min": 18 }]
+  },
+  "data": { "age": 7 }
+}
+
+> {%
+    client.test("422, rooted where the client put the document", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/data/age", "Expected /data/age");
+    });
+%}

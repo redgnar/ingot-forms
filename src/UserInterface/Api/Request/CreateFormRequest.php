@@ -55,5 +55,12 @@ final readonly class CreateFormRequest
         )]
         #[ValidFormPresentation]
         public ?\stdClass $presentation = null,
+        #[OA\Property(
+            description: 'What the form already holds, keyed by item name — for values a client knows before anybody opens the form. Optional. Judged against this form\'s own definition under the *draft* contract, so an incomplete document is fine and `required` items may be left out; a value that breaks its item\'s rules is reported at `/data/<item>`. A form created with this is born a draft: it can be filled in further, and confirmed when it is complete.',
+            type: 'object',
+            nullable: true,
+            example: ['email' => 'ada@example.com'],
+        )]
+        public ?\stdClass $data = null,
     ) {}
 }

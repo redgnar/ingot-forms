@@ -19,6 +19,8 @@ final class InMemoryForms implements FormRepository
     /** @var array<string, Form> */
     private array $forms = [];
 
+    public int $adds = 0;
+
     public int $saves = 0;
 
     /** @var list<string> ids read with the row lock, in order */
@@ -27,6 +29,7 @@ final class InMemoryForms implements FormRepository
     public function add(Form $form): void
     {
         $this->forms[(string) $form->id()] = $form;
+        ++$this->adds;
     }
 
     public function get(FormId $id): Form

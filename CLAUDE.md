@@ -16,7 +16,11 @@ All code, comments, documentation, commit messages: **English**. Conversation wi
 
 A form is a **single fillable document**: one immutable definition + one data set + required
 `expire_date`. Lifecycle: empty → draft (`PUT …/data`, repeatable, lenient validation without
-`required`) → confirmed (`POST …/confirm`, strict validation, locked forever). Definition
+`required`) → confirmed (`POST …/confirm`, strict validation, locked forever). A form can be
+**born a draft**: `data` in the creation request is its first draft, not a third document — the
+aggregate's own `saveDraft()` judges it under the same lenient contract, the insert writes it
+with the rest of the row, and a form that would refuse those values later is never created
+holding them. Definition
 change = delete + recreate. Expired forms answer 410 everywhere; `app:forms:purge-expired`
 deletes them physically. No templates, no versioning, no multi-submission, no file uploads —
 deliberately.

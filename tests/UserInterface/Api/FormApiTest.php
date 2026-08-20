@@ -337,6 +337,101 @@ final class FormApiTest extends WebTestCase
         self::assertSame('urn:problem:ingot-forms:form-not-found', $this->responseBody()['type']);
     }
 
+    public function testAFormCanBeBornHoldingWhatAClientAlreadyKnows(): void
+    {
+        // GIVEN a client that knows two of the answers before anybody opens the
+        // form
+        $payload = json_encode([
+            'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
+            'definition' => self::DEFINITION,
+            'data' => ['email' => 'ada@example.com', 'age' => 36],
+        ], \JSON_THROW_ON_ERROR);
+
+        // WHEN
+        $this->putJson('/api/forms', $payload, method: 'POST');
+        self::assertResponseStatusCodeSame(201);
+        $id = $this->responseBody()['id'];
+        self::assertIsString($id);
+
+        // THEN it is a draft from the start, holding exactly that
+        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        self::assertSame('draft', $this->responseBody()['status']);
+        self::assertSame(['email' => 'ada@example.com', 'age' => 36], self::arrayAt($this->responseBody(), 'data'));
+        self::assertNotNull($this->responseBody()['dataSavedAt']);
+
+        // AND reading its data answers with it rather than 404
+        $this->client->request('GET', \sprintf('/api/forms/%s/data', $id));
+        self::assertResponseStatusCodeSame(200);
+        self::assertSame(['email' => 'ada@example.com', 'age' => 36], $this->responseBody());
+
+        // AND what is missing can still be filled in, and the form confirmed
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"email": "ada@example.com", "country": "pl", "age": 36}');
+        self::assertResponseStatusCodeSame(204);
+        $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
+        self::assertResponseStatusCodeSame(204);
+    }
+
+    public function testAFormBornCompleteCanBeConfirmedWithoutTouchingItAgain(): void
+    {
+        // GIVEN a client that knows all of it
+        $payload = json_encode([
+            'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
+            'definition' => self::DEFINITION,
+            'data' => ['email' => 'ada@example.com', 'country' => 'pl'],
+        ], \JSON_THROW_ON_ERROR);
+        $this->putJson('/api/forms', $payload, method: 'POST');
+        $id = $this->responseBody()['id'];
+        self::assertIsString($id);
+
+        // WHEN it confirms straight away
+        $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
+
+        // THEN nothing was missing: the values it was born with are the values
+        // the strict contract judged
+        self::assertResponseStatusCodeSame(204);
+        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        self::assertSame('confirmed', $this->responseBody()['status']);
+    }
+
+    public function testValuesAFormWouldNotAcceptLaterCannotBeItsFirstOnes(): void
+    {
+        // GIVEN a value that breaks the item's own rule
+        $payload = json_encode([
+            'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
+            'definition' => self::DEFINITION,
+            'data' => ['age' => 7],
+        ], \JSON_THROW_ON_ERROR);
+
+        // WHEN
+        $this->putJson('/api/forms', $payload, method: 'POST');
+
+        // THEN the form is refused before it exists, and the finding is rooted
+        // where the client put the document
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('urn:problem:ingot-forms:request-not-valid', $this->responseBody()['type']);
+        $error = $this->firstError();
+        self::assertSame('/data/age', $error['pointer']);
+        self::assertSame('schema.minimum', $error['code']);
+        self::assertArrayNotHasKey('Location', $this->client->getResponse()->headers->all());
+    }
+
+    public function testAFormIsNotBornWithAnAnswerToAQuestionItNeverAsks(): void
+    {
+        // GIVEN a value for an item the definition does not declare
+        $payload = json_encode([
+            'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
+            'definition' => self::DEFINITION,
+            'data' => ['nickname' => 'ada'],
+        ], \JSON_THROW_ON_ERROR);
+
+        // WHEN
+        $this->putJson('/api/forms', $payload, method: 'POST');
+
+        // THEN the same closed contract every later save gets
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('/data/nickname', $this->firstError()['pointer']);
+    }
+
     public function testExpiredFormAnswers410Everywhere(): void
     {
         // GIVEN a form already past its expire_date (planted directly — the

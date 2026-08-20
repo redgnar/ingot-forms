@@ -157,6 +157,29 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         self::assertSame([], $read->releaseEvents());
     }
 
+    public function testAFormInsertedHoldingItsFirstDraftKeepsIt(): void
+    {
+        // GIVEN a form born holding something — the insert is the one write that
+        // reads the form rather than what happened to it, so this is where a
+        // forgotten column would hide
+        $id = self::uuid();
+        $form = new Form($id, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day')));
+        $form->saveDraft(json_decode('{"email": "ada@example.com"}', false, flags: \JSON_THROW_ON_ERROR), new StubValues());
+
+        // WHEN it is inserted and read back with nothing left in memory
+        $this->repository->add($form);
+        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+        $entityManager->clear();
+        $read = $this->repository->get($id);
+
+        // THEN it is a draft holding exactly that, saved at a moment the row
+        // remembers
+        self::assertSame(FormStatus::Draft, $read->status());
+        self::assertSame('{"email":"ada@example.com"}', $read->valuesJson());
+        self::assertNotNull($read->dataSavedAt());
+    }
+
     public function testDeleteRemovesTheForm(): void
     {
         // GIVEN

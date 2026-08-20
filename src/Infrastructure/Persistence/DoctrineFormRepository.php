@@ -53,6 +53,10 @@ final class DoctrineFormRepository implements FormRepository
         $record->expireDate = $form->expireDate()->toDateTime();
         $record->createdAt = $form->createdAt();
         $record->presentation = $form->presentation() === null ? null : (string) $form->presentation();
+        // A form can be born holding its first draft, and the whole row means
+        // the whole row.
+        $record->data = $form->valuesJson();
+        $record->dataSavedAt = $form->dataSavedAt();
 
         $this->entityManager->persist($record);
         $this->entityManager->flush();
