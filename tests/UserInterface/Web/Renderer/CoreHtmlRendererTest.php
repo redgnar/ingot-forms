@@ -14,6 +14,7 @@ use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use App\UserInterface\Web\Renderer\CoreHtmlRenderer;
+use App\UserInterface\Web\Renderer\PresentedNodes;
 use App\UserInterface\Web\Renderer\RenderedForm;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\DomCrawler\Crawler;
@@ -86,7 +87,7 @@ final class CoreHtmlRendererTest extends KernelTestCase
         // wiring.
         $twig = self::getContainer()->get('twig');
         self::assertInstanceOf(Environment::class, $twig);
-        $this->renderer = new CoreHtmlRenderer($twig);
+        $this->renderer = new CoreHtmlRenderer($twig, new PresentedNodes());
     }
 
     public function testItDrawsTheFormInTheOrderThePresentationGives(): void

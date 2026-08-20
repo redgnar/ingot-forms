@@ -6,6 +6,7 @@ namespace App\Tests\Domain\Forms\Presentation;
 
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\FormMapperFactory;
+use App\Domain\Forms\Presentation\Engine\BootstrapEngine;
 use App\Domain\Forms\Presentation\Engine\CoreHtmlEngine;
 use App\Domain\Forms\Presentation\Engine\Engines;
 use App\Domain\Forms\Presentation\PresentationRules;
@@ -274,13 +275,50 @@ final class PresentationRulesTest extends TestCase
         self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
     }
 
+    public function testEachKitIsJudgedByItsOwnVocabulary(): void
+    {
+        // GIVEN two documents saying the same thing in two kits' words
+        $rules = new PresentationRules(new Engines([new CoreHtmlEngine(), new BootstrapEngine()]));
+        $plain = self::presentation([['widget' => 'fieldset', 'items' => [['name' => 'email']]]]);
+        $rich = self::presentation([['widget' => 'card', 'items' => [['name' => 'email']]]], engine: 'bootstrap');
+
+        // WHEN / THEN each is fine in its own kit
+        self::assertTrue($rules->check(self::definition(), $plain)->isEmpty());
+        self::assertTrue($rules->check(self::definition(), $rich)->isEmpty());
+
+        // AND neither is fine in the other's: a card is not a fieldset, and
+        // which one a kit draws is exactly what naming the kit settles
+        $swapped = self::presentation([['widget' => 'card', 'items' => [['name' => 'email']]]]);
+        self::assertSame('presentation.widget.mismatch', $rules->check(self::definition(), $swapped)->errors[0]->code);
+        self::assertStringContainsString('core-html', $rules->check(self::definition(), $swapped)->errors[0]->message);
+
+        $swappedBack = self::presentation([['widget' => 'fieldset', 'items' => [['name' => 'email']]]], engine: 'bootstrap');
+        self::assertStringContainsString('bootstrap', $rules->check(self::definition(), $swappedBack)->errors[0]->message);
+    }
+
+    public function testAControlOnlyTheRicherKitHasIsRefusedInThePlainOne(): void
+    {
+        // GIVEN a choice somebody should be able to search
+        $rules = new PresentationRules(new Engines([new CoreHtmlEngine(), new BootstrapEngine()]));
+
+        // WHEN it is asked for in the kit that has the widget, and in the one
+        // that does not
+        $rich = self::presentation([['name' => 'country', 'widget' => 'autocomplete']], engine: 'bootstrap');
+        $plain = self::presentation([['name' => 'country', 'widget' => 'autocomplete']]);
+
+        // THEN a document is only as good as the kit it was written for
+        self::assertTrue($rules->check(self::definition(), $rich)->isEmpty());
+        self::assertSame('autocomplete', $rules->check(self::definition(), $plain)->errors[0]->input);
+    }
+
     public function testAKitIsFoundByTheIdADocumentNamesItWith(): void
     {
         // GIVEN the kits this deployment knows
-        $engines = new Engines([new CoreHtmlEngine()]);
+        $engines = new Engines([new CoreHtmlEngine(), new BootstrapEngine()]);
 
         // WHEN / THEN
         self::assertSame('core-html', $engines->find('core-html')?->id());
+        self::assertSame('bootstrap', $engines->find('bootstrap')?->id());
         self::assertNull($engines->find('someones-vue-kit'));
     }
 

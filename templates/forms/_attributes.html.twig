@@ -1,0 +1,16 @@
+{# One place where an attribute is written, for every kit that draws controls.
+
+   `true` writes the bare attribute, `false` and null write nothing, everything
+   else is escaped as an attribute value. Quoting happens here and nowhere else:
+   a branch that builds its own `name="value"` string is a branch that can get
+   the escaping wrong on its own — which is also why the value is escaped for
+   HTML rather than for a bare attribute: every value written here is quoted, so
+   the quotes, the ampersand and the angle brackets are the whole danger, and
+   escaping a space into `&#x20;` only makes a class list unreadable. #}
+{% macro attributes(attrs) %}
+    {%- for name, value in attrs -%}
+        {%- if value is same as(true) %} {{ name }}
+        {%- elseif value is not same as(false) and value is not null %} {{ name }}="{{ value|e('html') }}"
+        {%- endif -%}
+    {%- endfor -%}
+{% endmacro %}

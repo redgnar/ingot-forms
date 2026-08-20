@@ -93,9 +93,22 @@ a language is the client's job, exactly as picking a widget is.
 
 **The engine comes first** because a widget vocabulary is not universal. A kit is an object
 implementing `PresentationEngine` and is the authority on what it can draw, so adding one is
-adding a class; `core-html` draws `text`/`textarea`/`hidden`, `select`/`radio`, `number`,
-`date`, `checkbox`/`switch`, nests with `fieldset` and decorates with `heading`/`paragraph`. An
-engine this application does not know is accepted with its widgets unchecked — the bargain a
+adding a class. Two ship here:
+
+- **`core-html`** — plain controls and nothing else: `text`/`textarea`/`hidden`,
+  `select`/`radio`, `number`, `date`, `checkbox`/`switch`, nesting with `fieldset`, decorating
+  with `heading`/`paragraph`. No stylesheet of anybody else's, no package, one hand-written
+  module. The kit that works anywhere.
+- **`bootstrap`** — Bootstrap 5, with the controls a styled kit can afford: `floating` labels,
+  `radio-buttons` (a choice as toggles), `autocomplete` (a choice somebody searches, which the
+  plain kit has no answer for at all), `range` and `stepper` (a number moved rather than
+  typed), grouping with `card`, `accordion` or `row`, and `alert`/`divider` between groups.
+  Behaviour is Stimulus, delivered by AssetMapper — no build step, no package manager.
+
+The plain controls are deliberately the same names in both; everything the richer kit adds is a
+way of asking the other has no markup for. So a document written for one is *refused* by the
+other rather than half-drawn, which is what naming the engine at the top of the document buys.
+An engine this application does not know is accepted with its widgets unchecked — the bargain a
 plugin item type gets, and for the same reason.
 
 **Saving and confirming are items too.** `save` and `confirm` are placed wherever the document
@@ -265,8 +278,18 @@ comfortable in a browser, which is a good reason to keep the boundary honest.
 
 A presentation written for a kit this deployment cannot draw answers `409`; a form nobody
 described, `404`. Adding a kit is adding a `PresentationEngine` (what it can draw) and a
-`FormRenderer` (how) — the pages are driven in a real browser by the `browser` test suite, so a
-new kit gets the same proof this one has.
+`FormRenderer` (how) — everything else is shared: `PresentedNodes` resolves the presentation and
+the definition into the tree both templates draw, so a second kit costs a class, a template and
+a stylesheet rather than a second understanding of what a form is. The pages are driven in a
+real browser by the `browser` test suite, so every kit gets the same proof.
+
+**Front-end machinery, where a kit wants it.** `core-html` deliberately has none. `bootstrap`
+uses **AssetMapper** and **Stimulus**: `importmap.php` names what the browser may import,
+`assets/vendor/` holds those files (committed, so a clone, CI and the browser tests need no
+network), `assets/controllers/` holds the behaviour, and `make assets` refreshes the vendor
+files. No build step and no package manager. What the two kits share is a *convention*, not an
+implementation: `data-name` and `data-type` say which item a control holds and what it is on the
+wire, `data-error` marks where a refusal about it goes.
 
 ## Architecture
 
@@ -330,6 +353,9 @@ handed back to clients verbatim. Status is derived from the row (`data IS NULL` 
   the code that produced them does, and a tightened or relaxed rule that is not followed by a
   clear is served from yesterday's document. In dev both pools are in-memory for exactly that
   reason.
+- **Deploy (pages):** `bin/console asset-map:compile` writes the mapped assets into `public/`
+  for the web server to serve directly. Only the `bootstrap` kit's pages need it; the API does
+  not, and in dev and test they are served by the framework.
 - **Cron:** `bin/console app:forms:purge-expired` — expired forms are already invisible
   to the API (410); this fulfils the promise that expired data leaves the system.
 
@@ -340,6 +366,7 @@ handed back to clients verbatim. Status is derived from the row (`data IS NULL` 
 | `make install` / `make update` | composer install/update (Docker, PHP 8.4) |
 | `make migrate` / `make db-test` | migrations for the dev / test database |
 | `make cache-clear` | throw away what this code derived (data schemas, mapper metadata) |
+| `make assets` | download the vendor JavaScript/CSS named in `importmap.php` |
 | `make test` / `make test-unit` | full PHPUnit (needs postgres) / fast domain-only loop |
 | `make test-integration` | Http + Infrastructure suite only |
 | `make test-filter FILTER=…` | one test or a group: `make test-filter FILTER=FormApiTest::testSaveDraft` |

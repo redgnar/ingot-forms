@@ -10,5 +10,8 @@ return [
     // The one place this service produces markup: the pages that draw a form.
     Symfony\Bundle\TwigBundle\TwigBundle::class => ['all' => true],
     Symfony\Bundle\MonologBundle\MonologBundle::class => ['all' => true],
+    // Behaviour for the pages, delivered the way Symfony delivers it: Stimulus
+    // controllers over AssetMapper, no build step and no package manager.
+    Symfony\UX\StimulusBundle\StimulusBundle::class => ['all' => true],
     DAMA\DoctrineTestBundle\DAMADoctrineTestBundle::class => ['test' => true],
 ];

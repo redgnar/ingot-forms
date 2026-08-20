@@ -1,0 +1,253 @@
+{% import 'forms/_attributes.html.twig' as html %}
+{# The page the `bootstrap` kit draws. It decides nothing about the form: the
+   renderer hands it a resolved tree — what to draw, with what text, holding
+   which value, under which limits — and this turns that into Bootstrap markup.
+
+   Behaviour is Stimulus: `data-controller` says which controller runs, targets
+   say what it may touch, and the controllers live in `assets/controllers/`. The
+   page is still nothing but a client of this service's own API. #}
+<!DOCTYPE html>
+<html lang="{{ locale }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Form {{ id }}</title>
+    {{ importmap('bootstrap-form') }}
+</head>
+<body class="bg-body-tertiary">
+<main class="container py-5" style="max-width: 46rem;"
+      {%- if not readOnly %} data-controller="form" data-form-id-value="{{ id }}" data-action="input->form#touched"{% endif %}>
+
+    {% if readOnly %}
+        <div class="alert alert-secondary d-flex align-items-center" role="status">
+            This form is confirmed. It can be read, not changed.
+        </div>
+    {% else %}
+        {# Page chrome, not the designer's business: no presentation carries a
+           code for what somebody is told about their own doing. #}
+        <div class="alert alert-success d-none" role="status" data-form-target="saved">
+            Your answers are saved. You can come back and finish this form later.
+        </div>
+        <div class="alert alert-danger d-none" role="alert" data-form-target="problem"></div>
+    {% endif %}
+
+    <form novalidate>
+        {# Where the buttons go is the presentation's business, so nothing is
+           added here: a document that offers none draws none, and it cannot
+           offer none by accident. #}
+        {{ _self.nodes(nodes, readOnly) }}
+    </form>
+</main>
+</body>
+</html>
+
+{% macro nodes(nodes, readOnly) %}
+    {% for node in nodes %}{{ _self.node(node, readOnly) }}{% endfor %}
+{% endmacro %}
+
+{% macro node(node, readOnly) %}
+    {% if node.kind == 'container' %}
+        {% if node.widget == 'accordion' %}
+            {# Folded away without borrowing anybody's JavaScript: a browser has
+               known how to open and close this on its own for years. #}
+            <details class="card mb-4"{{ node.options.open ?? false ? ' open' : '' }}>
+                <summary class="card-header fw-semibold">{{ node.label }}</summary>
+                <div class="card-body">
+                    {% if node.hint %}<p class="text-body-secondary">{{ node.hint }}</p>{% endif %}
+                    {{ _self.nodes(node.children, readOnly) }}
+                </div>
+            </details>
+        {% elseif node.widget == 'row' %}
+            {# Side by side: each item takes the width it asked for, and the
+               ones that asked for nothing share what is left. #}
+            <div class="row g-3 mb-4">
+                {% for child in node.children %}
+                    <div class="{{ child.options.width|default(false) ? 'col-md-' ~ child.options.width : 'col' }}">
+                        {{ _self.node(child, readOnly) }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="card mb-4">
+                {% if node.label %}<div class="card-header fw-semibold">{{ node.label }}</div>{% endif %}
+                <div class="card-body">
+                    {% if node.hint %}<p class="text-body-secondary">{{ node.hint }}</p>{% endif %}
+                    {{ _self.nodes(node.children, readOnly) }}
+                </div>
+            </div>
+        {% endif %}
+    {% elseif node.kind == 'action' %}
+        {% if not readOnly %}
+            {% if node.appearance == 'link' %}
+                <a href="#" class="btn btn-link px-0 me-3" data-action="click->form#{{ node.widget }}">{{ node.label }}</a>
+            {% else %}
+                <button type="button" class="btn {{ node.widget == 'confirm' ? 'btn-primary' : 'btn-outline-secondary' }} me-2 mb-2"
+                        data-action="click->form#{{ node.widget }}">{{ node.label }}</button>
+            {% endif %}
+        {% endif %}
+    {% elseif node.kind == 'decoration' %}
+        {% if node.widget == 'heading' %}
+            <h2 class="h4 mt-4 mb-3">{{ node.label }}</h2>
+        {% elseif node.widget == 'alert' %}
+            <div class="alert alert-{{ node.options.tone|default('info') }}" role="note">{{ node.label }}</div>
+        {% elseif node.widget == 'divider' %}
+            <hr class="my-4">
+        {% else %}
+            <p class="text-body-secondary">{{ node.label }}</p>
+        {% endif %}
+    {% else %}
+        {{ _self.item(node, readOnly) }}
+    {% endif %}
+{% endmacro %}
+
+{% macro item(node, readOnly) %}
+    {# One map of attributes per control: what the definition says about the
+       value — its limits, its type on the wire — plus what the controller needs
+       to find it again. #}
+    {% set common = {
+        'id': 'item-' ~ node.name,
+        'name': node.name,
+        'data-name': node.name,
+        'data-type': node.type,
+        'data-form-target': 'control',
+        'disabled': readOnly,
+    } %}
+    {% set labelled = node.widget not in ['hidden', 'floating'] %}
+
+    <div class="mb-3" data-item="{{ node.name }}"{% if node.widget == 'hidden' %} hidden{% endif %}>
+        {% if labelled %}
+            <label class="form-label" for="item-{{ node.name }}">{{ node.label }}{% if node.required %} *{% endif %}</label>
+        {% endif %}
+
+        {% if node.widget == 'textarea' %}
+            <textarea{{ html.attributes(common|merge({'class': 'form-control', 'rows': 4, 'maxlength': node.maxLength}))|raw }}>{{ node.value }}</textarea>
+        {% elseif node.widget == 'floating' %}
+            <div class="form-floating">
+                <input{{ html.attributes(common|merge({
+                    'type': 'text',
+                    'class': 'form-control',
+                    'placeholder': node.label,
+                    'maxlength': node.maxLength,
+                    'pattern': node.pattern,
+                    'value': node.value,
+                }))|raw }}>
+                <label for="item-{{ node.name }}">{{ node.label }}{% if node.required %} *{% endif %}</label>
+            </div>
+        {% elseif node.widget == 'select' or node.widget == 'autocomplete' %}
+            <select{{ html.attributes(common|merge({
+                'class': 'form-select',
+                'data-controller': node.widget == 'autocomplete' ? 'autocomplete' : null,
+            }))|raw }}>
+                <option value=""></option>
+                {% for choice in node.choices %}
+                    <option value="{{ choice }}"{% if node.value == choice %} selected{% endif %}>{{ choice }}</option>
+                {% endfor %}
+            </select>
+        {% elseif node.widget == 'radio' %}
+            <div{{ html.attributes(common|merge({'id': null, 'name': null, 'disabled': null, 'data-choice': true}))|raw }}>
+                {% for choice in node.choices %}
+                    <div class="form-check{{ node.options.columns|default(false) ? ' form-check-inline' : '' }}">
+                        <input{{ html.attributes({
+                            'type': 'radio',
+                            'class': 'form-check-input',
+                            'id': 'item-' ~ node.name ~ '-' ~ loop.index,
+                            'name': node.name,
+                            'value': choice,
+                            'checked': node.value == choice,
+                            'disabled': readOnly,
+                        })|raw }}>
+                        <label class="form-check-label" for="item-{{ node.name }}-{{ loop.index }}">{{ choice }}</label>
+                    </div>
+                {% endfor %}
+            </div>
+        {% elseif node.widget == 'radio-buttons' %}
+            <div{{ html.attributes(common|merge({
+                'id': null,
+                'name': null,
+                'disabled': null,
+                'class': 'btn-group d-block',
+                'role': 'group',
+                'data-choice': true,
+            }))|raw }}>
+                {% for choice in node.choices %}
+                    <input{{ html.attributes({
+                        'type': 'radio',
+                        'class': 'btn-check',
+                        'id': 'item-' ~ node.name ~ '-' ~ loop.index,
+                        'name': node.name,
+                        'value': choice,
+                        'checked': node.value == choice,
+                        'disabled': readOnly,
+                        'autocomplete': 'off',
+                    })|raw }}>
+                    <label class="btn btn-outline-primary" for="item-{{ node.name }}-{{ loop.index }}">{{ choice }}</label>
+                {% endfor %}
+            </div>
+        {% elseif node.widget == 'checkbox' or node.widget == 'switch' %}
+            <div class="form-check{{ node.widget == 'switch' ? ' form-switch' : '' }}">
+                <input{{ html.attributes(common|merge({
+                    'type': 'checkbox',
+                    'class': 'form-check-input',
+                    'role': node.widget == 'switch' ? 'switch' : null,
+                    'checked': node.value ? true : false,
+                }))|raw }}>
+            </div>
+        {% elseif node.widget == 'range' %}
+            <input{{ html.attributes(common|merge({
+                'type': 'range',
+                'class': 'form-range',
+                'min': node.min,
+                'max': node.max,
+                'step': node.step,
+                'value': node.value,
+            }))|raw }}>
+        {% elseif node.widget == 'stepper' %}
+            {# A number clicked rather than typed. The bounds are the
+               definition's, so the buttons cannot walk past what the published
+               schema allows. #}
+            <div class="input-group" data-controller="stepper">
+                <button class="btn btn-outline-secondary" type="button" data-action="click->stepper#step"
+                        data-stepper-by-param="-1"{{ readOnly ? ' disabled' : '' }} aria-label="Less">&minus;</button>
+                <input{{ html.attributes(common|merge({
+                    'type': 'number',
+                    'class': 'form-control text-center',
+                    'data-stepper-target': 'input',
+                    'min': node.min,
+                    'max': node.max,
+                    'step': node.step,
+                    'value': node.value,
+                }))|raw }}>
+                <button class="btn btn-outline-secondary" type="button" data-action="click->stepper#step"
+                        data-stepper-by-param="1"{{ readOnly ? ' disabled' : '' }} aria-label="More">+</button>
+            </div>
+        {% elseif node.widget == 'number' %}
+            <input{{ html.attributes(common|merge({
+                'type': 'number',
+                'class': 'form-control',
+                'min': node.min,
+                'max': node.max,
+                'step': node.step,
+                'value': node.value,
+            }))|raw }}>
+        {% elseif node.widget == 'date' %}
+            <input{{ html.attributes(common|merge({
+                'type': 'date',
+                'class': 'form-control',
+                'min': node.min,
+                'max': node.max,
+                'value': node.value,
+            }))|raw }}>
+        {% else %}
+            <input{{ html.attributes(common|merge({
+                'type': node.widget == 'hidden' ? 'hidden' : 'text',
+                'class': node.widget == 'hidden' ? null : 'form-control',
+                'maxlength': node.maxLength,
+                'pattern': node.pattern,
+                'value': node.value,
+            }))|raw }}>
+        {% endif %}
+
+        {% if node.hint %}<div class="form-text">{{ node.hint }}</div>{% endif %}
+        <div class="form-text text-danger d-none" data-form-target="error" data-error="{{ node.name }}"></div>
+    </div>
+{% endmacro %}

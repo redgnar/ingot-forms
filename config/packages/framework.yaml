@@ -23,6 +23,11 @@ framework:
         log: true
     router:
         utf8: true
+    # The pages' own JavaScript and CSS: mapped from `assets/`, imported by name
+    # in the browser, no build step. Only the `bootstrap` kit uses it.
+    asset_mapper:
+        paths:
+            - assets/
     cache:
         pools:
             # ingot mapper metadata — keys derive from class names only

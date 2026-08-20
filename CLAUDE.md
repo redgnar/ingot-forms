@@ -89,7 +89,9 @@ src/UserInterface/
     Api/Action/            one invokable class per endpoint, suffixed Action
     Api/Request|Problem/   request DTOs, problem+json mapping
     Web/                   the pages that draw a form: an action, a renderer per
-                           engine, and the templates each draws with
+                           engine, PresentedNodes (the tree they all draw), and the
+                           templates each draws with (assets/ holds what a kit's page
+                           imports in the browser)
     Cli/                   console commands
 ```
 
@@ -107,7 +109,20 @@ Rules that follow from it, and that the tooling checks:
   the adapter invented.
 - **A kit is two halves in two layers**: `PresentationEngine` in the domain says what can be
   drawn (that is what a presentation is judged against), `FormRenderer` in the web layer draws
-  it. HTML never reaches the domain, and the vocabulary never leaves it.
+  it. HTML never reaches the domain, and the vocabulary never leaves it. Two kits ship:
+  `core-html` (plain controls, no machinery at all, one hand-written module in `public/js/`)
+  and `bootstrap` (Bootstrap 5 with `card`/`accordion`/`row`, `autocomplete`, `range`,
+  `stepper`, `floating`, `radio-buttons`; behaviour in Stimulus controllers under
+  `assets/controllers/`, delivered by AssetMapper). What is shared is the *resolved tree*
+  (`PresentedNodes`) and a markup convention — `data-name`/`data-type` on the thing holding a
+  value, `data-error` where a refusal goes — never the machinery: adding a control to a kit
+  never means touching the other one. A widget a kit adds must be a different way of **asking**,
+  never a second name for a control the other kit already draws.
+- **Front-end assets are AssetMapper's, and only where a kit asked for them.** `importmap.php`
+  names what the browser may import, `assets/vendor/` is committed (so a clone, CI and the
+  browser suite need no network), `make assets` refreshes it and a deploy runs
+  `asset-map:compile`. No build step, no package manager, no CDN — and no new write path: a
+  Stimulus controller is still nothing but a client of `/api`.
 - **A controller is one action.** `#[Route]` + `#[OA\…]` + `__invoke()` in a class named after
   what it does (`SaveFormDataAction`), so a class only injects what that one endpoint needs.
   Never group endpoints to share a constructor.
@@ -271,6 +286,7 @@ Local PHP is 8.1 — all tools run inside the pinned Docker image (`docker/Docke
 | `make install` / `make update` | composer install/update (Docker) |
 | `make migrate` / `make db-test` | migrations for dev / test database |
 | `make cache-clear` | drop the derived pools (data schemas, mapper metadata) — after a rules change |
+| `make assets` | download the vendor JavaScript/CSS named in `importmap.php` into `assets/vendor/` |
 | `make test` / `make test-unit` | full PHPUnit (starts postgres) / fast domain-only loop |
 | `make test-integration` | Http + Infrastructure suite only |
 | `make test-filter FILTER=…` / `make test-file FILE=…` | one test (or group) / one file or directory |

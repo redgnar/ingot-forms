@@ -6,6 +6,7 @@ namespace App\Tests\UserInterface\Web;
 
 use App\Domain\Forms\Form;
 use App\Domain\Forms\FormDefinitionProcessor;
+use App\Domain\Forms\Presentation\Engine\BootstrapEngine;
 use App\Domain\Forms\Presentation\Engine\CoreHtmlEngine;
 use App\Domain\Forms\Presentation\Engine\Engines;
 use App\Domain\Forms\Presentation\PresentationRules;
@@ -70,6 +71,29 @@ final class ViewFormActionTest extends WebTestCase
         self::assertSame($id, $crawler->filter('body')->attr('data-form'));
         self::assertCount(2, $crawler->filter('[data-item]'));
         self::assertSame('E-mail *', $crawler->filter('label[for="item-email"]')->text());
+    }
+
+    public function testTheKitADocumentNamesIsTheKitThatDrawsIt(): void
+    {
+        // GIVEN the same form described twice, once per kit this deployment has
+        $plain = $this->plant();
+        $rich = $this->plantRich();
+
+        // WHEN each page is opened
+        $plainPage = $this->client->request('GET', \sprintf('/forms/%s', $plain));
+        self::assertResponseIsSuccessful();
+        $richPage = $this->client->request('GET', \sprintf('/forms/%s', $rich));
+        self::assertResponseIsSuccessful();
+
+        // THEN one endpoint, two kits: the document decides which markup a
+        // person gets, and neither page borrows the other's
+        self::assertCount(0, $plainPage->filter('script[type="importmap"]'));
+        self::assertCount(1, $plainPage->filter('[data-action="confirm"]'));
+        self::assertCount(0, $plainPage->filter('.card'));
+
+        self::assertCount(1, $richPage->filter('script[type="importmap"]'));
+        self::assertCount(1, $richPage->filter('[data-action="click->form#confirm"]'));
+        self::assertCount(1, $richPage->filter('.card'));
     }
 
     public function testTheLanguageComesFromTheUrlWhenTheUrlSaysSo(): void
@@ -178,6 +202,43 @@ final class ViewFormActionTest extends WebTestCase
         self::assertResponseStatusCodeSame(409);
         self::assertResponseHeaderSame('Content-Type', 'text/html; charset=UTF-8');
         self::assertStringContainsString('rules that have since changed', (string) $this->client->getResponse()->getContent());
+    }
+
+    /**
+     * The same form, described for the richer kit — its own words for grouping
+     * and for the control a searchable choice gets.
+     */
+    private function plantRich(): string
+    {
+        $id = FormId::next();
+        $container = self::getContainer();
+
+        $definitions = $container->get(FormDefinitionProcessor::class);
+        self::assertInstanceOf(FormDefinitionProcessor::class, $definitions);
+        $presentations = $container->get(PresentationProcessor::class);
+        self::assertInstanceOf(PresentationProcessor::class, $presentations);
+        $repository = $container->get(DoctrineFormRepository::class);
+        self::assertInstanceOf(DoctrineFormRepository::class, $repository);
+
+        $document = self::PRESENTATION;
+        $document['engine'] = 'bootstrap';
+        $document['items'] = [
+            ['widget' => 'card', 'items' => [
+                ['name' => 'email', 'widget' => 'text', 'label' => 'contact.email'],
+                ['name' => 'country', 'widget' => 'autocomplete', 'label' => 'contact.country'],
+            ]],
+            ['widget' => 'confirm', 'label' => 'contact.send'],
+        ];
+
+        $repository->add(new Form(
+            $id,
+            $definitions->document($definitions->parse(self::DEFINITION)),
+            ExpireDate::future(new \DateTimeImmutable('+1 day')),
+            $presentations->document($presentations->parse($document)),
+            new PresentationRules(new Engines([new BootstrapEngine()])),
+        ));
+
+        return (string) $id;
     }
 
     private function plant(bool $withPresentation = true, string $engine = 'core-html', bool $expired = false): string

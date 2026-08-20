@@ -1,3 +1,4 @@
+{% import 'forms/_attributes.html.twig' as html %}
 {# The page a person fills a form in. It decides nothing: the renderer hands it a
    resolved tree — what to draw, with what text, holding which value — and this
    turns that into controls. #}
@@ -91,19 +92,19 @@
         {% endif %}
 
         {% if node.widget == 'textarea' %}
-            <textarea{{ _self.attributes(common|merge({'rows': 4, 'maxlength': node.maxLength}))|raw }}>{{ node.value }}</textarea>
+            <textarea{{ html.attributes(common|merge({'rows': 4, 'maxlength': node.maxLength}))|raw }}>{{ node.value }}</textarea>
         {% elseif node.widget == 'select' %}
-            <select{{ _self.attributes(common)|raw }}>
+            <select{{ html.attributes(common)|raw }}>
                 <option value=""></option>
-                {% for option in node.options %}
+                {% for option in node.choices %}
                     <option value="{{ option }}"{% if node.value == option %} selected{% endif %}>{{ option }}</option>
                 {% endfor %}
             </select>
         {% elseif node.widget == 'radio' %}
             <div class="choice" data-name="{{ node.name }}" data-type="{{ node.type }}">
-                {% for option in node.options %}
+                {% for option in node.choices %}
                     <label>
-                        <input{{ _self.attributes({
+                        <input{{ html.attributes({
                             'type': 'radio',
                             'name': node.name,
                             'value': option,
@@ -115,9 +116,9 @@
                 {% endfor %}
             </div>
         {% elseif node.widget == 'checkbox' or node.widget == 'switch' %}
-            <input{{ _self.attributes(common|merge({'type': 'checkbox', 'checked': node.value ? true : false}))|raw }}>
+            <input{{ html.attributes(common|merge({'type': 'checkbox', 'checked': node.value ? true : false}))|raw }}>
         {% elseif node.widget == 'number' %}
-            <input{{ _self.attributes(common|merge({
+            <input{{ html.attributes(common|merge({
                 'type': 'number',
                 'min': node.min,
                 'max': node.max,
@@ -125,9 +126,9 @@
                 'value': node.value,
             }))|raw }}>
         {% elseif node.widget == 'date' %}
-            <input{{ _self.attributes(common|merge({'type': 'date', 'min': node.min, 'max': node.max, 'value': node.value}))|raw }}>
+            <input{{ html.attributes(common|merge({'type': 'date', 'min': node.min, 'max': node.max, 'value': node.value}))|raw }}>
         {% else %}
-            <input{{ _self.attributes(common|merge({
+            <input{{ html.attributes(common|merge({
                 'type': node.widget == 'hidden' ? 'hidden' : 'text',
                 'maxlength': node.maxLength,
                 'pattern': node.pattern,
@@ -137,14 +138,4 @@
 
         <p class="error" data-error="{{ node.name }}" hidden></p>
     </div>
-{% endmacro %}
-
-{# `true` writes the bare attribute, `false` and null write nothing, everything
-   else is escaped as an attribute value — the one place quoting happens. #}
-{% macro attributes(attrs) %}
-    {%- for name, value in attrs -%}
-        {%- if value is same as(true) %} {{ name }}
-        {%- elseif value is not same as(false) and value is not null %} {{ name }}="{{ value|e('html_attr') }}"
-        {%- endif -%}
-    {%- endfor -%}
 {% endmacro %}

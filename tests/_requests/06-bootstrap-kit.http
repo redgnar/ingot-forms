@@ -1,0 +1,177 @@
+# The second kit. Same definition, same API, a different vocabulary: `bootstrap`
+# groups with cards, rows and accordions, and draws choices and numbers with
+# controls the plain kit has no markup for. Open the id this returns at
+# {{host}}/forms/{id} to see it drawn.
+
+### A form described for the richer kit, using every group and control it has.
+# @name createBootstrapForm
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "id": "onboarding",
+    "items": [
+      { "type": "text", "name": "email", "required": true, "maxLength": 120 },
+      { "type": "text", "name": "nickname", "maxLength": 40 },
+      { "type": "text", "name": "bio", "maxLength": 500 },
+      { "type": "text", "name": "source", "maxLength": 40 },
+      { "type": "select", "name": "country", "options": ["pl", "de", "fr", "es", "it"], "required": true },
+      { "type": "select", "name": "plan", "options": ["free", "pro"], "required": true },
+      { "type": "select", "name": "size", "options": ["s", "m", "l"] },
+      { "type": "number", "name": "seats", "min": 1, "max": 10, "decimals": 0 },
+      { "type": "number", "name": "rating", "min": 1, "max": 5, "decimals": 0 },
+      { "type": "date", "name": "starts", "min": "2026-01-01", "max": "2030-12-31" },
+      { "type": "checkbox", "name": "terms", "required": true, "mustBeChecked": true }
+    ]
+  },
+  "presentation": {
+    "engine": "bootstrap",
+    "defaultLocale": "en",
+    "items": [
+      { "widget": "heading", "label": "t.title" },
+      { "widget": "alert", "label": "t.note", "options": { "tone": "info" } },
+      {
+        "widget": "card",
+        "label": "t.who",
+        "items": [
+          {
+            "widget": "row",
+            "items": [
+              { "name": "email", "widget": "text", "label": "t.email", "hint": "t.email.hint", "options": { "width": 8 } },
+              { "name": "nickname", "widget": "floating", "label": "t.nickname", "options": { "width": 4 } }
+            ]
+          },
+          { "name": "country", "widget": "autocomplete", "label": "t.country" },
+          { "name": "plan", "widget": "radio-buttons", "label": "t.plan" },
+          { "name": "size", "widget": "radio", "label": "t.size", "options": { "columns": 3 } }
+        ]
+      },
+      {
+        "widget": "card",
+        "label": "t.setup",
+        "items": [
+          {
+            "widget": "row",
+            "items": [
+              { "name": "seats", "widget": "stepper", "label": "t.seats", "options": { "width": 6 } },
+              { "name": "starts", "widget": "date", "label": "t.starts", "options": { "width": 6 } }
+            ]
+          },
+          { "name": "rating", "widget": "range", "label": "t.rating" }
+        ]
+      },
+      { "widget": "accordion", "label": "t.more", "items": [{ "name": "bio", "widget": "textarea", "label": "t.bio" }] },
+      { "widget": "divider" },
+      { "name": "terms", "widget": "switch", "label": "t.terms" },
+      { "name": "source", "widget": "hidden" },
+      { "widget": "paragraph", "label": "t.smallprint" },
+      { "widget": "save", "label": "t.save", "options": { "appearance": "link" } },
+      { "widget": "confirm", "label": "t.send" }
+    ],
+    "translations": {
+      "en": {
+        "t.title": "Welcome aboard",
+        "t.note": "Everything here can be finished later.",
+        "t.who": "Who you are",
+        "t.email": "E-mail",
+        "t.email.hint": "We only use it to reply",
+        "t.nickname": "Nickname",
+        "t.country": "Country",
+        "t.plan": "Plan",
+        "t.size": "Shirt size",
+        "t.setup": "Your setup",
+        "t.seats": "Seats",
+        "t.starts": "Starts on",
+        "t.rating": "How you heard of us",
+        "t.more": "Anything else?",
+        "t.bio": "About you",
+        "t.terms": "I accept the terms",
+        "t.smallprint": "You can come back to this page any time before it expires.",
+        "t.save": "Save for later",
+        "t.send": "Send it"
+      },
+      "pl": {
+        "t.title": "Witamy na pokładzie",
+        "t.email": "E-mail",
+        "t.nickname": "Pseudonim",
+        "t.country": "Kraj",
+        "t.terms": "Akceptuję regulamin",
+        "t.save": "Zapisz na później",
+        "t.send": "Wyślij"
+      }
+    }
+  }
+}
+
+> {%
+    client.global.set("bootstrapFormId", response.body.id);
+    client.test("201 — the richer kit draws all of this", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+%}
+
+### The page, drawn by the kit the document named.
+GET {{host}}/forms/{{bootstrapFormId}}
+
+> {%
+    client.test("200 — and it brings its own stylesheet and behaviour", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(response.body.includes('type="importmap"'), "Expected the page to load its modules");
+        client.assert(response.body.includes('data-controller="autocomplete"'), "Expected the searchable choice");
+    });
+%}
+
+### The same page in Polish, because the URL says so.
+GET {{host}}/pl/forms/{{bootstrapFormId}}
+
+> {%
+    client.test("200 — codes Polish has come out Polish, the rest falls back", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(response.body.includes("Pseudonim"), "Expected the Polish label");
+        client.assert(response.body.includes("Shirt size"), "Expected the untranslated code to fall back to English");
+    });
+%}
+
+### A control only this kit has, asked for in the plain one: refused.
+# @name autocompleteInThePlainKit
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "id": "contact", "items": [{ "type": "select", "name": "country", "options": ["pl", "de"] }] },
+  "presentation": {
+    "engine": "core-html",
+    "items": [{ "name": "country", "widget": "autocomplete" }, { "widget": "confirm" }]
+  }
+}
+
+> {%
+    client.test("422 presentation.widget.mismatch", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "presentation.widget.mismatch", "Expected presentation.widget.mismatch");
+    });
+%}
+
+### And a way of grouping the plain kit has, asked for in this one: also refused.
+# @name fieldsetInTheRicherKit
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
+  "presentation": {
+    "engine": "bootstrap",
+    "items": [{ "widget": "fieldset", "items": [{ "name": "email" }] }, { "widget": "confirm" }]
+  }
+}
+
+> {%
+    client.test("422 — a card is not a fieldset", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "presentation.widget.mismatch", "Expected presentation.widget.mismatch");
+    });
+%}

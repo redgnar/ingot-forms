@@ -6,7 +6,7 @@
 RUN   := docker compose run --rm --no-deps php
 RUNDB := docker compose run --rm php
 
-.PHONY: setup image up down install update require db-reset cache-clear test test-unit test-integration test-browser test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
+.PHONY: setup image up down install update require assets db-reset cache-clear test test-unit test-integration test-browser test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
 
 setup: ## Bring a fresh checkout all the way up: image, dependencies, an empty database, serving
 	@[ -d ../ingot ] || { echo 'The ingot library must sit next to this project: git clone https://github.com/redgnar/ingot.git ../ingot'; exit 1; }
@@ -49,6 +49,9 @@ db-reset: ## Throw the database away and build it again from the migrations
 # directory itself, which is where a filesystem pool keeps its files — and where
 # entries written before a pool was reconfigured stay behind. Both environments a
 # developer has on disk; a deploy runs the same commands with APP_ENV=prod.
+assets: ## Download the vendor JavaScript and CSS named in importmap.php into assets/vendor/ (committed, so this is only for updates)
+	$(RUN) bin/console importmap:install
+
 cache-clear: ## Throw away what this code derived (data schemas, mapper metadata) — after a rules change
 	$(RUN) sh -c 'bin/console cache:pool:clear --all && bin/console cache:clear \
 		&& bin/console cache:pool:clear --all --env=test && bin/console cache:clear --env=test'
