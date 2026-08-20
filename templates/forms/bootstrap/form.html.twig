@@ -122,6 +122,11 @@
         {% if node.widget == 'textarea' %}
             <textarea{{ html.attributes(common|merge({'class': 'form-control', 'rows': 4, 'maxlength': node.maxLength}))|raw }}>{{ node.value }}</textarea>
         {% elseif node.widget == 'floating' %}
+            {# Only where the row it sits in mixes the two ways of labelling: the
+               space a label would have taken, so both boxes start level. #}
+            {% if node.reserveLabel|default(false) %}
+                <label class="form-label invisible" aria-hidden="true">{{ node.label }}</label>
+            {% endif %}
             <div class="form-floating">
                 <input{{ html.attributes(common|merge({
                     'type': 'text',

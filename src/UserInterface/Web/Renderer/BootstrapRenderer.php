@@ -37,7 +37,70 @@ final class BootstrapRenderer implements FormRenderer
             'readOnly' => $request->form->status() === FormStatus::Confirmed,
             // A document that names no widget for a group gets this kit's plainest
             // way of grouping, and for a standalone item, a paragraph.
-            'nodes' => $this->nodes->of($request, 'card', 'paragraph'),
+            'nodes' => self::aligned($this->nodes->of($request, 'card', 'paragraph')),
         ]);
+    }
+
+    /**
+     * One layout rule this kit has to keep for itself, because no document
+     * should have to think about it: a floating label lives *inside* its
+     * control, so next to a control labelled above it, the two boxes start at
+     * different heights and the row looks broken. Where a row mixes the two,
+     * the floating ones are told to reserve the space a label would have taken.
+     *
+     * Decided here rather than in Twig: it is a decision, and a decision in a
+     * template is a decision no test looks at.
+     *
+     * @param list<array<string, mixed>> $nodes
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function aligned(array $nodes): array
+    {
+        foreach ($nodes as $index => $node) {
+            if ($node['kind'] !== 'container') {
+                continue;
+            }
+
+            /** @var list<array<string, mixed>> $children */
+            $children = $node['children'];
+            $nodes[$index]['children'] = self::aligned($children);
+
+            if ($node['widget'] !== 'row' || !self::mixesLabelPlacements($children)) {
+                continue;
+            }
+
+            foreach ($nodes[$index]['children'] as $child => $item) {
+                if (($item['widget'] ?? null) === 'floating') {
+                    $nodes[$index]['children'][$child]['reserveLabel'] = true;
+                }
+            }
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     */
+    private static function mixesLabelPlacements(array $children): bool
+    {
+        $floating = false;
+        $above = false;
+
+        foreach ($children as $child) {
+            if ($child['kind'] !== 'value') {
+                continue;
+            }
+
+            match ($child['widget']) {
+                'floating' => $floating = true,
+                // Nothing is written above something nobody sees.
+                'hidden' => null,
+                default => $above = true,
+            };
+        }
+
+        return $floating && $above;
     }
 }

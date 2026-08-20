@@ -155,6 +155,31 @@ final class BootstrapRendererTest extends KernelTestCase
         ));
     }
 
+    public function testALabelInsideItsControlStaysLevelWithTheOneNextToIt(): void
+    {
+        // GIVEN a row mixing the two ways of labelling: one above the control,
+        // one inside it
+        $page = new Crawler($this->render());
+
+        // THEN the floating one reserves the space a label would have taken, so
+        // both boxes start level — invisible, and out of a screen reader's way
+        $reserved = $page->filter('[data-item="nickname"] label.invisible');
+        self::assertCount(1, $reserved);
+        self::assertSame('true', $reserved->attr('aria-hidden'));
+
+        // AND where a row labels everything the same way, nothing is reserved:
+        // this is a fix for a mismatch, not a margin somebody has to undo
+        $document = self::PRESENTATION;
+        $document['items'][2]['items'][0]['items'] = [
+            ['name' => 'email', 'widget' => 'floating', 'label' => 't.email', 'options' => ['width' => 8]],
+            ['name' => 'nickname', 'widget' => 'floating', 'label' => 't.nickname', 'options' => ['width' => 4]],
+        ];
+        $floatingOnly = new Crawler($this->renderer->render(new RenderedForm(self::formFrom($document), 'en')));
+
+        self::assertCount(0, $floatingOnly->filter('label.invisible'));
+        self::assertCount(2, $floatingOnly->filter('.form-floating'));
+    }
+
     public function testWhatIsSaidBetweenGroupsIsDrawnAsAsked(): void
     {
         // GIVEN / WHEN
@@ -312,13 +337,21 @@ final class BootstrapRendererTest extends KernelTestCase
 
     private static function form(): Form
     {
+        return self::formFrom(self::PRESENTATION);
+    }
+
+    /**
+     * @param array<string, mixed> $presentation
+     */
+    private static function formFrom(array $presentation): Form
+    {
         $processor = new PresentationProcessor(self::mapper());
 
         return new Form(
             FormId::next(),
             self::definition(),
             ExpireDate::future(new \DateTimeImmutable('+1 day')),
-            $processor->document($processor->parse(self::PRESENTATION)),
+            $processor->document($processor->parse($presentation)),
             new PresentationRules(new Engines([new BootstrapEngine()])),
         );
     }

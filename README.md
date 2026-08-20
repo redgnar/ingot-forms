@@ -103,7 +103,10 @@ adding a class. Two ship here:
   `radio-buttons` (a choice as toggles), `autocomplete` (a choice somebody searches, which the
   plain kit has no answer for at all), `range` and `stepper` (a number moved rather than
   typed), grouping with `card`, `accordion` or `row`, and `alert`/`divider` between groups.
-  Behaviour is Stimulus, delivered by AssetMapper — no build step, no package manager.
+  Behaviour is Stimulus, delivered by AssetMapper — no build step, no package manager. Layout
+  that follows from mixing widgets is the kit's own problem: a `floating` label next to a
+  control labelled above it reserves the space that label takes, so the row stays level without
+  the document having to know.
 
 The plain controls are deliberately the same names in both; everything the richer kit adds is a
 way of asking the other has no markup for. So a document written for one is *refused* by the

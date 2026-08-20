@@ -52,6 +52,23 @@ final class BootstrapFormPageTest extends PantherTestCase
         );
     }
 
+    public function testControlsInARowLineUpEvenWhenTheyAreLabelledDifferently(): void
+    {
+        // GIVEN a row holding a control labelled above and one labelling itself
+        // from the inside
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+        // WHEN both are measured where they actually are
+        $email = $this->browser->findElement(WebDriverBy::id('item-email'))->getLocation()->getY();
+        $nickname = $this->browser->findElement(WebDriverBy::id('item-nickname'))->getLocation()->getY();
+
+        // THEN they start at the same height: a label that lives inside its
+        // control must not pull the control out of line with its neighbour, and
+        // only a browser can say whether it does
+        self::assertLessThanOrEqual(2, abs($email - $nickname), \sprintf('%dpx apart.', abs($email - $nickname)));
+    }
+
     public function testSomebodyFillsItInWithEveryKindOfControlAndItIsSaved(): void
     {
         // GIVEN a form drawn for a person

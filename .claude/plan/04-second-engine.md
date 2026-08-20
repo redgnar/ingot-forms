@@ -81,12 +81,20 @@ No change to the domain beyond the new engine class, none to the API, none to st
 is the answer about the split: the second kit cost a class, a template and a stylesheet — not
 a second understanding of what a form is.
 
-## Two things worth knowing
+## Three things worth knowing
 
 **A slider always holds a value.** A `range` control has a position even before anybody
 touches it, so a form drawn with one sends a number from the first save. That is a property
 of the widget, not a bug to work around — a document that wants "no answer yet" to be
 possible should ask for `number` instead.
+
+**A row that mixes labelling styles is the kit's problem, not the document's.** A `floating`
+label lives inside its control, so next to a control labelled above it the two boxes start 32
+pixels apart and the row looks broken. Where a row mixes the two, the floating ones reserve the
+space a label would have taken — an invisible, `aria-hidden` label, decided in the renderer
+rather than in Twig, and measured in a browser (the only place that can tell). Where a row
+labels everything the same way, nothing is reserved: this is a fix for a mismatch, not a margin
+somebody has to undo.
 
 **The page's JavaScript is not shared between kits.** `core-html` keeps its one hand-written
 module in `public/js/`; `bootstrap` has Stimulus controllers in `assets/`. The *convention*
