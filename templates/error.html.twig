@@ -1,7 +1,7 @@
 {# The whole error page: a status and a sentence. Anything more would be a second
    place to keep what the API already says properly. #}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ app.request.locale|default('en') }}">
 <head>
     <meta charset="utf-8">
     <title>{{ status }}</title>
@@ -12,6 +12,6 @@
 </head>
 <body>
     <h1>{{ status }}</h1>
-    <p>{{ message }}</p>
+    <p>{{ message|trans }}</p>
 </body>
 </html>

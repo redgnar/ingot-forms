@@ -121,6 +121,21 @@ in the machinery it chose. Deliberate: the point of `core-html` is that it needs
    folds without a library, a refusal really marks its control, confirming really locks it.
 6. **Documents**: this file, `README.md`, `CLAUDE.md`.
 
+## After it was built
+
+- **The floating label came out** (see above), and with it the alignment rule.
+- **Two more Symfony pieces earned their place**, once the question "what here is actually
+  Symfony's?" was asked out loud: **UX Icons**, imported into `assets/icons/` so nothing is
+  fetched at runtime, and **the translator** for what a page says in its own name. That second
+  one closed a real gap: the form's own text was localized from the presentation's catalogue
+  while the page's sentences — a stored draft, a closed form, the error pages — were hardcoded
+  English. They now live in `translations/messages.*.yaml` under `page.*`, in both kits, and the
+  browser is handed the one sentence it needs rather than holding it in a controller.
+- **What stayed hand-written**: the autocomplete controller. `symfony/ux-autocomplete` wraps the
+  same TomSelect; without a `FormView` we could only use its JavaScript, and its real value —
+  fetching options from a server endpoint — is not something a form whose choices come from the
+  definition needs.
+
 ## Non-goals
 
 No wizard (`step` containers, progress, next/back) — the vocabulary above is already enough

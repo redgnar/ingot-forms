@@ -40,13 +40,16 @@ final class ErrorPageListener
 
         $throwable = $event->getThrowable();
 
+        // A key rather than a sentence: the page says this in the language the
+        // request negotiated, out of this application's own catalogue. An
+        // HTTP exception brings its own wording, which passes through as itself.
         [$status, $message] = match (true) {
-            $throwable instanceof FormNotFound => [404, 'There is no such form.'],
-            $throwable instanceof PresentationNotSet => [404, 'Nobody has said how to show this form.'],
-            $throwable instanceof FormGone => [410, 'This form has expired.'],
-            $throwable instanceof FormUnreadable => [409, 'This form was stored under rules that have since changed, and cannot be shown.'],
+            $throwable instanceof FormNotFound => [404, 'page.error.form-not-found'],
+            $throwable instanceof PresentationNotSet => [404, 'page.error.presentation-not-set'],
+            $throwable instanceof FormGone => [410, 'page.error.form-gone'],
+            $throwable instanceof FormUnreadable => [409, 'page.error.form-unreadable'],
             $throwable instanceof HttpExceptionInterface => [$throwable->getStatusCode(), $throwable->getMessage()],
-            default => [500, 'Something went wrong.'],
+            default => [500, 'page.error.unexpected'],
         };
 
         // Answering with a page ends the exception's journey, so nothing after

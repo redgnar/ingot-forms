@@ -67,7 +67,7 @@ function showErrors(body) {
     if (rest.length === 0 && (body.errors ?? []).length > 0) return;
 
     const notice = document.getElementById('form-error');
-    notice.textContent = rest.join(' ') || body.detail || body.title || 'The request was refused.';
+    notice.textContent = rest.join(' ') || body.detail || body.title || document.body.dataset.refused;
     notice.hidden = false;
 }
 

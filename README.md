@@ -102,8 +102,8 @@ adding a class. Two ship here:
 - **`bootstrap`** — Bootstrap 5, with the controls a styled kit can afford: `radio-buttons` (a
   choice as toggles), `autocomplete` (a choice somebody searches, which the plain kit has no
   answer for at all), `range` and `stepper` (a number moved rather than typed), grouping with
-  `card`, `accordion` or `row`, and `alert`/`divider` between groups. Behaviour is Stimulus,
-  delivered by AssetMapper — no build step, no package manager. Every item is labelled the same
+  `card`, `accordion` or `row`, and `alert`/`divider` between groups. Behaviour is Stimulus and
+  icons are UX Icons, delivered by AssetMapper — no build step, no package manager. Every item is labelled the same
   way, above its control: a floating label can only float over a text box or a select, so any
   form with a choice group or a slider would end up labelled two ways at once.
 
@@ -265,8 +265,15 @@ JSON endpoints use, and what somebody types goes back through `PUT /api/forms/{i
 `POST /api/forms/{id}/confirm` — from the browser, with a small module and no build step. There
 is no privileged path: whatever the page can do, any client can. A stored draft is confirmed by a
 notice on the page, which lasts exactly as long as it is true: the next attempt clears it, and so
-does the first thing somebody changes afterwards. Its wording is the page's own — no presentation
-carries a code for what a person is told about their own progress.
+does the first thing somebody changes afterwards.
+
+**What the page says in its own name is translated by the application**, not by the document: a
+stored draft, a closed form, a refusal with nothing to point at, and the error pages all come
+from `translations/messages.*.yaml` under `page.*` keys, in the language the request negotiated.
+So there are two catalogues on purpose — the presentation carries the *form's* text as codes,
+because that is the author's to write, and this one carries the sentences this application
+invented. Neither template holds a sentence, and the browser gets the one it needs handed to it
+(`data-form-refused-value`, `data-refused`) rather than hardcoded in a controller.
 
 **The language is the framework's negotiation**: `_locale` in the URL wins, `Accept-Language`
 decides otherwise, `default_locale` has the last word, and the response varies on that header. A
@@ -286,10 +293,10 @@ a stylesheet rather than a second understanding of what a form is. The pages are
 real browser by the `browser` test suite, so every kit gets the same proof.
 
 **Front-end machinery, where a kit wants it.** `core-html` deliberately has none. `bootstrap`
-uses **AssetMapper** and **Stimulus**: `importmap.php` names what the browser may import,
-`assets/vendor/` holds those files (committed, so a clone, CI and the browser tests need no
-network), `assets/controllers/` holds the behaviour, and `make assets` refreshes the vendor
-files. No build step and no package manager. What the two kits share is a *convention*, not an
+uses **AssetMapper**, **Stimulus** and **UX Icons**: `importmap.php` names what the browser may
+import, `assets/vendor/` holds those files and `assets/icons/` the icons (both committed, so a
+clone, CI and the browser tests need no network), `assets/controllers/` holds the behaviour, and
+`make assets` refreshes the vendor files. No build step and no package manager. What the two kits share is a *convention*, not an
 implementation: `data-name` and `data-type` say which item a control holds and what it is on the
 wire, `data-error` marks where a refusal about it goes.
 

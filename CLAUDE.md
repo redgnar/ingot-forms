@@ -104,9 +104,13 @@ Rules that follow from it, and that the tooling checks:
   report failures differently — `problem+json` is the API's contract, a page answers with a page
   (`_errors: html` on the web routes is what says which) — because a browser is no client of RFC
   9457. What a person is told about their own doing — that a draft was stored, that a form is
-  closed — is the page's own text, next to the markup that shows it: a presentation describes
-  the form, not the chrome around it, and no document should have to carry a code for a message
-  the adapter invented.
+  closed, that something went wrong — is the page's own text, and it lives in
+  `translations/messages.*.yaml` under `page.*`, resolved in the language the request
+  negotiated. A presentation describes the form, not the chrome around it, so no document
+  carries a code for a sentence the adapter invented — and no template or controller holds
+  that sentence either: a template asks the catalogue (`|trans`), and what the browser needs
+  is handed to it as a value (`data-form-refused-value`, `data-refused`). Two catalogues, and
+  the split is the point: the form's text is the author's, these words are ours.
 - **A kit is two halves in two layers**: `PresentationEngine` in the domain says what can be
   drawn (that is what a presentation is judged against), `FormRenderer` in the web layer draws
   it. HTML never reaches the domain, and the vocabulary never leaves it. Two kits ship:
@@ -123,7 +127,8 @@ Rules that follow from it, and that the tooling checks:
 - **Front-end assets are AssetMapper's, and only where a kit asked for them.** `importmap.php`
   names what the browser may import, `assets/vendor/` is committed (so a clone, CI and the
   browser suite need no network), `make assets` refreshes it and a deploy runs
-  `asset-map:compile`. No build step, no package manager, no CDN — and no new write path: a
+  `asset-map:compile`. Icons are UX Icons imported into `assets/icons/` with
+  `make console CMD="ux:icons:import tabler:…"` — in the repository, never fetched at runtime. No build step, no package manager, no CDN — and no new write path: a
   Stimulus controller is still nothing but a client of `/api`.
 - **A controller is one action.** `#[Route]` + `#[OA\…]` + `__invoke()` in a class named after
   what it does (`SaveFormDataAction`), so a class only injects what that one endpoint needs.

@@ -13,5 +13,8 @@ return [
     // Behaviour for the pages, delivered the way Symfony delivers it: Stimulus
     // controllers over AssetMapper, no build step and no package manager.
     Symfony\UX\StimulusBundle\StimulusBundle::class => ['all' => true],
+    // Icons as SVG in the markup, imported into the repository rather than
+    // fetched at runtime.
+    Symfony\UX\Icons\UXIconsBundle::class => ['all' => true],
     DAMA\DoctrineTestBundle\DAMADoctrineTestBundle::class => ['test' => true],
 ];

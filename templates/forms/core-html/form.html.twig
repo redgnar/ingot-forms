@@ -24,15 +24,15 @@
         .flash { background: #e8f5e9; border-radius: .25rem; color: #1b5e20; margin-bottom: 1.5rem; padding: .75rem 1rem; }
     </style>
 </head>
-<body data-form="{{ id }}" data-read-only="{{ readOnly ? 'yes' : 'no' }}">
+<body data-form="{{ id }}" data-read-only="{{ readOnly ? 'yes' : 'no' }}" data-refused="{{ 'page.refused'|trans }}">
 {% if readOnly %}
-    <p class="notice">This form is confirmed. It can be read, not changed.</p>
+    <p class="notice">{{ 'page.confirmed'|trans }}</p>
 {% else %}
     {# Page chrome, not part of the presentation: what somebody is told about
        their own progress is this adapter's business, so no document has to
        carry a code for it. Shown by the script once a draft is stored, and
        hidden again the moment it stops being true. #}
-    <p class="flash" id="form-saved" hidden>Your answers are saved. You can come back and finish this form later.</p>
+    <p class="flash" id="form-saved" hidden>{{ 'page.saved'|trans }}</p>
 {% endif %}
 
 <form id="form">

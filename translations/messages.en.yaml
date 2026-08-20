@@ -1,0 +1,17 @@
+# What a page says in its own name. The form's own text is never here — that
+# travels as translation codes inside the presentation document, resolved from
+# the catalogue that document carries. These are the sentences this application
+# invented, so this application translates them.
+page:
+    saved: 'Your answers are saved. You can come back and finish this form later.'
+    confirmed: 'This form is confirmed. It can be read, not changed.'
+    refused: 'The request was refused.'
+    stepper:
+        less: 'Less'
+        more: 'More'
+    error:
+        form-not-found: 'There is no such form.'
+        presentation-not-set: 'Nobody has said how to show this form.'
+        form-gone: 'This form has expired.'
+        form-unreadable: 'This form was stored under rules that have since changed, and cannot be shown.'
+        unexpected: 'Something went wrong.'

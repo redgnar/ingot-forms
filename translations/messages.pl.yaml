@@ -1,0 +1,13 @@
+page:
+    saved: 'Twoje odpowiedzi są zapisane. Możesz wrócić i dokończyć ten formularz później.'
+    confirmed: 'Ten formularz jest zatwierdzony. Można go czytać, nie można zmieniać.'
+    refused: 'Żądanie zostało odrzucone.'
+    stepper:
+        less: 'Mniej'
+        more: 'Więcej'
+    error:
+        form-not-found: 'Nie ma takiego formularza.'
+        presentation-not-set: 'Nikt nie powiedział, jak pokazać ten formularz.'
+        form-gone: 'Ten formularz wygasł.'
+        form-unreadable: 'Ten formularz zapisano według reguł, które od tego czasu się zmieniły, i nie da się go pokazać.'
+        unexpected: 'Coś poszło nie tak.'

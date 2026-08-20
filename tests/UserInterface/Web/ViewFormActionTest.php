@@ -139,6 +139,40 @@ final class ViewFormActionTest extends WebTestCase
         self::assertSame('E-mail *', $crawler->filter('label[for="item-email"]')->text());
     }
 
+    public function testWhatThePageSaysInItsOwnNameIsTranslatedToo(): void
+    {
+        // GIVEN a form described for each kit
+        $plain = $this->plant();
+        $rich = $this->plantRich();
+
+        // WHEN both pages are asked for in Polish
+        $plainPage = $this->client->request('GET', \sprintf('/pl/forms/%s', $plain));
+        $richPage = $this->client->request('GET', \sprintf('/pl/forms/%s', $rich));
+
+        // THEN the sentences this application invented come out of its own
+        // catalogue, in the language the request negotiated — the presentation's
+        // codes are one catalogue, the page's own words are another
+        self::assertStringContainsString('Twoje odpowiedzi są zapisane', $plainPage->filter('#form-saved')->text());
+        self::assertStringContainsString('Twoje odpowiedzi są zapisane', $richPage->filter('[data-form-target="saved"]')->text());
+        self::assertSame('Żądanie zostało odrzucone.', $richPage->filter('[data-controller="form"]')->attr('data-form-refused-value'));
+
+        // AND in English when nobody asked for anything else
+        $english = $this->client->request('GET', \sprintf('/forms/%s', $plain));
+        self::assertStringContainsString('Your answers are saved', $english->filter('#form-saved')->text());
+    }
+
+    public function testAPageThatCannotBeDrawnAlsoSpeaksTheLanguageAskedFor(): void
+    {
+        // GIVEN / WHEN a form nobody has
+        $page = $this->client->request('GET', \sprintf('/pl/forms/%s', Uuid::v7()->toRfc4122()));
+
+        // THEN even the refusal is a page, in Polish, with the status that says
+        // what happened
+        self::assertResponseStatusCodeSame(404);
+        self::assertSame('Nie ma takiego formularza.', $page->filter('p')->text());
+        self::assertSame('pl', $page->filter('html')->attr('lang'));
+    }
+
     public function testAFormNobodyDescribedCannotBeDrawn(): void
     {
         // GIVEN a form created without a presentation

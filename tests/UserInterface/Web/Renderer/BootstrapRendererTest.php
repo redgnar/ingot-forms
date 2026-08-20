@@ -132,6 +132,18 @@ final class BootstrapRendererTest extends KernelTestCase
         self::assertCount(1, $page->filter('script[type="importmap"]'));
     }
 
+    public function testTheKitDrawsWithIconsThatLiveInTheRepository(): void
+    {
+        // GIVEN / WHEN
+        $page = new Crawler($this->render());
+
+        // THEN they are inline SVG in the markup — imported once into
+        // `assets/icons/`, so nothing is fetched from anybody at runtime
+        self::assertCount(1, $page->filter('[data-form-target="saved"] svg'));
+        self::assertCount(2, $page->filter('[data-controller="stepper"] svg'));
+        self::assertCount(1, $page->filter('button[data-action="click->form#confirm"] svg'));
+    }
+
     public function testEveryGroupIsDrawnTheWayItAsked(): void
     {
         // GIVEN / WHEN

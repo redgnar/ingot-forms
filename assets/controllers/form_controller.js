@@ -11,8 +11,11 @@ import { Controller } from '@hotwired/stimulus';
  * in how much of it they carry.
  */
 export default class extends Controller {
-    static values = { id: String };
-    static targets = ['saved', 'problem', 'error', 'control'];
+    // The sentence for a refusal that names no item comes from the page, which
+    // got it from this application's own catalogue: a controller has no business
+    // holding English.
+    static values = { id: String, refused: String };
+    static targets = ['saved', 'problem', 'problemText', 'error', 'control'];
 
     save(event) {
         event.preventDefault();
@@ -83,7 +86,7 @@ export default class extends Controller {
     #clearMessages() {
         this.savedTarget.classList.add('d-none');
         this.problemTarget.classList.add('d-none');
-        this.problemTarget.textContent = '';
+        this.problemTextTarget.textContent = '';
 
         for (const slot of this.errorTargets) {
             slot.classList.add('d-none');
@@ -119,7 +122,7 @@ export default class extends Controller {
 
         if (rest.length === 0 && (body.errors ?? []).length > 0) return;
 
-        this.problemTarget.textContent = rest.join(' ') || body.detail || body.title || 'The request was refused.';
+        this.problemTextTarget.textContent = rest.join(' ') || body.detail || body.title || this.refusedValue;
         this.problemTarget.classList.remove('d-none');
     }
 }

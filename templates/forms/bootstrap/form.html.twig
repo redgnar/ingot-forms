@@ -16,19 +16,27 @@
 </head>
 <body class="bg-body-tertiary">
 <main class="container py-5" style="max-width: 46rem;"
-      {%- if not readOnly %} data-controller="form" data-form-id-value="{{ id }}" data-action="input->form#touched"{% endif %}>
+      {%- if not readOnly %} data-controller="form" data-form-id-value="{{ id }}"
+      data-form-refused-value="{{ 'page.refused'|trans }}" data-action="input->form#touched"{% endif %}>
 
+    {# Page chrome, not the designer's business: no presentation carries a code
+       for what somebody is told about their own doing, and this application
+       translates its own sentences from `translations/`. #}
     {% if readOnly %}
-        <div class="alert alert-secondary d-flex align-items-center" role="status">
-            This form is confirmed. It can be read, not changed.
+        <div class="alert alert-secondary d-flex align-items-center gap-2" role="status">
+            {{ ux_icon('tabler:lock', {class: 'flex-shrink-0'}) }}{{ 'page.confirmed'|trans }}
         </div>
     {% else %}
-        {# Page chrome, not the designer's business: no presentation carries a
-           code for what somebody is told about their own doing. #}
         <div class="alert alert-success d-none" role="status" data-form-target="saved">
-            Your answers are saved. You can come back and finish this form later.
+            <span class="d-flex align-items-center gap-2">
+                {{ ux_icon('tabler:circle-check', {class: 'flex-shrink-0'}) }}{{ 'page.saved'|trans }}
+            </span>
         </div>
-        <div class="alert alert-danger d-none" role="alert" data-form-target="problem"></div>
+        <div class="alert alert-danger d-none" role="alert" data-form-target="problem">
+            <span class="d-flex align-items-center gap-2">
+                {{ ux_icon('tabler:alert-triangle', {class: 'flex-shrink-0'}) }}<span data-form-target="problemText"></span>
+            </span>
+        </div>
     {% endif %}
 
     <form novalidate>
@@ -81,8 +89,9 @@
             {% if node.appearance == 'link' %}
                 <a href="#" class="btn btn-link px-0 me-3" data-action="click->form#{{ node.widget }}">{{ node.label }}</a>
             {% else %}
-                <button type="button" class="btn {{ node.widget == 'confirm' ? 'btn-primary' : 'btn-outline-secondary' }} me-2 mb-2"
-                        data-action="click->form#{{ node.widget }}">{{ node.label }}</button>
+                <button type="button" class="btn {{ node.widget == 'confirm' ? 'btn-primary' : 'btn-outline-secondary' }} me-2 mb-2 d-inline-flex align-items-center gap-2"
+                        data-action="click->form#{{ node.widget }}">
+                    {%- if node.widget == 'confirm' %}{{ ux_icon('tabler:send') }}{% endif %}{{ node.label }}</button>
             {% endif %}
         {% endif %}
     {% elseif node.kind == 'decoration' %}
@@ -195,7 +204,8 @@
                schema allows. #}
             <div class="input-group" data-controller="stepper">
                 <button class="btn btn-outline-secondary" type="button" data-action="click->stepper#step"
-                        data-stepper-by-param="-1"{{ readOnly ? ' disabled' : '' }} aria-label="Less">&minus;</button>
+                        data-stepper-by-param="-1"{{ readOnly ? ' disabled' : '' }}
+                        aria-label="{{ 'page.stepper.less'|trans }}">{{ ux_icon('tabler:minus') }}</button>
                 <input{{ html.attributes(common|merge({
                     'type': 'number',
                     'class': 'form-control text-center',
@@ -206,7 +216,8 @@
                     'value': node.value,
                 }))|raw }}>
                 <button class="btn btn-outline-secondary" type="button" data-action="click->stepper#step"
-                        data-stepper-by-param="1"{{ readOnly ? ' disabled' : '' }} aria-label="More">+</button>
+                        data-stepper-by-param="1"{{ readOnly ? ' disabled' : '' }}
+                        aria-label="{{ 'page.stepper.more'|trans }}">{{ ux_icon('tabler:plus') }}</button>
             </div>
         {% elseif node.widget == 'number' %}
             <input{{ html.attributes(common|merge({

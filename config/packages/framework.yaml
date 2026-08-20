@@ -28,6 +28,12 @@ framework:
     asset_mapper:
         paths:
             - assets/
+    # What a page says in its own name — that a draft was stored, that a form is
+    # closed, that something went wrong — in the language the request negotiated.
+    # The form's own text is never here: it travels as codes in the presentation.
+    translator:
+        default_path: '%kernel.project_dir%/translations'
+        fallbacks: ['en']
     cache:
         pools:
             # ingot mapper metadata — keys derive from class names only
