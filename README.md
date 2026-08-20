@@ -48,9 +48,10 @@ widget to draw.
 | `number` | JSON number | `min`, `max`, `decimals` |
 | `date` | `YYYY-MM-DD`, a day that exists | `min`, `max` — calendar dates, `min` no later than `max` |
 | `checkbox` | JSON boolean | `mustBeChecked` |
+| `collection` | JSON array of objects, one per entry | `items` (a definition of its own, 1–1000), `min`, `max` |
 | anything else | whatever it came as | the plugin's own keys, kept in `extras` |
 
-Three of those say something worth spelling out:
+Four of those say something worth spelling out:
 
 - **`decimals` bounds precision.** `0` means whole numbers and is published as JSON Schema's
   `integer`; `2` is money, published as the step every value must land on (`multipleOf: 0.01`).
@@ -59,6 +60,16 @@ Three of those say something worth spelling out:
   keywords ajv-formats uses, and ingot implements them, because standard JSON Schema cannot
   bound a string in time — so the range is checked against the same document a client
   validates against, not somewhere behind it.
+- **A `collection` is a question asked repeatedly**, and it is what makes a definition a
+  tree: its `items` are a definition of their own, so an entry is a document answering them,
+  and every rule of every item inside holds one scope down and points there
+  (`/lines/2/quantity`). Names are unique *within* a scope, so an entry may answer `sku` even
+  where the form around it also asks for `sku`. It counts rather than requires: `min: 1` says
+  "at least one entry" and `required` on a collection is refused, because an empty list would
+  satisfy it while answering nothing. `max` holds in both contracts, like every rule about a
+  value; `min` waits for confirmation, like `required` itself, and a collection owing entries
+  is required of the values document, since an absent member has none of them. A collection may
+  hold a collection — no kit draws that yet, so those entries are filled in through the API.
 - **`mustBeChecked` is not `required`.** For a box, `false` is an answer, so `required` means
   "decide"; a consent means "agree", and that is published as `const: true` — **in the strict
   contract only**. Having to agree is something finishing the form requires, like `required`
@@ -95,6 +106,28 @@ changing what it asks does.
 definition declares, and holds nothing), or holds other items (a container), or stands on its
 own (a decoration). Sections were the first draft: a fixed level of grouping is a guess that
 ends up either too shallow or in the way.
+
+**A list is the one item that is both.** An item naming a `collection` holds the form for *one
+entry*, and `columns` says which of that entry's items the list itself previews — the heading of
+a column being the label that form already gives the item, so the same words live in one place.
+Say nothing and every item of the entry is previewed.
+
+```json
+{"name": "lines", "widget": "table", "label": "t.lines",
+ "columns": ["sku", "quantity"],
+ "items": [{"name": "sku", "widget": "text", "label": "t.sku"},
+           {"name": "quantity", "widget": "number", "label": "t.qty"}]}
+```
+
+Everything a presentation is judged by is judged **per scope**, then: a name exists here, is
+shown once here, and everything here is shown. So an entry may present `sku` even where the
+form around it also presents `sku`, and a trigger inside an entry is refused — saving and
+confirming are what a *form* does. A list inside an entry is the one thing no kit here draws,
+so it may not be shown and is not owed a place; what it holds is filled in through the API.
+
+Both kits draw a list as a `table`: the answers so far as rows, each with the form it is
+answered in folded underneath, one blank form kept aside for adding another, and `min`/`max`
+carried into the page so it can grey out its own buttons — the server still being what decides.
 
 **A choice can be shown in words.** The definition settles that a value must be one of
 `["pl","de","fr"]`; the presentation settles that `pl` reads *Polska*, with `choices` mapping
@@ -146,11 +179,13 @@ form does, so a kit declares how it draws them, not whether they exist. **At lea
 is required**, because where the trigger goes is a design decision and leaving it out is not one:
 the page would be unfinishable. Nothing is added at the bottom of the page by the renderer.
 
-**What the server enforces**: the form is shown whole — every item the definition declares
-appears, exactly once, and a value a client fills in rather than a person is drawn `hidden`,
-which is a decision written down instead of an omission; an item that presents a value holds
-nothing; a widget is one the engine draws for that item, or one it can nest with, or one that
-stands alone; and a carried catalogue names a default locale that is complete. Other locales may lag behind — that is how translating goes — and codes nobody uses
+**What the server enforces**, in every scope: the form is shown whole — every item the
+definition declares appears, exactly once, and a value a client fills in rather than a person is
+drawn `hidden`, which is a decision written down instead of an omission; an item that presents a
+value holds nothing, unless it names a collection, which must hold the form for one entry and
+may preview only items that entry has; a widget is one the engine draws for that item, or one it
+can nest with, or one that stands alone; and a carried catalogue names a default locale that is
+complete. Other locales may lag behind — that is how translating goes — and codes nobody uses
 are fine. Findings carry `presentation.*` codes and pointers into the document as sent
 (`/items/0/items/1/name`).
 
@@ -326,7 +361,11 @@ clone, CI and the browser tests need no network), `assets/controllers/` holds th
 renders an SVG with no width or height on purpose), and `make assets` refreshes the vendor
 files. No build step and no package manager. What the two kits share is a *convention*, not an
 implementation: `data-name` and `data-type` say which item a control holds and what it is on the
-wire, `data-error` marks where a refusal about it goes.
+wire, `data-error` marks where a refusal about it goes, and for a list **structure carries
+identity** — `data-collection` marks the list, `data-entry` marks one entry, `data-cell` marks a
+previewed value. Values are collected scope by scope in the order the entries appear, so adding
+or removing one renumbers nothing, and a pointer like `/lines/1/quantity` is resolved by walking
+that same structure back down.
 
 ## Architecture
 

@@ -1,0 +1,327 @@
+# A question asked repeatedly: a `collection` item declares a definition of its
+# own, so its value is a list of documents. Everything a definition can say holds
+# one scope down, and so does everything a presentation can say — open the id
+# this returns at {{host}}/forms/{id} to add and remove entries by hand.
+
+### An order with as many lines as it needs.
+# @name createListForm
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "text", "name": "customer", "required": true, "maxLength": 60 },
+      {
+        "type": "collection",
+        "name": "lines",
+        "min": 1,
+        "max": 4,
+        "items": [
+          { "type": "text", "name": "sku", "required": true, "maxLength": 8 },
+          { "type": "number", "name": "quantity", "required": true, "min": 1, "max": 99, "decimals": 0 },
+          { "type": "select", "name": "unit", "options": ["pc", "kg"], "required": true },
+          { "type": "checkbox", "name": "urgent" }
+        ]
+      }
+    ]
+  },
+  "presentation": {
+    "engine": "bootstrap",
+    "defaultLocale": "en",
+    "items": [
+      { "name": "customer", "widget": "text", "label": "t.customer" },
+      {
+        "name": "lines",
+        "widget": "table",
+        "label": "t.lines",
+        "columns": ["sku", "quantity", "unit", "urgent"],
+        "items": [
+          {
+            "widget": "row",
+            "items": [
+              { "name": "sku", "widget": "text", "label": "t.sku", "options": { "width": 6 } },
+              { "name": "quantity", "widget": "stepper", "label": "t.qty", "options": { "width": 6 } }
+            ]
+          },
+          { "name": "unit", "widget": "radio-buttons", "label": "t.unit", "choices": { "pc": "t.pc", "kg": "t.kg" } },
+          { "name": "urgent", "widget": "switch", "label": "t.urgent" }
+        ]
+      },
+      { "widget": "save", "label": "t.save", "options": { "appearance": "link" } },
+      { "widget": "confirm", "label": "t.send" }
+    ],
+    "translations": {
+      "en": {
+        "t.customer": "Customer",
+        "t.lines": "Lines",
+        "t.sku": "SKU",
+        "t.qty": "Quantity",
+        "t.unit": "Unit",
+        "t.pc": "pieces",
+        "t.kg": "kilos",
+        "t.urgent": "Urgent",
+        "t.save": "Save for later",
+        "t.send": "Send"
+      },
+      "pl": {
+        "t.customer": "Klient",
+        "t.lines": "Pozycje",
+        "t.sku": "Kod",
+        "t.qty": "Ilość",
+        "t.unit": "Jednostka",
+        "t.pc": "sztuki",
+        "t.kg": "kilogramy",
+        "t.urgent": "Pilne",
+        "t.save": "Zapisz na później",
+        "t.send": "Wyślij"
+      }
+    }
+  },
+  "data": { "customer": "Ada Lovelace", "lines": [{ "sku": "A-1", "quantity": 2, "unit": "pc", "urgent": true }] }
+}
+
+> {%
+    client.global.set("listFormId", response.body.id);
+    client.test("201 — created holding its first entry", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+%}
+
+### The published contract of an entry, derived from the definition.
+GET {{host}}/api/forms/{{listFormId}}/schema
+
+> {%
+    client.test("a list of objects, with the counts and the entry's own rules", function () {
+        const lines = response.body.properties.lines;
+        client.assert(lines.type === "array", "Expected an array");
+        client.assert(lines.minItems === 1 && lines.maxItems === 4, "Expected the counts");
+        client.assert(lines.items.required.join(",") === "sku,quantity,unit", "Expected an entry to owe its own items");
+        client.assert(response.body.required.includes("lines"), "A list owing entries is required of the document");
+    });
+%}
+
+### The draft contract asks for nothing yet — except the ceiling.
+GET {{host}}/api/forms/{{listFormId}}/schema?mode=draft
+
+> {%
+    client.test("no minimum, no required inside an entry, the maximum stays", function () {
+        const lines = response.body.properties.lines;
+        client.assert(lines.minItems === undefined, "A draft may hold an empty list");
+        client.assert(lines.maxItems === 4, "A ceiling is a rule about the value");
+        client.assert(lines.items.required === undefined, "An entry owes nothing while filling in");
+    });
+%}
+
+### Three entries, one of them half answered — fine while filling in.
+PUT {{host}}/api/forms/{{listFormId}}/data
+Content-Type: application/json
+
+{
+  "customer": "Ada Lovelace",
+  "lines": [
+    { "sku": "A-1", "quantity": 2, "unit": "pc", "urgent": true },
+    { "sku": "B-2", "quantity": 5, "unit": "kg" },
+    { "sku": "C-3" }
+  ]
+}
+
+> {%
+    client.test("204 — partial progress is storable, entry by entry", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+### Confirming names the entry that is not finished.
+POST {{host}}/api/forms/{{listFormId}}/confirm
+
+> {%
+    client.test("422 pointing into the entry", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/lines/2", "Expected /lines/2, got " + response.body.errors[0].pointer);
+        client.assert(response.body.errors[0].code === "schema.required", "Expected schema.required");
+    });
+%}
+
+### A rule of an item, broken inside an entry.
+PUT {{host}}/api/forms/{{listFormId}}/data
+Content-Type: application/json
+
+{ "customer": "Ada", "lines": [{ "sku": "A-1", "quantity": 2, "unit": "pc" }, { "sku": "B-2", "quantity": 0, "unit": "kg" }] }
+
+> {%
+    client.test("422 at /lines/1/quantity", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/lines/1/quantity", "Expected /lines/1/quantity");
+        client.assert(response.body.errors[0].code === "schema.minimum", "Expected schema.minimum");
+    });
+%}
+
+### More entries than the definition allows.
+PUT {{host}}/api/forms/{{listFormId}}/data
+Content-Type: application/json
+
+{
+  "customer": "Ada",
+  "lines": [
+    { "sku": "A", "quantity": 1, "unit": "pc" },
+    { "sku": "B", "quantity": 1, "unit": "pc" },
+    { "sku": "C", "quantity": 1, "unit": "pc" },
+    { "sku": "D", "quantity": 1, "unit": "pc" },
+    { "sku": "E", "quantity": 1, "unit": "pc" }
+  ]
+}
+
+> {%
+    client.test("422 schema.maxItems on the list itself", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/lines", "Expected /lines");
+        client.assert(response.body.errors[0].code === "schema.maxItems", "Expected schema.maxItems");
+    });
+%}
+
+### Asking for entries with `required` instead of `min`.
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "collection", "name": "lines", "required": true, "items": [{ "type": "text", "name": "sku" }] }
+    ]
+  }
+}
+
+> {%
+    client.test("422 form.collection.required-not-allowed", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "form.collection.required-not-allowed", "Expected the refusal to name min");
+    });
+%}
+
+### The same name twice inside one entry — a scope of its own, judged as one.
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      {
+        "type": "collection",
+        "name": "lines",
+        "items": [
+          { "type": "text", "name": "sku" },
+          { "type": "number", "name": "sku" }
+        ]
+      }
+    ]
+  }
+}
+
+> {%
+    client.test("422 form.field.duplicate-name inside the entry", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/definition/items/0/items/1/name", "Expected the pointer inside the entry");
+    });
+%}
+
+### A list shown without saying how an entry looks.
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "items": [{ "type": "collection", "name": "lines", "items": [{ "type": "text", "name": "sku" }] }] },
+  "presentation": {
+    "engine": "core-html",
+    "items": [{ "name": "lines", "widget": "table" }, { "widget": "confirm" }]
+  }
+}
+
+> {%
+    client.test("422 presentation.collection.no-entry-form", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "presentation.collection.no-entry-form", "Expected the refusal to ask for an entry form");
+    });
+%}
+
+### A column naming something no entry answers.
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "items": [{ "type": "collection", "name": "lines", "items": [{ "type": "text", "name": "sku" }] }] },
+  "presentation": {
+    "engine": "core-html",
+    "items": [
+      { "name": "lines", "widget": "table", "columns": ["colour"], "items": [{ "name": "sku" }] },
+      { "widget": "confirm" }
+    ]
+  }
+}
+
+> {%
+    client.test("422 presentation.column.unknown", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/presentation/items/0/columns/0", "Expected the pointer at the column");
+    });
+%}
+
+### A trigger inside an entry: saving and confirming are the form's doing.
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "items": [{ "type": "collection", "name": "lines", "items": [{ "type": "text", "name": "sku" }] }] },
+  "presentation": {
+    "engine": "core-html",
+    "items": [
+      { "name": "lines", "widget": "table", "items": [{ "name": "sku" }, { "widget": "confirm" }] }
+    ]
+  }
+}
+
+> {%
+    client.test("422 presentation.trigger.in-an-entry", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "presentation.trigger.in-an-entry", "Expected the trigger to be refused");
+    });
+%}
+
+### A list inside an entry: allowed in the definition, drawn by nobody.
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      {
+        "type": "collection",
+        "name": "lines",
+        "items": [
+          { "type": "text", "name": "sku" },
+          { "type": "collection", "name": "parts", "items": [{ "type": "text", "name": "code" }] }
+        ]
+      }
+    ]
+  },
+  "presentation": {
+    "engine": "core-html",
+    "items": [
+      { "name": "lines", "widget": "table", "items": [{ "name": "sku" }] },
+      { "widget": "confirm" }
+    ]
+  }
+}
+
+> {%
+    client.test("201 — the nested list is not owed a place on the page", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+%}

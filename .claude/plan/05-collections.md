@@ -216,6 +216,40 @@ Each step ends with a green `make ci`.
 7. **Documents**: `README.md`, `CLAUDE.md`, `tests/_requests/07-collections.http`, and this
    file's as-built section.
 
+## What building it changed
+
+The plan held. What moved, and why:
+
+- **Steps 5 and 6 merged.** Once the browser tests became a battery — one case class, a
+  subclass per kit saying which engine it is and how its own triggers are found — driving the
+  richer kit was the subclass, not a step.
+- **The item cap per scope went from 50 to 1000** on the owner's call: 50 was a number from the
+  days when a form was flat, and a cap is only there so nothing absurd gets stored.
+- **`RawValueType` was not keeping its own promise.** Its docblock said it takes "object, list
+  or scalar", and a simple Symfony field refuses an array unless it says it may hold several
+  values — so a collection was refused by the form stage while the schema accepted it. Fixing
+  that also closed a hole that predated this plan: a plugin item carrying a JSON list was
+  refused the same way. The gates may never disagree in that direction, and now a battery case
+  says so.
+- **`required` on a collection is a rule, not a shape.** The spike (step 0) found that a
+  variant must declare what its base class declares, so the parameter exists and setting it is
+  refused with a message naming `min`.
+- **Two presentation rules moved or arrived.** "A named item holds nothing" could no longer be
+  answered without the definition — only it knows which named items may hold something — so
+  that validator is gone and the rule lives in `PresentationRules`. And a trigger inside an
+  entry is now refused outright (`presentation.trigger.in-an-entry`), which also keeps the
+  confirmation rule honest: a button in a row would otherwise satisfy it while leaving the form
+  with nothing of its own to press.
+- **Ids cannot live inside an entry.** The same form is drawn once per entry, so `id="item-sku"`
+  appeared as many times as there were entries and every label pointed at the first one. Inside
+  an entry the label wraps its control instead — which cannot collide and says the same thing.
+  Both kits' item macros split into `item` and `control` for it.
+- **A new entry arrives unfolded.** Its row is empty, so the form under it is the only thing to
+  do with it; folded shut, the page looked broken. The browser is what said so.
+- **A browser truncates to `maxlength` on its own**, which corrected a *test* rather than the
+  code: refusing a value from the page needs one nothing can clamp, so the case uses a count
+  below its minimum.
+
 ## Non-goals
 
 No row ids, no reordering, no per-row endpoints — the page still sends the whole values document,

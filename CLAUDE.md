@@ -15,7 +15,12 @@ All code, comments, documentation, commit messages: **English**. Conversation wi
 ## Domain model (do not re-litigate)
 
 A form is a **single fillable document**: one immutable definition + one data set + required
-`expire_date`. Lifecycle: empty → draft (`PUT …/data`, repeatable, lenient validation without
+`expire_date`. A definition is a **tree**: a `collection` item declares items of its own, so its
+value is an array of objects and an entry is a document answering them. It counts rather than
+requires (`min`/`max`; `required` on a collection is refused, because an empty list would satisfy
+it while answering nothing), `max` holds in both contracts and `min` only in strict, and a
+collection owing entries is required of the values document. A collection may hold a collection;
+no kit draws that, so those entries are API-only. Lifecycle: empty → draft (`PUT …/data`, repeatable, lenient validation without
 `required`) → confirmed (`POST …/confirm`, strict validation, locked forever). A form can be
 **born a draft**: `data` in the creation request is its first draft, not a third document — the
 aggregate's own `saveDraft()` judges it under the same lenient contract, the insert writes it
@@ -125,8 +130,14 @@ Rules that follow from it, and that the tooling checks:
   `stepper`, `radio-buttons`; behaviour in Stimulus controllers under
   `assets/controllers/`, delivered by AssetMapper). What is shared is the *resolved tree*
   (`PresentedNodes`) and a markup convention — `data-name`/`data-type` on the thing holding a
-  value, `data-error` where a refusal goes — never the machinery: adding a control to a kit
-  never means touching the other one. A widget a kit adds must be a different way of **asking**,
+  value, `data-error` where a refusal goes, and for a list **structure carries identity**
+  (`data-collection`, `data-entry`, `data-cell`): values are collected scope by scope in the
+  order entries appear, so adding or removing one renumbers nothing, and a pointer is resolved
+  by walking that same structure down. A blank entry is markup the server rendered, waiting in
+  a `<template>` — a kit never builds markup in JavaScript. Inside an entry a label wraps its
+  control instead of pointing at an `id`, because the same form is drawn once per entry and an
+  id can only belong to one of them. What is never shared is the machinery: adding a control to
+  a kit never means touching the other one. A widget a kit adds must be a different way of **asking**,
   never a second name for a control the other kit already draws — and never a restyling of one
   (a floating label was tried and removed: it moved the same question's text, and it could not
   be applied to a choice group or a slider, so every page mixing them was labelled two ways).
@@ -217,6 +228,14 @@ Rules that follow from it, and that the tooling checks:
   `presentation.choice.unknown`, and only an item that offers a choice may carry `choices` at
   all. The codes join `codes()`, so the default-locale catalogue is held to them like every
   label.
+- **Every rule about a definition or a presentation is a rule about one scope.** A form
+  declares items; so does every collection in it. Names are unique among items declared
+  together, an unknown type is refused wherever it sits, a schema is derived for an entry by
+  the same code that derives it for the whole document (`DataSchemaDeriver::objectSchema()`),
+  and a presentation's "exists / shown once / shown at all" are asked again inside every list.
+  Findings point where the mistake is — `/items/1/items/0/name` in a definition,
+  `/lines/2/quantity` in values. Adding a rule means asking where its scope is before asking
+  anything else.
 - **A definition says what is asked, never how it looks.** There is no presentation in it:
   `textarea` is one way to show a text item, `radio` one way to show a select, and both are
   the client's business. So an item type is added when it brings **rules of its own** — a date
