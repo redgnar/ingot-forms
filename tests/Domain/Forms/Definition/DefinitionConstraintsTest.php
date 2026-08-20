@@ -47,6 +47,24 @@ final class DefinitionConstraintsTest extends TestCase
 
 
 
+    public function testACollectionCarriesTheSameCountBoundsOneScopeDown(): void
+    {
+        // GIVEN a bare mapper, so what holds here is the model's own rule
+        $mapper = self::bareMapper();
+
+        // WHEN / THEN an entry may declare as much as a form may
+        self::assertTrue($mapper->tryMap(FormDefinition::class, self::collectionJson(itemCount: 1))->isSuccess());
+        self::assertTrue($mapper->tryMap(FormDefinition::class, self::collectionJson(itemCount: 50))->isSuccess());
+
+        // AND a question asked repeatedly has to ask something, and cannot ask
+        // more than a form does
+        $none = $mapper->tryMap(FormDefinition::class, self::collectionJson(itemCount: 0));
+        $tooMany = $mapper->tryMap(FormDefinition::class, self::collectionJson(itemCount: 51));
+
+        self::assertSame(['mapping.min_items'], self::codesAt($none, '/items/0/items'));
+        self::assertSame(['mapping.max_items'], self::codesAt($tooMany, '/items/0/items'));
+    }
+
     public function testFieldsAreOptionalByDefault(): void
     {
         // GIVEN
@@ -57,6 +75,20 @@ final class DefinitionConstraintsTest extends TestCase
 
         // THEN the field defaults to optional
         self::assertFalse($field->required);
+    }
+
+    private static function collectionJson(int $itemCount): Source
+    {
+        $items = [];
+
+        for ($i = 0; $i < $itemCount; ++$i) {
+            $items[] = ['type' => 'text', 'name' => 'field-' . $i];
+        }
+
+        return Source::json(json_encode(
+            ['items' => [['type' => 'collection', 'name' => 'lines', 'items' => $items]]],
+            \JSON_THROW_ON_ERROR,
+        ));
     }
 
     private static function bareMapper(): TreeMapper

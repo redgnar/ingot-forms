@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Forms;
 
+use App\Domain\Forms\Definition\CollectionCountValidator;
+use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateRangeValidator;
 use App\Domain\Forms\Definition\Field;
@@ -46,6 +48,10 @@ final class FormMapperFactory
         $builder = MapperBuilder::create()
             ->withSchema(FormDefinition::class, Schema::fromFile(__DIR__ . '/form-definition.schema.json'))
             ->withValidator(FormDefinition::class, new UniqueFieldNamesValidator())
+            // The same rule for the same reason, one scope down: a collection
+            // declares items too.
+            ->withValidator(CollectionField::class, new UniqueFieldNamesValidator())
+            ->withValidator(CollectionField::class, new CollectionCountValidator())
             ->withValidator(NumberField::class, new NumberRangeValidator())
             ->withValidator(DateField::class, new DateRangeValidator())
             ->withSchema(PresentationDocument::class, Schema::fromFile(__DIR__ . '/Presentation/presentation.schema.json'))

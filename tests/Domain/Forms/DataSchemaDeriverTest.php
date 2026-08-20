@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Domain\Forms;
 
 use App\Domain\Forms\DataSchemaDeriver;
+use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\GenericField;
 use App\Domain\Forms\Definition\NumberField;
@@ -59,6 +60,69 @@ final class DataSchemaDeriverTest extends TestCase
         self::assertSame(['enum' => ['pl', 'de', 'fr']], $document['properties']['country']);
         self::assertSame(['type' => 'number', 'minimum' => 18, 'maximum' => 120], $document['properties']['age']);
         self::assertFalse($document['additionalProperties']);
+    }
+
+    public function testAListOwedEntriesIsRequiredOfTheDocumentItself(): void
+    {
+        // GIVEN two collections: one that owes entries and one that does not
+        $definition = new FormDefinition([
+            new CollectionField('lines', [new TextField('sku', required: true)], min: 1),
+            new CollectionField('notes', [new TextField('body', required: false)]),
+        ]);
+
+        // WHEN
+        $strict = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Strict));
+
+        // THEN the one owing entries is required of the values document, because
+        // a member that is absent has no entries at all; the other is not
+        self::assertSame(['lines'], $strict['required']);
+
+        // AND nothing is owed while the form is still being filled in
+        $draft = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Draft));
+        self::assertArrayNotHasKey('required', $draft);
+    }
+
+    public function testAListNobodyCountedIsNotOwedEither(): void
+    {
+        // GIVEN a collection that says nothing about how many entries it wants
+        $definition = new FormDefinition([
+            new CollectionField('lines', [new TextField('sku', required: true)]),
+        ]);
+
+        // WHEN / THEN saying nothing is not the same as asking for one: the
+        // member stays optional, and the published shape says no more than it
+        // knows
+        $strict = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Strict));
+        self::assertArrayNotHasKey('required', $strict);
+        self::assertIsArray($strict['properties']);
+        self::assertSame(['type' => 'array', 'items' => [
+            'type' => 'object',
+            'properties' => ['sku' => ['type' => 'string', 'minLength' => 1]],
+            'additionalProperties' => false,
+            'required' => ['sku'],
+        ]], $strict['properties']['lines']);
+    }
+
+    public function testAskingForNoEntriesLeavesTheListOptional(): void
+    {
+        // GIVEN a collection that says a minimum of none
+        $definition = new FormDefinition([
+            new CollectionField('lines', [new TextField('sku', required: true)], min: 0, max: 3),
+        ]);
+
+        // WHEN
+        $strict = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Strict));
+
+        // THEN zero is a minimum nothing has to meet, so the member stays
+        // optional — and it is still published, because a client may want to know
+        self::assertArrayNotHasKey('required', $strict);
+        self::assertIsArray($strict['properties']);
+        self::assertSame(['type' => 'array', 'minItems' => 0, 'maxItems' => 3, 'items' => [
+            'type' => 'object',
+            'properties' => ['sku' => ['type' => 'string', 'minLength' => 1]],
+            'additionalProperties' => false,
+            'required' => ['sku'],
+        ]], $strict['properties']['lines']);
     }
 
     public function testStrictIsTheDefaultMode(): void

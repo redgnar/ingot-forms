@@ -8,10 +8,16 @@ use Ingot\Validation\ObjectValidator;
 use Ingot\Validation\ValidationContext;
 
 /**
- * A rule JSON Schema cannot express: field names must be unique across the
- * whole definition. Reported in the same format as every other error.
+ * A rule JSON Schema cannot express: names must be unique among the items
+ * declared together. Reported in the same format as every other error.
  *
- * @implements ObjectValidator<FormDefinition>
+ * "Together" means one scope, not the whole document: a collection holds items
+ * of its own, and its rows are their own objects, so a row may answer `sku` even
+ * where the form around it also asks for `sku`. Registered for both kinds of
+ * scope, which is why nothing here builds a path — the engine roots what this
+ * reports at whichever object it was asked about.
+ *
+ * @implements ObjectValidator<FormDefinition|CollectionField>
  */
 final class UniqueFieldNamesValidator implements ObjectValidator
 {

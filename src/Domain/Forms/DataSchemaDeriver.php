@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Forms;
 
 use App\Domain\Forms\Definition\CheckboxField;
+use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FormDefinition;
@@ -23,32 +24,62 @@ final class DataSchemaDeriver
 {
     public function derive(FormDefinition $definition, DeriveMode $mode = DeriveMode::Strict): Schema
     {
-        $properties = [];
-        $required = [];
-
-        foreach ($definition->items as $field) {
-            $properties[$field->name] = $this->fieldSchema($field, $mode);
-
-            if ($field->required) {
-                $required[] = $field->name;
-            }
-        }
-
         $document = [
             '$schema' => 'https://json-schema.org/draft/2020-12/schema',
             // Which form's values these are is the endpoint's business, not the
             // document's: it is served per form and cached per form.
             'title' => \sprintf('Form values (%s contract)', $mode->value),
+            ...$this->objectSchema($definition->items, $mode),
+        ];
+
+        return Schema::fromJson(json_encode($document, \JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * One set of items as the object that answers them. The whole values
+     * document is one of these, and so is a single entry of a collection — the
+     * same code, because a row is a form's worth of answers and nothing else.
+     *
+     * @param list<Field> $items
+     *
+     * @return array<string, mixed>
+     */
+    private function objectSchema(array $items, DeriveMode $mode): array
+    {
+        $properties = [];
+        $required = [];
+
+        foreach ($items as $field) {
+            $properties[$field->name] = $this->fieldSchema($field, $mode);
+
+            if (self::mustBeAnswered($field)) {
+                $required[] = $field->name;
+            }
+        }
+
+        $schema = [
             'type' => 'object',
             'properties' => $properties === [] ? new \stdClass() : $properties,
             'additionalProperties' => false,
         ];
 
         if ($required !== [] && $mode === DeriveMode::Strict) {
-            $document['required'] = $required;
+            $schema['required'] = $required;
         }
 
-        return Schema::fromJson(json_encode($document, \JSON_THROW_ON_ERROR));
+        return $schema;
+    }
+
+    /**
+     * A collection asks for entries rather than for a member, and a member that
+     * is not there has none of them — so a minimum is what makes it required.
+     * Every other kind of item says so itself.
+     */
+    private static function mustBeAnswered(Field $field): bool
+    {
+        return $field instanceof CollectionField
+            ? $field->min !== null && $field->min > 0
+            : $field->required;
     }
 
     /**
@@ -122,6 +153,26 @@ final class DataSchemaDeriver
             if ($field->max !== null) {
                 $schema['maximum'] = $field->max;
             }
+
+            return $schema;
+        }
+
+        if ($field instanceof CollectionField) {
+            $schema = ['type' => 'array'];
+
+            // A maximum is a rule about the value, so it holds while somebody is
+            // still filling the form in; a minimum is an obligation to finish,
+            // like `required` itself, so it waits for confirmation — otherwise
+            // "save for later" would refuse the empty list it exists for.
+            if ($field->min !== null && $mode === DeriveMode::Strict) {
+                $schema['minItems'] = $field->min;
+            }
+
+            if ($field->max !== null) {
+                $schema['maxItems'] = $field->max;
+            }
+
+            $schema['items'] = $this->objectSchema($field->items, $mode);
 
             return $schema;
         }

@@ -49,9 +49,10 @@ in the list**: the table is a preview, and the row's own form opens under it, co
 ]}
 ```
 
-`CollectionField extends Field` with `name`, `items` (1–50, like the top level), `min`, `max`.
-`required` is not a constructor parameter, so a document carrying it is refused where every
-undeclared member is refused.
+`CollectionField extends Field` with `name`, `items` (1–50, like the top level), `min`, `max` —
+and `required`, which it must declare because the base class does (see step 0). Whether a
+document may *set* it is therefore a rule: `required: true` on a collection is refused, because
+`min: 1` says that, and says it about entries rather than about a member being present.
 
 Rules that come with it, each in `Definition/` beside the ones it resembles:
 
@@ -179,8 +180,25 @@ Behaviour, per kit (plain module in `core-html`, a Stimulus controller in `boots
 
 Each step ends with a green `make ci`.
 
-0. **Spike**: map a definition holding a collection through the real mapper. Decide there and
-   then whether ingot needs a change.
+0. **Spike** — done, and the answer is that **ingot needs no change**. What it showed, since it
+   settles how the next steps are written:
+   - a recursive discriminated union maps, two levels deep, and the unknown-type fallback
+     recurses with it (a plugin item inside a row still becomes a `GenericField`);
+   - `normalize()` is lossless and stable; the stored document lists a collection's members in
+     constructor order, as every other item already does;
+   - findings point exactly where the mistake is — `/items/0/items/0/items/0/max` for a range
+     three scopes down — and a validator registered on the collection class points relative to
+     it (`/items/0/min`), so per-scope rules need no hand-built paths;
+   - `#[Constraints(minItems: 1)]` holds on the nested list (`mapping.min_items`);
+   - the top-level unique-names rule does **not** see a nested scope, which is exactly the work
+     step 1 has to do.
+
+   One correction to decision 3 above: `CollectionField` **must** declare `required` in its
+   constructor, because `Field` gives it no default and the mapper hydrates through the variant's
+   constructor. So "a collection has no `required`" is a **rule**, not a shape: the parameter
+   exists and defaults to `false`, and a validator refuses a document that sets it to `true`.
+   Giving `Field::$required` a default instead would undo a decision written down there — that
+   every variant declares its own.
 1. **Domain**: `CollectionField`, meta-schema, its rules, recursion in unique names and unknown
    types. Battery part one.
 2. **The contract**: recursive schema derivation in both modes, the wire-type check, the form

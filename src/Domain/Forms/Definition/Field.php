@@ -17,6 +17,9 @@ use Ingot\Attribute\Discriminator;
     'number' => NumberField::class,
     'date' => DateField::class,
     'checkbox' => CheckboxField::class,
+    // The one variant that holds fields of its own, which is what makes this
+    // union recursive rather than a flat list of kinds.
+    'collection' => CollectionField::class,
 ])]
 abstract readonly class Field
 {
