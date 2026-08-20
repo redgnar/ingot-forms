@@ -210,19 +210,41 @@ final class PresentationProcessorTest extends TestCase
             'presentation.item.duplicate',
         ];
 
-        yield 'a value that also holds items' => [
-            ['engine' => 'core-html', 'items' => [['name' => 'email', 'items' => [['name' => 'country']]], ['widget' => 'confirm']]],
-            '/items/0/items',
-            'presentation.item.not-a-container',
-        ];
-
-        yield 'the same, one group down' => [
+        yield 'a trigger inside an entry' => [
             ['engine' => 'core-html', 'items' => [
-                ['widget' => 'fieldset', 'items' => [['name' => 'email', 'items' => [['name' => 'country']]]]],
+                ['name' => 'lines', 'items' => [['name' => 'sku'], ['widget' => 'save']]],
                 ['widget' => 'confirm'],
             ]],
-            '/items/0/items/0/items',
-            'presentation.item.not-a-container',
+            '/items/0/items/1/widget',
+            'presentation.trigger.in-an-entry',
+        ];
+
+        yield 'the only way to finish the form, inside an entry' => [
+            ['engine' => 'core-html', 'items' => [
+                ['name' => 'lines', 'items' => [['name' => 'sku'], ['widget' => 'confirm']]],
+            ]],
+            '/items/0/items/1/widget',
+            'presentation.trigger.in-an-entry',
+        ];
+
+        yield 'a name repeated after a list' => [
+            ['engine' => 'core-html', 'items' => [
+                ['name' => 'lines', 'items' => [['name' => 'sku']]],
+                ['name' => 'email'],
+                ['name' => 'email'],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/2/name',
+            'presentation.item.duplicate',
+        ];
+
+        yield 'the same name twice inside one entry' => [
+            ['engine' => 'core-html', 'items' => [
+                ['name' => 'lines', 'items' => [['name' => 'sku'], ['name' => 'sku']]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/1/name',
+            'presentation.item.duplicate',
         ];
 
         yield 'a catalogue with no default locale' => [
@@ -278,6 +300,36 @@ final class PresentationProcessorTest extends TestCase
             self::assertSame('presentation.confirm.missing', $exception->report->errors[0]->code);
             self::assertSame('/items', $exception->report->errors[0]->pointer->toString());
         }
+    }
+
+    public function testAnEntryIsItsOwnScope(): void
+    {
+        // GIVEN a document showing `sku` at the top and inside an entry, and a
+        // second list also showing a `code`
+        $document = self::processor()->parse(['engine' => 'core-html', 'items' => [
+            ['name' => 'sku'],
+            ['name' => 'lines', 'items' => [['name' => 'sku'], ['name' => 'code']]],
+            ['name' => 'parts', 'items' => [['name' => 'code']]],
+            ['widget' => 'confirm'],
+        ]]);
+
+        // WHEN / THEN nothing is shown twice: an entry answers its own document,
+        // so the same name in two scopes is two different questions
+        self::assertCount(4, $document->items);
+        self::assertTrue($document->items[1]->isCollection());
+        self::assertFalse($document->items[0]->isCollection());
+    }
+
+    public function testTheWayToFinishTheFormMaySitInsideAGroup(): void
+    {
+        // GIVEN a document whose only confirm is inside a fieldset
+        $document = self::processor()->parse(['engine' => 'core-html', 'items' => [
+            ['widget' => 'fieldset', 'items' => [['name' => 'email'], ['widget' => 'confirm']]],
+        ]]);
+
+        // WHEN / THEN a group is part of the form, so a trigger in it is the
+        // form's own — unlike one inside an entry of a list
+        self::assertSame('confirm', $document->items[0]->items[1]->widget);
     }
 
     public function testSavingADraftIsOptionalWhereConfirmingIsNot(): void

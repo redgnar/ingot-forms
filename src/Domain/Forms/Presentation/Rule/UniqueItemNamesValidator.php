@@ -10,9 +10,15 @@ use Ingot\Validation\ObjectValidator;
 use Ingot\Validation\ValidationContext;
 
 /**
- * One item of the form is shown in one place, however deep the tree goes.
+ * One item of the form is shown in one place — within the scope it belongs to.
  * Showing it twice would ask the same question twice and leave whoever answers
  * wondering which box counts.
+ *
+ * A collection's entries are their own documents, so the items inside one start
+ * a scope of their own: an entry may show `sku` even where the form around it
+ * also shows `sku`, and two collections may each show a `code`. Structure is
+ * what says where a scope begins — an item that names something and holds items
+ * is the form for one entry ({@see PresentedItem::isCollection()}).
  *
  * @implements ObjectValidator<PresentationDocument>
  */
@@ -45,6 +51,15 @@ final class UniqueItemNamesValidator implements ObjectValidator
                 }
 
                 $seen[$item->name] = true;
+            }
+
+            if ($item->isCollection()) {
+                // A new scope: what an entry shows is unique among an entry's
+                // items, and has nothing to do with what surrounds the list.
+                $entryScope = [];
+                self::walk($item->items, $here . '/items', $context, $entryScope);
+
+                continue;
             }
 
             self::walk($item->items, $here . '/items', $context, $seen);

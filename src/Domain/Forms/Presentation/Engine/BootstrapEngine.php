@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Forms\Presentation\Engine;
 
 use App\Domain\Forms\Definition\CheckboxField;
+use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\NumberField;
@@ -50,6 +51,7 @@ final class BootstrapEngine implements PresentationEngine
         NumberField::class => ['number', 'range', 'stepper'],
         DateField::class => ['date'],
         CheckboxField::class => ['checkbox', 'switch'],
+        CollectionField::class => ['table'],
     ];
 
     public function id(): string
