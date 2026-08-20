@@ -29,8 +29,10 @@ final readonly class CollectionField extends Field
      */
     public function __construct(
         string $name,
-        // One scope, one cap: a row may declare as much as a form may.
-        #[Constraints(minItems: 1, maxItems: 50)]
+        // One scope, one cap: a row may declare as much as a form may. The
+        // number is there so nothing absurd gets stored, not as a design
+        // statement — what actually bounds a request is its size.
+        #[Constraints(minItems: 1, maxItems: 1000)]
         public array $items,
         // Entries the form needs before it can be confirmed. Nothing caps it:
         // how long a list may reasonably be is the definition's business.

@@ -20,7 +20,7 @@ final readonly class FormDefinition
      * @param list<Field> $items
      */
     public function __construct(
-        #[Constraints(minItems: 1, maxItems: 50)]
+        #[Constraints(minItems: 1, maxItems: 1000)]
         public array $items,
     ) {}
 }

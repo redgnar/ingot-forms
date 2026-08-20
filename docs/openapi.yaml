@@ -324,7 +324,7 @@ components:
         - draft
         - confirmed
     FormDefinition:
-      description: 'A form definition document. Its authoritative contract is the meta-schema at `src/Domain/Forms/form-definition.schema.json` (1–50 typed items with unique names) — the constraints are deliberately not duplicated here.'
+      description: 'A form definition document. Its authoritative contract is the meta-schema at `src/Domain/Forms/form-definition.schema.json` (1–1000 typed items with unique names) — the constraints are deliberately not duplicated here.'
       type: object
     FormValues:
       description: "Submitted values keyed by field name. This is the one payload no DTO can declare — its members come from the form's own definition — so the only rule stated here is that it must be a JSON object. The real contract is the schema derived from that form's definition, enforced on every save and served live by `GET /api/forms/{id}/schema`."
@@ -444,7 +444,7 @@ components:
           format: date-time
           example: '2030-01-31T23:59:59+00:00'
         definition:
-          description: 'The form definition: 1–50 typed items with unique names, per the meta-schema in src/Domain/Forms/form-definition.schema.json. Immutable once created — changing it means deleting the form and creating a new one.'
+          description: 'The form definition: 1–1000 typed items with unique names, per the meta-schema in src/Domain/Forms/form-definition.schema.json. Immutable once created — changing it means deleting the form and creating a new one.'
           minProperties: 1
           type: object
           example:

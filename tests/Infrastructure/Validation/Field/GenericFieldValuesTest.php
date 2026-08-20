@@ -30,6 +30,9 @@ final class GenericFieldValuesTest extends FieldValuesTestCase
         yield 'a boolean' => [DeriveMode::Draft, '{"sig": true}', null, null];
         yield 'null' => [DeriveMode::Draft, '{"sig": null}', null, null];
         yield 'a whole object' => [DeriveMode::Draft, '{"sig": {"strokes": [[1, 2]]}}', null, null];
+        // A list, which the form stage used to refuse while the schema accepted
+        // it — the one thing these two gates may never disagree about.
+        yield 'a whole list' => [DeriveMode::Draft, '{"sig": [[1, 2], [3, 4]]}', null, null];
         yield 'nothing at all' => [DeriveMode::Draft, '{}', null, null];
 
         yield 'a name the form does not declare, even here' => [

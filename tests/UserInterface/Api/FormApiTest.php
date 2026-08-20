@@ -431,6 +431,76 @@ final class FormApiTest extends WebTestCase
         self::assertSame('/data/nickname', $this->firstError()['pointer']);
     }
 
+    public function testAFormWithAListOfSubformsIsFilledInAndConfirmedThroughTheApi(): void
+    {
+        // GIVEN a form asking one question repeatedly
+        $definition = ['items' => [
+            ['type' => 'text', 'name' => 'customer', 'required' => true],
+            ['type' => 'collection', 'name' => 'lines', 'min' => 1, 'max' => 2, 'items' => [
+                ['type' => 'text', 'name' => 'sku', 'required' => true, 'maxLength' => 4],
+                ['type' => 'number', 'name' => 'quantity', 'required' => true, 'min' => 1, 'decimals' => 0],
+            ]],
+        ]];
+        $id = $this->postForm($definition, new \DateTimeImmutable('+1 day'));
+        self::assertResponseStatusCodeSame(201);
+
+        // WHEN a draft is saved with two entries
+        $this->putJson(
+            \sprintf('/api/forms/%s/data', $id),
+            '{"customer": "Ada", "lines": [{"sku": "A-1", "quantity": 2}, {"sku": "B-2"}]}',
+        );
+        self::assertResponseStatusCodeSame(204);
+
+        // THEN the document comes back exactly as it was sent, nesting and all
+        $this->client->request('GET', \sprintf('/api/forms/%s/data', $id));
+        self::assertSame(
+            ['customer' => 'Ada', 'lines' => [['sku' => 'A-1', 'quantity' => 2], ['sku' => 'B-2']]],
+            $this->responseBody(),
+        );
+
+        // WHEN it is confirmed while one entry is still half answered
+        $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
+
+        // THEN the refusal names the entry it is about — a pointer a client can
+        // walk straight to the control it belongs to
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('/lines/1', $this->firstError()['pointer']);
+        self::assertSame('schema.required', $this->firstError()['code']);
+
+        // WHEN the missing answer is given
+        $this->putJson(
+            \sprintf('/api/forms/%s/data', $id),
+            '{"customer": "Ada", "lines": [{"sku": "A-1", "quantity": 2}, {"sku": "B-2", "quantity": 1}]}',
+        );
+        $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
+
+        // THEN it locks, holding the list it was confirmed with
+        self::assertResponseStatusCodeSame(204);
+        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        self::assertSame('confirmed', $this->responseBody()['status']);
+        self::assertCount(2, self::arrayAt(self::arrayAt($this->responseBody(), 'data'), 'lines'));
+    }
+
+    public function testAnEntryBreakingItsOwnRuleIsRefusedWhereItSits(): void
+    {
+        // GIVEN a form with a list of entries
+        $definition = ['items' => [
+            ['type' => 'collection', 'name' => 'lines', 'max' => 2, 'items' => [
+                ['type' => 'text', 'name' => 'sku', 'maxLength' => 4],
+            ]],
+        ]];
+        $id = $this->postForm($definition, new \DateTimeImmutable('+1 day'));
+
+        // WHEN the second entry breaks a rule of its own item
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"lines": [{"sku": "A-1"}, {"sku": "TOO-LONG"}]}');
+
+        // THEN the pointer walks into the entry, and nothing was stored
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('/lines/1/sku', $this->firstError()['pointer']);
+        $this->client->request('GET', \sprintf('/api/forms/%s/data', $id));
+        self::assertResponseStatusCodeSame(404);
+    }
+
     public function testExpiredFormAnswers410Everywhere(): void
     {
         // GIVEN a form already past its expire_date (planted directly — the

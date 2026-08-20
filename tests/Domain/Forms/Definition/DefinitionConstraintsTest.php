@@ -20,24 +20,24 @@ use PHPUnit\Framework\TestCase;
  */
 final class DefinitionConstraintsTest extends TestCase
 {
-    public function testFieldCountAcceptsOneToFiftyFields(): void
+    public function testFieldCountAcceptsOneToAThousandFields(): void
     {
         // GIVEN
         $mapper = self::bareMapper();
 
         // WHEN / THEN both count boundaries map successfully
         self::assertTrue($mapper->tryMap(FormDefinition::class, self::definitionJson(itemCount: 1))->isSuccess());
-        self::assertTrue($mapper->tryMap(FormDefinition::class, self::definitionJson(itemCount: 50))->isSuccess());
+        self::assertTrue($mapper->tryMap(FormDefinition::class, self::definitionJson(itemCount: 1000))->isSuccess());
     }
 
-    public function testFieldCountRejectsZeroAndFiftyOneFields(): void
+    public function testFieldCountRejectsZeroAndAThousandAndOneFields(): void
     {
         // GIVEN
         $mapper = self::bareMapper();
 
         // WHEN mapping field lists one step past each boundary
         $none = $mapper->tryMap(FormDefinition::class, self::definitionJson(itemCount: 0));
-        $tooMany = $mapper->tryMap(FormDefinition::class, self::definitionJson(itemCount: 51));
+        $tooMany = $mapper->tryMap(FormDefinition::class, self::definitionJson(itemCount: 1001));
 
         // THEN
         self::assertSame(['mapping.min_items'], self::codesAt($none, '/items'));
@@ -54,12 +54,12 @@ final class DefinitionConstraintsTest extends TestCase
 
         // WHEN / THEN an entry may declare as much as a form may
         self::assertTrue($mapper->tryMap(FormDefinition::class, self::collectionJson(itemCount: 1))->isSuccess());
-        self::assertTrue($mapper->tryMap(FormDefinition::class, self::collectionJson(itemCount: 50))->isSuccess());
+        self::assertTrue($mapper->tryMap(FormDefinition::class, self::collectionJson(itemCount: 1000))->isSuccess());
 
         // AND a question asked repeatedly has to ask something, and cannot ask
         // more than a form does
         $none = $mapper->tryMap(FormDefinition::class, self::collectionJson(itemCount: 0));
-        $tooMany = $mapper->tryMap(FormDefinition::class, self::collectionJson(itemCount: 51));
+        $tooMany = $mapper->tryMap(FormDefinition::class, self::collectionJson(itemCount: 1001));
 
         self::assertSame(['mapping.min_items'], self::codesAt($none, '/items/0/items'));
         self::assertSame(['mapping.max_items'], self::codesAt($tooMany, '/items/0/items'));

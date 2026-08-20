@@ -49,7 +49,7 @@ in the list**: the table is a preview, and the row's own form opens under it, co
 ]}
 ```
 
-`CollectionField extends Field` with `name`, `items` (1–50, like the top level), `min`, `max` —
+`CollectionField extends Field` with `name`, `items` (1–1000, like the top level), `min`, `max` —
 and `required`, which it must declare because the base class does (see step 0). Whether a
 document may *set* it is therefore a rule: `required: true` on a collection is refused, because
 `min: 1` says that, and says it about entries rather than about a member being present.
@@ -64,7 +64,9 @@ Rules that come with it, each in `Definition/` beside the ones it resembles:
 - **`UnknownFieldTypes` recurses.** A plugin type nested three levels down still makes the form
   unconfirmable, and says so at its own pointer.
 - The meta-schema (`form-definition.schema.json`) grows a recursive `items` reference; the
-  50-item cap applies per scope.
+  item cap applies per scope. It was raised from 50 to 1000 while building this: 50 was a
+  number from the days when a form was flat, and a cap is only there so nothing absurd gets
+  stored — the real bound on a request is its size.
 
 ## The derived schema
 

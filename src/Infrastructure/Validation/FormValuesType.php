@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Validation;
 
 use App\Domain\Forms\Definition\CheckboxField;
+use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\NumberField;
@@ -53,6 +54,14 @@ final class FormValuesType extends AbstractType
                 // ticked, are both said in the published schema and enforced
                 // there; this stage only takes the boolean as it came.
                 $field instanceof CheckboxField => [CheckboxType::class, ['required' => false, 'false_values' => [null]]],
+                // A collection's whole contract is in the published schema —
+                // the shape of an entry, how many there may be, and every rule
+                // of every item inside — and that schema answers first. So this
+                // stage has nothing to add and takes the list as it came. The
+                // day a rule needs a form to be checked (one entry reading
+                // another, say), this becomes a CollectionType over the entry's
+                // own FormValuesType.
+                $field instanceof CollectionField => [RawValueType::class, ['required' => false]],
                 // A field type this application does not know: its value is
                 // stored as it came. Confirmation refuses such a form outright,
                 // so only drafts ever reach this branch.
