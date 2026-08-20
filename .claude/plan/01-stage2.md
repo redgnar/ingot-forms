@@ -388,3 +388,31 @@ persistence still worked by copying state across.
 - `Transactions` stays: `getForUpdate()` uses `LockMode::PESSIMISTIC_WRITE`, which Doctrine
   refuses outside a transaction, and the state a form checks must not change between the check
   and the write. Events say what happened; they do not say that nobody else got in between.
+
+## The schema cache could answer with yesterday's rules (fixed 2026-08-20)
+
+The derived schema is cached per form and mode, and this plan called those entries
+"never stale": a definition is immutable and a UUID is never reused, so an entry cannot be
+wrong about the form it belongs to. It can be wrong about something this plan did not think
+of — the *code* that derived it. The key names the form and the mode and says nothing about
+the rules behind the document, so when `mustBeChecked` moved to the strict contract, a form
+created minutes earlier kept being refused a draft save from a cached schema that still said
+`const: true`.
+
+What changed:
+
+- **In dev, nothing outlives the process that derived it.** `cache.data_schema` and
+  `cache.ingot_mapper` both run on `cache.adapter.array` under `when@dev`, because a clear
+  that has to be remembered while developing is a clear that will be forgotten. Test and prod
+  stay on disk — in the test suite the pool is shared between requests, which is what the
+  tests of it exercise.
+- **`make cache-clear`** drops both pools and the cache directory, for dev and test; a deploy
+  runs the same commands with `APP_ENV=prod`, and `make setup` calls it. It has already earned
+  its keep twice: after `mustBeChecked` moved, and again when the definition lost its `id` and
+  the ingot mapper's cached metadata still expected the key.
+- **What was deliberately not done**: folding a fingerprint of the deriving code into the key
+  and pinning it with a golden-hash test. It was offered and turned down — the staleness is a
+  development problem, production clears its cache anyway, and a version somebody has to bump
+  is one more rule that can drift. The trap is instead written down where it can be read: the
+  provider's own test records that an entry already in the pool is trusted, which is *why* a
+  rules change means clearing it.

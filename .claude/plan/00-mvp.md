@@ -132,3 +132,28 @@ Status map: 400 malformed JSON (report contains only `source.malformed_json`), 4
 Out of scope (unchanged): templates, versioning, auth, multi-tenancy, i18n of messages,
 conditional field logic, file uploads, frontend. Stage 2 adds CI, mutation testing, OpenAPI,
 and contract tests — see `01-stage2.md`.
+
+## Where the domain model has moved since (2026-08-20)
+
+Two things this plan wrote down were revised. Both are in `README.md` and `CLAUDE.md` as they
+now stand; here is why they changed.
+
+- **The definition lost its `id`.** This plan gave a definition a slug of its own, and it never
+  earned it: nothing looks a definition up, nothing groups definitions, and with no templates
+  and no versioning there is nothing for a second name to match. A definition belongs to
+  exactly one form, and that form already has an identity — the UUID it is created with. In the
+  end the field survived in two cosmetic places, the title of the derived values schema and one
+  CLI message, and both read better without it: the schema now titles itself by the contract it
+  *is* (`Form values (strict contract)` / `(draft contract)`), which is something a client can
+  act on. It is gone from the meta-schema too, so a document still carrying one is refused at
+  `/definition/id` like any other undeclared member — and definitions stored before the change
+  no longer map, which is exactly what `409 form-unreadable` exists for.
+- **A form may be born holding its first draft.** `POST /api/forms` takes an optional `data`
+  member: values a client already knows before anybody opens the form (the case `hidden` items
+  were invented for). It is deliberately *not* a third document and not a new state — the
+  aggregate's own `saveDraft()` judges it under the same lenient contract every later save gets,
+  the insert writes it with the rest of the row, and a form that would refuse those values later
+  is never created holding them. Findings are rooted at `/data`, beside `/definition` and
+  `/presentation`. The lifecycle in this plan still holds; a form created this way simply starts
+  at `draft` rather than `empty`, because status has always been derived from what the form
+  holds.
