@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\UserInterface\Web\Renderer;
 
 use App\Domain\Forms\Definition\CheckboxField;
+use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\NumberField;
@@ -116,6 +117,12 @@ final class PresentedNodes
                 continue;
             }
 
+            if ($field instanceof CollectionField) {
+                $nodes[] = $this->collection($item, $field, $label, $hint, $values, $translations, $locale, $default, $container, $decoration);
+
+                continue;
+            }
+
             $nodes[] = [
                 'kind' => 'value',
                 'name' => $item->name,
@@ -147,6 +154,177 @@ final class PresentedNodes
         }
 
         return $nodes;
+    }
+
+    /**
+     * A list of entries, resolved into what a kit needs to draw it: the entry
+     * form as many times as there are entries (each filled with that entry's
+     * answers), one more of it blank for adding another, the preview columns,
+     * and the counts a page guards its own buttons with — the server being the
+     * one that decides.
+     *
+     * The column headers are not text of their own: they are the labels the
+     * entry form already gives those items, so the same words live in one place.
+     *
+     * @param array<string, mixed>                 $values
+     * @param array<string, array<string, string>> $translations
+     *
+     * @return array<string, mixed>
+     */
+    private function collection(
+        PresentedItem $item,
+        CollectionField $field,
+        ?string $label,
+        ?string $hint,
+        array $values,
+        array $translations,
+        string $locale,
+        ?string $default,
+        string $container,
+        string $decoration,
+    ): array {
+        $declared = [];
+
+        foreach ($field->items as $declaredItem) {
+            $declared[$declaredItem->name] = $declaredItem;
+        }
+
+        $blank = $this->nodes($item->items, $declared, [], $translations, $locale, $default, $container, $decoration);
+        $entries = [];
+
+        /** @var list<mixed> $stored */
+        $stored = \is_array($values[$item->name] ?? null) ? array_values($values[$item->name]) : [];
+
+        foreach ($stored as $entry) {
+            /** @var array<string, mixed> $answers */
+            $answers = \is_array($entry) ? $entry : [];
+            $nodes = $this->nodes($item->items, $declared, $answers, $translations, $locale, $default, $container, $decoration);
+
+            $entries[] = ['nodes' => $nodes, 'cells' => self::cells($nodes, $item->columns)];
+        }
+
+        return [
+            'kind' => 'collection',
+            'name' => $item->name,
+            'widget' => $item->widget ?? 'table',
+            'label' => $label ?? $item->name,
+            'hint' => $hint,
+            'options' => $item->options,
+            'min' => $field->min,
+            'max' => $field->max,
+            'columns' => self::columns($blank, $item->columns),
+            'entries' => $entries,
+            // The same form again, holding nothing: what a page clones when
+            // somebody asks for one more entry.
+            'blank' => $blank,
+        ];
+    }
+
+    /**
+     * Which of an entry's items the list previews, and under what heading —
+     * saying nothing means all of them, in the order the entry form draws them.
+     *
+     * @param list<array<string, mixed>> $entryForm
+     * @param list<string>               $columns
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function columns(array $entryForm, array $columns): array
+    {
+        $headings = [];
+
+        foreach (self::valueNodes($entryForm) as $node) {
+            $name = $node['name'];
+
+            if ($columns !== [] && !\in_array($name, $columns, true)) {
+                continue;
+            }
+
+            $headings[] = ['name' => $name, 'text' => $node['label']];
+        }
+
+        return $headings;
+    }
+
+    /**
+     * What one entry shows in the list itself: the answer as text, and — for a
+     * box that is ticked or not — the tick, because "true" is not something to
+     * put in front of a person.
+     *
+     * @param list<array<string, mixed>> $entryForm
+     * @param list<string>               $columns
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function cells(array $entryForm, array $columns): array
+    {
+        $cells = [];
+
+        foreach (self::valueNodes($entryForm) as $node) {
+            $name = $node['name'];
+
+            if ($columns !== [] && !\in_array($name, $columns, true)) {
+                continue;
+            }
+
+            $value = $node['value'];
+            $ticked = $node['type'] === 'boolean' ? (bool) $value : null;
+
+            $cells[] = [
+                'name' => $name,
+                'ticked' => $ticked,
+                'text' => match (true) {
+                    $ticked !== null => null,
+                    // A choice reads as the word this document gave it.
+                    \is_scalar($value) => self::wordFor($node, $value),
+                    default => null,
+                },
+            ];
+        }
+
+        return $cells;
+    }
+
+    private static function wordFor(mixed $node, string|int|float|bool $value): string
+    {
+        if (\is_array($node) && \is_array($node['choices'] ?? null)) {
+            foreach ($node['choices'] as $choice) {
+                if (\is_array($choice) && ($choice['value'] ?? null) === $value) {
+                    return \is_string($choice['text'] ?? null) ? $choice['text'] : (string) $value;
+                }
+            }
+        }
+
+        return (string) $value;
+    }
+
+    /**
+     * The items of an entry form that hold a value, in the order they are drawn
+     * — a group is walked into, a list inside an entry is not (nothing draws it).
+     *
+     * @param list<array<string, mixed>> $nodes
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function valueNodes(array $nodes): array
+    {
+        $found = [];
+
+        foreach ($nodes as $node) {
+            if ($node['kind'] === 'value') {
+                $found[] = $node;
+
+                continue;
+            }
+
+            if ($node['kind'] === 'container') {
+                /** @var list<array<string, mixed>> $children */
+                $children = $node['children'];
+                $found = [...$found, ...self::valueNodes($children)];
+            }
+        }
+
+        return $found;
     }
 
     /**

@@ -21,6 +21,11 @@
         button, .action-link { font: inherit; }
         .action-link { background: none; border: 0; color: #0645ad; cursor: pointer; padding: 0; text-decoration: underline; }
         .notice { background: #eef; border-radius: .25rem; margin-bottom: 1.5rem; padding: .75rem 1rem; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border-bottom: 1px solid #ddd; padding: .375rem .5rem; text-align: left; }
+        .entries { margin-bottom: 1.5rem; }
+        .entry-form { padding: .5rem 0 1rem; }
+        .entry-form summary { cursor: pointer; font-size: .875rem; }
         .flash { background: #e8f5e9; border-radius: .25rem; color: #1b5e20; margin-bottom: 1.5rem; padding: .75rem 1rem; }
     </style>
 </head>
@@ -39,7 +44,7 @@
     {# Where the buttons go is the presentation's business, so nothing is added
        here: a document that offers none draws none. It cannot offer none by
        accident — a presentation without a way to confirm is refused. #}
-    {{ _self.nodes(nodes, readOnly) }}
+    {{ _self.nodes(nodes, readOnly, false) }}
 
     <p class="error" id="form-error" hidden></p>
 </form>
@@ -48,12 +53,12 @@
 </body>
 </html>
 
-{% macro nodes(nodes, readOnly) %}
+{% macro nodes(nodes, readOnly, inEntry) %}
     {% for node in nodes %}
         {% if node.kind == 'container' %}
             <fieldset>
                 {% if node.label %}<legend>{{ node.label }}</legend>{% endif %}
-                {{ _self.nodes(node.children, readOnly) }}
+                {{ _self.nodes(node.children, readOnly, inEntry) }}
             </fieldset>
         {% elseif node.kind == 'action' %}
             {% if not readOnly %}
@@ -63,6 +68,8 @@
                     <button type="button" data-action="{{ node.widget }}">{{ node.label }}</button>
                 {% endif %}
             {% endif %}
+        {% elseif node.kind == 'collection' %}
+            {{ _self.entries(node, readOnly) }}
         {% elseif node.kind == 'decoration' %}
             {% if node.widget == 'heading' %}
                 <h2>{{ node.label }}</h2>
@@ -70,27 +77,102 @@
                 <p>{{ node.label }}</p>
             {% endif %}
         {% else %}
-            {{ _self.item(node, readOnly) }}
+            {{ _self.item(node, readOnly, inEntry) }}
         {% endif %}
     {% endfor %}
 {% endmacro %}
 
-{% macro item(node, readOnly) %}
+{# A question asked repeatedly: the answers so far as a table, each with the form
+   it is answered in folded underneath, and one blank form kept aside for adding
+   another. The counts are on the wrapper so the page can grey out its own
+   buttons — the server is still what decides. #}
+{% macro entries(node, readOnly) %}
+    <div class="entries" data-collection="{{ node.name }}"
+         data-ticked="{{ 'page.ticked'|trans }}" data-unticked="{{ 'page.unticked'|trans }}"
+         {%- if node.min is not null %} data-min="{{ node.min }}"{% endif %}
+         {%- if node.max is not null %} data-max="{{ node.max }}"{% endif %}>
+        <label>{{ node.label }}</label>
+        {% if node.hint %}<p class="hint">{{ node.hint }}</p>{% endif %}
+
+        <table>
+            <thead>
+                <tr>
+                    {% for column in node.columns %}<th data-column="{{ column.name }}">{{ column.text }}</th>{% endfor %}
+                    <th></th>
+                </tr>
+            </thead>
+            {% for entry in node.entries %}
+                {{ _self.entry(node, entry, readOnly) }}
+            {% endfor %}
+        </table>
+
+        {% if not readOnly %}
+            <button type="button" data-action="add-entry">{{ 'page.entry.add'|trans }}</button>
+            {# The same form once more, holding nothing: what gets cloned. #}
+            <template data-blank>
+                {{ _self.entry(node, {'nodes': node.blank, 'cells': node.columns|map(column => {'name': column.name, 'text': null, 'ticked': null})}, false) }}
+            </template>
+        {% endif %}
+{% endmacro %}
+
+{# One entry: what it says in the list, and the form it is answered in. Both in
+   one <tbody>, so one element is one entry — which is what the module counts,
+   clones and removes. #}
+{% macro entry(node, entry, readOnly) %}
+    <tbody data-entry>
+        <tr>
+            {% for cell in entry.cells %}
+                <td data-cell="{{ cell.name }}">{{ cell.ticked is not null ? (cell.ticked ? 'page.ticked' : 'page.unticked')|trans : cell.text }}</td>
+            {% endfor %}
+            <td>
+                {% if not readOnly %}
+                    <button type="button" data-action="remove-entry">{{ 'page.entry.remove'|trans }}</button>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td colspan="{{ entry.cells|length + 1 }}">
+                <details class="entry-form"{{ node.options.open ?? false ? ' open' : '' }}>
+                    <summary>{{ 'page.entry.edit'|trans }}</summary>
+                    {{ _self.nodes(entry.nodes, readOnly, true) }}
+                </details>
+            </td>
+        </tr>
+    </tbody>
+{% endmacro %}
+
+{% macro item(node, readOnly, inEntry) %}
+    {# Inside an entry the label wraps its control instead of pointing at it by
+       id: the same form is drawn once per entry, and an id can only belong to
+       one of them. Nesting says the same thing and cannot collide. #}
+    <div class="item" data-item="{{ node.name }}"{% if node.widget == 'hidden' %} hidden{% endif %}>
+        {% if node.widget == 'hidden' %}
+            {{ _self.control(node, readOnly, inEntry) }}
+        {% elseif inEntry %}
+            <label>{{ node.label }}{% if node.required %} *{% endif %}
+                {% if node.hint %}<span class="hint">{{ node.hint }}</span>{% endif %}
+                {{ _self.control(node, readOnly, inEntry) }}
+            </label>
+        {% else %}
+            <label for="item-{{ node.name }}">{{ node.label }}{% if node.required %} *{% endif %}</label>
+            {% if node.hint %}<p class="hint">{{ node.hint }}</p>{% endif %}
+            {{ _self.control(node, readOnly, inEntry) }}
+        {% endif %}
+
+        <p class="error" data-error="{{ node.name }}" hidden></p>
+    </div>
+{% endmacro %}
+
+{% macro control(node, readOnly, inEntry) %}
     {# One map of attributes per control, rendered in one place: quoting and
        escaping happen once, instead of in every branch below. #}
     {% set common = {
-        'id': 'item-' ~ node.name,
+        'id': inEntry ? null : 'item-' ~ node.name,
         'name': node.name,
         'data-name': node.name,
         'data-type': node.type,
         'disabled': readOnly,
     } %}
-    <div class="item" data-item="{{ node.name }}"{% if node.widget == 'hidden' %} hidden{% endif %}>
-        {% if node.widget != 'hidden' %}
-            <label for="item-{{ node.name }}">{{ node.label }}{% if node.required %} *{% endif %}</label>
-            {% if node.hint %}<p class="hint">{{ node.hint }}</p>{% endif %}
-        {% endif %}
-
         {% if node.widget == 'textarea' %}
             <textarea{{ html.attributes(common|merge({'rows': 4, 'maxlength': node.maxLength}))|raw }}>{{ node.value }}</textarea>
         {% elseif node.widget == 'select' %}
@@ -135,7 +217,4 @@
                 'value': node.value,
             }))|raw }}>
         {% endif %}
-
-        <p class="error" data-error="{{ node.name }}" hidden></p>
-    </div>
 {% endmacro %}

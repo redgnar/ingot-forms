@@ -5,6 +5,12 @@ page:
     stepper:
         less: 'Mniej'
         more: 'Więcej'
+    ticked: 'tak'
+    unticked: 'nie'
+    entry:
+        add: 'Dodaj'
+        remove: 'Usuń'
+        edit: 'Edytuj'
     error:
         form-not-found: 'Nie ma takiego formularza.'
         presentation-not-set: 'Nikt nie powiedział, jak pokazać ten formularz.'

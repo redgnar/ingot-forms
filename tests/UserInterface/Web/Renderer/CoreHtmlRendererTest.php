@@ -248,6 +248,174 @@ final class CoreHtmlRendererTest extends KernelTestCase
         self::assertSame('core-html', new CoreHtmlEngine()->id());
     }
 
+    public function testAListIsDrawnAsATableOfWhatItHoldsSoFar(): void
+    {
+        // GIVEN a form asking one question repeatedly, already answered twice
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::listForm(), 'en')));
+        $list = $page->filter('[data-collection="lines"]');
+
+        // THEN the list says what it may hold, so the page can guard its own
+        // buttons — the server still being what decides
+        self::assertSame('1', $list->attr('data-min'));
+        self::assertSame('3', $list->attr('data-max'));
+
+        // AND the columns are the ones asked for, in that order, headed by the
+        // labels the entry form gives those items
+        self::assertSame(
+            ['SKU', 'Quantity', 'Urgent'],
+            $list->filter('thead th[data-column]')->each(static fn(Crawler $th): string => trim($th->text())),
+        );
+
+        // AND one entry per answer, each reading as words rather than as JSON
+        $entries = $list->filter('table')->children('[data-entry]');
+        self::assertCount(2, $entries);
+        self::assertSame(
+            ['A-1', '2', 'yes'],
+            $entries->eq(0)->filter('[data-cell]')->each(static fn(Crawler $cell): string => trim($cell->text())),
+        );
+        self::assertSame(
+            ['B-2', '5', 'no'],
+            $entries->eq(1)->filter('[data-cell]')->each(static fn(Crawler $cell): string => trim($cell->text())),
+        );
+    }
+
+    public function testAnEntryIsAnsweredInItsOwnFormUnderIt(): void
+    {
+        // GIVEN / WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::listForm(), 'en')));
+        $second = $page->filter('[data-collection="lines"] table')->children('[data-entry]')->eq(1);
+
+        // THEN the form for that entry is under its row, folded away, holding
+        // that entry's answers — including the one the list does not preview
+        self::assertCount(1, $second->filter('details.entry-form'));
+        self::assertSame('B-2', $second->filter('[data-name="sku"]')->attr('value'));
+        self::assertSame('kg', $second->filter('select[data-name="unit"] option[selected]')->attr('value'));
+
+        // AND nothing inside an entry carries an id: the same form is drawn once
+        // per entry, and an id can only belong to one of them
+        self::assertCount(0, $second->filter('[id]'));
+        self::assertSame(
+            'Urgent',
+            trim($second->filter('[data-item="urgent"] label')->text()),
+        );
+    }
+
+    public function testAListKeepsOneBlankEntryAsideForAddingAnother(): void
+    {
+        // GIVEN / WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::listForm(), 'en')));
+        $list = $page->filter('[data-collection="lines"]');
+
+        // THEN the same form once more, holding nothing — what the page clones,
+        // rendered by the server so a kit never builds markup in JavaScript
+        $blank = new Crawler('<table>' . $list->filter('template[data-blank]')->html() . '</table>');
+        self::assertCount(1, $blank->filter('[data-entry]'));
+        self::assertNull($blank->filter('[data-name="sku"]')->attr('value'));
+        self::assertSame(['', '', ''], $blank->filter('[data-cell]')->each(static fn(Crawler $cell): string => trim($cell->text())));
+
+        // AND there is something to press
+        self::assertCount(1, $list->filter('button[data-action="add-entry"]'));
+        self::assertCount(2, $list->filter('table [data-entry] button[data-action="remove-entry"]'));
+    }
+
+    public function testAConfirmedListIsDrawnToBeReadNotChanged(): void
+    {
+        // GIVEN a form locked for good
+        $form = self::listForm();
+        $form->saveDraft(json_decode('{"lines": [{"sku": "A-1"}]}', false, flags: \JSON_THROW_ON_ERROR), new StubValues());
+        $form->confirm(new StubValues());
+
+        // WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm($form, 'en')));
+
+        // THEN the answers are still readable, and there is nothing to press:
+        // no entry to add, none to remove, nothing to clone
+        self::assertCount(1, $page->filter('[data-entry]'));
+        self::assertNotNull($page->filter('[data-name="sku"]')->attr('disabled'));
+        self::assertCount(0, $page->filter('[data-action="add-entry"]'));
+        self::assertCount(0, $page->filter('[data-action="remove-entry"]'));
+        self::assertCount(0, $page->filter('template[data-blank]'));
+    }
+
+    public function testAListThatNamesNoColumnsPreviewsEverythingAnEntryAnswers(): void
+    {
+        // GIVEN a presentation that says nothing about columns
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::listForm(withColumns: false), 'en')));
+
+        // THEN every item of an entry is previewed, in the order the entry form
+        // draws them
+        self::assertSame(
+            ['SKU', 'Quantity', 'Unit', 'Urgent'],
+            $page->filter('thead th[data-column]')->each(static fn(Crawler $th): string => trim($th->text())),
+        );
+    }
+
+    /**
+     * A form asking one question repeatedly, with two answers already given.
+     */
+    private static function listForm(bool $withColumns = true): Form
+    {
+        $definitions = new FormDefinitionProcessor(self::mapper());
+        $definition = $definitions->document($definitions->parse(['items' => [
+            ['type' => 'collection', 'name' => 'lines', 'min' => 1, 'max' => 3, 'items' => [
+                ['type' => 'text', 'name' => 'sku', 'required' => true, 'maxLength' => 8],
+                ['type' => 'number', 'name' => 'quantity', 'required' => true, 'min' => 1, 'decimals' => 0],
+                ['type' => 'select', 'name' => 'unit', 'options' => ['pc', 'kg'], 'required' => true],
+                ['type' => 'checkbox', 'name' => 'urgent'],
+            ]],
+        ]]));
+
+        $document = [
+            'engine' => 'core-html',
+            'defaultLocale' => 'en',
+            'items' => [
+                array_filter([
+                    'name' => 'lines',
+                    'widget' => 'table',
+                    'label' => 'list.lines',
+                    'columns' => $withColumns ? ['sku', 'quantity', 'urgent'] : [],
+                    'items' => [
+                        ['name' => 'sku', 'widget' => 'text', 'label' => 'list.sku'],
+                        ['name' => 'quantity', 'widget' => 'number', 'label' => 'list.qty'],
+                        ['name' => 'unit', 'widget' => 'select', 'label' => 'list.unit', 'choices' => ['pc' => 'list.pc', 'kg' => 'list.kg']],
+                        ['name' => 'urgent', 'widget' => 'checkbox', 'label' => 'list.urgent'],
+                    ],
+                ], static fn(mixed $value): bool => $value !== []),
+                ['widget' => 'confirm', 'label' => 'list.send'],
+            ],
+            'translations' => ['en' => [
+                'list.lines' => 'Lines',
+                'list.sku' => 'SKU',
+                'list.qty' => 'Quantity',
+                'list.unit' => 'Unit',
+                'list.pc' => 'pieces',
+                'list.kg' => 'kilos',
+                'list.urgent' => 'Urgent',
+                'list.send' => 'Send',
+            ]],
+        ];
+
+        $presentations = new PresentationProcessor(self::mapper());
+        $form = new Form(
+            FormId::next(),
+            $definition,
+            ExpireDate::future(new \DateTimeImmutable('+1 day')),
+            $presentations->document($presentations->parse($document)),
+            new PresentationRules(new Engines([new CoreHtmlEngine()])),
+        );
+
+        $form->saveDraft(
+            json_decode(
+                '{"lines": [{"sku": "A-1", "quantity": 2, "unit": "pc", "urgent": true}, {"sku": "B-2", "quantity": 5, "unit": "kg"}]}',
+                false,
+                flags: \JSON_THROW_ON_ERROR,
+            ),
+            new StubValues(),
+        );
+
+        return $form;
+    }
+
     private static function form(bool $withTranslations = true): Form
     {
         $presentation = self::PRESENTATION;

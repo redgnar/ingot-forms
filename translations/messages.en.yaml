@@ -9,6 +9,12 @@ page:
     stepper:
         less: 'Less'
         more: 'More'
+    ticked: 'yes'
+    unticked: 'no'
+    entry:
+        add: 'Add'
+        remove: 'Remove'
+        edit: 'Edit'
     error:
         form-not-found: 'There is no such form.'
         presentation-not-set: 'Nobody has said how to show this form.'
