@@ -1,0 +1,19 @@
+/* The kit's own few rules. Everything else on the page is Bootstrap's.
+
+   UX Icons renders an SVG with a viewBox and no width or height on purpose: how
+   big an icon is belongs to the page, not to the icon. An SVG with no size has
+   no intrinsic one either, so in a flex row a browser is free to draw it at
+   nothing at all — measured at 0x0 before this file existed, which is exactly
+   what those icons looked like. Sized in `em`, so an icon is as big as the text
+   it sits next to. */
+.icon {
+    flex-shrink: 0;
+    height: 1.15em;
+    vertical-align: -0.15em;
+    width: 1.15em;
+}
+
+.alert .icon {
+    height: 1.3em;
+    width: 1.3em;
+}

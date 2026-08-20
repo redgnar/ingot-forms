@@ -295,8 +295,10 @@ real browser by the `browser` test suite, so every kit gets the same proof.
 **Front-end machinery, where a kit wants it.** `core-html` deliberately has none. `bootstrap`
 uses **AssetMapper**, **Stimulus** and **UX Icons**: `importmap.php` names what the browser may
 import, `assets/vendor/` holds those files and `assets/icons/` the icons (both committed, so a
-clone, CI and the browser tests need no network), `assets/controllers/` holds the behaviour, and
-`make assets` refreshes the vendor files. No build step and no package manager. What the two kits share is a *convention*, not an
+clone, CI and the browser tests need no network), `assets/controllers/` holds the behaviour,
+`assets/styles/` the handful of rules that are the kit's own (an icon's size, mostly — UX Icons
+renders an SVG with no width or height on purpose), and `make assets` refreshes the vendor
+files. No build step and no package manager. What the two kits share is a *convention*, not an
 implementation: `data-name` and `data-type` say which item a control holds and what it is on the
 wire, `data-error` marks where a refusal about it goes.
 

@@ -6,6 +6,7 @@
 // controllers below talk to `/api/forms/{id}`, exactly as any other client
 // would. Behaviour got a framework here; the write path did not change.
 import 'bootstrap/dist/css/bootstrap.min.css';
+import '../styles/bootstrap-form.css';
 import 'tom-select/dist/css/tom-select.bootstrap5.min.css';
 import { startStimulusApp } from '@symfony/stimulus-bundle';
 

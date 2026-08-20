@@ -52,6 +52,26 @@ final class BootstrapFormPageTest extends PantherTestCase
         );
     }
 
+    public function testAnIconIsDrawnAtIconSize(): void
+    {
+        // GIVEN a page of this kit
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+        // WHEN the icon on the button that ends the form is measured
+        $icon = $this->browser->findElement(
+            WebDriverBy::cssSelector('button[data-action="click->form#confirm"] svg'),
+        )->getSize();
+
+        // THEN it is the size of an icon: UX Icons deliberately renders an SVG
+        // with no width or height, and an unsized one grows to fill whatever
+        // room a flex row gives it. How big an icon is belongs to the page, and
+        // only a browser can say whether the page got it right
+        self::assertGreaterThan(12, $icon->getWidth(), 'The icon is too small to read.');
+        self::assertLessThan(32, $icon->getWidth(), \sprintf('The icon is %dpx wide.', $icon->getWidth()));
+        self::assertLessThanOrEqual(1, abs($icon->getWidth() - $icon->getHeight()), 'The icon is not square.');
+    }
+
     public function testControlsInARowLineUp(): void
     {
         // GIVEN a row holding two controls

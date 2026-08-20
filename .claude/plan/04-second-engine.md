@@ -131,6 +131,10 @@ in the machinery it chose. Deliberate: the point of `core-html` is that it needs
   while the page's sentences — a stored draft, a closed form, the error pages — were hardcoded
   English. They now live in `translations/messages.*.yaml` under `page.*`, in both kits, and the
   browser is handed the one sentence it needs rather than holding it in a controller.
+- **Icons need a size from the page.** UX Icons renders an SVG with a viewBox and no width or
+  height, deliberately — and an SVG with no size has no intrinsic one, so a browser drew them at
+  0x0 in a flex row. `assets/styles/bootstrap-form.css` is now the kit's own handful of rules,
+  sizing an icon in `em` so it matches the text beside it, and a browser test measures one.
 - **What stayed hand-written**: the autocomplete controller. `symfony/ux-autocomplete` wraps the
   same TomSelect; without a `FormView` we could only use its JavaScript, and its real value —
   fetching options from a server endpoint — is not something a form whose choices come from the
