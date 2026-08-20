@@ -166,6 +166,18 @@ final class CoreHtmlRendererTest extends KernelTestCase
         self::assertCount(1, $page->filter('button'));
     }
 
+    public function testThePageIsReadyToSayThatItSavedWithoutSayingItYet(): void
+    {
+        // GIVEN a form somebody can still fill in
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::form(), 'en')));
+
+        // THEN the notice is already in the page and silent, for the script to
+        // show once a draft is stored. Its wording is this adapter's business,
+        // so no presentation has to carry a code for it
+        self::assertNotNull($page->filter('#form-saved')->attr('hidden'));
+        self::assertStringContainsString('saved', $page->filter('#form-saved')->text());
+    }
+
     public function testAConfirmedFormIsDrawnToBeReadNotChanged(): void
     {
         // GIVEN a form locked for good
@@ -179,6 +191,8 @@ final class CoreHtmlRendererTest extends KernelTestCase
         // THEN nothing can be typed into it and nothing offers to send it
         self::assertNotNull($page->filter('#item-email')->attr('disabled'));
         self::assertCount(0, $page->filter('[data-action]'));
+        // nor is there anything to report about progress on a form that is done
+        self::assertCount(0, $page->filter('#form-saved'));
     }
 
     public function testACodeIsResolvedInTheLanguageAskedForThenTheDefaultThenItself(): void

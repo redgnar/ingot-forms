@@ -101,7 +101,10 @@ Rules that follow from it, and that the tooling checks:
   endpoint of its own writes anything, and nothing under `/api` renders. The two sides even
   report failures differently — `problem+json` is the API's contract, a page answers with a page
   (`_errors: html` on the web routes is what says which) — because a browser is no client of RFC
-  9457.
+  9457. What a person is told about their own doing — that a draft was stored, that a form is
+  closed — is the page's own text, next to the markup that shows it: a presentation describes
+  the form, not the chrome around it, and no document should have to carry a code for a message
+  the adapter invented.
 - **A kit is two halves in two layers**: `PresentationEngine` in the domain says what can be
   drawn (that is what a presentation is judged against), `FormRenderer` in the web layer draws
   it. HTML never reaches the domain, and the vocabulary never leaves it.

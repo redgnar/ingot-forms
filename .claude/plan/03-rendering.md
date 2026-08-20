@@ -119,3 +119,17 @@ because this is not the API.
   page's contract server-side, unit-testing the module under jsdom, or driving a real browser.
   The last one is what proves the loop, and it is what the owner asked for — with the cost being
   Chromium in the image and a slower suite.
+
+## After it was built
+
+- **A save says so.** A button that answers with nothing leaves somebody guessing whether it
+  worked, so a stored draft now shows a notice on the page. Its wording is page chrome, not the
+  designer's business: it lives in the template beside the read-only notice, and no presentation
+  has to carry a code for it. It lasts exactly as long as it is true — the next attempt clears
+  it, and so does the first thing somebody changes afterwards.
+- **Saving on change was considered and left alone.** Sending a draft after every keystroke is
+  cheap to write, but every send runs the draft gate, so the page would start judging an answer
+  nobody has finished. The version worth having is the one the owner described — the server
+  answering a draft save with changes to the view and to the rules — and that is a design of its
+  own, best written once a second engine exists and it is clear what is common to engines and
+  what belongs to one kit's vocabulary.

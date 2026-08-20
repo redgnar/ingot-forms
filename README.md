@@ -248,7 +248,10 @@ failures as pages, and is absent from the published API document.
 **It is a client of the API, not a second way in.** The page reads through the same use case the
 JSON endpoints use, and what somebody types goes back through `PUT /api/forms/{id}/data` and
 `POST /api/forms/{id}/confirm` — from the browser, with a small module and no build step. There
-is no privileged path: whatever the page can do, any client can.
+is no privileged path: whatever the page can do, any client can. A stored draft is confirmed by a
+notice on the page, which lasts exactly as long as it is true: the next attempt clears it, and so
+does the first thing somebody changes afterwards. Its wording is the page's own — no presentation
+carries a code for what a person is told about their own progress.
 
 **The language is the framework's negotiation**: `_locale` in the URL wins, `Accept-Language`
 decides otherwise, `default_locale` has the last word, and the response varies on that header. A

@@ -109,6 +109,35 @@ final class FormPageTest extends PantherTestCase
         self::assertSame(['email' => 'ada@example.com', 'terms' => false], $stored);
     }
 
+    public function testSavingForLaterSaysSoUntilSomethingChangesAgain(): void
+    {
+        // GIVEN a form somebody has started, and a page saying nothing yet
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        self::assertFalse($this->browser->findElement(WebDriverBy::id('form-saved'))->isDisplayed());
+        $this->browser->findElement(WebDriverBy::id('item-email'))->sendKeys('ada@example.com');
+
+        // WHEN they save for later
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="save"]'))->click();
+
+        // THEN they are told it was kept — a button that answers with nothing
+        // leaves somebody guessing whether it worked
+        $notice = $this->eventually(function (): ?string {
+            $flash = $this->browser->findElement(WebDriverBy::id('form-saved'));
+
+            return $flash->isDisplayed() ? $flash->getText() : null;
+        });
+
+        self::assertStringContainsString('saved', $notice);
+
+        // WHEN they change something afterwards
+        $this->browser->findElement(WebDriverBy::id('item-age'))->sendKeys('36');
+
+        // THEN the notice goes: what the page holds is no longer what the form
+        // holds, and the message would be a lie
+        self::assertFalse($this->browser->findElement(WebDriverBy::id('form-saved'))->isDisplayed());
+    }
+
     public function testAnUntickedConsentMarksTheBoxAndNothingElse(): void
     {
         // GIVEN a form filled in except for the consent

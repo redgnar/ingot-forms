@@ -7,6 +7,7 @@
 
 const formId = document.body.dataset.form;
 const problem = (response) => response.json().catch(() => ({}));
+const saved = document.getElementById('form-saved');
 
 function collect() {
     const values = {};
@@ -35,8 +36,12 @@ function collect() {
     return values;
 }
 
-function clearErrors() {
+// Everything the last attempt said about this form — a refusal beside a control,
+// a notice, the confirmation that it was stored.
+function clearMessages() {
     document.getElementById('form-error').hidden = true;
+    if (saved) saved.hidden = true;
+
     for (const slot of document.querySelectorAll('[data-error]')) {
         slot.hidden = true;
         slot.textContent = '';
@@ -67,7 +72,7 @@ function showErrors(body) {
 }
 
 async function send(path, method, body) {
-    clearErrors();
+    clearMessages();
 
     const response = await fetch(`/api/forms/${formId}${path}`, {
         method,
@@ -85,11 +90,19 @@ async function send(path, method, body) {
 // Triggers are wherever the presentation put them, and there may be several of
 // each: they are bound by what they do, not by where they are.
 for (const trigger of document.querySelectorAll('[data-action="save"]')) {
-    trigger.addEventListener('click', (event) => {
+    trigger.addEventListener('click', async (event) => {
         event.preventDefault();
-        send('/data', 'PUT', collect());
+
+        if (await send('/data', 'PUT', collect()) && saved) saved.hidden = false;
     });
 }
+
+// The notice says that what is on the page is what the form holds, so it lasts
+// exactly as long as that is true: the next attempt clears it, and so does the
+// first thing somebody changes after it.
+document.getElementById('form').addEventListener('input', () => {
+    if (saved) saved.hidden = true;
+});
 
 for (const trigger of document.querySelectorAll('[data-action="confirm"]')) {
     trigger.addEventListener('click', async (event) => {
