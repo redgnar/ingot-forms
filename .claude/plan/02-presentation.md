@@ -338,3 +338,26 @@ both bounds") has nowhere to live in a table. Adding a kit is now adding a class
 Rendering a form here, which is `03-rendering.md` and deliberately not part of this: it brings
 a template engine, a locale decision the API dodges, and the question of authentication, which
 this service does not have at all.
+
+## Options got words of their own (2026-08-20)
+
+This plan moved every label out of the definition and into the presentation, and then left one
+thing behind: a `select` still showed its raw values, so a person picking a country read `pl`.
+The gap was in the right layer all along — a presentation says how things read — it simply had
+no member for it.
+
+`choices` maps each option of an item to a translation code: the definition still settles which
+values are allowed, and the presentation settles that `pl` reads *Polska*. Two questions, and
+only the second has a language, which is why nothing had to move back into the definition.
+
+Rules, all in `PresentationRules` because they need the definition to be answered: only an item
+that offers a choice may word options, a key must be an option that item declares, and — the
+owner's decision — **all** of them or none, because a list that reads half in words and half in
+codes is the drift this document exists to prevent. The codes join `codes()`, so the completeness
+rule about the default catalogue already covers them; a code nobody translated still shows as
+itself, and an option nobody worded would have shown its value, which is why the rule asks for
+all of them.
+
+Both kits draw it: `select`, `radio`, `radio-buttons` and `autocomplete` show the words and send
+the value. The browser test now clicks the word and asserts the API was told the value — the two
+halves of the same promise.

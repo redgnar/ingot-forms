@@ -137,7 +137,7 @@
             }))|raw }}>
                 <option value=""></option>
                 {% for choice in node.choices %}
-                    <option value="{{ choice }}"{% if node.value == choice %} selected{% endif %}>{{ choice }}</option>
+                    <option value="{{ choice.value }}"{% if node.value == choice.value %} selected{% endif %}>{{ choice.text }}</option>
                 {% endfor %}
             </select>
         {% elseif node.widget == 'radio' %}
@@ -149,11 +149,11 @@
                             'class': 'form-check-input',
                             'id': 'item-' ~ node.name ~ '-' ~ loop.index,
                             'name': node.name,
-                            'value': choice,
-                            'checked': node.value == choice,
+                            'value': choice.value,
+                            'checked': node.value == choice.value,
                             'disabled': readOnly,
                         })|raw }}>
-                        <label class="form-check-label" for="item-{{ node.name }}-{{ loop.index }}">{{ choice }}</label>
+                        <label class="form-check-label" for="item-{{ node.name }}-{{ loop.index }}">{{ choice.text }}</label>
                     </div>
                 {% endfor %}
             </div>
@@ -172,12 +172,12 @@
                         'class': 'btn-check',
                         'id': 'item-' ~ node.name ~ '-' ~ loop.index,
                         'name': node.name,
-                        'value': choice,
-                        'checked': node.value == choice,
+                        'value': choice.value,
+                        'checked': node.value == choice.value,
                         'disabled': readOnly,
                         'autocomplete': 'off',
                     })|raw }}>
-                    <label class="btn btn-outline-primary" for="item-{{ node.name }}-{{ loop.index }}">{{ choice }}</label>
+                    <label class="btn btn-outline-primary" for="item-{{ node.name }}-{{ loop.index }}">{{ choice.text }}</label>
                 {% endfor %}
             </div>
         {% elseif node.widget == 'checkbox' or node.widget == 'switch' %}

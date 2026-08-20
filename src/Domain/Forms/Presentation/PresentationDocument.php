@@ -77,6 +77,12 @@ final readonly class PresentationDocument
                 }
             }
 
+            // What an option reads like is text this document promised, so the
+            // catalogue is held to it exactly like a label.
+            foreach ($item->choices as $code) {
+                $codes[] = $code;
+            }
+
             $codes = [...$codes, ...self::codesIn($item->items)];
         }
 

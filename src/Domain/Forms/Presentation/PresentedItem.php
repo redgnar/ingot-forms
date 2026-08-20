@@ -17,13 +17,18 @@ namespace App\Domain\Forms\Presentation;
  * this is one recursive shape rather than sections holding fields.
  *
  * `label` and `hint` are translation codes, never sentences — the convention the
- * whole document rests on.
+ * whole document rests on. So is every value in `choices`, which is how an item
+ * presenting a choice says what its options read like: the definition settles
+ * that a value must be one of `pl`, `de`, `fr`, and this settles that `pl` reads
+ * "Polska". Those are two different questions, and only the second one has a
+ * language.
  */
 final readonly class PresentedItem
 {
     /**
-     * @param list<PresentedItem>  $items
-     * @param array<string, mixed> $options whatever the engine needs for itself; nothing here reads it
+     * @param list<PresentedItem>   $items
+     * @param array<string, string> $choices option value → the code that words it
+     * @param array<string, mixed>  $options whatever the engine needs for itself; nothing here reads it
      */
     public function __construct(
         public ?string $name = null,
@@ -33,6 +38,7 @@ final readonly class PresentedItem
         public ?string $label = null,
         public ?string $hint = null,
         public array $items = [],
+        public array $choices = [],
         public array $options = [],
     ) {}
 

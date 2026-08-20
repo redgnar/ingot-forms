@@ -209,6 +209,14 @@ Rules that follow from it, and that the tooling checks:
   draws, and at least one `confirm` trigger — where it goes is the document's business, leaving
   it out would only make the page unfinishable. An item a client fills in rather than a person is drawn `hidden`, which says so
   instead of leaving it out.
+- **How a choice reads is the presentation's, not the definition's.** An item's `options` are
+  the values a client may send; `choices` on the presented item maps each of them to a
+  translation code, so `pl` can read *Polska* without the definition ever carrying display
+  text. All or nothing: once a document words one option it words them all
+  (`presentation.choice.missing`), a value the item does not offer is
+  `presentation.choice.unknown`, and only an item that offers a choice may carry `choices` at
+  all. The codes join `codes()`, so the default-locale catalogue is held to them like every
+  label.
 - **A definition says what is asked, never how it looks.** There is no presentation in it:
   `textarea` is one way to show a text item, `radio` one way to show a select, and both are
   the client's business. So an item type is added when it brings **rules of its own** — a date

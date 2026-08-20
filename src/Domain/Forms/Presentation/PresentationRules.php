@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Forms\Presentation;
 
 use App\Domain\Forms\Definition\Field;
+use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Presentation\Engine\Engines;
 use App\Domain\Forms\Presentation\Engine\PresentationEngine;
 use App\Domain\Forms\ValueObject\Definition;
@@ -112,7 +113,7 @@ final class PresentationRules
             // would be a second complaint about it.
             return $item === null
                 ? self::error($path . '/name', 'presentation.item.unknown', \sprintf('This form declares no item named "%s".', $shown->name), $shown->name)
-                : self::judgeControl($shown, $item, $path, $engine, $named);
+                : self::judgeControl($shown, $item, $path, $engine, $named) ?? self::judgeChoices($shown, $item, $path);
         }
 
         return $shown->isContainer()
@@ -124,6 +125,54 @@ final class PresentationRules
                 $engine === null ? null : [...$engine->decorations(), ...$engine->actions()],
                 'stand on its own',
             );
+    }
+
+    /**
+     * What an option reads like is this document's to say — but only for an item
+     * that has options, and only for the options it actually has. Naming a value
+     * the definition does not offer is a promise about something nobody can pick;
+     * leaving one out is a list that reads half in words and half in codes, which
+     * is the kind of drift a presentation is supposed to prevent rather than
+     * introduce.
+     */
+    private static function judgeChoices(PresentedItem $shown, Field $item, string $path): ?MappingError
+    {
+        if ($shown->choices === []) {
+            return null;
+        }
+
+        if (!$item instanceof SelectField) {
+            return self::error(
+                $path . '/choices',
+                'presentation.choice.not-allowed',
+                \sprintf('Only an item that offers a choice can word its options, and "%s" is a "%s" item.', $item->name, self::typeOf($item)),
+                $item->name,
+            );
+        }
+
+        foreach (array_keys($shown->choices) as $value) {
+            if (!\in_array($value, $item->options, true)) {
+                return self::error(
+                    $path . '/choices/' . $value,
+                    'presentation.choice.unknown',
+                    \sprintf('Item "%s" offers no option "%s".', $item->name, $value),
+                    $value,
+                );
+            }
+        }
+
+        foreach ($item->options as $value) {
+            if (!\array_key_exists($value, $shown->choices)) {
+                return self::error(
+                    $path . '/choices',
+                    'presentation.choice.missing',
+                    \sprintf('Option "%s" of item "%s" has no word for it.', $value, $item->name),
+                    $value,
+                );
+            }
+        }
+
+        return null;
     }
 
     private static function judgeControl(PresentedItem $shown, Field $item, string $path, ?PresentationEngine $engine, string $named): ?MappingError

@@ -62,7 +62,7 @@ final class BootstrapRendererTest extends KernelTestCase
                     ['name' => 'email', 'widget' => 'text', 'label' => 't.email', 'hint' => 't.email.hint', 'options' => ['width' => 8]],
                     ['name' => 'nickname', 'widget' => 'text', 'label' => 't.nickname', 'options' => ['width' => 4]],
                 ]],
-                ['name' => 'country', 'widget' => 'autocomplete', 'label' => 't.country'],
+                ['name' => 'country', 'widget' => 'autocomplete', 'label' => 't.country', 'choices' => ['pl' => 't.pl', 'de' => 't.de', 'fr' => 't.fr']],
                 ['name' => 'plan', 'widget' => 'radio-buttons', 'label' => 't.plan'],
                 ['name' => 'size', 'widget' => 'radio', 'label' => 't.size', 'options' => ['columns' => 3]],
             ]],
@@ -89,6 +89,9 @@ final class BootstrapRendererTest extends KernelTestCase
                 't.email.hint' => 'We only use it to reply',
                 't.nickname' => 'Nickname',
                 't.country' => 'Country',
+                't.pl' => 'Polska',
+                't.de' => 'Niemcy',
+                't.fr' => 'Francja',
                 't.plan' => 'Plan',
                 't.size' => 'Shirt size',
                 't.seats' => 'Seats',
@@ -202,6 +205,23 @@ final class BootstrapRendererTest extends KernelTestCase
         self::assertSame('switch', $page->filter('[data-name="terms"]')->attr('role'));
         self::assertCount(1, $page->filter('textarea[data-name="bio"]'));
         self::assertSame('date', $page->filter('[data-name="starts"]')->attr('type'));
+    }
+
+    public function testAChoiceIsShownInWordsAndSentAsItsValue(): void
+    {
+        // GIVEN a searchable choice whose options the document worded
+        $page = new Crawler($this->render());
+
+        // WHEN each option is read as the pair it is: what travels, and what a
+        // person sees
+        $options = $page->filter('select[data-name="country"] option')->each(
+            static fn(Crawler $option): array => [(string) $option->attr('value'), trim($option->text())],
+        );
+
+        // THEN the list reads in words while the values stay the definition's,
+        // in the order the definition declares them — with the empty one first,
+        // for a choice nobody has made yet
+        self::assertSame([['', ''], ['pl', 'Polska'], ['de', 'Niemcy'], ['fr', 'Francja']], $options);
     }
 
     public function testAControlMovedRatherThanTypedStaysInsideTheDefinitionsBounds(): void

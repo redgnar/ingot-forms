@@ -96,22 +96,22 @@
         {% elseif node.widget == 'select' %}
             <select{{ html.attributes(common)|raw }}>
                 <option value=""></option>
-                {% for option in node.choices %}
-                    <option value="{{ option }}"{% if node.value == option %} selected{% endif %}>{{ option }}</option>
+                {% for choice in node.choices %}
+                    <option value="{{ choice.value }}"{% if node.value == choice.value %} selected{% endif %}>{{ choice.text }}</option>
                 {% endfor %}
             </select>
         {% elseif node.widget == 'radio' %}
             <div class="choice" data-name="{{ node.name }}" data-type="{{ node.type }}">
-                {% for option in node.choices %}
+                {% for choice in node.choices %}
                     <label>
                         <input{{ html.attributes({
                             'type': 'radio',
                             'name': node.name,
-                            'value': option,
-                            'checked': node.value == option,
+                            'value': choice.value,
+                            'checked': node.value == choice.value,
                             'disabled': readOnly,
                         })|raw }}>
-                        {{ option }}
+                        {{ choice.text }}
                     </label>
                 {% endfor %}
             </div>

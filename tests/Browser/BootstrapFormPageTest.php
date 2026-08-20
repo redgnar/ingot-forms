@@ -24,6 +24,9 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 final class BootstrapFormPageTest extends PantherTestCase
 {
+    /** @var array<string, string> how the document words the choices below */
+    private const array WORDS = ['pl' => 'Polska', 'de' => 'Niemcy', 'fr' => 'Francja'];
+
     private Client $browser;
 
     private HttpClientInterface $api;
@@ -227,6 +230,9 @@ final class BootstrapFormPageTest extends PantherTestCase
             WebDriverBy::cssSelector(\sprintf('.ts-dropdown [data-value="%s"]', $value)),
         )[0] ?? null);
         self::assertInstanceOf(WebDriverElement::class, $option);
+        // What a person clicks is the word this document gave the option; what
+        // the API is then told is the value the definition allows.
+        self::assertSame(self::WORDS[$value], $option->getText());
         $option->click();
     }
 
@@ -258,7 +264,8 @@ final class BootstrapFormPageTest extends PantherTestCase
                                 ['name' => 'email', 'widget' => 'text', 'label' => 't.email', 'options' => ['width' => 8]],
                                 ['name' => 'nickname', 'widget' => 'text', 'label' => 't.nickname', 'options' => ['width' => 4]],
                             ]],
-                            ['name' => 'country', 'widget' => 'autocomplete', 'label' => 't.country'],
+                            ['name' => 'country', 'widget' => 'autocomplete', 'label' => 't.country',
+                                'choices' => ['pl' => 't.pl', 'de' => 't.de', 'fr' => 't.fr']],
                             ['name' => 'plan', 'widget' => 'radio-buttons', 'label' => 't.plan'],
                             ['name' => 'seats', 'widget' => 'stepper', 'label' => 't.seats'],
                         ]],
@@ -275,6 +282,9 @@ final class BootstrapFormPageTest extends PantherTestCase
                             't.email' => 'E-mail',
                             't.nickname' => 'Nickname',
                             't.country' => 'Country',
+                            't.pl' => 'Polska',
+                            't.de' => 'Niemcy',
+                            't.fr' => 'Francja',
                             't.plan' => 'Plan',
                             't.seats' => 'Seats',
                             't.more' => 'Anything else?',

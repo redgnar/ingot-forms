@@ -275,6 +275,94 @@ final class PresentationRulesTest extends TestCase
         self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
     }
 
+    public function testAChoiceCanBeGivenWordsForItsOptions(): void
+    {
+        // GIVEN a document saying what each option of a choice reads like
+        $presentation = self::presentation([
+            ['name' => 'country', 'choices' => ['pl' => 't.pl', 'de' => 't.de']],
+        ]);
+
+        // WHEN / THEN the definition settles which values are allowed, and this
+        // settles how they read — two different questions
+        self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
+    }
+
+    public function testWordingAnOptionTheItemDoesNotOfferIsRefused(): void
+    {
+        // GIVEN a word for a value nobody can pick
+        $presentation = self::presentation([
+            ['name' => 'country', 'choices' => ['pl' => 't.pl', 'de' => 't.de', 'es' => 't.es']],
+        ]);
+
+        // WHEN
+        $report = self::rules()->check(self::definition(), $presentation);
+
+        // THEN it says which option, and where the promise was made
+        self::assertSame('presentation.choice.unknown', $report->errors[0]->code);
+        self::assertSame('/items/0/choices/es', $report->errors[0]->pointer->toString());
+        self::assertSame('es', $report->errors[0]->input);
+    }
+
+    public function testWordingSomeOptionsAndNotOthersIsRefused(): void
+    {
+        // GIVEN a list that would read half in words and half in codes
+        $presentation = self::presentation([
+            ['name' => 'country', 'choices' => ['pl' => 't.pl']],
+        ]);
+
+        // WHEN
+        $report = self::rules()->check(self::definition(), $presentation);
+
+        // THEN the first option left out is named: a document that starts
+        // wording its options finishes the job
+        self::assertSame('presentation.choice.missing', $report->errors[0]->code);
+        self::assertSame('/items/0/choices', $report->errors[0]->pointer->toString());
+        self::assertSame('de', $report->errors[0]->input);
+    }
+
+    public function testOnlyAnItemThatOffersAChoiceCanWordOptions(): void
+    {
+        // GIVEN words for the options of something that has none
+        $presentation = self::presentation([
+            ['name' => 'email', 'choices' => ['pl' => 't.pl']],
+        ]);
+
+        // WHEN
+        $report = self::rules()->check(self::definition(), $presentation);
+
+        // THEN
+        self::assertSame('presentation.choice.not-allowed', $report->errors[0]->code);
+        self::assertSame('/items/0/choices', $report->errors[0]->pointer->toString());
+        self::assertStringContainsString('"text" item', $report->errors[0]->message);
+    }
+
+    public function testAControlThisKitCannotDrawIsSaidBeforeAnythingAboutWords(): void
+    {
+        // GIVEN a choice asked for as a date, and worded badly on top of it
+        $presentation = self::presentation([
+            ['name' => 'country', 'widget' => 'date', 'choices' => ['es' => 't.es']],
+        ]);
+
+        // WHEN
+        $report = self::rules()->check(self::definition(), $presentation);
+
+        // THEN one complaint, and it is the one that matters: whether the kit
+        // can draw this at all comes before how its options read
+        self::assertCount(1, $report->errors);
+        self::assertSame('presentation.widget.mismatch', $report->errors[0]->code);
+    }
+
+    public function testAnItemThatDoesNotExistIsNotAlsoJudgedOnItsWords(): void
+    {
+        // GIVEN an unknown item wording options it could not have
+        $presentation = self::presentation([['name' => 'nickname', 'choices' => ['pl' => 't.pl']]]);
+
+        // WHEN / THEN one complaint about one mistake
+        $report = self::rules()->check(self::definition(), $presentation);
+        self::assertCount(1, $report->errors);
+        self::assertSame('presentation.item.unknown', $report->errors[0]->code);
+    }
+
     public function testEachKitIsJudgedByItsOwnVocabulary(): void
     {
         // GIVEN two documents saying the same thing in two kits' words

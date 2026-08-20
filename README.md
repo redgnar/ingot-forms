@@ -96,6 +96,22 @@ definition declares, and holds nothing), or holds other items (a container), or 
 own (a decoration). Sections were the first draft: a fixed level of grouping is a guess that
 ends up either too shallow or in the way.
 
+**A choice can be shown in words.** The definition settles that a value must be one of
+`["pl","de","fr"]`; the presentation settles that `pl` reads *Polska*, with `choices` mapping
+each option to a translation code:
+
+```json
+{"name": "country", "widget": "select", "label": "t.country",
+ "choices": {"pl": "t.pl", "de": "t.de", "fr": "t.fr"}}
+```
+
+Two questions, and only the second one has a language — which is why the definition still holds
+no display text. Those codes are text like any other, so the default catalogue is held to them,
+and **every** option must be worded once any of them is: a list that reads half in words and
+half in codes is exactly the drift a presentation exists to prevent. Naming a value the item does
+not offer is `presentation.choice.unknown`, leaving one out is `presentation.choice.missing`, and
+wording the options of something that has none is `presentation.choice.not-allowed`.
+
 **Text is codes, never sentences.** What a code reads like, and in which language, is resolved
 from a catalogue — the one carried in the document, or the client's own. The server never
 resolves a locale and never reads `Accept-Language`: it serves the document whole, and picking

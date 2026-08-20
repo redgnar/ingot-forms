@@ -42,7 +42,12 @@ Content-Type: application/json
               { "name": "nickname", "widget": "text", "label": "t.nickname", "options": { "width": 4 } }
             ]
           },
-          { "name": "country", "widget": "autocomplete", "label": "t.country" },
+          {
+            "name": "country",
+            "widget": "autocomplete",
+            "label": "t.country",
+            "choices": { "pl": "t.c.pl", "de": "t.c.de", "fr": "t.c.fr", "es": "t.c.es", "it": "t.c.it" }
+          },
           { "name": "plan", "widget": "radio-buttons", "label": "t.plan" },
           { "name": "size", "widget": "radio", "label": "t.size", "options": { "columns": 3 } }
         ]
@@ -78,6 +83,11 @@ Content-Type: application/json
         "t.email.hint": "We only use it to reply",
         "t.nickname": "Nickname",
         "t.country": "Country",
+        "t.c.pl": "Poland",
+        "t.c.de": "Germany",
+        "t.c.fr": "France",
+        "t.c.es": "Spain",
+        "t.c.it": "Italy",
         "t.plan": "Plan",
         "t.size": "Shirt size",
         "t.setup": "Your setup",
@@ -96,6 +106,11 @@ Content-Type: application/json
         "t.email": "E-mail",
         "t.nickname": "Pseudonim",
         "t.country": "Kraj",
+        "t.c.pl": "Polska",
+        "t.c.de": "Niemcy",
+        "t.c.fr": "Francja",
+        "t.c.es": "Hiszpania",
+        "t.c.it": "Włochy",
         "t.terms": "Akceptuję regulamin",
         "t.save": "Zapisz na później",
         "t.send": "Wyślij"

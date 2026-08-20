@@ -36,7 +36,13 @@ final class PresentationProcessorTest extends TestCase
                         [
                             'widget' => 'fieldset',
                             'label' => 'contact.address',
-                            'items' => [['name' => 'country', 'widget' => 'radio', 'label' => 'contact.country', 'options' => ['columns' => 2]]],
+                            'items' => [[
+                                'name' => 'country',
+                                'widget' => 'radio',
+                                'label' => 'contact.country',
+                                'options' => ['columns' => 2],
+                                'choices' => ['pl' => 'contact.country.pl', 'de' => 'contact.country.de'],
+                            ]],
                         ],
                     ],
                 ],
@@ -50,6 +56,8 @@ final class PresentationProcessorTest extends TestCase
                     'contact.email.hint' => 'We only use it to reply',
                     'contact.address' => 'Address',
                     'contact.country' => 'Country',
+                    'contact.country.pl' => 'Poland',
+                    'contact.country.de' => 'Germany',
                     'contact.terms' => 'I accept the terms',
                     'contact.send' => 'Send',
                 ],
@@ -73,6 +81,8 @@ final class PresentationProcessorTest extends TestCase
         self::assertSame('email', $group->items[0]->name);
         self::assertSame('country', $group->items[1]->items[0]->name);
         self::assertSame(['columns' => 2], $group->items[1]->items[0]->options);
+        // and what each option reads like travels with the item that offers it
+        self::assertSame(['pl' => 'contact.country.pl', 'de' => 'contact.country.de'], $group->items[1]->items[0]->choices);
 
         // an item that asks for no widget gets the natural one, later
         self::assertNull($presentation->items[1]->widget);
@@ -106,6 +116,8 @@ final class PresentationProcessorTest extends TestCase
             'contact.email.hint',
             'contact.address',
             'contact.country',
+            'contact.country.pl',
+            'contact.country.de',
             'contact.terms',
             'contact.send',
         ], $codes);

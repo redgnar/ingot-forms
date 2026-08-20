@@ -26,7 +26,13 @@ Content-Type: application/json
         "label": "contact.personal",
         "items": [
           { "name": "email", "widget": "text", "label": "contact.email", "hint": "contact.email.hint" },
-          { "name": "country", "widget": "radio", "label": "contact.country", "options": { "columns": 3 } }
+          {
+            "name": "country",
+            "widget": "radio",
+            "label": "contact.country",
+            "options": { "columns": 3 },
+            "choices": { "pl": "contact.country.pl", "de": "contact.country.de", "fr": "contact.country.fr" }
+          }
         ]
       },
       { "name": "terms", "widget": "switch", "label": "contact.terms" },
@@ -40,13 +46,19 @@ Content-Type: application/json
         "contact.email": "E-mail",
         "contact.email.hint": "We only use it to reply",
         "contact.country": "Country",
+        "contact.country.pl": "Poland",
+        "contact.country.de": "Germany",
+        "contact.country.fr": "France",
         "contact.terms": "I accept the terms",
         "contact.save": "Save for later",
         "contact.send": "Send"
       },
       "pl": {
         "contact.heading": "Napisz do nas",
-        "contact.email": "E-mail"
+        "contact.email": "E-mail",
+        "contact.country.pl": "Polska",
+        "contact.country.de": "Niemcy",
+        "contact.country.fr": "Francja"
       }
     }
   }
@@ -270,5 +282,59 @@ Content-Type: application/json
 > {%
     client.test("201 — its controls are its own business", function () {
         client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+%}
+
+### Wording an option the item does not offer.
+# @name choiceNobodyCanPick
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "items": [{ "type": "select", "name": "country", "options": ["pl", "de"] }] },
+  "presentation": {
+    "engine": "core-html",
+    "defaultLocale": "en",
+    "items": [
+      { "name": "country", "choices": { "pl": "c.pl", "de": "c.de", "es": "c.es" } },
+      { "widget": "confirm", "label": "c.send" }
+    ],
+    "translations": { "en": { "c.pl": "Poland", "c.de": "Germany", "c.es": "Spain", "c.send": "Send" } }
+  }
+}
+
+> {%
+    client.test("422 presentation.choice.unknown", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "presentation.choice.unknown", "Expected presentation.choice.unknown");
+        client.assert(response.body.errors[0].pointer === "/presentation/items/0/choices/es", "Expected the pointer at the option");
+    });
+%}
+
+### Wording some options and not the rest.
+# @name choicesHalfWorded
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "items": [{ "type": "select", "name": "country", "options": ["pl", "de"] }] },
+  "presentation": {
+    "engine": "core-html",
+    "defaultLocale": "en",
+    "items": [
+      { "name": "country", "choices": { "pl": "c.pl" } },
+      { "widget": "confirm", "label": "c.send" }
+    ],
+    "translations": { "en": { "c.pl": "Poland", "c.send": "Send" } }
+  }
+}
+
+> {%
+    client.test("422 presentation.choice.missing", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "presentation.choice.missing", "Expected presentation.choice.missing");
+        client.assert(response.body.errors[0].input === "de", "Expected the unworded option to be named");
     });
 %}

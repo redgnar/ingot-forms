@@ -49,7 +49,7 @@ final class CoreHtmlRendererTest extends KernelTestCase
             ['widget' => 'fieldset', 'label' => 'contact.personal', 'items' => [
                 ['name' => 'email', 'widget' => 'text', 'label' => 'contact.email', 'hint' => 'contact.email.hint'],
                 ['name' => 'note', 'widget' => 'textarea', 'label' => 'contact.note'],
-                ['name' => 'country', 'widget' => 'radio', 'label' => 'contact.country'],
+                ['name' => 'country', 'widget' => 'radio', 'label' => 'contact.country', 'choices' => ['pl' => 'contact.pl', 'de' => 'contact.de']],
             ]],
             ['name' => 'age', 'widget' => 'number', 'label' => 'contact.age'],
             ['name' => 'visit', 'widget' => 'date', 'label' => 'contact.visit'],
@@ -66,6 +66,8 @@ final class CoreHtmlRendererTest extends KernelTestCase
                 'contact.email.hint' => 'We only use it to reply',
                 'contact.note' => 'Anything else',
                 'contact.country' => 'Country',
+                'contact.pl' => 'Poland',
+                'contact.de' => 'Germany',
                 'contact.age' => 'Age',
                 'contact.visit' => 'Date of visit',
                 'contact.terms' => 'I accept the terms',
@@ -176,6 +178,24 @@ final class CoreHtmlRendererTest extends KernelTestCase
         // so no presentation has to carry a code for it
         self::assertNotNull($page->filter('#form-saved')->attr('hidden'));
         self::assertStringContainsString('saved', $page->filter('#form-saved')->text());
+    }
+
+    public function testAChoiceIsShownInWordsAndSentAsItsValue(): void
+    {
+        // GIVEN a choice whose options the document worded
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::form(), 'en')));
+
+        // THEN a person reads the words
+        self::assertSame(
+            ['Poland', 'Germany'],
+            $page->filter('[data-name="country"] label')->each(static fn(Crawler $label): string => trim($label->text())),
+        );
+
+        // AND what travels to the API is still the value the definition allows
+        self::assertSame(
+            ['pl', 'de'],
+            $page->filter('[data-name="country"] input')->each(static fn(Crawler $input): ?string => $input->attr('value')),
+        );
     }
 
     public function testAConfirmedFormIsDrawnToBeReadNotChanged(): void

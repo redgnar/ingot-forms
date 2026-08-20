@@ -126,7 +126,18 @@ final class PresentedNodes
                 'required' => $field->required,
                 'value' => $values[$item->name] ?? null,
                 'options' => $item->options,
-                'choices' => $field instanceof SelectField ? $field->options : [],
+                // Each option as the person picking it sees it: the value it
+                // sends, and the words this document gave it — falling back to
+                // the value, which is at least honest about what will be sent.
+                'choices' => $field instanceof SelectField
+                    ? array_map(
+                        static fn(string $value): array => [
+                            'value' => $value,
+                            'text' => self::text($item->choices[$value] ?? null, $translations, $locale, $default) ?? $value,
+                        ],
+                        $field->options,
+                    )
+                    : [],
                 'min' => $field instanceof NumberField ? $field->min : ($field instanceof DateField ? $field->min : null),
                 'max' => $field instanceof NumberField ? $field->max : ($field instanceof DateField ? $field->max : null),
                 'step' => $field instanceof NumberField && $field->decimals !== null ? 10 ** -$field->decimals : null,
