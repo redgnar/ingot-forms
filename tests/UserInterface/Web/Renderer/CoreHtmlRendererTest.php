@@ -29,7 +29,6 @@ final class CoreHtmlRendererTest extends KernelTestCase
 {
     /** @var array<string, mixed> */
     private const array DEFINITION = [
-        'id' => 'contact',
         'items' => [
             ['type' => 'text', 'name' => 'email', 'required' => true, 'maxLength' => 120],
             ['type' => 'text', 'name' => 'note'],

@@ -40,10 +40,10 @@ final readonly class CreateFormRequest
         )]
         public \DateTimeImmutable $expireDate,
         #[OA\Property(
-            description: 'The form definition: an id and 1–50 typed items with unique names, per the meta-schema in src/Domain/Forms/form-definition.schema.json. Immutable once created — changing it means deleting the form and creating a new one.',
+            description: 'The form definition: 1–50 typed items with unique names, per the meta-schema in src/Domain/Forms/form-definition.schema.json. Immutable once created — changing it means deleting the form and creating a new one.',
             type: 'object',
             minProperties: 1,
-            example: ['id' => 'contact', 'items' => [['type' => 'text', 'name' => 'email', 'required' => true]]],
+            example: ['items' => [['type' => 'text', 'name' => 'email', 'required' => true]]],
         )]
         #[ValidFormDefinition]
         public \stdClass $definition,

@@ -21,7 +21,6 @@ final class FormApiTest extends WebTestCase
 {
     /** @var array<string, mixed> */
     private const array DEFINITION = [
-        'id' => 'contact',
         'items' => [
             ['type' => 'text', 'name' => 'email', 'required' => true, 'maxLength' => 120],
             ['type' => 'select', 'name' => 'country', 'options' => ['pl', 'de', 'fr'], 'required' => true],

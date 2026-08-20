@@ -18,7 +18,7 @@ final class DateFieldValuesTest extends FieldValuesTestCase
      */
     protected static function document(): array
     {
-        return ['id' => 'contact', 'items' => [
+        return ['items' => [
             ['type' => 'date', 'name' => 'visit', 'required' => true, 'min' => '2026-01-01', 'max' => '2026-12-31'],
         ]];
     }

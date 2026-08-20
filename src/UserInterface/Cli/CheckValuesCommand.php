@@ -77,7 +77,7 @@ final class CheckValuesCommand extends Command
             return Command::FAILURE;
         }
 
-        $output->writeln(\sprintf('<info>The values match the %s contract of form "%s".</info>', $mode->value, $definition->id));
+        $output->writeln(\sprintf('<info>The values match the %s contract of this definition.</info>', $mode->value));
 
         return Command::SUCCESS;
     }

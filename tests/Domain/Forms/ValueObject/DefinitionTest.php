@@ -17,12 +17,12 @@ use PHPUnit\Framework\TestCase;
  */
 final class DefinitionTest extends TestCase
 {
-    private const string DOCUMENT = '{"id":"contact","items":[{"type":"text","name":"email"}]}';
+    private const string DOCUMENT = '{"items":[{"type":"text","name":"email"}]}';
 
     public function testADefinitionJustAcceptedCarriesItsStructureAlready(): void
     {
         // GIVEN a structure the mapper accepted, and the document it normalizes to
-        $structure = new FormDefinition('contact', [new TextField('email')]);
+        $structure = new FormDefinition([new TextField('email')]);
 
         // WHEN
         $definition = Definition::of($structure, self::DOCUMENT);
@@ -42,7 +42,7 @@ final class DefinitionTest extends TestCase
 
         // THEN it carries both shapes straight away, and read the document once
         self::assertSame(self::DOCUMENT, (string) $definition);
-        self::assertSame('contact', $definition->structure()->id);
+        self::assertSame('email', $definition->structure()->items[0]->name);
         self::assertSame($definition->structure(), $definition->structure());
         self::assertSame(1, $parser->calls);
     }

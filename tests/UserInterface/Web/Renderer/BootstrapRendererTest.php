@@ -35,7 +35,6 @@ final class BootstrapRendererTest extends KernelTestCase
 {
     /** @var array<string, mixed> */
     private const array DEFINITION = [
-        'id' => 'onboarding',
         'items' => [
             ['type' => 'text', 'name' => 'email', 'required' => true, 'maxLength' => 120],
             ['type' => 'text', 'name' => 'nickname', 'maxLength' => 40],

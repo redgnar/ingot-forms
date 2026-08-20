@@ -22,6 +22,11 @@ different kind of problem, and the shape it would take if it arrives.
   holding something it would not accept later. Findings are rooted at `/data`.
 - **`expire_date` is required.** Past it, the form answers `410 Gone` everywhere, and
   `bin/console app:forms:purge-expired` (run it from cron) physically deletes the row.
+- **The definition has no name of its own.** It belongs to exactly one form, and that form
+  already has an identity — the UUID it is created with. With no templates and no versioning
+  there is nothing for a second name to group, look up or match, so what was once a required
+  `id` was only a label that could drift; the derived values schema now titles itself by the
+  contract it is (`Form values (strict contract)`) instead of borrowing that name.
 - **The definition holds no display text.** No item label, no form title: what a question
   reads like, and in which language, belongs to whatever draws the form. The definition says
   what is asked (`name`, `type`) and what an answer must satisfy — a client keys its own copy

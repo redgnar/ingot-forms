@@ -18,7 +18,7 @@ final class GenericFieldValuesTest extends FieldValuesTestCase
      */
     protected static function document(): array
     {
-        return ['id' => 'contact', 'items' => [
+        return ['items' => [
             ['type' => 'signature', 'name' => 'sig', 'required' => true, 'vendor' => ['pad' => '2.0']],
         ]];
     }

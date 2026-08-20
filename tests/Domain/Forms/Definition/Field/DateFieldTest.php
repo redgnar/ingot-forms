@@ -82,7 +82,7 @@ final class DateFieldTest extends FieldDefinitionTestCase
     {
         // GIVEN a period whose start is not a day, and which also runs backwards
         // if one were to read it as written
-        $document = ['id' => 'contact', 'items' => [
+        $document = ['items' => [
             ['type' => 'date', 'name' => 'visit', 'min' => '2026-02-30', 'max' => '2026-01-01'],
         ]];
 
@@ -102,7 +102,7 @@ final class DateFieldTest extends FieldDefinitionTestCase
     public function testBothEndsAreCheckedNotJustTheFirst(): void
     {
         // GIVEN a period whose end is not a day
-        $document = ['id' => 'contact', 'items' => [
+        $document = ['items' => [
             ['type' => 'date', 'name' => 'visit', 'min' => '2026-01-01', 'max' => '2026-13-01'],
         ]];
 

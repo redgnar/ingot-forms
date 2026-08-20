@@ -18,7 +18,7 @@ final class DecimalFieldValuesTest extends FieldValuesTestCase
      */
     protected static function document(): array
     {
-        return ['id' => 'contact', 'items' => [
+        return ['items' => [
             ['type' => 'number', 'name' => 'amount', 'required' => true, 'min' => 0, 'max' => 1000, 'decimals' => 2],
         ]];
     }

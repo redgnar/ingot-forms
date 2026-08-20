@@ -20,30 +20,6 @@ use PHPUnit\Framework\TestCase;
  */
 final class DefinitionConstraintsTest extends TestCase
 {
-    public function testFormIdAcceptsOneToSixtyFourCharacters(): void
-    {
-        // GIVEN a mapper with no meta-schema registered
-        $mapper = self::bareMapper();
-
-        // WHEN / THEN both length boundaries map successfully
-        self::assertTrue($mapper->tryMap(FormDefinition::class, self::definitionJson(id: 'a'))->isSuccess());
-        self::assertTrue($mapper->tryMap(FormDefinition::class, self::definitionJson(id: str_repeat('a', 64)))->isSuccess());
-    }
-
-    public function testFormIdRejectsEmptyAndOverlongValues(): void
-    {
-        // GIVEN
-        $mapper = self::bareMapper();
-
-        // WHEN mapping ids one step past each boundary
-        $empty = $mapper->tryMap(FormDefinition::class, self::definitionJson(id: ''));
-        $overlong = $mapper->tryMap(FormDefinition::class, self::definitionJson(id: str_repeat('a', 65)));
-
-        // THEN each violation is reported under its own code
-        self::assertContains('mapping.min_length', self::codesAt($empty, '/id'));
-        self::assertSame(['mapping.max_length'], self::codesAt($overlong, '/id'));
-    }
-
     public function testFieldCountAcceptsOneToFiftyFields(): void
     {
         // GIVEN
@@ -88,7 +64,7 @@ final class DefinitionConstraintsTest extends TestCase
         return MapperBuilder::create()->build();
     }
 
-    private static function definitionJson(string $id = 'contact', int $itemCount = 1): Source
+    private static function definitionJson(int $itemCount = 1): Source
     {
         $items = [];
 
@@ -97,7 +73,7 @@ final class DefinitionConstraintsTest extends TestCase
         }
 
         return Source::json(json_encode(
-            ['id' => $id, 'items' => $items],
+            ['items' => $items],
             \JSON_THROW_ON_ERROR,
         ));
     }

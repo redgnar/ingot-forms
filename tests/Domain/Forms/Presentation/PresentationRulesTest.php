@@ -417,7 +417,6 @@ final class PresentationRulesTest extends TestCase
     private static function definitionDocument(): array
     {
         return [
-            'id' => 'contact',
             'items' => [
                 ['type' => 'text', 'name' => 'email'],
                 ['type' => 'select', 'name' => 'country', 'options' => ['pl', 'de']],

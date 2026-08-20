@@ -36,7 +36,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class FormTest extends TestCase
 {
-    private const string DEFINITION = '{"id":"contact","items":[{"type":"text","name":"email"}]}';
+    private const string DEFINITION = '{"items":[{"type":"text","name":"email"}]}';
 
     public function testAFreshFormIsEmptyAndStampedWhenItWasCreated(): void
     {

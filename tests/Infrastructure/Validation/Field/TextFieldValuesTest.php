@@ -17,7 +17,7 @@ final class TextFieldValuesTest extends FieldValuesTestCase
      */
     protected static function document(): array
     {
-        return ['id' => 'contact', 'items' => [
+        return ['items' => [
             ['type' => 'text', 'name' => 'email', 'required' => true, 'maxLength' => 5, 'pattern' => '^[a-z]+$'],
         ]];
     }

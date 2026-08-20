@@ -11,7 +11,6 @@ Content-Type: application/json
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition": {
-    "id": "onboarding",
     "items": [
       { "type": "text", "name": "email", "required": true, "maxLength": 120 },
       { "type": "text", "name": "nickname", "maxLength": 40 },
@@ -141,7 +140,7 @@ Content-Type: application/json
 
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
-  "definition": { "id": "contact", "items": [{ "type": "select", "name": "country", "options": ["pl", "de"] }] },
+  "definition": { "items": [{ "type": "select", "name": "country", "options": ["pl", "de"] }] },
   "presentation": {
     "engine": "core-html",
     "items": [{ "name": "country", "widget": "autocomplete" }, { "widget": "confirm" }]
@@ -162,7 +161,7 @@ Content-Type: application/json
 
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
-  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
+  "definition": { "items": [{ "type": "text", "name": "email" }] },
   "presentation": {
     "engine": "bootstrap",
     "items": [{ "widget": "fieldset", "items": [{ "name": "email" }] }, { "widget": "confirm" }]

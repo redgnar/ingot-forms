@@ -157,7 +157,7 @@ abstract class FieldDefinitionTestCase extends TestCase
      */
     final protected static function document(?array $item = null): array
     {
-        return ['id' => 'contact', 'items' => [$item ?? static::item()]];
+        return ['items' => [$item ?? static::item()]];
     }
 
     final protected static function itemName(): string

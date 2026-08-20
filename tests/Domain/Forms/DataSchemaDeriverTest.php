@@ -23,8 +23,11 @@ final class DataSchemaDeriverTest extends TestCase
         // WHEN
         $document = self::document($deriver->derive(self::definition(), DeriveMode::Strict));
 
-        // THEN the document declares its dialect and reflects the definition
+        // THEN the document declares its dialect, says which of the two
+        // contracts it is — a definition has no name to borrow, and which form
+        // it belongs to is the endpoint's business — and reflects the definition
         self::assertSame('https://json-schema.org/draft/2020-12/schema', $document['$schema']);
+        self::assertSame('Form values (strict contract)', $document['title']);
         self::assertSame(['email', 'country'], $document['required']);
         self::assertIsArray($document['properties']);
         self::assertSame(
@@ -46,7 +49,9 @@ final class DataSchemaDeriverTest extends TestCase
         // WHEN
         $document = self::document($deriver->derive(self::definition(), DeriveMode::Draft));
 
-        // THEN nothing is required and text has no forced minLength...
+        // THEN it says so in its own title, nothing is required and text has no
+        // forced minLength...
+        self::assertSame('Form values (draft contract)', $document['title']);
         self::assertArrayNotHasKey('required', $document);
         self::assertIsArray($document['properties']);
         self::assertSame(['type' => 'string', 'maxLength' => 120], $document['properties']['email']);
@@ -70,7 +75,7 @@ final class DataSchemaDeriverTest extends TestCase
 
     private static function definition(): FormDefinition
     {
-        return new FormDefinition('contact', [
+        return new FormDefinition([
             new TextField('email', required: true, maxLength: 120),
             new SelectField('country', ['pl', 'de', 'fr'], required: true),
             new NumberField('age', min: 18, max: 120),

@@ -19,7 +19,7 @@ use Symfony\Component\Cache\Adapter\ArrayAdapter;
  */
 final class FormMapperFactoryTest extends TestCase
 {
-    private const string DEFINITION = '{"id": "contact", "items": [{"type": "signature", "name": "sig"}]}';
+    private const string DEFINITION = '{"items": [{"type": "signature", "name": "sig"}]}';
 
     public function testTheMapperItBuildsCarriesTheDefinitionConfiguration(): void
     {
@@ -33,7 +33,7 @@ final class FormMapperFactoryTest extends TestCase
         self::assertInstanceOf(GenericField::class, $definition->items[0]);
 
         // AND the meta-schema still guards the document
-        $result = $mapper->tryMap(FormDefinition::class, Source::json('{"id": "x", "items": []}'));
+        $result = $mapper->tryMap(FormDefinition::class, Source::json('{"items": []}'));
         self::assertFalse($result->isSuccess());
     }
 

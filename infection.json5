@@ -12,7 +12,14 @@
         "text": ".cache/infection/infection.log"
     },
     "mutators": {
-        "@default": true
+        "@default": true,
+        // A stored definition document has exactly one member (`items`), and this
+        // mutator truncates an array to its first one — which, on a one-member
+        // array, is the same program. Nothing can kill it, and nothing should:
+        // the shape is pinned by the meta-schema and by the round-trip test.
+        "ArrayOneItem": {
+            "ignore": ["App\\Domain\\Forms\\FormDefinitionProcessor::normalize"]
+        }
     },
     "minMsi": 90,
     "minCoveredMsi": 100

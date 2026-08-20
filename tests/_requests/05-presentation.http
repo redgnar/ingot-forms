@@ -10,7 +10,6 @@ Content-Type: application/json
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition": {
-    "id": "contact",
     "items": [
       { "type": "text", "name": "email", "required": true, "maxLength": 120 },
       { "type": "select", "name": "country", "options": ["pl", "de", "fr"], "required": true },
@@ -80,7 +79,7 @@ Content-Type: application/json
 
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
-  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] }
+  "definition": { "items": [{ "type": "text", "name": "email" }] }
 }
 
 > {%
@@ -108,7 +107,7 @@ Content-Type: application/json
 
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
-  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
+  "definition": { "items": [{ "type": "text", "name": "email" }] },
   "presentation": { "engine": "core-html", "items": [{ "name": "email" }, { "name": "nickname", "widget": "text" }, { "widget": "confirm" }] }
 }
 
@@ -127,7 +126,7 @@ Content-Type: application/json
 
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
-  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
+  "definition": { "items": [{ "type": "text", "name": "email" }] },
   "presentation": { "engine": "core-html", "items": [{ "name": "email", "widget": "radio" }, { "widget": "confirm" }] }
 }
 
@@ -146,7 +145,7 @@ Content-Type: application/json
 
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
-  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }, { "type": "text", "name": "country" }] },
+  "definition": { "items": [{ "type": "text", "name": "email" }, { "type": "text", "name": "country" }] },
   "presentation": { "engine": "core-html", "items": [{ "name": "email", "items": [{ "name": "country" }, { "widget": "confirm" }] }] }
 }
 
@@ -167,7 +166,6 @@ Content-Type: application/json
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition": {
-    "id": "contact",
     "items": [
       { "type": "text", "name": "email", "required": true },
       { "type": "text", "name": "phone" }
@@ -193,7 +191,6 @@ Content-Type: application/json
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition": {
-    "id": "contact",
     "items": [
       { "type": "text", "name": "email", "required": true },
       { "type": "text", "name": "campaign" }
@@ -222,7 +219,7 @@ Content-Type: application/json
 
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
-  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
+  "definition": { "items": [{ "type": "text", "name": "email" }] },
   "presentation": { "engine": "core-html", "items": [{ "name": "email", "widget": "text" }] }
 }
 
@@ -240,7 +237,7 @@ Content-Type: application/json
 
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
-  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
+  "definition": { "items": [{ "type": "text", "name": "email" }] },
   "presentation": {
     "engine": "core-html",
     "defaultLocale": "en",
@@ -263,7 +260,7 @@ Content-Type: application/json
 
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
-  "definition": { "id": "contact", "items": [{ "type": "text", "name": "email" }] },
+  "definition": { "items": [{ "type": "text", "name": "email" }] },
   "presentation": {
     "engine": "someones-vue-kit",
     "items": [{ "widget": "accordion", "items": [{ "name": "email", "widget": "fancy-editor" }] }, { "widget": "confirm" }]

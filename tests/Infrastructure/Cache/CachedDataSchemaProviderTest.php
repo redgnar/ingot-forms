@@ -32,7 +32,7 @@ use Symfony\Component\Uid\Uuid;
  */
 final class CachedDataSchemaProviderTest extends TestCase
 {
-    private const string DEFINITION = '{"id":"contact","items":[{"type":"text","name":"email","required":true},{"type":"checkbox","name":"terms","mustBeChecked":true}]}';
+    private const string DEFINITION = '{"items":[{"type":"text","name":"email","required":true},{"type":"checkbox","name":"terms","mustBeChecked":true}]}';
 
     private InMemoryForms $forms;
     private ArrayAdapter $pool;

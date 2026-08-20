@@ -36,7 +36,9 @@ final class DataSchemaDeriver
 
         $document = [
             '$schema' => 'https://json-schema.org/draft/2020-12/schema',
-            'title' => \sprintf('Values of form "%s"', $definition->id),
+            // Which form's values these are is the endpoint's business, not the
+            // document's: it is served per form and cached per form.
+            'title' => \sprintf('Form values (%s contract)', $mode->value),
             'type' => 'object',
             'properties' => $properties === [] ? new \stdClass() : $properties,
             'additionalProperties' => false,

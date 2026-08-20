@@ -17,7 +17,7 @@ final class IntegerFieldValuesTest extends FieldValuesTestCase
      */
     protected static function document(): array
     {
-        return ['id' => 'contact', 'items' => [
+        return ['items' => [
             ['type' => 'number', 'name' => 'people', 'required' => true, 'min' => 1, 'max' => 10, 'decimals' => 0],
         ]];
     }

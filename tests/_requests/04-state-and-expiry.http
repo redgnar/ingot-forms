@@ -32,8 +32,7 @@ Content-Type: application/json
 {
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition": {
-    "id": "contact",
-      "items": [{ "type": "text", "name": "email", "required": true }]
+    "items": [{ "type": "text", "name": "email", "required": true }]
   }
 }
 
@@ -87,7 +86,6 @@ Content-Type: application/json
 {
   "expireDate": "{{expiresSoon}}",
   "definition": {
-    "id": "fleeting",
     "items": [{ "type": "text", "name": "email" }]
   }
 }

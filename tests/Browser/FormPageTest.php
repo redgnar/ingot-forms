@@ -200,7 +200,6 @@ final class FormPageTest extends PantherTestCase
             'json' => [
                 'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
                 'definition' => [
-                    'id' => 'contact',
                     'items' => [
                         ['type' => 'text', 'name' => 'email', 'required' => true, 'maxLength' => 120],
                         ['type' => 'number', 'name' => 'age', 'required' => true, 'min' => 18, 'max' => 120, 'decimals' => 0],

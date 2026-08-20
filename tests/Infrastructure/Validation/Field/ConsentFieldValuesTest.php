@@ -19,7 +19,7 @@ final class ConsentFieldValuesTest extends FieldValuesTestCase
      */
     protected static function document(): array
     {
-        return ['id' => 'contact', 'items' => [
+        return ['items' => [
             ['type' => 'checkbox', 'name' => 'terms', 'required' => true, 'mustBeChecked' => true],
         ]];
     }

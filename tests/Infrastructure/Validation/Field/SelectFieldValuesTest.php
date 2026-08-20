@@ -17,7 +17,7 @@ final class SelectFieldValuesTest extends FieldValuesTestCase
      */
     protected static function document(): array
     {
-        return ['id' => 'contact', 'items' => [
+        return ['items' => [
             ['type' => 'select', 'name' => 'country', 'required' => true, 'options' => ['pl', 'de', 'fr']],
         ]];
     }

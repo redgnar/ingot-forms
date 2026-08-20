@@ -93,7 +93,7 @@ final class SymfonyFormValuesTest extends KernelTestCase
     public function testUnknownFieldTypesTakeTheirValueAsItComes(): void
     {
         // GIVEN a definition carrying a plugin field
-        $definition = new FormDefinition('sign', [
+        $definition = new FormDefinition([
             new TextField('email', required: true),
             new GenericField('signature', 'sig'),
         ]);
@@ -114,7 +114,7 @@ final class SymfonyFormValuesTest extends KernelTestCase
 
     private static function definition(): FormDefinition
     {
-        return new FormDefinition('contact', [
+        return new FormDefinition([
             new TextField('email', required: true, maxLength: 120),
             new SelectField('country', ['pl', 'de', 'fr'], required: true),
             new NumberField('age', min: 18, max: 120),

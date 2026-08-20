@@ -239,7 +239,6 @@ final class BootstrapFormPageTest extends PantherTestCase
             'json' => [
                 'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
                 'definition' => [
-                    'id' => 'onboarding',
                     'items' => [
                         ['type' => 'text', 'name' => 'email', 'required' => true, 'maxLength' => 120],
                         ['type' => 'text', 'name' => 'nickname', 'maxLength' => 40],

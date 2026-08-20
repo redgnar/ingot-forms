@@ -28,7 +28,6 @@ final class ViewFormActionTest extends WebTestCase
 {
     /** @var array<string, mixed> */
     private const array DEFINITION = [
-        'id' => 'contact',
         'items' => [
             ['type' => 'text', 'name' => 'email', 'required' => true],
             ['type' => 'select', 'name' => 'country', 'options' => ['pl', 'de']],

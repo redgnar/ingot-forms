@@ -22,7 +22,9 @@ aggregate's own `saveDraft()` judges it under the same lenient contract, the ins
 with the rest of the row, and a form that would refuse those values later is never created
 holding them. Definition
 change = delete + recreate. Expired forms answer 410 everywhere; `app:forms:purge-expired`
-deletes them physically. No templates, no versioning, no multi-submission, no file uploads —
+deletes them physically. No templates, no versioning, no multi-submission, no file uploads, and no name
+or id on the definition (it belongs to one form, which has a UUID of its own; nothing groups
+or looks definitions up, so a second name would only be a label that can drift) —
 deliberately.
 
 **Why no file item.** Values are one JSON document stored byte for byte in one column, so a

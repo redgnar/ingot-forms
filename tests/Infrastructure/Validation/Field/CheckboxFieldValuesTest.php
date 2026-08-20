@@ -17,7 +17,7 @@ final class CheckboxFieldValuesTest extends FieldValuesTestCase
      */
     protected static function document(): array
     {
-        return ['id' => 'contact', 'items' => [
+        return ['items' => [
             ['type' => 'checkbox', 'name' => 'newsletter', 'required' => true],
         ]];
     }

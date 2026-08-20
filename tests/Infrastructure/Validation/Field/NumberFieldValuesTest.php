@@ -18,7 +18,7 @@ final class NumberFieldValuesTest extends FieldValuesTestCase
      */
     protected static function document(): array
     {
-        return ['id' => 'contact', 'items' => [
+        return ['items' => [
             ['type' => 'number', 'name' => 'age', 'required' => true, 'min' => 18, 'max' => 120],
         ]];
     }

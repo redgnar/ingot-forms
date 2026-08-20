@@ -25,7 +25,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class SaveFormDataTest extends TestCase
 {
-    private const string DEFINITION = '{"id":"contact","items":[{"type":"text","name":"email"}]}';
+    private const string DEFINITION = '{"items":[{"type":"text","name":"email"}]}';
 
     public function testStoresTheDraftUnderTheRowLock(): void
     {

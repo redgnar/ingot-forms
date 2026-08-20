@@ -15,7 +15,6 @@ final class FormDefinitionProcessorTest extends TestCase
 {
     /** @var array<string, mixed> Documents arrive decoded — the caller owns the wire format. */
     private const array DEFINITION = [
-        'id' => 'contact',
         'items' => [
             ['type' => 'text', 'name' => 'email', 'required' => true, 'maxLength' => 120],
             ['type' => 'select', 'name' => 'country', 'options' => ['pl', 'de', 'fr'], 'required' => true],
@@ -33,7 +32,6 @@ final class FormDefinitionProcessorTest extends TestCase
         $definition = $processor->parse(self::DEFINITION);
 
         // THEN
-        self::assertSame('contact', $definition->id);
         self::assertCount(4, $definition->items);
         self::assertInstanceOf(TextField::class, $definition->items[0]);
         self::assertSame(120, $definition->items[0]->maxLength);
@@ -48,7 +46,6 @@ final class FormDefinitionProcessorTest extends TestCase
         // GIVEN a structurally valid definition breaking a semantic rule
         $processor = self::processor();
         $document = [
-            'id' => 'dup',
             'items' => [
                 ['type' => 'text', 'name' => 'email'],
                 ['type' => 'text', 'name' => 'email'],
@@ -70,12 +67,12 @@ final class FormDefinitionProcessorTest extends TestCase
 
     public function testRejectsDefinitionViolatingTheMetaSchema(): void
     {
-        // GIVEN a definition with no fields at all
+        // GIVEN a definition with no items at all
         $processor = self::processor();
 
         // WHEN
         try {
-            $processor->parse(['id' => 'x']);
+            $processor->parse([]);
             self::fail('Expected DefinitionNotValid.');
         } catch (DefinitionNotValid $exception) {
             // THEN
@@ -109,8 +106,8 @@ final class FormDefinitionProcessorTest extends TestCase
         $definition = $processor->fromStored($stored);
 
         // THEN
-        self::assertSame('contact', $definition->id);
         self::assertCount(4, $definition->items);
+        self::assertSame('email', $definition->items[0]->name);
     }
 
     private static function processor(): FormDefinitionProcessor

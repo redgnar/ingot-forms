@@ -107,7 +107,7 @@ final class DerivedSchemaValuesTest extends KernelTestCase
 
     private static function definition(): FormDefinition
     {
-        return new FormDefinition('contact', [
+        return new FormDefinition([
             new TextField('email', required: true, maxLength: 120),
             new SelectField('country', ['pl', 'de', 'fr'], required: true),
             new NumberField('age', min: 18, max: 120),

@@ -27,7 +27,6 @@ final class CreateFormTest extends TestCase
 {
     /** @var array<string, mixed> */
     private const array DEFINITION = [
-        'id' => 'contact',
         'items' => [
             ['type' => 'text', 'name' => 'email', 'required' => true],
             ['type' => 'number', 'name' => 'age', 'min' => 18],
