@@ -179,7 +179,7 @@ function refreshCells(entry) {
         }
 
         if (control.type === 'checkbox') {
-            const list = cell.closest('[data-collection]');
+            const list = listOf(cell);
             cell.textContent = control.checked ? list.dataset.ticked : list.dataset.unticked;
             continue;
         }
@@ -193,26 +193,34 @@ function refreshCells(entry) {
     }
 }
 
+// Which list something belongs to — its own, never one nested inside it.
+function listOf(element) {
+    return element?.closest('[data-collection]') ?? null;
+}
+
+function ownPart(list, selector) {
+    return [...list.querySelectorAll(selector)].find((found) => listOf(found) === list) ?? null;
+}
+
 function guard(list) {
     const count = entriesOf(list).length;
     const min = list.dataset.min === undefined ? 0 : Number(list.dataset.min);
     const max = list.dataset.max === undefined ? Infinity : Number(list.dataset.max);
 
     for (const button of list.querySelectorAll('[data-action="add-entry"]')) {
-        if (button.closest('template') === null) button.disabled = count >= max;
+        if (listOf(button) === list && button.closest('template') === null) button.disabled = count >= max;
     }
 
-    for (const entry of entriesOf(list)) {
-        for (const button of entry.querySelectorAll('[data-action="remove-entry"]')) {
-            button.disabled = count <= min;
-        }
+    for (const button of list.querySelectorAll('[data-action="remove-entry"]')) {
+        if (listOf(button) === list && button.closest('template') === null) button.disabled = count <= min;
     }
 }
 
 // A blank entry has no place in the list, so the server left a token where an
 // entry's own scope would be. Replacing it is what makes a cloned entry its own:
 // an id names one thing, and radios sharing a name are one group — two entries
-// with the same group would unpick each other.
+// with the same group would unpick each other. A list inside the entry keeps its
+// own token for later, because only the first one is replaced here.
 function claim(entry, pending, mine) {
     for (const element of entry.querySelectorAll('[id], [for], [name]')) {
         for (const attribute of ['id', 'for', 'name']) {
@@ -225,40 +233,55 @@ function claim(entry, pending, mine) {
     }
 }
 
-for (const list of document.querySelectorAll('[data-collection]')) {
-    const table = list.querySelector('table');
-    const blank = list.querySelector('template[data-blank]');
-    let claimed = 0;
+// Delegated from the form, not bound per list: a list can arrive with a cloned
+// entry — a list inside a list is drawn the same way — and anything bound at
+// load would not know about it.
+let claimed = 0;
 
-    list.addEventListener('click', (event) => {
-        const trigger = event.target.closest('[data-action]');
-        if (!trigger || trigger.closest('[data-collection]') !== list) return;
+document.getElementById('form').addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-action]');
+    const list = listOf(trigger);
 
-        if (trigger.dataset.action === 'add-entry' && blank) {
-            event.preventDefault();
+    if (trigger === null || list === null) return;
+
+    if (trigger.dataset.action === 'add-entry') {
+        event.preventDefault();
+        const blank = ownPart(list, 'template[data-blank]');
+
+        if (blank !== null) {
             const added = blank.content.cloneNode(true);
             claim(added, list.dataset.pending, `n${++claimed}`);
             // A new entry has nothing in its row yet, so the only thing to do
             // with it is answer it: it arrives unfolded.
             for (const form of added.querySelectorAll('details')) form.open = true;
-            table.append(added);
+
+            const foot = ownPart(list, '[data-entries-foot]');
+            // Before the footer: a table's footer comes after its bodies.
+            if (foot === null) {
+                ownPart(list, 'table')?.append(added);
+            } else {
+                foot.before(added);
+            }
+
+            for (const nested of added.querySelectorAll?.('[data-collection]') ?? []) guard(nested);
         }
+    }
 
-        if (trigger.dataset.action === 'remove-entry') {
-            event.preventDefault();
-            trigger.closest('[data-entry]').remove();
-        }
-
-        guard(list);
-    });
-
-    list.addEventListener('input', (event) => {
-        const entry = event.target.closest('[data-entry]');
-        if (entry && entry.closest('[data-collection]') === list) refreshCells(entry);
-    });
+    if (trigger.dataset.action === 'remove-entry') {
+        event.preventDefault();
+        trigger.closest('[data-entry]').remove();
+    }
 
     guard(list);
-}
+});
+
+document.getElementById('form').addEventListener('input', (event) => {
+    const entry = event.target.closest('[data-entry]');
+
+    if (entry !== null) refreshCells(entry);
+});
+
+for (const list of document.querySelectorAll('[data-collection]')) guard(list);
 
 for (const trigger of document.querySelectorAll('[data-action="confirm"]')) {
     trigger.addEventListener('click', async (event) => {

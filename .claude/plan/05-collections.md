@@ -250,6 +250,27 @@ The plan held. What moved, and why:
   code: refusing a value from the page needs one nothing can clamp, so the case uses a count
   below its minimum.
 
+## Decision 5 was lifted right afterwards
+
+The owner asked for a list inside an entry to be drawable after all, having first checked it did
+not mean a list inside a *column* — which it does not, and which stays refused: a column previews
+a value as text.
+
+It cost less than the plan feared, because the parts that had to be recursive already were: the
+resolver builds an entry's form by the same code that builds the whole form, so a list in it is
+just another list node; scopes concatenate (`lines-0-parts-1`), and a blank entry's token is
+replaced one level at a time (`lines-NEW-parts-NEW` → `lines-n1-parts-NEW`), which is exactly
+what claiming an outer entry should leave behind. What actually changed:
+
+- the two rules that refused it are gone — a list inside an entry is now owed a place like any
+  other item of that entry, and the completeness rule has no exceptions left;
+- the plain kit's module stopped binding per list and started delegating from the form, because
+  a list can now arrive inside a cloned entry (Stimulus needed nothing: it connects controllers
+  on added markup by itself);
+- "one more entry" moved into the table's own footer. The owner saw it sitting next to "save for
+  later" and read the two as one row of buttons, which is exactly the confusion a page should not
+  invite: asking for another entry is the list's doing, finishing the form is not.
+
 ## Non-goals
 
 No row ids, no reordering, no per-row endpoints — the page still sends the whole values document,

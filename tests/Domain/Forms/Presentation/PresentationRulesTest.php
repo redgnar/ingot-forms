@@ -401,32 +401,36 @@ final class PresentationRulesTest extends TestCase
 
     public function testAListIsShownAsAListHoldingTheFormForOneEntry(): void
     {
-        // GIVEN a collection drawn as a table, previewing two of its items and
-        // holding the form one entry is answered in
+        // GIVEN a list drawn as a table, previewing two of its items and holding
+        // the form one entry is answered in — the list nested in that entry
+        // drawn the same way, one level further in
         $report = self::rules()->check(self::withList(), self::listPresentation([
             'widget' => 'table',
             'columns' => ['sku', 'quantity'],
-            'items' => [['name' => 'sku'], ['name' => 'quantity'], ['name' => 'parts']],
+            'items' => [
+                ['name' => 'sku'],
+                ['name' => 'quantity'],
+                ['name' => 'parts', 'widget' => 'table', 'columns' => ['code'], 'items' => [['name' => 'code']]],
+            ],
         ]));
 
-        // WHEN / THEN — except the nested list, which no kit draws and which is
-        // therefore not owed a place
-        self::assertCount(1, $report->errors);
-        self::assertSame('presentation.item.not-drawable', $report->errors[0]->code);
-        self::assertSame('/items/0/items/2/name', $report->errors[0]->pointer->toString());
-        self::assertSame('parts', $report->errors[0]->input);
+        // WHEN / THEN nothing to say: a list inside an entry is a list, judged
+        // by the same rules in a scope of its own
+        self::assertTrue($report->isEmpty());
     }
 
-    public function testAnEntryNeedNotShowAListInsideIt(): void
+    public function testAnEntryHasToShowTheListInsideItToo(): void
     {
         // GIVEN an entry form leaving out the list nested in it
         $report = self::rules()->check(self::withList(), self::listPresentation([
             'items' => [['name' => 'sku'], ['name' => 'quantity']],
         ]));
 
-        // WHEN / THEN accepted: nothing here can draw it, so nothing is owed —
-        // the cost being that those entries are filled in through the API only
-        self::assertTrue($report->isEmpty());
+        // WHEN / THEN it is owed a place like any other item of that entry: a
+        // question nobody can see is a question nobody can answer
+        self::assertSame('presentation.item.missing', $report->errors[0]->code);
+        self::assertSame('/items/0/items', $report->errors[0]->pointer->toString());
+        self::assertSame('parts', $report->errors[0]->input);
     }
 
     public function testAListShownWithoutSayingHowAnEntryLooksIsRefused(): void
@@ -442,37 +446,40 @@ final class PresentationRulesTest extends TestCase
 
     public function testAnEntryHasToShowWhatItsListAsksFor(): void
     {
-        // GIVEN an entry form leaving out one of the items an entry answers
+        // GIVEN an entry form showing one of the three items an entry answers
         $report = self::rules()->check(self::withList(), self::listPresentation(['items' => [['name' => 'sku']]]));
 
         // WHEN / THEN the completeness rule holds inside an entry exactly as it
-        // holds outside, and points at the scope that left something out
-        self::assertSame('presentation.item.missing', $report->errors[0]->code);
+        // holds outside: both are named, at the scope that left them out
+        self::assertSame(
+            ['presentation.item.missing', 'presentation.item.missing'],
+            array_map(static fn($error): string => $error->code, $report->errors),
+        );
+        self::assertSame(['parts', 'quantity'], array_map(static fn($error): mixed => $error->input, $report->errors));
         self::assertSame('/items/0/items', $report->errors[0]->pointer->toString());
-        self::assertSame('quantity', $report->errors[0]->input);
     }
 
     public function testAnEntryCannotShowSomethingItsListNeverAsks(): void
     {
         // GIVEN an entry form showing an item of the form around it
+        $entry = self::wholeList()['items'];
+        self::assertIsArray($entry);
+
         $report = self::rules()->check(self::withList(), self::listPresentation([
-            'items' => [['name' => 'sku'], ['name' => 'quantity'], ['name' => 'email']],
+            'items' => [...$entry, ['name' => 'email']],
         ]));
 
         // WHEN / THEN names are resolved in the scope they sit in: an entry
         // knows nothing of the form's own items
         self::assertSame('presentation.item.unknown', $report->errors[0]->code);
-        self::assertSame('/items/0/items/2/name', $report->errors[0]->pointer->toString());
+        self::assertSame('/items/0/items/3/name', $report->errors[0]->pointer->toString());
         self::assertSame('email', $report->errors[0]->input);
     }
 
     public function testAListDrawnAsSomethingThatIsNotAListIsRefused(): void
     {
         // GIVEN a list asked for as a text box
-        $report = self::rules()->check(self::withList(), self::listPresentation([
-            'widget' => 'text',
-            'items' => [['name' => 'sku'], ['name' => 'quantity']],
-        ]));
+        $report = self::rules()->check(self::withList(), self::listPresentation(['widget' => 'text']));
 
         // WHEN / THEN the usual mismatch, naming the kind of item and the kit
         self::assertSame('presentation.widget.mismatch', $report->errors[0]->code);
@@ -482,10 +489,7 @@ final class PresentationRulesTest extends TestCase
     public function testAColumnHasToBeSomethingAnEntryAnswers(): void
     {
         // GIVEN a preview naming something no entry has
-        $report = self::rules()->check(self::withList(), self::listPresentation([
-            'columns' => ['sku', 'colour'],
-            'items' => [['name' => 'sku'], ['name' => 'quantity']],
-        ]));
+        $report = self::rules()->check(self::withList(), self::listPresentation(['columns' => ['sku', 'colour']]));
 
         // WHEN / THEN
         self::assertSame('presentation.column.unknown', $report->errors[0]->code);
@@ -496,10 +500,7 @@ final class PresentationRulesTest extends TestCase
     public function testAColumnCannotBeAListOfItsOwn(): void
     {
         // GIVEN a preview trying to put a list in a cell
-        $report = self::rules()->check(self::withList(), self::listPresentation([
-            'columns' => ['parts'],
-            'items' => [['name' => 'sku'], ['name' => 'quantity']],
-        ]));
+        $report = self::rules()->check(self::withList(), self::listPresentation(['columns' => ['parts']]));
 
         // WHEN / THEN a table inside a cell is not something any kit here draws
         self::assertSame('presentation.item.not-drawable', $report->errors[0]->code);
@@ -559,31 +560,49 @@ final class PresentationRulesTest extends TestCase
     }
 
     /**
+     * A presentation showing the whole form: the list, the form for one of its
+     * entries, and the list nested in that entry with a form of its own. What a
+     * test is about is passed in and replaces its part.
+     *
      * @param array<string, mixed> $list what the presentation says about the list
      */
-    private static function listPresentation(array $list): \App\Domain\Forms\Presentation\PresentationDocument
+    private static function listPresentation(array $list = []): \App\Domain\Forms\Presentation\PresentationDocument
     {
         return new PresentationProcessor(new FormMapperFactory()->create())->parse([
             'engine' => 'core-html',
             'items' => [
-                array_filter([...['name' => 'lines'], ...$list], static fn(mixed $value): bool => $value !== []),
+                array_filter([...self::wholeList(), ...$list], static fn(mixed $value): bool => $value !== []),
                 ['name' => 'email'],
                 ['widget' => 'confirm'],
             ],
         ]);
     }
 
-    public function testEverythingLeftOutIsNamedEvenPastAListNobodyDraws(): void
+    /**
+     * @return array<string, mixed>
+     */
+    private static function wholeList(): array
     {
-        // GIVEN an entry form showing one of the three items an entry answers,
-        // where the one it may skip is declared before the one it may not
-        $report = self::rules()->check(self::withList(), self::listPresentation(['items' => [['name' => 'sku']]]));
+        return [
+            'name' => 'lines',
+            'items' => [
+                ['name' => 'sku'],
+                ['name' => 'parts', 'items' => [['name' => 'code']]],
+                ['name' => 'quantity'],
+            ],
+        ];
+    }
 
-        // WHEN / THEN the list nested inside is passed over and `quantity` is
-        // still missed: a skip is a skip, not a place to stop looking
-        self::assertCount(1, $report->errors);
-        self::assertSame('presentation.item.missing', $report->errors[0]->code);
-        self::assertSame('quantity', $report->errors[0]->input);
+    public function testEverythingLeftOutIsNamedWhicheverOrderItWasDeclaredIn(): void
+    {
+        // GIVEN an entry form showing only the list nested in it
+        $report = self::rules()->check(self::withList(), self::listPresentation([
+            'items' => [['name' => 'parts', 'items' => [['name' => 'code']]]],
+        ]));
+
+        // WHEN / THEN both plain items are missed, in the order the entry
+        // declares them — a nested list is not a place to stop looking
+        self::assertSame(['sku', 'quantity'], array_map(static fn($error): mixed => $error->input, $report->errors));
     }
 
     public function testAValueHoldingItemsDoesNotStopWhatComesAfterItFromBeingJudged(): void
@@ -610,10 +629,7 @@ final class PresentationRulesTest extends TestCase
     public function testEveryColumnThatNamesNothingIsNamed(): void
     {
         // GIVEN a preview naming two things no entry has
-        $report = self::rules()->check(self::withList(), self::listPresentation([
-            'columns' => ['colour', 'shape'],
-            'items' => [['name' => 'sku'], ['name' => 'quantity']],
-        ]));
+        $report = self::rules()->check(self::withList(), self::listPresentation(['columns' => ['colour', 'shape']]));
 
         // WHEN / THEN both, each at its own position — a client fixes them in
         // one pass
@@ -640,10 +656,11 @@ final class PresentationRulesTest extends TestCase
         // WHEN
         $report = self::rules()->check(self::withList(), $presentation);
 
-        // THEN both, in reading order: walking into a list is not a reason to
-        // forget what came before it
+        // THEN each of them, in reading order: walking into a list is not a
+        // reason to forget what came before it, nor to stop noticing that the
+        // form around it left something out
         self::assertSame(
-            ['presentation.item.unknown', 'presentation.column.unknown'],
+            ['presentation.item.unknown', 'presentation.column.unknown', 'presentation.item.missing'],
             array_map(static fn($error): string => $error->code, $report->errors),
         );
     }

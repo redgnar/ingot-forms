@@ -10,7 +10,7 @@ import { Controller } from '@hotwired/stimulus';
  * obvious, which is what `min` and `max` are for.
  */
 export default class extends Controller {
-    static targets = ['table', 'blank', 'add', 'remove'];
+    static targets = ['table', 'blank', 'add', 'remove', 'foot'];
     static values = {
         min: { type: Number, default: 0 },
         max: { type: Number, default: Number.MAX_SAFE_INTEGER },
@@ -35,7 +35,13 @@ export default class extends Controller {
         // it is answer it: it arrives unfolded.
         for (const form of added.querySelectorAll('details')) form.open = true;
 
-        this.tableTarget.append(added);
+        // Before the footer: a table's footer comes after its bodies.
+        if (this.hasFootTarget) {
+            this.footTarget.before(added);
+        } else {
+            this.tableTarget.append(added);
+        }
+
         this.#guard();
     }
 

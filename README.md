@@ -69,7 +69,8 @@ Four of those say something worth spelling out:
   satisfy it while answering nothing. `max` holds in both contracts, like every rule about a
   value; `min` waits for confirmation, like `required` itself, and a collection owing entries
   is required of the values document, since an absent member has none of them. A collection may
-  hold a collection — no kit draws that yet, so those entries are filled in through the API.
+  hold a collection, and both kits draw that: a list inside the form of an entry, with its own
+  add, its own remove and its own counts.
 - **`mustBeChecked` is not `required`.** For a box, `false` is an answer, so `required` means
   "decide"; a consent means "agree", and that is published as `const: true` — **in the strict
   contract only**. Having to agree is something finishing the form requires, like `required`
@@ -122,12 +123,15 @@ Say nothing and every item of the entry is previewed.
 Everything a presentation is judged by is judged **per scope**, then: a name exists here, is
 shown once here, and everything here is shown. So an entry may present `sku` even where the
 form around it also presents `sku`, and a trigger inside an entry is refused — saving and
-confirming are what a *form* does. A list inside an entry is the one thing no kit here draws,
-so it may not be shown and is not owed a place; what it holds is filled in through the API.
+confirming are what a *form* does. A list inside an entry is drawn exactly like a list outside
+one, as deep as the definition goes; the only thing a list may not be is a **column**, because a
+column previews a value as text.
 
 Both kits draw a list as a `table`: the answers so far as rows, each with the form it is
-answered in folded underneath, one blank form kept aside for adding another, and `min`/`max`
-carried into the page so it can grey out its own buttons — the server still being what decides.
+answered in folded underneath, one blank form kept aside for adding another, `min`/`max` carried
+into the page so it can grey out its own buttons — the server still being what decides — and
+"one more entry" living in the table's own footer, because it is the list's doing and not the
+form's.
 
 **A choice can be shown in words.** The definition settles that a value must be one of
 `["pl","de","fr"]`; the presentation settles that `pl` reads *Polska*, with `choices` mapping
@@ -365,7 +369,11 @@ wire, `data-error` marks where a refusal about it goes, and for a list **structu
 identity** — `data-collection` marks the list, `data-entry` marks one entry, `data-cell` marks a
 previewed value. Values are collected scope by scope in the order the entries appear, so adding
 or removing one renumbers nothing, and a pointer like `/lines/1/quantity` is resolved by walking
-that same structure back down.
+that same structure back down. What *is* scoped by name is an id and a radio group: the same form
+is drawn once per entry, so both carry the entry they belong to (`item-lines-1-sku`,
+`unit--lines-1`) — without that, a label would point at another entry's control and radios of
+different entries would be one group, unpicking each other. A blank entry carries a token instead
+of a scope, and a page replaces it when it clones one.
 
 ## Architecture
 

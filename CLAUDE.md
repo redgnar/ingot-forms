@@ -19,8 +19,8 @@ A form is a **single fillable document**: one immutable definition + one data se
 value is an array of objects and an entry is a document answering them. It counts rather than
 requires (`min`/`max`; `required` on a collection is refused, because an empty list would satisfy
 it while answering nothing), `max` holds in both contracts and `min` only in strict, and a
-collection owing entries is required of the values document. A collection may hold a collection;
-no kit draws that, so those entries are API-only. Lifecycle: empty → draft (`PUT …/data`, repeatable, lenient validation without
+collection owing entries is required of the values document. A collection may hold a collection, and both kits
+draw that — a list inside the form of an entry, as deep as the definition goes. Lifecycle: empty → draft (`PUT …/data`, repeatable, lenient validation without
 `required`) → confirmed (`POST …/confirm`, strict validation, locked forever). A form can be
 **born a draft**: `data` in the creation request is its first draft, not a third document — the
 aggregate's own `saveDraft()` judges it under the same lenient contract, the insert writes it
@@ -134,10 +134,13 @@ Rules that follow from it, and that the tooling checks:
   (`data-collection`, `data-entry`, `data-cell`): values are collected scope by scope in the
   order entries appear, so adding or removing one renumbers nothing, and a pointer is resolved
   by walking that same structure down. A blank entry is markup the server rendered, waiting in
-  a `<template>` — a kit never builds markup in JavaScript. Inside an entry a label wraps its
-  control instead of pointing at an `id`, because the same form is drawn once per entry and an
-  id can only belong to one of them. What is never shared is the machinery: adding a control to
-  a kit never means touching the other one. A widget a kit adds must be a different way of **asking**,
+  a `<template>` — a kit never builds markup in JavaScript — and it carries
+  `PresentedNodes::PENDING` where an entry's scope would be, which a page replaces when it
+  clones one. **An id and a radio group are scoped by entry** (`item-lines-1-sku`,
+  `unit--lines-1`): the same form is drawn once per entry, so without that a label points at
+  another entry's control and radios of different entries become one group. Behaviour is
+  delegated rather than bound per list, because a list can arrive inside a cloned entry. What is
+  never shared is the machinery: adding a control to a kit never means touching the other one. A widget a kit adds must be a different way of **asking**,
   never a second name for a control the other kit already draws — and never a restyling of one
   (a floating label was tried and removed: it moved the same question's text, and it could not
   be applied to a choice group or a slider, so every page mixing them was labelled two ways).

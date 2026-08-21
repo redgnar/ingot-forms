@@ -135,13 +135,24 @@
             {% for entry in node.entries %}
                 {{ _self.entry(node, entry, readOnly) }}
             {% endfor %}
+            {% if not readOnly %}
+                {# Inside the table, because asking for one more entry is
+                   something this list does — the form's own triggers are
+                   somewhere else entirely. #}
+                <tfoot data-entries-target="foot">
+                    <tr>
+                        <td colspan="{{ node.columns|length + 1 }}" class="border-0">
+                            <button type="button" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2"
+                                    data-action="click->entries#add" data-entries-target="add">
+                                {{ ux_icon('tabler:plus', {class: 'icon'}) }}{{ 'page.entry.add'|trans }}
+                            </button>
+                        </td>
+                    </tr>
+                </tfoot>
+            {% endif %}
         </table>
 
         {% if not readOnly %}
-            <button type="button" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2"
-                    data-action="click->entries#add" data-entries-target="add">
-                {{ ux_icon('tabler:plus', {class: 'icon'}) }}{{ 'page.entry.add'|trans }}
-            </button>
             {# The same form once more, holding nothing: what gets cloned. #}
             <template data-entries-target="blank">
                 {{ _self.entry(node, {'nodes': node.blank, 'cells': node.columns|map(column => {'name': column.name, 'text': null, 'ticked': null})}, false) }}

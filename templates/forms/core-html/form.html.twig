@@ -21,11 +21,15 @@
         button, .action-link { font: inherit; }
         .action-link { background: none; border: 0; color: #0645ad; cursor: pointer; padding: 0; text-decoration: underline; }
         .notice { background: #eef; border-radius: .25rem; margin-bottom: 1.5rem; padding: .75rem 1rem; }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border-bottom: 1px solid #ddd; padding: .375rem .5rem; text-align: left; }
-        .entries { margin-bottom: 1.5rem; }
-        .entry-form { padding: .5rem 0 1rem; }
-        .entry-form summary { cursor: pointer; font-size: .875rem; }
+        table { background: #fff; border: 1px solid #ddd; border-collapse: collapse; width: 100%; }
+        th, td { border-bottom: 1px solid #ddd; padding: .375rem .5rem; text-align: left; vertical-align: top; }
+        tfoot td { border-bottom: 0; }
+        /* Depth, so a list inside a list is obvious without counting frames. */
+        .entries { background: #fafafa; }
+        .entries .entries { background: #f1f1f1; }
+        .entries .entries .entries { background: #e8e8e8; }
+        .entry-form { border-left: 3px solid #ddd; margin: .25rem 0 .5rem; padding: .25rem 0 .5rem .75rem; }
+        .entry-form summary { cursor: pointer; font-size: .875rem; margin-left: -.75rem; }
         .flash { background: #e8f5e9; border-radius: .25rem; color: #1b5e20; margin-bottom: 1.5rem; padding: .75rem 1rem; }
     </style>
 </head>
@@ -87,11 +91,15 @@
    another. The counts are on the wrapper so the page can grey out its own
    buttons — the server is still what decides. #}
 {% macro entries(node, readOnly) %}
-    <div class="entries" data-collection="{{ node.name }}" data-pending="{{ node.pending }}"
+    {# A fieldset, because that is what this is: a group of controls with a name.
+       The browser draws the frame and cuts the name into it, which is what makes
+       a list inside a list readable at a glance — a plain box leaves somebody
+       counting indentation to work out where the inner one ends. #}
+    <fieldset class="entries" data-collection="{{ node.name }}" data-pending="{{ node.pending }}"
          data-ticked="{{ 'page.ticked'|trans }}" data-unticked="{{ 'page.unticked'|trans }}"
          {%- if node.min is not null %} data-min="{{ node.min }}"{% endif %}
          {%- if node.max is not null %} data-max="{{ node.max }}"{% endif %}>
-        <label>{{ node.label }}</label>
+        <legend>{{ node.label }}</legend>
         {% if node.hint %}<p class="hint">{{ node.hint }}</p>{% endif %}
 
         <table>
@@ -104,15 +112,30 @@
             {% for entry in node.entries %}
                 {{ _self.entry(node, entry, readOnly) }}
             {% endfor %}
+            {% if not readOnly %}
+                {# Inside the table, because asking for one more entry is
+                   something this list does — the form's own triggers are
+                   somewhere else entirely, and reading them as one row of
+                   buttons is a mistake a page should not invite. #}
+                <tfoot data-entries-foot>
+                    <tr>
+                        <td colspan="{{ node.columns|length + 1 }}">
+                            <button type="button" data-action="add-entry">{{ 'page.entry.add'|trans }}</button>
+                        </td>
+                    </tr>
+                </tfoot>
+            {% endif %}
         </table>
 
         {% if not readOnly %}
-            <button type="button" data-action="add-entry">{{ 'page.entry.add'|trans }}</button>
             {# The same form once more, holding nothing: what gets cloned. #}
             <template data-blank>
                 {{ _self.entry(node, {'nodes': node.blank, 'cells': node.columns|map(column => {'name': column.name, 'text': null, 'ticked': null})}, false) }}
             </template>
         {% endif %}
+
+        <p class="error" data-error="{{ node.name }}" hidden></p>
+    </fieldset>
 {% endmacro %}
 
 {# One entry: what it says in the list, and the form it is answered in. Both in

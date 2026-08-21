@@ -330,6 +330,45 @@ final class CoreHtmlRendererTest extends KernelTestCase
         ], $groups);
     }
 
+    public function testAnEntryCanHoldAListDrawnTheSameWay(): void
+    {
+        // GIVEN a form whose entries hold a list of their own
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::nestedForm(), 'en')));
+        $entry = $page->filter('[data-collection="lines"] table')->children('[data-entry]')->eq(0);
+        $nested = $entry->filter('[data-collection="parts"]');
+
+        // THEN it is a list like any other, one level in: its own table, its own
+        // entries, its own blank one waiting to be cloned
+        self::assertCount(1, $nested);
+        self::assertSame('3', $nested->attr('data-max'));
+        self::assertSame(
+            ['Code'],
+            $nested->filter('thead th[data-column]')->each(static fn(Crawler $th): string => trim($th->text())),
+        );
+        self::assertCount(2, $nested->filter('table')->children('[data-entry]'));
+        self::assertCount(1, $nested->filter('template[data-blank]'));
+
+        // AND every id says which entry of which list it belongs to, so nothing
+        // on the page shares one
+        self::assertSame(
+            'item-lines-0-parts-1-code',
+            $nested->filter('table')->children('[data-entry]')->eq(1)->filter('[data-name="code"]')->attr('id'),
+        );
+
+        $ids = $page->filter('[id]')->each(static fn(Crawler $node): ?string => $node->attr('id'));
+        self::assertSame($ids, array_values(array_unique($ids)));
+
+        // AND a blank entry of the outer list carries a blank one of the inner:
+        // claiming the outer replaces its token and leaves the inner's for when
+        // somebody asks for an entry in there too
+        // ...the outer list's own blank, not the one waiting inside an entry
+        $blank = new Crawler('<table>' . $page->filter('[data-collection="lines"]')->children('template[data-blank]')->html() . '</table>');
+        self::assertSame(
+            'item-lines-NEW-parts-NEW-code',
+            $blank->filter('[data-collection="parts"] [data-name="code"]')->first()->attr('id'),
+        );
+    }
+
     public function testAListKeepsOneBlankEntryAsideForAddingAnother(): void
     {
         // GIVEN / WHEN
@@ -378,6 +417,61 @@ final class CoreHtmlRendererTest extends KernelTestCase
             ['SKU', 'Quantity', 'Unit', 'Urgent'],
             $page->filter('thead th[data-column]')->each(static fn(Crawler $th): string => trim($th->text())),
         );
+    }
+
+    /**
+     * A form whose entries hold a list of their own.
+     */
+    private static function nestedForm(): Form
+    {
+        $definitions = new FormDefinitionProcessor(self::mapper());
+        $definition = $definitions->document($definitions->parse(['items' => [
+            ['type' => 'collection', 'name' => 'lines', 'min' => 1, 'max' => 2, 'items' => [
+                ['type' => 'text', 'name' => 'sku', 'required' => true],
+                ['type' => 'collection', 'name' => 'parts', 'max' => 3, 'items' => [
+                    ['type' => 'text', 'name' => 'code', 'required' => true],
+                ]],
+            ]],
+        ]]));
+
+        $presentations = new PresentationProcessor(self::mapper());
+        $form = new Form(
+            FormId::next(),
+            $definition,
+            ExpireDate::future(new \DateTimeImmutable('+1 day')),
+            $presentations->document($presentations->parse([
+                'engine' => 'core-html',
+                'defaultLocale' => 'en',
+                'items' => [
+                    ['name' => 'lines', 'widget' => 'table', 'label' => 'n.lines', 'columns' => ['sku'], 'items' => [
+                        ['name' => 'sku', 'widget' => 'text', 'label' => 'n.sku'],
+                        ['name' => 'parts', 'widget' => 'table', 'label' => 'n.parts', 'columns' => ['code'], 'items' => [
+                            ['name' => 'code', 'widget' => 'text', 'label' => 'n.code'],
+                        ]],
+                    ]],
+                    ['widget' => 'confirm', 'label' => 'n.send'],
+                ],
+                'translations' => ['en' => [
+                    'n.lines' => 'Lines',
+                    'n.sku' => 'SKU',
+                    'n.parts' => 'Parts',
+                    'n.code' => 'Code',
+                    'n.send' => 'Send',
+                ]],
+            ])),
+            new PresentationRules(new Engines([new CoreHtmlEngine()])),
+        );
+
+        $form->saveDraft(
+            json_decode(
+                '{"lines": [{"sku": "A-1", "parts": [{"code": "X1"}, {"code": "X2"}]}, {"sku": "B-2", "parts": []}]}',
+                false,
+                flags: \JSON_THROW_ON_ERROR,
+            ),
+            new StubValues(),
+        );
+
+        return $form;
     }
 
     /**

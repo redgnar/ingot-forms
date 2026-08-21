@@ -293,7 +293,151 @@ Content-Type: application/json
     });
 %}
 
-### A list inside an entry: allowed in the definition, drawn by nobody.
+### A list inside an entry, drawn: a table in the form of an entry.
+# @name createNestedListForm
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "text", "name": "customer", "required": true },
+      {
+        "type": "collection",
+        "name": "lines",
+        "min": 1,
+        "max": 3,
+        "items": [
+          { "type": "text", "name": "sku", "required": true, "maxLength": 8 },
+          { "type": "number", "name": "quantity", "required": true, "min": 1, "decimals": 0 },
+          {
+            "type": "collection",
+            "name": "parts",
+            "max": 3,
+            "items": [
+              { "type": "text", "name": "code", "required": true, "maxLength": 6 },
+              { "type": "number", "name": "count", "required": true, "min": 1, "decimals": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "presentation": {
+    "engine": "core-html",
+    "defaultLocale": "en",
+    "items": [
+      { "name": "customer", "widget": "text", "label": "t.customer" },
+      {
+        "name": "lines",
+        "widget": "table",
+        "label": "t.lines",
+        "columns": ["sku", "quantity"],
+        "items": [
+          { "name": "sku", "widget": "text", "label": "t.sku" },
+          { "name": "quantity", "widget": "number", "label": "t.qty" },
+          {
+            "name": "parts",
+            "widget": "table",
+            "label": "t.parts",
+            "columns": ["code", "count"],
+            "items": [
+              { "name": "code", "widget": "text", "label": "t.code" },
+              { "name": "count", "widget": "number", "label": "t.count" }
+            ]
+          }
+        ]
+      },
+      { "widget": "save", "label": "t.save" },
+      { "widget": "confirm", "label": "t.send" }
+    ],
+    "translations": {
+      "en": {
+        "t.customer": "Customer",
+        "t.lines": "Lines",
+        "t.sku": "SKU",
+        "t.qty": "Quantity",
+        "t.parts": "Parts",
+        "t.code": "Code",
+        "t.count": "Count",
+        "t.save": "Save for later",
+        "t.send": "Send"
+      }
+    }
+  },
+  "data": {
+    "customer": "Ada",
+    "lines": [
+      { "sku": "A-1", "quantity": 2, "parts": [{ "code": "X1", "count": 3 }, { "code": "X2", "count": 1 }] },
+      { "sku": "B-2", "quantity": 1, "parts": [] }
+    ]
+  }
+}
+
+> {%
+    client.global.set("nestedFormId", response.body.id);
+    client.test("201 — a list inside an entry is a list", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+%}
+
+### A rule broken two scopes down still points at itself.
+PUT {{host}}/api/forms/{{nestedFormId}}/data
+Content-Type: application/json
+
+{ "customer": "Ada", "lines": [{ "sku": "A-1", "quantity": 2, "parts": [{ "code": "TOO-LONG", "count": 1 }] }] }
+
+> {%
+    client.test("422 at /lines/0/parts/0/code", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/lines/0/parts/0/code", "Expected the pointer two scopes down");
+    });
+%}
+
+### A list may not be a column: a column previews a value as text.
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      {
+        "type": "collection",
+        "name": "lines",
+        "items": [
+          { "type": "text", "name": "sku" },
+          { "type": "collection", "name": "parts", "items": [{ "type": "text", "name": "code" }] }
+        ]
+      }
+    ]
+  },
+  "presentation": {
+    "engine": "core-html",
+    "items": [
+      {
+        "name": "lines",
+        "widget": "table",
+        "columns": ["parts"],
+        "items": [
+          { "name": "sku" },
+          { "name": "parts", "widget": "table", "items": [{ "name": "code" }] }
+        ]
+      },
+      { "widget": "confirm" }
+    ]
+  }
+}
+
+> {%
+    client.test("422 presentation.item.not-drawable", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "presentation.item.not-drawable", "Expected a list to be refused as a column");
+    });
+%}
+
+### A list inside an entry left out of that entry's form.
 POST {{host}}/api/forms
 Content-Type: application/json
 
@@ -321,7 +465,9 @@ Content-Type: application/json
 }
 
 > {%
-    client.test("201 — the nested list is not owed a place on the page", function () {
-        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    client.test("422 presentation.item.missing", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "presentation.item.missing", "Expected the nested list to be owed a place");
+        client.assert(response.body.errors[0].input === "parts", "Expected it to be named");
     });
 %}

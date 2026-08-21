@@ -165,6 +165,73 @@ abstract class CollectionPageTestCase extends PantherTestCase
         );
     }
 
+    public function testAnEntryCanHoldAListOfItsOwn(): void
+    {
+        // GIVEN a form whose entries each hold a list, the first one already
+        // holding two
+        $id = $this->plantNested();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->click('[data-entry] details summary');
+
+        // WHEN one more is asked for inside that entry, and answered
+        $this->click(\sprintf('[data-collection="parts"] %s', static::addTrigger()));
+        $this->fillIn('[data-collection="parts"] [data-name="code"]', 2, 'X3');
+        $this->fillIn('[data-collection="parts"] [data-name="count"]', 2, '7');
+        $this->click('[data-action="save"], [data-action="click->form#save"]');
+
+        // THEN it lands inside the entry it belongs to, in the order it is on
+        // the page — a list inside a list is a list, all the way down
+        $stored = $this->eventually(fn(): ?array => $this->values($id));
+        self::assertIsArray($stored);
+        self::assertSame([
+            ['sku' => 'A-1', 'parts' => [['code' => 'X1'], ['code' => 'X2'], ['code' => 'X3', 'count' => 7]]],
+            ['sku' => 'B-2', 'parts' => []],
+        ], $stored['lines'] ?? null);
+    }
+
+    public function testAChoiceInsideANestedEntryIsItsOwnGroupToo(): void
+    {
+        // GIVEN two entries of a nested list, each offering the same choice
+        $id = $this->plantNested();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->click('[data-entry] details summary');
+
+        // WHEN each entry of that list is unfolded in turn and answered
+        // differently — an entry of a nested list is answered in a form of its
+        // own, exactly like an entry of the list around it
+        $this->openIn('[data-collection="parts"]', 0);
+        $this->pickIn('[data-collection="parts"]', 0, 'grade', 'a');
+        $this->openIn('[data-collection="parts"]', 1);
+        $this->pickIn('[data-collection="parts"]', 1, 'grade', 'b');
+        $this->click('[data-action="save"], [data-action="click->form#save"]');
+
+        // THEN both answers survive: a group belongs to the entry it is in, two
+        // scopes down as much as one
+        $stored = $this->eventually(fn(): ?array => $this->values($id));
+        self::assertIsArray($stored);
+        self::assertSame([
+            ['sku' => 'A-1', 'parts' => [['code' => 'X1', 'grade' => 'a'], ['code' => 'X2', 'grade' => 'b']]],
+            ['sku' => 'B-2', 'parts' => []],
+        ], $stored['lines'] ?? null);
+    }
+
+    public function testRemovingAnEntryTakesItsOwnListWithIt(): void
+    {
+        // GIVEN the same form
+        $id = $this->plantNested();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+        // WHEN the entry holding a list of its own goes
+        $this->browser->findElements(WebDriverBy::cssSelector(static::removeTrigger()))[0]->click();
+        $this->click('[data-action="save"], [data-action="click->form#save"]');
+
+        // THEN what it held goes with it: nothing is left behind at the top,
+        // because an entry's answers are its own document
+        $stored = $this->eventually(fn(): ?array => $this->values($id));
+        self::assertIsArray($stored);
+        self::assertSame([['sku' => 'B-2', 'parts' => []]], $stored['lines'] ?? null);
+    }
+
     public function testTheButtonsObeyTheCountsTheDefinitionGives(): void
     {
         // GIVEN a list that must hold one entry and may hold three
@@ -239,6 +306,96 @@ abstract class CollectionPageTestCase extends PantherTestCase
         $labels = $id === '' ? [] : $this->browser->findElements(WebDriverBy::cssSelector(\sprintf('label[for="%s"]', $id)));
 
         ($labels[0] ?? $input)->click();
+    }
+
+    final protected function openIn(string $scope, int $index): void
+    {
+        $forms = $this->browser->findElements(WebDriverBy::cssSelector(\sprintf('%s [data-entry] details summary', $scope)));
+        self::assertArrayHasKey($index, $forms);
+        $forms[$index]->click();
+    }
+
+    final protected function pickIn(string $scope, int $index, string $name, string $value): void
+    {
+        $options = $this->browser->findElements(
+            WebDriverBy::cssSelector(\sprintf('%s [data-item="%s"] input[value="%s"]', $scope, $name, $value)),
+        );
+        self::assertArrayHasKey($index, $options);
+
+        $id = (string) $options[$index]->getAttribute('id');
+        $labels = $id === '' ? [] : $this->browser->findElements(WebDriverBy::cssSelector(\sprintf('label[for="%s"]', $id)));
+
+        ($labels[0] ?? $options[$index])->click();
+    }
+
+    final protected function fillIn(string $selector, int $index, string $value): void
+    {
+        $controls = $this->browser->findElements(WebDriverBy::cssSelector($selector));
+        self::assertArrayHasKey($index, $controls);
+        $controls[$index]->sendKeys($value);
+    }
+
+    /**
+     * A form whose entries hold a list of their own, the first one holding two
+     * entries already.
+     */
+    final protected function plantNested(): string
+    {
+        $response = $this->api->request('POST', '/api/forms', [
+            'json' => [
+                'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
+                'definition' => ['items' => [
+                    ['type' => 'collection', 'name' => 'lines', 'min' => 1, 'max' => 3, 'items' => [
+                        ['type' => 'text', 'name' => 'sku', 'required' => true, 'maxLength' => 8],
+                        ['type' => 'collection', 'name' => 'parts', 'max' => 3, 'items' => [
+                            ['type' => 'text', 'name' => 'code', 'required' => true, 'maxLength' => 6],
+                            ['type' => 'select', 'name' => 'grade', 'options' => ['a', 'b']],
+                            ['type' => 'number', 'name' => 'count', 'min' => 1, 'decimals' => 0],
+                        ]],
+                    ]],
+                ]],
+                'presentation' => [
+                    'engine' => static::engine(),
+                    'defaultLocale' => 'en',
+                    'items' => [
+                        ['name' => 'lines', 'widget' => 'table', 'label' => 't.lines', 'columns' => ['sku'], 'items' => [
+                            ['name' => 'sku', 'widget' => 'text', 'label' => 't.sku'],
+                            ['name' => 'parts', 'widget' => 'table', 'label' => 't.parts', 'columns' => ['code'], 'items' => [
+                                ['name' => 'code', 'widget' => 'text', 'label' => 't.code'],
+                                ['name' => 'grade', 'widget' => static::choiceWidget(), 'label' => 't.grade',
+                                    'choices' => ['a' => 't.a', 'b' => 't.b']],
+                                ['name' => 'count', 'widget' => static::countWidget(), 'label' => 't.count'],
+                            ]],
+                        ]],
+                        ['widget' => 'save', 'label' => 't.save'],
+                        ['widget' => 'confirm', 'label' => 't.send'],
+                    ],
+                    'translations' => ['en' => [
+                        't.lines' => 'Lines',
+                        't.sku' => 'SKU',
+                        't.parts' => 'Parts',
+                        't.code' => 'Code',
+                        't.grade' => 'Grade',
+                        't.a' => 'grade A',
+                        't.b' => 'grade B',
+                        't.count' => 'Count',
+                        't.save' => 'Save for later',
+                        't.send' => 'Send',
+                    ]],
+                ],
+                'data' => ['lines' => [
+                    ['sku' => 'A-1', 'parts' => [['code' => 'X1'], ['code' => 'X2']]],
+                    ['sku' => 'B-2', 'parts' => []],
+                ]],
+            ],
+        ]);
+
+        self::assertSame(201, $response->getStatusCode());
+        $body = json_decode($response->getContent(), true, flags: \JSON_THROW_ON_ERROR);
+        self::assertIsArray($body);
+        self::assertIsString($body['id']);
+
+        return $body['id'];
     }
 
     final protected function click(string $selector): void

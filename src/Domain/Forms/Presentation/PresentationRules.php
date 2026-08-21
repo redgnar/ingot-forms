@@ -49,7 +49,6 @@ final class PresentationRules
             self::byName($definition->structure()->items),
             $this->engines->find($presentation->engine),
             $presentation->engine,
-            insideAnEntry: false,
         ));
     }
 
@@ -67,14 +66,13 @@ final class PresentationRules
         array $declared,
         ?PresentationEngine $engine,
         string $named,
-        bool $insideAnEntry,
     ): array {
         $errors = [];
         $shown = [];
 
-        self::walk($items, $path, $declared, $engine, $named, $insideAnEntry, $errors, $shown);
+        self::walk($items, $path, $declared, $engine, $named, $errors, $shown);
 
-        return [...$errors, ...self::missing($declared, $shown, $path, $insideAnEntry)];
+        return [...$errors, ...self::missing($declared, $shown, $path)];
     }
 
     /**
@@ -84,24 +82,16 @@ final class PresentationRules
      * nobody looks is what a `hidden` widget is for — that is a decision written
      * down, not an omission.
      *
-     * One exception, and it is a limitation rather than a decision: a list inside
-     * an entry is something no kit here draws, so it is not owed a place on the
-     * page. What it holds can only be filled in through the API.
-     *
      * @param array<string, Field> $declared
      * @param list<string>         $shown
      *
      * @return list<MappingError>
      */
-    private static function missing(array $declared, array $shown, string $path, bool $insideAnEntry): array
+    private static function missing(array $declared, array $shown, string $path): array
     {
         $errors = [];
 
         foreach (array_diff(array_keys($declared), $shown) as $name) {
-            if ($insideAnEntry && $declared[$name] instanceof CollectionField) {
-                continue;
-            }
-
             $errors[] = self::error(
                 $path,
                 'presentation.item.missing',
@@ -125,7 +115,6 @@ final class PresentationRules
         array $declared,
         ?PresentationEngine $engine,
         string $named,
-        bool $insideAnEntry,
         array &$errors,
         array &$shown,
     ): void {
@@ -141,7 +130,7 @@ final class PresentationRules
 
                 // A group belongs to the scope it sits in: what it holds is
                 // shown here, not somewhere of its own.
-                self::walk($item->items, $here . '/items', $declared, $engine, $named, $insideAnEntry, $errors, $shown);
+                self::walk($item->items, $here . '/items', $declared, $engine, $named, $errors, $shown);
 
                 continue;
             }
@@ -163,7 +152,7 @@ final class PresentationRules
             }
 
             if ($field instanceof CollectionField) {
-                $errors = [...$errors, ...self::judgeCollection($item, $item->name, $field, $here, $engine, $named, $insideAnEntry)];
+                $errors = [...$errors, ...self::judgeCollection($item, $item->name, $field, $here, $engine, $named)];
 
                 continue;
             }
@@ -200,17 +189,7 @@ final class PresentationRules
         string $path,
         ?PresentationEngine $engine,
         string $named,
-        bool $insideAnEntry,
     ): array {
-        if ($insideAnEntry) {
-            return [self::error(
-                $path . '/name',
-                'presentation.item.not-drawable',
-                \sprintf('No kit here draws a list inside an entry, so "%s" cannot be shown — it is filled in through the API.', $name),
-                $name,
-            )];
-        }
-
         // A list with no form for its entries says how the rows look and nothing
         // about how they are answered.
         if (!$item->isCollection()) {
@@ -232,7 +211,10 @@ final class PresentationRules
 
         return [
             ...self::columns($item, $name, $declared, $path),
-            ...self::scope($item->items, $path . '/items', $declared, $engine, $named, insideAnEntry: true),
+            // An entry's form is a scope of its own, and a list in it is drawn
+            // exactly like a list anywhere else — the same node, the same
+            // markup, one level further in.
+            ...self::scope($item->items, $path . '/items', $declared, $engine, $named),
         ];
     }
 
