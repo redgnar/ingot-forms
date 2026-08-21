@@ -18,10 +18,12 @@ this reference cannot drift from the implementation.
 | [`POST /api/forms`](#post-apiforms) | `createForm` | Create a form | `201`, `400`, `415`, `422` |
 | [`GET /api/forms/{id}`](#get-apiformsid) | `getForm` | Read a form | `200`, `404`, `409`, `410` |
 | [`DELETE /api/forms/{id}`](#delete-apiformsid) | `deleteForm` | Delete a form | `204`, `404`, `410` |
+| [`DELETE /api/forms/{id}/files/{fileId}`](#delete-apiformsidfilesfileid) | `discardFormFile` | Throw away an uploaded file this form has not saved | `204`, `404`, `409`, `410` |
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
 | [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `415`, `410`, `422` |
 | [`GET /api/forms/{id}/presentation`](#get-apiformsidpresentation) | `getFormPresentation` | Read how the form is shown | `200`, `404`, `410` |
 | [`GET /api/forms/{id}/schema`](#get-apiformsidschema) | `getFormDataSchema` | Read the values schema derived from the definition | `200`, `404`, `410`, `422` |
+| [`POST /api/forms/{id}/files`](#post-apiformsidfiles) | `uploadFormFile` | Upload a file for this form | `201`, `404`, `409`, `410`, `413`, `422` |
 
 ## Operations
 
@@ -101,6 +103,28 @@ The "definition changed" path — delete the form and create a new one.
 |---|---|---|---|
 | `204` | — | empty | Form deleted. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
+| `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
+
+### DELETE /api/forms/{id}/files/{fileId}
+
+`operationId: discardFormFile` — Throw away an uploaded file this form has not saved
+
+For an upload that was replaced or picked by mistake. A file the stored values name is refused with 409 — a saved document is what makes a file permanent, and it stops being permanent by being saved out of the document, not by this.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+| `fileId` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `204` | — | empty | Gone. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No such form, or this form holds no such file. |
+| `409` | `application/problem+json` | [`Problem`](#problem) | The stored values name this file. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 
 ### GET /api/forms/{id}/data
@@ -189,6 +213,31 @@ The JSON Schema 2020-12 document the server validates submitted values against �
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | Unknown schema mode. |
 
+### POST /api/forms/{id}/files
+
+`operationId: uploadFormFile` — Upload a file for this form
+
+One `multipart/form-data` part named `file`. The answer is the description of what was stored — id, name, size and media type, all four measured here — and that description, echoed verbatim, is what a `file` item in this form's values may hold. A file nobody saves stays temporary and is collected later; it can also be thrown away at once with `DELETE /api/forms/{id}/files/{fileId}`.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Request body** (`multipart/form-data`, required): `object`
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `201` | `application/json` | [`FileReference`](#filereference) | Stored. The body is what to put in the values document, unchanged. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
+| `409` | `application/problem+json` | [`Problem`](#problem) | The form is confirmed, so nothing it holds can change; or it already holds as many files as it may. |
+| `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
+| `413` | `application/problem+json` | [`Problem`](#problem) | More bytes than this deployment accepts. The limit is configuration, and a deployment must allow at least the largest `maxSize` any definition served here asks for. |
+| `422` | `application/problem+json` | [`Problem`](#problem) | No part named `file`, or a part with no bytes in it. |
+
 ## Schemas
 
 ### FormStatus
@@ -228,6 +277,19 @@ The answer to a creation: the identity of the new form and nothing else. Everyth
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `id` | `string` (`uuid`) | yes |  |
+
+No other properties are allowed.
+
+### FileReference
+
+What an upload answers with, and exactly what a `file` item in this form's values may hold — echoed back member for member. All four are measured by the server: the id it minted, the name it kept (a label, never a path), the bytes it counted and the media type it sniffed from those bytes. A values document naming anything else about a file is refused (`form.file.unknown`, `form.file.mismatch`).
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` (`uuid`) | yes |  |
+| `name` | `string` (min length 1, max length 255) | yes |  |
+| `size` | `integer` (≥ 1) | yes |  |
+| `type` | `string` | yes | A media type, lower case, as the server sniffed it — not as the browser claimed. |
 
 No other properties are allowed.
 

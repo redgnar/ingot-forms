@@ -73,6 +73,31 @@ nelmio_api_doc:
                         id:
                             type: string
                             format: uuid
+                FileReference:
+                    type: object
+                    description: >-
+                        What an upload answers with, and exactly what a `file` item in this
+                        form's values may hold — echoed back member for member. All four are
+                        measured by the server: the id it minted, the name it kept (a label,
+                        never a path), the bytes it counted and the media type it sniffed from
+                        those bytes. A values document naming anything else about a file is
+                        refused (`form.file.unknown`, `form.file.mismatch`).
+                    required: [id, name, size, type]
+                    additionalProperties: false
+                    properties:
+                        id:
+                            type: string
+                            format: uuid
+                        name:
+                            type: string
+                            minLength: 1
+                            maxLength: 255
+                        size:
+                            type: integer
+                            minimum: 1
+                        type:
+                            type: string
+                            description: A media type, lower case, as the server sniffed it — not as the browser claimed.
                 FormEnvelope:
                     type: object
                     description: The canonical JSON shape of a form read back from the API.

@@ -4,6 +4,13 @@ parameters:
     # either way, never code.
     files.default_dir: '%kernel.project_dir%/var/storage/files'
     files.dir: '%env(default:files.default_dir:FILES_DIR)%'
+    # What this deployment accepts per upload, and how many files one form may
+    # hold. The first must stay at or below what docker/php.ini allows, and at or
+    # above the largest maxSize any definition served here asks for.
+    files.max_upload: '%env(int:default:files.default_max_upload:FILES_MAX_UPLOAD)%'
+    files.default_max_upload: 10485760
+    files.per_form: '%env(int:default:files.default_per_form:FILES_PER_FORM)%'
+    files.default_per_form: 50
 
 services:
     _defaults:
@@ -78,6 +85,11 @@ services:
     App\Infrastructure\Files\FlysystemFileStore:
         arguments:
             $storage: '@forms.files.storage'
+
+    App\Application\Forms\UseCase\UploadFormFile:
+        arguments:
+            $budget: '%files.per_form%'
+            $maxUpload: '%files.max_upload%'
 
     App\Infrastructure\Cache\CachedDataSchemaProvider:
         arguments:

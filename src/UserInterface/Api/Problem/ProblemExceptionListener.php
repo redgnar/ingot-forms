@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\UserInterface\Api\Problem;
 
+use App\Application\Forms\Exception\FileAttached;
+use App\Application\Forms\Exception\FileBudgetSpent;
+use App\Application\Forms\Exception\FileEmpty;
+use App\Application\Forms\Exception\FileMissing;
+use App\Application\Forms\Exception\FileTooLarge;
 use App\Domain\Forms\Exception\DefinitionNotValid;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormGone;
@@ -111,6 +116,39 @@ final class ProblemExceptionListener
 
         if ($throwable instanceof FormLocked) {
             $event->setResponse($this->factory->simple(409, 'form-locked', 'Form data is confirmed and can no longer be edited.', $throwable->getMessage()));
+
+            return;
+        }
+
+        // The store holds no such file for this form — the same answer whether
+        // it never existed or was thrown away, deliberately: a caller learns
+        // nothing about another form's ids either way.
+        if ($throwable instanceof FileMissing) {
+            $event->setResponse($this->factory->simple(404, 'file-not-found', 'This form holds no such file.', $throwable->getMessage()));
+
+            return;
+        }
+
+        if ($throwable instanceof FileAttached) {
+            $event->setResponse($this->factory->simple(409, 'file-attached', 'A file the stored values name cannot be thrown away.', $throwable->getMessage()));
+
+            return;
+        }
+
+        if ($throwable instanceof FileBudgetSpent) {
+            $event->setResponse($this->factory->simple(409, 'file-budget-spent', 'This form holds as many files as it may.', $throwable->getMessage()));
+
+            return;
+        }
+
+        if ($throwable instanceof FileTooLarge) {
+            $event->setResponse($this->factory->simple(413, 'upload-too-large', 'The upload is larger than this deployment accepts.', $throwable->getMessage()));
+
+            return;
+        }
+
+        if ($throwable instanceof FileEmpty) {
+            $event->setResponse($this->factory->simple(422, 'upload-empty', 'An empty file is not an upload.', $throwable->getMessage()));
 
             return;
         }

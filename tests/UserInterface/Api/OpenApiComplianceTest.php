@@ -24,6 +24,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Symfony\Bridge\PsrHttpMessage\Factory\PsrHttpFactory;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Yaml\Yaml;
 
@@ -86,9 +87,23 @@ final class OpenApiComplianceTest extends WebTestCase
 
     private KernelBrowser $client;
 
+    /** @var list<string> */
+    private array $temporary = [];
+
     protected function setUp(): void
     {
         $this->client = self::createClient();
+    }
+
+    protected function tearDown(): void
+    {
+        foreach ($this->temporary as $path) {
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+
+        parent::tearDown();
     }
 
     /**
@@ -298,6 +313,41 @@ final class OpenApiComplianceTest extends WebTestCase
             ['GET', '/api/forms/{id}/presentation', 410, true, '', static function (self $test): void {
                 $test->client->request('GET', \sprintf('/api/forms/%s/presentation', $test->expiredForm()));
             }],
+            ['POST', '/api/forms/{id}/files', 201, true, '', static function (self $test): void {
+                $test->uploadTo($test->createForm());
+            }],
+            ['POST', '/api/forms/{id}/files', 404, true, '', static function (self $test): void {
+                $test->uploadTo(Uuid::v7()->toRfc4122());
+            }],
+            ['POST', '/api/forms/{id}/files', 409, true, '', static function (self $test): void {
+                $test->uploadTo($test->confirmedForm());
+            }],
+            ['POST', '/api/forms/{id}/files', 410, true, '', static function (self $test): void {
+                $test->uploadTo($test->expiredForm());
+            }],
+            ['POST', '/api/forms/{id}/files', 413, true, '', static function (self $test): void {
+                // A part PHP marked as over its own limit: a perfectly formed
+                // request whose bytes never arrived
+                $test->uploadTo($test->createForm(), \UPLOAD_ERR_INI_SIZE);
+            }],
+            ['POST', '/api/forms/{id}/files', 422, false, '', static function (self $test): void {
+                // The contract requires the part, and so does the endpoint
+                $test->client->request('POST', \sprintf('/api/forms/%s/files', $test->createForm()));
+            }],
+            ['DELETE', '/api/forms/{id}/files/{fileId}', 204, true, '', static function (self $test): void {
+                $id = $test->createForm();
+                $file = $test->uploadTo($id);
+                $test->client->request('DELETE', \sprintf('/api/forms/%s/files/%s', $id, $file));
+            }],
+            ['DELETE', '/api/forms/{id}/files/{fileId}', 404, true, '', static function (self $test): void {
+                $test->client->request('DELETE', \sprintf('/api/forms/%s/files/%s', $test->createForm(), Uuid::v7()->toRfc4122()));
+            }],
+            ['DELETE', '/api/forms/{id}/files/{fileId}', 409, true, '', static function (self $test): void {
+                $test->client->request('DELETE', \sprintf('/api/forms/%s/files/%s', ...$test->formHoldingAFile()));
+            }],
+            ['DELETE', '/api/forms/{id}/files/{fileId}', 410, true, '', static function (self $test): void {
+                $test->client->request('DELETE', \sprintf('/api/forms/%s/files/%s', $test->expiredForm(), Uuid::v7()->toRfc4122()));
+            }],
         ];
 
         foreach ($cases as [$method, $path, $status, $requestIsValid, $variant, $stage]) {
@@ -383,6 +433,60 @@ final class OpenApiComplianceTest extends WebTestCase
         }
 
         return implode(' ← ', $messages);
+    }
+
+    /**
+     * Uploads a part named `file` and answers with the id the store minted — or
+     * whatever the response was, when the scenario is one that fails.
+     */
+    private function uploadTo(string $form, ?int $error = null): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'ingot-contract');
+        self::assertIsString($path);
+        file_put_contents($path, '%PDF-1.4 a tiny invoice');
+        $this->temporary[] = $path;
+
+        $this->client->request(
+            'POST',
+            \sprintf('/api/forms/%s/files', $form),
+            // The header a browser would send: BrowserKit hands the parts over
+            // directly, but the contract is checked against what the request says
+            // it is.
+            server: ['CONTENT_TYPE' => 'multipart/form-data; boundary=----ingot'],
+            files: ['file' => new UploadedFile($path, 'invoice.pdf', 'application/pdf', $error, true)],
+        );
+
+        $body = json_decode((string) $this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+
+        return \is_array($body) && \is_string($body['id'] ?? null) ? $body['id'] : '';
+    }
+
+    /**
+     * A form whose stored values name a file — the one state in which the file
+     * cannot be thrown away.
+     *
+     * @return array{string, string}
+     */
+    private function formHoldingAFile(): array
+    {
+        $this->postJson('/api/forms', json_encode([
+            'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
+            'definition' => ['items' => [['type' => 'file', 'name' => 'invoice', 'accept' => ['application/pdf'], 'maxSize' => 4096]]],
+        ], \JSON_THROW_ON_ERROR));
+        $created = json_decode((string) $this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        self::assertIsArray($created);
+        self::assertIsString($created['id'] ?? null);
+        $form = $created['id'];
+
+        $this->uploadTo($form);
+        $reference = json_decode((string) $this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        self::assertIsArray($reference);
+        self::assertIsString($reference['id'] ?? null);
+
+        $this->putJson(\sprintf('/api/forms/%s/data', $form), json_encode(['invoice' => $reference], \JSON_THROW_ON_ERROR));
+        self::assertResponseStatusCodeSame(204);
+
+        return [$form, $reference['id']];
     }
 
     private function createForm(): string

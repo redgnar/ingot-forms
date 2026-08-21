@@ -1,0 +1,9 @@
+# Loaded after config/services.yaml, which is the only place these two are set —
+# so this is where the suite gets its own numbers.
+parameters:
+    # A directory of its own: the suite writes real bytes, and `make
+    # storage-clean` empties both.
+    files.dir: '%kernel.project_dir%/var/storage/files-test'
+    # The upload ceiling has to be reachable in a test. Production's is
+    # FILES_MAX_UPLOAD (10 MiB by default); what a test pins is the refusal.
+    files.max_upload: 4096

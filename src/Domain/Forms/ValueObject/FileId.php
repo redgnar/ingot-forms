@@ -25,6 +25,12 @@ final readonly class FileId implements \Stringable
         return new self(Uuid::v7());
     }
 
+    /** For an adapter that already holds one — a route parameter, say. */
+    public static function of(Uuid $value): self
+    {
+        return new self($value);
+    }
+
     /**
      * @throws \InvalidArgumentException when the text is not a UUID
      */
