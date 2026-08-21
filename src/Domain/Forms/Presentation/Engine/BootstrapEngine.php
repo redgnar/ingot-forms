@@ -8,6 +8,7 @@ use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\Field;
+use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
@@ -28,6 +29,9 @@ use App\Domain\Forms\Presentation\PresentationActions;
  *   options that deserve to be seen at once;
  * - `range` and `stepper` are a number moved rather than typed, which needs the
  *   definition's own bounds to move between;
+ * - `dropzone` is a file dragged in rather than found in a picker, with the
+ *   progress of the upload drawn as it happens — which the plain kit has no
+ *   machinery for and deliberately does not fake;
  * - `card`, `accordion` and `row` group in the three ways this kit groups:
  *   framed, folded away, side by side.
  *
@@ -52,6 +56,7 @@ final class BootstrapEngine implements PresentationEngine
         DateField::class => ['date'],
         CheckboxField::class => ['checkbox', 'switch'],
         CollectionField::class => ['table'],
+        FileField::class => ['file', 'dropzone'],
     ];
 
     public function id(): string

@@ -27,6 +27,8 @@ use Twig\Environment;
  */
 final class CoreHtmlRendererTest extends KernelTestCase
 {
+    private const string A_FILE = '01a0f3d4-0000-7000-8000-0000000000a1';
+
     /** @var array<string, mixed> */
     private const array DEFINITION = [
         'items' => [
@@ -37,6 +39,7 @@ final class CoreHtmlRendererTest extends KernelTestCase
             ['type' => 'number', 'name' => 'age', 'min' => 18, 'max' => 120, 'decimals' => 0],
             ['type' => 'date', 'name' => 'visit', 'min' => '2026-01-01'],
             ['type' => 'checkbox', 'name' => 'terms', 'mustBeChecked' => true],
+            ['type' => 'file', 'name' => 'invoice', 'accept' => ['application/pdf'], 'maxSize' => 4096],
         ],
     ];
 
@@ -54,6 +57,7 @@ final class CoreHtmlRendererTest extends KernelTestCase
             ['name' => 'age', 'widget' => 'number', 'label' => 'contact.age'],
             ['name' => 'visit', 'widget' => 'date', 'label' => 'contact.visit'],
             ['name' => 'terms', 'widget' => 'switch', 'label' => 'contact.terms'],
+            ['name' => 'invoice', 'widget' => 'file', 'label' => 'contact.invoice'],
             ['name' => 'campaign', 'widget' => 'hidden'],
             ['widget' => 'save', 'label' => 'contact.save', 'options' => ['appearance' => 'link']],
             ['widget' => 'confirm', 'label' => 'contact.send'],
@@ -71,6 +75,7 @@ final class CoreHtmlRendererTest extends KernelTestCase
                 'contact.age' => 'Age',
                 'contact.visit' => 'Date of visit',
                 'contact.terms' => 'I accept the terms',
+                'contact.invoice' => 'Your invoice',
                 'contact.save' => 'Save for later',
                 'contact.send' => 'Send it',
             ],
@@ -99,7 +104,7 @@ final class CoreHtmlRendererTest extends KernelTestCase
         // THEN every value has a control, in the order it was presented, and the
         // groups are groups
         self::assertSame(
-            ['email', 'note', 'country', 'age', 'visit', 'terms', 'campaign'],
+            ['email', 'note', 'country', 'age', 'visit', 'terms', 'invoice', 'campaign'],
             $page->filter('[data-item]')->each(static fn(Crawler $node): string => (string) $node->attr('data-item')),
         );
         self::assertSame('Contact us', $page->filter('h2')->text());
@@ -164,8 +169,73 @@ final class CoreHtmlRendererTest extends KernelTestCase
         // THEN each is drawn as asked, labelled as asked, and says what it does
         self::assertSame('Send it', $page->filter('button[data-action="confirm"]')->text());
         self::assertSame('Save for later', $page->filter('a[data-action="save"]')->text());
-        // and nothing adds a pair of its own at the bottom
-        self::assertCount(1, $page->filter('button'));
+        // and nothing adds a pair of its own at the bottom: the only other
+        // buttons on this page belong to a control, not to the form
+        self::assertCount(1, $page->filter('button:not([data-action="remove-file"])'));
+    }
+
+    public function testAFileIsPickedWithOneControlAndHeldInAnother(): void
+    {
+        // GIVEN a form asking for a file it does not hold yet
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::form(), 'en')));
+
+        // THEN the picker is only how somebody chooses bytes — it carries what the
+        // item accepts, and nothing collects it
+        self::assertSame('file', $page->filter('#item-invoice')->attr('type'));
+        self::assertSame('application/pdf', $page->filter('#item-invoice')->attr('accept'));
+        self::assertNull($page->filter('#item-invoice')->attr('data-name'));
+
+        // ...while the value is the description an upload answers with, carried
+        // as the JSON it is
+        $held = $page->filter('[data-item="invoice"] input[type="hidden"]');
+        self::assertSame('invoice', $held->attr('data-name'));
+        self::assertSame('json', $held->attr('data-type'));
+        self::assertNull($held->attr('value'));
+
+        // ...and the ceiling is on the page, so a file that could never be stored
+        // is refused before a byte is sent
+        self::assertSame('4096', $page->filter('[data-item="invoice"] [data-file]')->attr('data-max-size'));
+        self::assertNotNull($page->filter('[data-item="invoice"] [data-file-held]')->attr('hidden'));
+    }
+
+    public function testAFileTheFormHoldsIsNamedWithAWayToFetchIt(): void
+    {
+        // GIVEN a form whose draft names a file
+        $form = self::form();
+        $form->saveDraft(self::withInvoice(), new StubValues());
+
+        // WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm($form, 'en')));
+
+        // THEN the page says what it is called and where to get it — the values
+        // document is the only index of that, and this is it read back
+        $link = $page->filter('[data-item="invoice"] [data-file-download]');
+        self::assertSame('faktura.pdf', $link->text());
+        self::assertSame(\sprintf('/api/forms/%s/files/%s', $form->id(), self::A_FILE), $link->attr('href'));
+        self::assertNull($page->filter('[data-item="invoice"] [data-file-held]')->attr('hidden'));
+
+        // ...and the description travels back unchanged when the page saves again
+        self::assertSame(
+            '{"id":"' . self::A_FILE . '","name":"faktura.pdf","size":23,"type":"application\/pdf"}',
+            $page->filter('[data-item="invoice"] input[type="hidden"]')->attr('value'),
+        );
+    }
+
+    public function testAConfirmedFormLetsItsFileBeFetchedAndNotChanged(): void
+    {
+        // GIVEN a form that is closed for good, holding a file
+        $form = self::form();
+        $form->saveDraft(self::withInvoice(), new StubValues());
+        $form->confirm(new StubValues());
+
+        // WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm($form, 'en')));
+
+        // THEN there is nothing to pick with and nothing to remove with, and the
+        // file is still there to be read
+        self::assertCount(0, $page->filter('#item-invoice'));
+        self::assertCount(0, $page->filter('[data-action="remove-file"]'));
+        self::assertSame('faktura.pdf', $page->filter('[data-item="invoice"] [data-file-download]')->text());
     }
 
     public function testThePageIsReadyToSayThatItSavedWithoutSayingItYet(): void
@@ -538,6 +608,20 @@ final class CoreHtmlRendererTest extends KernelTestCase
         );
 
         return $form;
+    }
+
+    private static function withInvoice(): \stdClass
+    {
+        $invoice = new \stdClass();
+        $invoice->id = self::A_FILE;
+        $invoice->name = 'faktura.pdf';
+        $invoice->size = 23;
+        $invoice->type = 'application/pdf';
+
+        $values = new \stdClass();
+        $values->invoice = $invoice;
+
+        return $values;
     }
 
     private static function form(bool $withTranslations = true): Form

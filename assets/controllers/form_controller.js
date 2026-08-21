@@ -64,7 +64,10 @@ export default class extends Controller {
             const raw = control.value;
             if (raw === '') continue;
 
-            values[name] = control.dataset.type === 'number' ? Number(raw) : raw;
+            // A file's value is a whole document — the description the upload
+            // answered with — carried in a hidden control as the JSON it is.
+            const type = control.dataset.type;
+            values[name] = type === 'json' ? JSON.parse(raw) : type === 'number' ? Number(raw) : raw;
         }
 
         for (const list of this.#ownLists(scope)) {

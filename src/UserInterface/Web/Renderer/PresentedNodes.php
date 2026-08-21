@@ -8,6 +8,7 @@ use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\Field;
+use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
@@ -59,6 +60,7 @@ final class PresentedNodes
         }
 
         return $this->nodes(
+            (string) $request->form->id(),
             $document->items,
             $declared,
             $values,
@@ -80,6 +82,7 @@ final class PresentedNodes
      * @return list<array<string, mixed>>
      */
     private function nodes(
+        string $form,
         array $items,
         array $declared,
         array $values,
@@ -115,7 +118,7 @@ final class PresentedNodes
                     // How it looks is the document's to ask for and a kit's to
                     // honour; anything it does not know draws as a button.
                     'appearance' => ($item->options['appearance'] ?? null) === 'link' ? 'link' : 'button',
-                    'children' => $this->nodes($item->items, $declared, $values, $translations, $locale, $default, $container, $decoration, $scope),
+                    'children' => $this->nodes($form, $item->items, $declared, $values, $translations, $locale, $default, $container, $decoration, $scope),
                 ];
 
                 continue;
@@ -128,7 +131,7 @@ final class PresentedNodes
             }
 
             if ($field instanceof CollectionField) {
-                $nodes[] = $this->collection($item, $field, $label, $hint, $values, $translations, $locale, $default, $container, $decoration, $scope);
+                $nodes[] = $this->collection($form, $item, $field, $label, $hint, $values, $translations, $locale, $default, $container, $decoration, $scope);
 
                 continue;
             }
@@ -164,6 +167,13 @@ final class PresentedNodes
                 'step' => $field instanceof NumberField && $field->decimals !== null ? 10 ** -$field->decimals : null,
                 'maxLength' => $field instanceof TextField ? $field->maxLength : null,
                 'pattern' => $field instanceof TextField ? $field->pattern : null,
+                // What a file item wants, so the page can refuse a file that
+                // could never be stored before it uploads one — and where the
+                // bytes it already holds can be fetched from.
+                'accept' => $field instanceof FileField ? $field->accept : [],
+                'maxSize' => $field instanceof FileField ? $field->maxSize : null,
+                'download' => $field instanceof FileField ? self::downloadOf($form, $values[$item->name] ?? null) : null,
+                'upload' => $field instanceof FileField ? \sprintf('/api/forms/%s/files', $form) : null,
             ];
         }
 
@@ -186,6 +196,7 @@ final class PresentedNodes
      * @return array<string, mixed>
      */
     private function collection(
+        string $form,
         PresentedItem $item,
         CollectionField $field,
         ?string $label,
@@ -206,7 +217,7 @@ final class PresentedNodes
 
         $of = static fn(string|int $entry): string => ($scope === null ? '' : $scope . '-') . $item->name . '-' . $entry;
 
-        $blank = $this->nodes($item->items, $declared, [], $translations, $locale, $default, $container, $decoration, $of(self::PENDING));
+        $blank = $this->nodes($form, $item->items, $declared, [], $translations, $locale, $default, $container, $decoration, $of(self::PENDING));
         $entries = [];
 
         /** @var list<mixed> $stored */
@@ -215,7 +226,7 @@ final class PresentedNodes
         foreach ($stored as $index => $entry) {
             /** @var array<string, mixed> $answers */
             $answers = \is_array($entry) ? $entry : [];
-            $nodes = $this->nodes($item->items, $declared, $answers, $translations, $locale, $default, $container, $decoration, $of($index));
+            $nodes = $this->nodes($form, $item->items, $declared, $answers, $translations, $locale, $default, $container, $decoration, $of($index));
 
             $entries[] = ['nodes' => $nodes, 'cells' => self::cells($nodes, $item->columns)];
         }
@@ -299,12 +310,34 @@ final class PresentedNodes
                     $ticked !== null => null,
                     // A choice reads as the word this document gave it.
                     \is_scalar($value) => self::wordFor($node, $value),
+                    // A file reads as what it is called: the only part of a
+                    // description that means anything to a person.
+                    $node['type'] === 'json' => self::fileName($value),
                     default => null,
                 },
             ];
         }
 
         return $cells;
+    }
+
+    /**
+     * Where the bytes of a file this form already holds can be fetched from —
+     * null until it holds one. Built here rather than in a template, because a
+     * template decides nothing about the form.
+     */
+    private static function downloadOf(string $form, mixed $value): ?string
+    {
+        $id = \is_array($value) ? $value['id'] ?? null : null;
+
+        return \is_string($id) ? \sprintf('/api/forms/%s/files/%s', $form, $id) : null;
+    }
+
+    private static function fileName(mixed $value): ?string
+    {
+        $name = \is_array($value) ? $value['name'] ?? null : null;
+
+        return \is_string($name) ? $name : null;
     }
 
     private static function wordFor(mixed $node, string|int|float|bool $value): string
@@ -399,6 +432,7 @@ final class PresentedNodes
             $field instanceof NumberField => 'number',
             $field instanceof DateField => 'date',
             $field instanceof CheckboxField => 'checkbox',
+            $field instanceof FileField => 'file',
             default => 'text',
         };
     }
@@ -412,6 +446,10 @@ final class PresentedNodes
         return match (true) {
             $field instanceof NumberField => 'number',
             $field instanceof CheckboxField => 'boolean',
+            // A file's value is a whole document — the description the upload
+            // answered with — so the control carries it as text that is JSON, and
+            // both kits' collectors parse it rather than sending it as a string.
+            $field instanceof FileField => 'json',
             default => 'string',
         };
     }

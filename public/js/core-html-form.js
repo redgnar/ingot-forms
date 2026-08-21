@@ -33,7 +33,9 @@ function collect(scope = document.getElementById('form')) {
         const raw = control.value;
         if (raw === '') continue;
 
-        values[name] = type === 'number' ? Number(raw) : raw;
+        // A file's value is a whole document — the description the upload
+        // answered with — carried in a hidden control as the JSON it is.
+        values[name] = type === 'json' ? JSON.parse(raw) : type === 'number' ? Number(raw) : raw;
     }
 
     for (const list of ownLists(scope)) {
@@ -208,6 +210,11 @@ function refreshCells(entry) {
             continue;
         }
 
+        if (control.dataset.type === 'json') {
+            cell.textContent = control.value === '' ? '' : JSON.parse(control.value).name;
+            continue;
+        }
+
         cell.textContent = control.value;
     }
 }
@@ -301,6 +308,128 @@ document.getElementById('form').addEventListener('input', (event) => {
 });
 
 for (const list of document.querySelectorAll('[data-collection]')) guard(list);
+
+// A file is not typed into a control: it is uploaded, and what the values
+// document holds afterwards is the description the upload answered with. So the
+// picker is only how somebody chooses bytes — nothing collects it — and the
+// hidden control beside it is the value.
+async function upload(picker) {
+    const control = picker.closest('[data-file]');
+    const file = picker.files?.[0];
+
+    if (control === null || !file) return;
+
+    const said = document.body.dataset;
+
+    // Bigger than the form allows: the answer is known here, so nothing is sent.
+    if (file.size > Number(control.dataset.maxSize)) {
+        picker.value = '';
+        say(control, said.fileTooLarge);
+
+        return;
+    }
+
+    say(control, said.fileUploading, 'progress');
+
+    const body = new FormData();
+    body.append('file', file);
+
+    let reference = null;
+
+    try {
+        const response = await fetch(`/api/forms/${formId}/files`, { method: 'POST', body });
+
+        if (response.ok) reference = await response.json();
+        else say(control, (await problem(response)).detail || said.fileFailed);
+    } catch {
+        say(control, said.fileFailed);
+    }
+
+    picker.value = '';
+
+    if (reference === null) return;
+
+    // What kind of bytes those are is the server's word, not the browser's — so
+    // the item's own rule is checked against what came back. Nothing names the
+    // file yet, so a refusal can take it away at once.
+    const accepted = (control.dataset.accept ?? '').split(',').filter((type) => type !== '');
+
+    if (accepted.length > 0 && !accepted.includes(reference.type)) {
+        await discard(reference.id);
+        say(control, said.fileRejected);
+
+        return;
+    }
+
+    hold(control, reference);
+}
+
+// Filling in markup the server rendered, never writing markup here: the line
+// that says which file is held is on the page already, waiting.
+function hold(control, reference) {
+    const held = control.querySelector('[data-type="json"]');
+    const line = control.querySelector('[data-file-held]');
+    const link = control.querySelector('[data-file-download]');
+
+    held.value = reference === null ? '' : JSON.stringify(reference);
+
+    if (reference !== null) {
+        link.textContent = reference.name;
+        link.href = `/api/forms/${formId}/files/${reference.id}`;
+    }
+
+    line.hidden = reference === null;
+    say(control, '');
+
+    const entry = control.closest('[data-entry]');
+    if (entry !== null) refreshCells(entry);
+}
+
+// Taking back what nothing names yet. A refusal here is not this page's
+// business: 409 means a stored document still names it, and then the next save
+// is what drops it — and the save is what throws it away.
+async function discard(file) {
+    try {
+        await fetch(`/api/forms/${formId}/files/${file}`, { method: 'DELETE' });
+    } catch {
+        // The file stays temporary, and the collector takes it later.
+    }
+}
+
+// One place for anything a file control has to say, in the page's own words.
+function say(control, text, kind = 'error') {
+    const progress = control.querySelector('[data-file-progress]');
+    const slot = control.closest('.item')?.querySelector('[data-error]');
+
+    if (progress !== null) {
+        progress.textContent = kind === 'progress' ? text : '';
+        progress.hidden = kind !== 'progress' || text === '';
+    }
+
+    if (slot && kind === 'error') {
+        slot.textContent = text;
+        slot.hidden = text === '';
+    }
+}
+
+document.getElementById('form').addEventListener('change', (event) => {
+    if (event.target.matches('[data-upload]')) upload(event.target);
+});
+
+document.getElementById('form').addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-action="remove-file"]');
+
+    if (trigger === null) return;
+
+    event.preventDefault();
+    const control = trigger.closest('[data-file]');
+    const held = control.querySelector('[data-type="json"]');
+    const reference = held.value === '' ? null : JSON.parse(held.value);
+
+    hold(control, null);
+
+    if (reference !== null) discard(reference.id);
+});
 
 for (const trigger of document.querySelectorAll('[data-action="confirm"]')) {
     trigger.addEventListener('click', async (event) => {

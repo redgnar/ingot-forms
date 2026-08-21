@@ -33,6 +33,8 @@ use Twig\Environment;
  */
 final class BootstrapRendererTest extends KernelTestCase
 {
+    private const string A_FILE = '01a0f3d4-0000-7000-8000-0000000000a1';
+
     /** @var array<string, mixed> */
     private const array DEFINITION = [
         'items' => [
@@ -47,6 +49,8 @@ final class BootstrapRendererTest extends KernelTestCase
             ['type' => 'number', 'name' => 'rating', 'min' => 1, 'max' => 5, 'decimals' => 0],
             ['type' => 'date', 'name' => 'starts', 'min' => '2026-01-01', 'max' => '2030-12-31'],
             ['type' => 'checkbox', 'name' => 'terms', 'required' => true, 'mustBeChecked' => true],
+            ['type' => 'file', 'name' => 'invoice', 'accept' => ['application/pdf'], 'maxSize' => 4096],
+            ['type' => 'file', 'name' => 'scan', 'accept' => ['image/png'], 'maxSize' => 8192],
         ],
     ];
 
@@ -76,6 +80,8 @@ final class BootstrapRendererTest extends KernelTestCase
             ]],
             ['widget' => 'divider'],
             ['name' => 'terms', 'widget' => 'switch', 'label' => 't.terms'],
+            ['name' => 'invoice', 'widget' => 'file', 'label' => 't.invoice'],
+            ['name' => 'scan', 'widget' => 'dropzone', 'label' => 't.scan'],
             ['name' => 'source', 'widget' => 'hidden'],
             ['widget' => 'save', 'label' => 't.save', 'options' => ['appearance' => 'link']],
             ['widget' => 'confirm', 'label' => 't.send'],
@@ -83,6 +89,8 @@ final class BootstrapRendererTest extends KernelTestCase
         'translations' => [
             'en' => [
                 't.title' => 'Welcome aboard',
+                't.invoice' => 'Invoice',
+                't.scan' => 'Scan',
                 't.note' => 'Everything here can be finished later',
                 't.who' => 'Who you are',
                 't.email' => 'E-mail',
@@ -342,6 +350,52 @@ final class BootstrapRendererTest extends KernelTestCase
         return $this->renderer->render(new RenderedForm(self::form(), 'en'));
     }
 
+    public function testAFileIsAskedForByPickerAndByDropAndBothHoldTheSameValue(): void
+    {
+        // GIVEN a form asking for one file with a picker and another by dropping
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::form(), 'en')));
+        $picker = $page->filter('[data-item="invoice"] [data-controller="file"]');
+        $dropzone = $page->filter('[data-item="scan"] [data-controller="file"]');
+
+        // THEN both know where to send bytes and what this item will take
+        self::assertStringEndsWith('/files', (string) $picker->attr('data-file-upload-value'));
+        self::assertSame('application/pdf', $picker->attr('data-file-accept-value'));
+        self::assertSame('4096', $picker->attr('data-file-max-size-value'));
+        self::assertSame('8192', $dropzone->attr('data-file-max-size-value'));
+
+        // ...and only the dropzone is asked to catch anything dragged onto it,
+        // which is the difference between the two: a way of asking, not a restyle
+        self::assertStringContainsString('drop->file#dropped', (string) $dropzone->attr('data-action'));
+        self::assertNull($picker->attr('data-action'));
+        self::assertCount(1, $dropzone->filter('input[type="file"]'));
+
+        // ...while what the behaviour collects is the hidden control, carrying the
+        // description as the JSON it is
+        $held = $page->filter('[data-item="invoice"] input[type="hidden"]');
+        self::assertSame('control', $held->attr('data-form-target'));
+        self::assertSame('held', $held->attr('data-file-target'));
+        self::assertSame('json', $held->attr('data-type'));
+    }
+
+    public function testAFileTheFormHoldsIsNamedWithAWayToFetchIt(): void
+    {
+        // GIVEN a form whose draft names a file
+        $form = self::form();
+        $form->saveDraft(self::withInvoice(), new StubValues());
+
+        // WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm($form, 'en')));
+
+        // THEN it is named, fetchable, and the description travels back unchanged
+        $link = $page->filter('[data-item="invoice"] [data-file-target="download"]');
+        self::assertSame('faktura.pdf', $link->text());
+        self::assertSame(\sprintf('/api/forms/%s/files/%s', $form->id(), self::A_FILE), $link->attr('href'));
+        self::assertStringNotContainsString(
+            'd-none',
+            (string) $page->filter('[data-item="invoice"] [data-file-target="line"]')->attr('class'),
+        );
+    }
+
     public function testAListIsDrawnAsATableWithTheEntryFormUnderEachRow(): void
     {
         // GIVEN a form asking one question repeatedly, answered twice
@@ -506,6 +560,20 @@ final class BootstrapRendererTest extends KernelTestCase
         );
 
         return $form;
+    }
+
+    private static function withInvoice(): \stdClass
+    {
+        $invoice = new \stdClass();
+        $invoice->id = self::A_FILE;
+        $invoice->name = 'faktura.pdf';
+        $invoice->size = 23;
+        $invoice->type = 'application/pdf';
+
+        $values = new \stdClass();
+        $values->invoice = $invoice;
+
+        return $values;
     }
 
     private static function form(): Form

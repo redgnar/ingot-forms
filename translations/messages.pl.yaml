@@ -11,6 +11,14 @@ page:
         add: 'Dodaj'
         remove: 'Usuń'
         edit: 'Edytuj'
+    file:
+        pick: 'Wybierz plik'
+        drop: 'Przeciągnij plik tutaj albo wybierz go'
+        uploading: 'Wysyłanie…'
+        remove: 'Usuń'
+        too_large: 'Ten plik jest większy, niż ten formularz przyjmuje.'
+        rejected_type: 'Ten formularz nie przyjmuje plików tego rodzaju.'
+        failed: 'Nie udało się wysłać pliku. Spróbuj ponownie.'
     error:
         form-not-found: 'Nie ma takiego formularza.'
         presentation-not-set: 'Nikt nie powiedział, jak pokazać ten formularz.'

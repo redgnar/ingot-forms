@@ -33,9 +33,13 @@
         tbody.entry-invalid > tr:first-child > td { background: #fdecea; }
         .entry-form summary { cursor: pointer; font-size: .875rem; margin-left: -.75rem; }
         .flash { background: #e8f5e9; border-radius: .25rem; color: #1b5e20; margin-bottom: 1.5rem; padding: .75rem 1rem; }
+        .file-held { font-size: .875rem; margin: .25rem 0 0; }
+        .file-progress { color: #555; font-size: .875rem; margin: .25rem 0 0; }
     </style>
 </head>
-<body data-form="{{ id }}" data-read-only="{{ readOnly ? 'yes' : 'no' }}" data-refused="{{ 'page.refused'|trans }}">
+<body data-form="{{ id }}" data-read-only="{{ readOnly ? 'yes' : 'no' }}" data-refused="{{ 'page.refused'|trans }}"
+      data-file-uploading="{{ 'page.file.uploading'|trans }}" data-file-too-large="{{ 'page.file.too_large'|trans }}"
+      data-file-rejected="{{ 'page.file.rejected_type'|trans }}" data-file-failed="{{ 'page.file.failed'|trans }}">
 {% if readOnly %}
     <p class="notice">{{ 'page.confirmed'|trans }}</p>
 {% else %}
@@ -234,6 +238,39 @@
             }))|raw }}>
         {% elseif node.widget == 'date' %}
             <input{{ html.attributes(common|merge({'type': 'date', 'min': node.min, 'max': node.max, 'value': node.value}))|raw }}>
+        {% elseif node.widget == 'file' %}
+            {# Two controls and a line of text. The hidden one is the value —
+               the description the upload answered with, carried as the JSON it
+               is (`data-type="json"`), because that is what the values document
+               holds. The visible one is only how somebody picks bytes, so it has
+               no name and nothing collects it.
+
+               The chip is rendered here rather than built in the browser, for the
+               same reason a blank entry is: a kit does not write markup in
+               JavaScript. The module fills it in and shows it. #}
+            <div class="file" data-file data-max-size="{{ node.maxSize }}" data-accept="{{ node.accept|join(',') }}">
+                <input{{ html.attributes({
+                    'type': 'hidden',
+                    'data-name': node.name,
+                    'data-type': node.type,
+                    'value': node.value ? node.value|json_encode : null,
+                })|raw }}>
+                {% if not readOnly %}
+                    <input{{ html.attributes({
+                        'type': 'file',
+                        'id': id,
+                        'data-upload': true,
+                        'accept': node.accept|join(','),
+                    })|raw }}>
+                    <p class="file-progress" data-file-progress hidden></p>
+                {% endif %}
+                <p class="file-held" data-file-held{{ node.value ? '' : ' hidden' }}>
+                    <a data-file-download href="{{ node.download }}">{{ node.value.name ?? '' }}</a>
+                    {% if not readOnly %}
+                        <button type="button" data-action="remove-file">{{ 'page.file.remove'|trans }}</button>
+                    {% endif %}
+                </p>
+            </div>
         {% else %}
             <input{{ html.attributes(common|merge({
                 'type': node.widget == 'hidden' ? 'hidden' : 'text',

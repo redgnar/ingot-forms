@@ -100,6 +100,12 @@ export default class extends Controller {
     }
 
     #reads(control) {
+        if (control.dataset.type === 'json') {
+            // A file reads as what it is called: the only part of a description
+            // that means anything to a person.
+            return control.value === '' ? '' : JSON.parse(control.value).name;
+        }
+
         if (control.dataset.choice !== undefined) {
             const picked = control.querySelector('input:checked');
 
