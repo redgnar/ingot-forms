@@ -22,10 +22,13 @@ use Ingot\JsonPointer;
  * 2. the derived JSON Schema ({@see DerivedSchemaValues}) — cached, cheap,
  *    and the same contract clients validate against,
  * 3. the Symfony form built from the definition ({@see SymfonyFormValues}),
- *    which carries everything a schema cannot say.
+ *    which carries everything a schema cannot say,
+ * 4. the files a document names ({@see ReferencedFilesExist}), which is the only
+ *    gate that has to ask another store anything.
  *
- * Values refused at step 2 never reach step 3, so the expensive work is spent
- * only on a payload that is already shaped right.
+ * Values refused at one step never reach the next, so the expensive work is
+ * spent only on a payload that is already shaped right — and the store is asked
+ * only about a document that is otherwise perfect.
  *
  * This is the adapter behind {@see ValuesValidator}: a form asks whether the
  * values fit it, and what that costs — a schema, a form, both in turn — stays
@@ -38,6 +41,7 @@ final class StagedValuesValidator implements ValuesValidator
         private readonly DerivedSchemaValues $schema,
         private readonly SymfonyFormValues $form,
         private readonly UnknownFieldTypes $unknownFieldTypes,
+        private readonly ReferencedFilesExist $files,
     ) {}
 
     /**
@@ -77,8 +81,18 @@ final class StagedValuesValidator implements ValuesValidator
 
         $schemaReport = $this->schema->validate($model, $values, $mode, $formId);
 
-        return $schemaReport->isEmpty()
-            ? $this->form->validate($model, $values, $mode)
-            : $schemaReport;
+        if (!$schemaReport->isEmpty()) {
+            return $schemaReport;
+        }
+
+        $formReport = $this->form->validate($model, $values, $mode);
+
+        if (!$formReport->isEmpty()) {
+            return $formReport;
+        }
+
+        // Both contracts hold in both modes: a draft naming a file that is not
+        // there would be a draft the download cannot answer for.
+        return $this->files->validate($model, $values, $formId);
     }
 }

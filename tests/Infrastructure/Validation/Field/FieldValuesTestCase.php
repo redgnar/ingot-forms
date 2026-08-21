@@ -47,6 +47,17 @@ abstract class FieldValuesTestCase extends KernelTestCase
      */
     abstract public static function verdicts(): iterable;
 
+    /**
+     * Which form the values are judged as. A fresh one is right for every type
+     * whose rules are about the value alone; an item whose value *points* at
+     * something the form owns overrides this, because then the form has to be
+     * the one that owns it.
+     */
+    protected function formId(): FormId
+    {
+        return FormId::next();
+    }
+
     protected function setUp(): void
     {
         self::bootKernel();
@@ -63,7 +74,7 @@ abstract class FieldValuesTestCase extends KernelTestCase
 
         // WHEN the values are judged
         try {
-            $this->values->assertFit($definition, self::values($json), $mode, FormId::next());
+            $this->values->assertFit($definition, self::values($json), $mode, $this->formId());
             $refusal = null;
         } catch (ValuesNotValid $exception) {
             $refusal = $exception->report->errors[0];
@@ -89,7 +100,7 @@ abstract class FieldValuesTestCase extends KernelTestCase
         $values = self::values($json);
 
         // WHEN each is asked on its own
-        $publishedContractAccepts = $this->schema->validate($structure, $values, $mode, FormId::next())->isEmpty();
+        $publishedContractAccepts = $this->schema->validate($structure, $values, $mode, $this->formId())->isEmpty();
         $formAccepts = $this->form->validate($structure, $values, $mode)->isEmpty();
 
         // THEN the form may not refuse what the schema accepts: a server
