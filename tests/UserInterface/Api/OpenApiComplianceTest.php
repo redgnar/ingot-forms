@@ -345,6 +345,18 @@ final class OpenApiComplianceTest extends WebTestCase
             ['DELETE', '/api/forms/{id}/files/{fileId}', 409, true, '', static function (self $test): void {
                 $test->client->request('DELETE', \sprintf('/api/forms/%s/files/%s', ...$test->formHoldingAFile()));
             }],
+            ['GET', '/api/forms/{id}/files/{fileId}', 200, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/forms/%s/files/%s', ...$test->formHoldingAFile()));
+            }],
+            ['GET', '/api/forms/{id}/files/{fileId}', 404, true, '', static function (self $test): void {
+                // Uploaded, never saved: unreachable, and indistinguishable from
+                // a file that never existed
+                $id = $test->createForm();
+                $test->client->request('GET', \sprintf('/api/forms/%s/files/%s', $id, $test->uploadTo($id)));
+            }],
+            ['GET', '/api/forms/{id}/files/{fileId}', 410, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/forms/%s/files/%s', $test->expiredForm(), Uuid::v7()->toRfc4122()));
+            }],
             ['DELETE', '/api/forms/{id}/files/{fileId}', 410, true, '', static function (self $test): void {
                 $test->client->request('DELETE', \sprintf('/api/forms/%s/files/%s', $test->expiredForm(), Uuid::v7()->toRfc4122()));
             }],

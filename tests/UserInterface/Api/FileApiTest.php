@@ -131,6 +131,80 @@ final class FileApiTest extends WebTestCase
         self::assertSame('form.file.mismatch', $this->firstError()['code']);
     }
 
+    public function testAFileTheFormNamesComesBackAsAnAttachment(): void
+    {
+        // GIVEN a form that saved a file whose name is not ASCII
+        $id = $this->createForm();
+        $this->upload($id, 'faktura-żółć.pdf', '%PDF-1.4 a tiny invoice');
+        $reference = $this->responseBody();
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), json_encode(['invoice' => $reference], \JSON_THROW_ON_ERROR));
+        self::assertResponseStatusCodeSame(204);
+
+        // WHEN it is downloaded
+        $file = $reference['id'];
+        self::assertIsString($file);
+        $this->client->request('GET', \sprintf('/api/forms/%s/files/%s', $id, $file));
+
+        // THEN the bytes come back, described as the server measured them...
+        self::assertResponseStatusCodeSame(200);
+        self::assertSame('%PDF-1.4 a tiny invoice', $this->client->getInternalResponse()->getContent());
+        self::assertResponseHeaderSame('Content-Type', 'application/pdf');
+        self::assertResponseHeaderSame('Content-Length', '23');
+
+        // ...as a file rather than a page, because these are somebody else's
+        // bytes on this application's own origin
+        self::assertResponseHeaderSame('X-Content-Type-Options', 'nosniff');
+        $disposition = (string) $this->client->getResponse()->headers->get('Content-Disposition');
+        self::assertStringStartsWith('attachment; ', $disposition);
+        self::assertStringContainsString("filename*=utf-8''faktura-%C5%BC%C3%B3%C5%82%C4%87.pdf", $disposition);
+        // ...and a name a client that cannot read the encoded one can still use
+        self::assertStringContainsString('filename=faktura-________.pdf;', $disposition);
+    }
+
+    public function testAConfirmedFormStillHandsItsFilesOver(): void
+    {
+        // GIVEN a form that saved a file and was then closed for good
+        $id = $this->createForm();
+        $this->upload($id, 'invoice.pdf', '%PDF-1.4 a tiny invoice');
+        $reference = $this->responseBody();
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), json_encode(['invoice' => $reference], \JSON_THROW_ON_ERROR));
+        $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
+        self::assertResponseStatusCodeSame(204);
+
+        // WHEN / THEN locked is not gone: a file stays fetchable as long as the
+        // form is
+        $file = $reference['id'];
+        self::assertIsString($file);
+        $this->client->request('GET', \sprintf('/api/forms/%s/files/%s', $id, $file));
+        self::assertResponseStatusCodeSame(200);
+    }
+
+    public function testWhatTheValuesDoNotNameCannotBeDownloaded(): void
+    {
+        // GIVEN an upload nobody saved
+        $id = $this->createForm();
+        $this->upload($id, 'invoice.pdf', '%PDF-1.4 a tiny invoice');
+        $file = $this->responseBody()['id'];
+        self::assertIsString($file);
+
+        // WHEN
+        $this->client->request('GET', \sprintf('/api/forms/%s/files/%s', $id, $file));
+
+        // THEN the same answer as for a file that never existed — the values are
+        // the index of what may be fetched, and they name nothing yet
+        self::assertResponseStatusCodeSame(404);
+        self::assertSame('urn:problem:ingot-forms:file-not-found', $this->responseBody()['type']);
+
+        // AND once a draft names it, the same request works
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), json_encode([
+            'invoice' => ['id' => $file, 'name' => 'invoice.pdf', 'size' => 23, 'type' => 'application/pdf'],
+        ], \JSON_THROW_ON_ERROR));
+        self::assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', \sprintf('/api/forms/%s/files/%s', $id, $file));
+        self::assertResponseStatusCodeSame(200);
+    }
+
     public function testAnUploadNobodyKeptCanBeThrownAwayAtOnce(): void
     {
         // GIVEN a form and a file somebody picked by mistake
@@ -262,6 +336,9 @@ final class FileApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(410);
 
         $this->client->request('DELETE', \sprintf('/api/forms/%s/files/%s', $id, Uuid::v7()->toRfc4122()));
+        self::assertResponseStatusCodeSame(410);
+
+        $this->client->request('GET', \sprintf('/api/forms/%s/files/%s', $id, Uuid::v7()->toRfc4122()));
         self::assertResponseStatusCodeSame(410);
     }
 

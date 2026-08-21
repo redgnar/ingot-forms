@@ -155,6 +155,50 @@ paths:
         '410':
           $ref: '#/components/responses/FormGone'
   '/api/forms/{id}/files/{fileId}':
+    get:
+      summary: 'Download a file this form holds'
+      description: "Answers only for a file the form's stored values name: an upload nobody saved, a file a later draft stopped naming, and a file that never existed are all the same 404. A confirmed form still hands its files over; an expired one hands over nothing. Always `Content-Disposition: attachment` with `X-Content-Type-Options: nosniff` — these are somebody else's bytes."
+      operationId: readFormFile
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+        -
+          name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      responses:
+        '200':
+          description: 'The bytes, with the media type the server sniffed when they arrived.'
+          headers:
+            Content-Disposition:
+              description: 'Always `attachment`, with the name the upload recorded.'
+              schema:
+                type: string
+            X-Content-Type-Options:
+              description: 'Always `nosniff`.'
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: 'No such form, or this form does not name that file.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '410':
+          $ref: '#/components/responses/FormGone'
     delete:
       summary: 'Throw away an uploaded file this form has not saved'
       description: 'For an upload that was replaced or picked by mistake. A file the stored values name is refused with 409 — a saved document is what makes a file permanent, and it stops being permanent by being saved out of the document, not by this.'

@@ -18,6 +18,7 @@ this reference cannot drift from the implementation.
 | [`POST /api/forms`](#post-apiforms) | `createForm` | Create a form | `201`, `400`, `415`, `422` |
 | [`GET /api/forms/{id}`](#get-apiformsid) | `getForm` | Read a form | `200`, `404`, `409`, `410` |
 | [`DELETE /api/forms/{id}`](#delete-apiformsid) | `deleteForm` | Delete a form | `204`, `404`, `410` |
+| [`GET /api/forms/{id}/files/{fileId}`](#get-apiformsidfilesfileid) | `readFormFile` | Download a file this form holds | `200`, `404`, `410` |
 | [`DELETE /api/forms/{id}/files/{fileId}`](#delete-apiformsidfilesfileid) | `discardFormFile` | Throw away an uploaded file this form has not saved | `204`, `404`, `409`, `410` |
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
 | [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `415`, `410`, `422` |
@@ -103,6 +104,27 @@ The "definition changed" path — delete the form and create a new one.
 |---|---|---|---|
 | `204` | — | empty | Form deleted. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
+| `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
+
+### GET /api/forms/{id}/files/{fileId}
+
+`operationId: readFormFile` — Download a file this form holds
+
+Answers only for a file the form's stored values name: an upload nobody saved, a file a later draft stopped naming, and a file that never existed are all the same 404. A confirmed form still hands its files over; an expired one hands over nothing. Always `Content-Disposition: attachment` with `X-Content-Type-Options: nosniff` — these are somebody else's bytes.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+| `fileId` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | `*/*` | `string` (`binary`) | The bytes, with the media type the server sniffed when they arrived. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No such form, or this form does not name that file. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 
 ### DELETE /api/forms/{id}/files/{fileId}
