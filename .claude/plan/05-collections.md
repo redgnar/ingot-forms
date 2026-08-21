@@ -271,6 +271,29 @@ what claiming an outer entry should leave behind. What actually changed:
   later" and read the two as one row of buttons, which is exactly the confusion a page should not
   invite: asking for another entry is the list's doing, finishing the form is not.
 
+## What the owner found afterwards
+
+Three reports, each a real defect rather than a preference, and each pinned where it happened:
+
+- **"Radio field not working."** Every entry drew its radios with the same `name`, and radios
+  sharing a name are one group across the whole form — so picking an option in the second row
+  unpicked the first. Ids collided for the same reason, which is why entries had been drawn
+  without them, and that workaround had put a `<label>` inside a `<label>` for a group of
+  radios. One mechanism replaced all of it: a node knows which entry it belongs to, and that
+  scope makes an id (`item-lines-1-sku`) and a group (`unit--lines-1`) its own; a blank entry
+  carries `PresentedNodes::PENDING`, which a page replaces when it clones one, one level at a
+  time so nesting keeps working.
+- **"In core-html the borders of a list aren't obvious."** A list was a bare box, so at the
+  third level nobody could tell where the inner one ended. It is a `<fieldset>` with its name in
+  the `<legend>` now — which is what it always was — with the frame the browser draws for free
+  and a background that deepens with each level.
+- **"When the error is inside a collapsed subform I see nothing."** Placing a message beside a
+  control is only half the job when the control is behind a folded `<details>`: both kits now
+  unfold every form on the way to a message and mark each entry it is inside, so the row still
+  says "look here" once somebody folds it back up. What made the message findable at all was the
+  ingot change described in `01-stage2.md` — until then a missing answer named the entry rather
+  than the answer, and there was nothing to unfold *to*.
+
 ## Non-goals
 
 No row ids, no reordering, no per-row endpoints — the page still sends the whole values document,

@@ -416,3 +416,24 @@ What changed:
   is one more rule that can drift. The trap is instead written down where it can be read: the
   provider's own test records that an entry already in the pool is trusted, which is *why* a
   rules change means clearing it.
+
+## What a pointer names, and what CI installs (2026-08-21)
+
+Two things this plan settled have since been made stricter, both because something silently
+disagreed with them.
+
+- **A finding points at the thing that is wrong.** The error format here was `{pointer, code,
+  message, input?}` mapped 1:1 from ingot, and that stayed — but JSON Schema reports a missing
+  property once for the *object* that owes it, so a form with an unanswered required item came
+  back as one finding at `''`, and an entry of a list as one at `/lines/1`. A page had nothing
+  to point at and fell back to a sentence at the top. ingot now unpacks that keyword the way it
+  already unpacked `additionalProperties`: one finding per missing member, at `/email` or
+  `/lines/1/sku`, worded `"sku" is required.` Every expectation that described the old shape
+  moved with it — ten value batteries, three definition batteries, the presentation document,
+  the API tests, the published example and the request files.
+- **CI installs the dependency set that was tested.** `composer.lock` was git-ignored, so every
+  install resolved afresh; `symfony/cache` reached 8.0 beside a framework pinned to `^7.4` and
+  turned the pipeline red while three local configurations — warm caches, cold caches, and
+  deliberately updated dependencies — stayed green. The lock is committed now and the composer
+  cache is keyed on it; `make install` obeys it, `make update` is the deliberate act of moving
+  it. The component that drifted is pinned as well, so the next reader sees *why*.

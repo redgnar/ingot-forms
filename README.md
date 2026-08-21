@@ -230,6 +230,12 @@ All request/response bodies are `application/json`; every error is an RFC 9457
 `{pointer, code, message, input?}` entry per finding — the same format for schema,
 type-mapping, and semantic errors (it comes straight from ingot's `ErrorReport`).
 
+**A pointer names the thing that is wrong**, never what surrounds it: a missing answer is
+`/email`, and inside a list `/lines/1/sku` — one finding per missing member, rather than one
+saying the document (or the entry) is incomplete. JSON Schema reports `required` and
+`additionalProperties` per object; ingot unpacks both, because a client that has to put a
+message beside a control needs to know which control.
+
 Requests are mapped into **DTOs by Symfony** before an action runs
 (`#[MapRequestPayload]`, `#[MapQueryString]` over `src/UserInterface/Api/Request/`), and validated by
 `symfony/validator`. Every DTO member is non-nullable, so an instance means a complete
