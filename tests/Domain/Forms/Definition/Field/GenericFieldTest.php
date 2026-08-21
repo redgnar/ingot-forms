@@ -32,13 +32,13 @@ final class GenericFieldTest extends FieldDefinitionTestCase
         // understands the type.
         yield 'a plugin item still has to say what it is' => [
             ['name' => 'sig', 'vendor' => ['pad' => '2.0']],
-            '/items/0',
+            '/items/0/type',
             'schema.required',
         ];
 
         yield 'and what it is called' => [
             ['type' => 'signature', 'vendor' => ['pad' => '2.0']],
-            '/items/0',
+            '/items/0/name',
             'schema.required',
         ];
     }

@@ -461,10 +461,11 @@ final class FormApiTest extends WebTestCase
         // WHEN it is confirmed while one entry is still half answered
         $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
 
-        // THEN the refusal names the entry it is about — a pointer a client can
-        // walk straight to the control it belongs to
+        // THEN the refusal names the answer that is missing, inside the entry
+        // that is missing it — a pointer a client can walk straight to the
+        // control it belongs to
         self::assertResponseStatusCodeSame(422);
-        self::assertSame('/lines/1', $this->firstError()['pointer']);
+        self::assertSame('/lines/1/quantity', $this->firstError()['pointer']);
         self::assertSame('schema.required', $this->firstError()['code']);
 
         // WHEN the missing answer is given

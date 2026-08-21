@@ -34,7 +34,7 @@ final class CheckboxFieldValuesTest extends FieldValuesTestCase
         yield 'null' => [DeriveMode::Draft, '{"newsletter": null}', '/newsletter', 'schema.type'];
 
         yield 'a draft may leave it undecided' => [DeriveMode::Draft, '{}', null, null];
-        yield 'confirmation wants a decision' => [DeriveMode::Strict, '{}', '', 'schema.required'];
+        yield 'confirmation wants a decision' => [DeriveMode::Strict, '{}', '/newsletter', 'schema.required'];
         yield 'and takes either one' => [DeriveMode::Strict, '{"newsletter": false}', null, null];
     }
 }

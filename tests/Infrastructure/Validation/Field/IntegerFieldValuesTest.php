@@ -37,7 +37,7 @@ final class IntegerFieldValuesTest extends FieldValuesTestCase
         yield 'a number in quotes' => [DeriveMode::Draft, '{"people": "4"}', '/people', 'schema.type'];
 
         yield 'a draft may leave it out' => [DeriveMode::Draft, '{}', null, null];
-        yield 'confirmation wants a count' => [DeriveMode::Strict, '{}', '', 'schema.required'];
+        yield 'confirmation wants a count' => [DeriveMode::Strict, '{}', '/people', 'schema.required'];
         yield 'a count confirms' => [DeriveMode::Strict, '{"people": 2}', null, null];
     }
 }

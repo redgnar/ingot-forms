@@ -37,7 +37,7 @@ final class NumberFieldValuesTest extends FieldValuesTestCase
         yield 'null is not a number' => [DeriveMode::Draft, '{"age": null}', '/age', 'schema.type'];
 
         yield 'a draft may leave it out' => [DeriveMode::Draft, '{}', null, null];
-        yield 'confirmation wants a number' => [DeriveMode::Strict, '{}', '', 'schema.required'];
+        yield 'confirmation wants a number' => [DeriveMode::Strict, '{}', '/age', 'schema.required'];
         yield 'a number in range confirms' => [DeriveMode::Strict, '{"age": 18}', null, null];
     }
 }

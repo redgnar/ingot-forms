@@ -74,7 +74,8 @@ final class ConfirmFormAction
                         'title' => 'Request is not valid.',
                         'status' => 422,
                         'errors' => [
-                            ['pointer' => '', 'code' => 'schema.required', 'message' => 'The required properties (email, country) are missing'],
+                            ['pointer' => '/email', 'code' => 'schema.required', 'message' => '"email" is required.'],
+                            ['pointer' => '/lines/1/quantity', 'code' => 'schema.required', 'message' => '"quantity" is required.'],
                         ],
                     ],
                 ),

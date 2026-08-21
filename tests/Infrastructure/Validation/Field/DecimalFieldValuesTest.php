@@ -39,7 +39,7 @@ final class DecimalFieldValuesTest extends FieldValuesTestCase
         yield 'above the ceiling' => [DeriveMode::Draft, '{"amount": 1000.01}', '/amount', 'schema.maximum'];
 
         yield 'a draft may leave it out' => [DeriveMode::Draft, '{}', null, null];
-        yield 'confirmation wants an amount' => [DeriveMode::Strict, '{}', '', 'schema.required'];
+        yield 'confirmation wants an amount' => [DeriveMode::Strict, '{}', '/amount', 'schema.required'];
         yield 'an amount confirms' => [DeriveMode::Strict, '{"amount": 10.5}', null, null];
     }
 }

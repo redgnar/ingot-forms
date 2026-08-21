@@ -33,7 +33,7 @@ final class ConsentFieldValuesTest extends FieldValuesTestCase
         yield 'the word true' => [DeriveMode::Draft, '{"terms": "true"}', '/terms', 'schema.type'];
 
         yield 'a draft may not have got there yet' => [DeriveMode::Draft, '{}', null, null];
-        yield 'confirmation wants the agreement' => [DeriveMode::Strict, '{}', '', 'schema.required'];
+        yield 'confirmation wants the agreement' => [DeriveMode::Strict, '{}', '/terms', 'schema.required'];
         yield 'agreement confirms' => [DeriveMode::Strict, '{"terms": true}', null, null];
         yield 'and nothing else does' => [DeriveMode::Strict, '{"terms": false}', '/terms', 'schema.const'];
     }

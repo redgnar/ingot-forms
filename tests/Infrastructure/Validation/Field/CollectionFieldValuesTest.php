@@ -54,12 +54,14 @@ final class CollectionFieldValuesTest extends FieldValuesTestCase
         yield 'an entry half answered' => [DeriveMode::Draft, '{"lines": [{"sku": "A-1"}]}', null, null];
 
         // ...and the state confirmation refuses.
-        yield 'confirmation wants the list' => [DeriveMode::Strict, '{}', '', 'schema.required'];
+        yield 'confirmation wants the list' => [DeriveMode::Strict, '{}', '/lines', 'schema.required'];
         yield 'confirmation wants an entry in it' => [DeriveMode::Strict, '{"lines": []}', '/lines', 'schema.minItems'];
+        // The entry is missing one answer, and the refusal names it — not the
+        // entry it is in, which is what lets a page mark the control itself.
         yield 'confirmation wants each entry answered' => [
             DeriveMode::Strict,
             '{"lines": [{"sku": "A-1"}]}',
-            '/lines/0',
+            '/lines/0/quantity',
             'schema.required',
         ];
 

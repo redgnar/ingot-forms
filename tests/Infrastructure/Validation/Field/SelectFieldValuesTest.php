@@ -32,7 +32,7 @@ final class SelectFieldValuesTest extends FieldValuesTestCase
         yield 'null is never an option' => [DeriveMode::Draft, '{"country": null}', '/country', 'schema.enum'];
 
         yield 'a draft may leave it out' => [DeriveMode::Draft, '{}', null, null];
-        yield 'confirmation wants a choice' => [DeriveMode::Strict, '{}', '', 'schema.required'];
+        yield 'confirmation wants a choice' => [DeriveMode::Strict, '{}', '/country', 'schema.required'];
         yield 'a choice confirms' => [DeriveMode::Strict, '{"country": "de"}', null, null];
     }
 }

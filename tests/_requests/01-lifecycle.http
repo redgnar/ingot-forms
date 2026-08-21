@@ -73,10 +73,10 @@ GET {{host}}/api/forms/{{presentedFormId}}/data
 POST {{host}}/api/forms/{{presentedFormId}}/confirm
 
 > {%
-    client.test("422 — the published schema names what is still missing", function () {
+    client.test("422 — the published schema names what is still missing, one finding each", function () {
         client.assert(response.status === 422, "Expected 422, got " + response.status);
         client.assert(response.body.errors[0].code === "schema.required", "Expected schema.required");
-        client.assert(response.body.errors[0].message.includes("email"), "The message names the missing fields");
+        client.assert(response.body.errors[0].pointer === "/email", "Expected the pointer to name the missing item");
     });
 %}
 

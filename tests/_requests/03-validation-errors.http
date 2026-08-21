@@ -124,7 +124,7 @@ Content-Type: application/json
 > {%
     client.test("422 schema.required under /definition", function () {
         client.assert(response.status === 422, "Expected 422, got " + response.status);
-        client.assert(response.body.errors[0].pointer === "/definition", "The engine's pointer is re-rooted where the client sent the document");
+        client.assert(response.body.errors[0].pointer === "/definition/items", "The engine names the member, re-rooted where the client sent the document");
         client.assert(response.body.errors[0].code === "schema.required", "Expected schema.required, got " + response.body.errors[0].code);
     });
 %}

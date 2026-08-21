@@ -80,9 +80,14 @@ final class DerivedSchemaValuesTest extends KernelTestCase
         $draft = $this->validate('{"age": 36}', DeriveMode::Draft);
         $strict = $this->validate('{"age": 36}', DeriveMode::Strict);
 
-        // THEN
+        // THEN each answer the form is still owed is named where it belongs, so
+        // a client can mark the controls rather than being told the document is
+        // incomplete
         self::assertTrue($draft->isEmpty());
-        self::assertSame(['' => 'schema.required'], self::byPointer($strict));
+        self::assertSame(
+            ['/email' => 'schema.required', '/country' => 'schema.required'],
+            self::byPointer($strict),
+        );
     }
 
     public function testTheSchemaComesFromTheCacheWhenTheFormIsKnown(): void

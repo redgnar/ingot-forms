@@ -139,7 +139,7 @@ POST {{host}}/api/forms/{{listFormId}}/confirm
 > {%
     client.test("422 pointing into the entry", function () {
         client.assert(response.status === 422, "Expected 422, got " + response.status);
-        client.assert(response.body.errors[0].pointer === "/lines/2", "Expected /lines/2, got " + response.body.errors[0].pointer);
+        client.assert(response.body.errors[0].pointer === "/lines/2/quantity", "Expected the missing answer to be named inside its entry");
         client.assert(response.body.errors[0].code === "schema.required", "Expected schema.required");
     });
 %}

@@ -37,7 +37,7 @@ final class ConsentFieldTest extends FieldDefinitionTestCase
     {
         yield 'a box still has to say what it is called' => [
             ['type' => 'checkbox', 'mustBeChecked' => true],
-            '/items/0',
+            '/items/0/name',
             'schema.required',
         ];
     }

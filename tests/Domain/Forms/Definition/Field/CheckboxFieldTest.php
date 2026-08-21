@@ -29,7 +29,7 @@ final class CheckboxFieldTest extends FieldDefinitionTestCase
         // owes — a type and a name.
         yield 'a box still has to say what it is' => [
             ['name' => 'newsletter'],
-            '/items/0',
+            '/items/0/type',
             'schema.required',
         ];
     }

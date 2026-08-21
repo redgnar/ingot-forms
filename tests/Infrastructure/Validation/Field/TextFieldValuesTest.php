@@ -40,7 +40,7 @@ final class TextFieldValuesTest extends FieldValuesTestCase
         // a pattern that demands a character is not satisfied by an empty string.
         yield 'an empty answer still has to match the pattern' => [DeriveMode::Draft, '{"email": ""}', '/email', 'schema.pattern'];
 
-        yield 'confirmation wants it filled in' => [DeriveMode::Strict, '{}', '', 'schema.required'];
+        yield 'confirmation wants it filled in' => [DeriveMode::Strict, '{}', '/email', 'schema.required'];
         yield 'and empty is not filled in' => [DeriveMode::Strict, '{"email": ""}', '/email', 'schema.minLength'];
         yield 'a complete answer confirms' => [DeriveMode::Strict, '{"email": "ada"}', null, null];
 

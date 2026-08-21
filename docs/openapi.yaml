@@ -52,7 +52,7 @@ paths:
               examples:
                 required-missing:
                   summary: 'A required field was never filled in'
-                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: '', code: schema.required, message: 'The required properties (email, country) are missing' }] }
+                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /email, code: schema.required, message: '"email" is required.' }, { pointer: /lines/1/quantity, code: schema.required, message: '"quantity" is required.' }] }
                 unknown-field-type:
                   summary: 'The definition carries a plugin field the server cannot vouch for'
                   value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /items/3/type, code: form.data.unknown-field-type, message: 'Field "sig" has unknown type "signature" — its value contract cannot be confirmed.', input: signature }] }

@@ -202,6 +202,11 @@ Rules that follow from it, and that the tooling checks:
 - **One error format**: every error response is RFC 9457 `application/problem+json`; validation
   problems carry `errors: [{pointer, code, message, input?}]` mapped 1:1 from ingot's
   `ErrorReport` (`ProblemExceptionListener` is the single mapping point).
+- **A finding points at the thing that is wrong**, never at what surrounds it: a missing answer
+  is `/email` and not `''`, `/lines/1/sku` and not `/lines/1` — one finding per missing member,
+  so a page can mark the control instead of saying the document is incomplete. Anything that
+  reports per object (JSON Schema's `required` does) is unpacked in ingot's
+  `OpisSchemaValidator`, which is also where `additionalProperties` is unpacked the same way.
 - **Requests arrive as DTOs**: actions take `#[MapRequestPayload]` / `#[MapQueryString]`
   arguments from `src/UserInterface/Api/Request/`, validated by `symfony/validator` — never
   read `Request` directly, never hand-roll envelope validation. Every DTO member is

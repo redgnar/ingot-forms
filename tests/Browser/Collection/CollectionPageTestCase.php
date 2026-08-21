@@ -232,6 +232,59 @@ abstract class CollectionPageTestCase extends PantherTestCase
         self::assertSame([['sku' => 'B-2', 'parts' => []]], $stored['lines'] ?? null);
     }
 
+    public function testAnAnswerAnEntryStillOwesIsMarkedInThatEntry(): void
+    {
+        // GIVEN a second entry, added and left empty
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->click(static::addTrigger());
+
+        // WHEN the form is sent
+        $this->click('[data-action="confirm"], [data-action="click->form#confirm"]');
+
+        // THEN what that entry still owes is marked in it, beside the control
+        // that has to be filled in — not as one sentence at the top saying the
+        // entry is incomplete
+        $message = $this->eventually(function (): ?string {
+            $slots = $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] [data-error="sku"]'));
+            $text = ($slots[1] ?? null)?->getText() ?? '';
+
+            return $text === '' ? null : $text;
+        });
+
+        self::assertIsString($message);
+        self::assertStringContainsString('sku', $message);
+        self::assertSame('', $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] [data-error="sku"]'))[0]->getText());
+        self::assertSame('draft', $this->formStatus($id));
+    }
+
+    public function testAnAnswerOwedTwoScopesDownIsMarkedThere(): void
+    {
+        // GIVEN an entry of a nested list, added and left empty
+        $id = $this->plantNested();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->click('[data-entry] details summary');
+        $this->click(\sprintf('[data-collection="parts"] %s', static::addTrigger()));
+
+        // WHEN the form is sent
+        $this->click('[data-action="confirm"], [data-action="click->form#confirm"]');
+
+        // THEN the message lands two scopes down, in the entry that owes it
+        $message = $this->eventually(function (): ?string {
+            $slots = $this->browser->findElements(WebDriverBy::cssSelector('[data-collection="parts"] [data-entry] [data-error="code"]'));
+            $text = ($slots[2] ?? null)?->getText() ?? '';
+
+            return $text === '' ? null : $text;
+        });
+
+        self::assertIsString($message);
+        self::assertStringContainsString('code', $message);
+        self::assertSame(
+            '',
+            $this->browser->findElements(WebDriverBy::cssSelector('[data-collection="parts"] [data-entry] [data-error="code"]'))[0]->getText(),
+        );
+    }
+
     public function testTheButtonsObeyTheCountsTheDefinitionGives(): void
     {
         // GIVEN a list that must hold one entry and may hold three

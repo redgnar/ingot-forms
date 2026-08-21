@@ -40,7 +40,7 @@ final class DateFieldValuesTest extends FieldValuesTestCase
         yield 'a number of days since something' => [DeriveMode::Draft, '{"visit": 20260615}', '/visit', 'schema.type'];
 
         yield 'a draft may leave it out' => [DeriveMode::Draft, '{}', null, null];
-        yield 'confirmation wants a day' => [DeriveMode::Strict, '{}', '', 'schema.required'];
+        yield 'confirmation wants a day' => [DeriveMode::Strict, '{}', '/visit', 'schema.required'];
         yield 'a day inside the period confirms' => [DeriveMode::Strict, '{"visit": "2026-03-01"}', null, null];
     }
 }
