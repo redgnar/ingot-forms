@@ -30,9 +30,11 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ingot-forms/.cache/composer
-          key: composer-${{ hashFiles('ingot-forms/composer.json') }}
+          key: composer-${{ hashFiles('ingot-forms/composer.lock') }}
           restore-keys: composer-
 
+      # `composer install` from the committed lock, so the runner builds the
+      # dependency set that was tested rather than resolving a fresh one.
       - run: make install
         working-directory: ingot-forms
 

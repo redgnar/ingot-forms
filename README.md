@@ -447,7 +447,7 @@ handed back to clients verbatim. Status is derived from the row (`data IS NULL` 
 
 | Command | What it does |
 |---|---|
-| `make install` / `make update` | composer install/update (Docker, PHP 8.4) |
+| `make install` / `make update` | composer install from the committed lock / move it deliberately (Docker, PHP 8.4) |
 | `make migrate` / `make db-test` | migrations for the dev / test database |
 | `make cache-clear` | throw away what this code derived (data schemas, mapper metadata) |
 | `make assets` | download the vendor JavaScript/CSS named in `importmap.php` |

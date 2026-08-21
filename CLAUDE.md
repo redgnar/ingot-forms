@@ -283,7 +283,8 @@ Rules that follow from it, and that the tooling checks:
   that passed validation, migrations built through the schema API rather than raw SQL.
 - **ingot is consumed via a composer path repository** (`../ingot`, sibling checkout,
   mounted at `/ingot` in Docker so the relative symlink resolves). After pulling new ingot
-  commits run `make update`. When ingot reaches Packagist: switch to a version constraint,
+  commits `make install` is enough — a symlink has nothing to fetch; `make update` is for
+  moving the other dependencies, and it rewrites the committed lock. When ingot reaches Packagist: switch to a version constraint,
   delete the `repositories` block.
   - **A change spanning both repositories goes to ingot first.** Locally the two are always
     in step — the symlink points at your checkout — so a mismatch is invisible until CI,
@@ -359,5 +360,12 @@ Formatting is php-cs-fixer's job; every PHP file starts with `declare(strict_typ
   and leave git to the user unless explicitly asked in the current conversation.
 - **Never add `Co-Authored-By` (or similar) trailers** to commit messages.
 - The remote is GitHub (`gh` CLI is fine for this repo).
-- Do not commit `vendor/`, `composer.lock`, `var/`, caches, `config/reference.php`, `.idea/`
+- **`composer.lock` is committed.** Without it every install resolves afresh, and anything
+  arriving transitively is free to jump a major — `symfony/cache` reached 8.0 next to a
+  framework pinned to `^7.4` and turned CI red while three local configurations stayed green.
+  With the lock, CI installs the set that was tested. `make install` obeys it; `make update`
+  is the deliberate act of moving it, and the new lock goes in the same commit as whatever
+  needed it. A path repository holds no version to lock, so pulling new ingot commits needs no
+  lock change — the symlink already points at the checkout.
+- Do not commit `vendor/`, `var/`, caches, `config/reference.php`, `.idea/`
   (see `.gitignore`).
