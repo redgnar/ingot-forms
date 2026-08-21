@@ -11,6 +11,7 @@ use App\Application\Forms\Port\FileStore;
 use App\Domain\Forms\ValueObject\FileDescriptor;
 use App\Domain\Forms\ValueObject\FileId;
 use App\Domain\Forms\ValueObject\FormId;
+use App\Domain\Forms\ValueObject\MediaType;
 use League\Flysystem\FilesystemOperator;
 use Symfony\Component\Mime\MimeTypesInterface;
 
@@ -54,7 +55,7 @@ final class FlysystemFileStore implements FileStore
             $file,
             self::readableName($upload->clientName),
             $upload->size(),
-            $this->mimeTypes->guessMimeType($upload->path) ?? 'application/octet-stream',
+            MediaType::of($this->mimeTypes->guessMimeType($upload->path) ?? 'application/octet-stream'),
         );
 
         $handle = fopen($upload->path, 'rb');

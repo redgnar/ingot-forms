@@ -11,6 +11,7 @@ use App\Application\Forms\Port\FileStore;
 use App\Domain\Forms\ValueObject\FileDescriptor;
 use App\Domain\Forms\ValueObject\FileId;
 use App\Domain\Forms\ValueObject\FormId;
+use App\Domain\Forms\ValueObject\MediaType;
 
 /**
  * The file store without a store — same guarantees, kept in arrays, so a use
@@ -48,7 +49,7 @@ final class InMemoryFileStore implements FileStore
      */
     public function hold(FormId $form, FileId $file, string $name, string $bytes, string $type, ?\DateTimeImmutable $writtenAt = null): FileDescriptor
     {
-        $descriptor = new FileDescriptor($file, $name, \strlen($bytes), $type);
+        $descriptor = new FileDescriptor($file, $name, \strlen($bytes), MediaType::of($type));
         $this->files[(string) $form][(string) $file] = [
             $descriptor,
             $bytes,

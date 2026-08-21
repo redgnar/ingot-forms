@@ -8,6 +8,7 @@ use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\Field;
+use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
@@ -131,6 +132,33 @@ final class DataSchemaDeriver
             }
 
             return $schema;
+        }
+
+        if ($field instanceof FileField) {
+            // The description of a file, not the bytes — so the item's own two
+            // rules are said here, in the published contract, and hold wherever
+            // that contract is checked. All four members are required in both
+            // contracts, which is not the same thing as the *item* being
+            // required: nobody types a description, it arrives whole from one
+            // response, so half of one is a client mistake rather than an
+            // answer somebody has not got round to.
+            return [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid'],
+                    'name' => [
+                        'type' => 'string',
+                        'minLength' => 1,
+                        'maxLength' => 255,
+                        // A name is a label: no separators, no control characters.
+                        'pattern' => '^[^/\\\\\x00-\x1f]+$',
+                    ],
+                    'size' => ['type' => 'integer', 'minimum' => 1, 'maximum' => $field->maxSize],
+                    'type' => ['enum' => $field->accept],
+                ],
+                'required' => ['id', 'name', 'size', 'type'],
+                'additionalProperties' => false,
+            ];
         }
 
         if ($field instanceof SelectField) {

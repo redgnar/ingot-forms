@@ -15,10 +15,12 @@ namespace App\Domain\Forms\ValueObject;
  * it echoes back what the upload answered with, and the reference gate holds it
  * to exactly that.
  *
- * The invariants here are the ones a member cannot carry on its own: a name that
- * could be mistaken for a path, a size no file can have, something that is not a
- * media type. They are deliberately the same rules the derived schema publishes,
- * so a descriptor that exists is a descriptor that document could contain.
+ * The invariants are the ones a plain member cannot carry: a name that could be
+ * mistaken for a path, a size no file can have, and a kind of bytes that is not
+ * a kind of bytes ({@see MediaType}, which the definition's own rules ask the
+ * same question of). They are deliberately the rules the derived schema
+ * publishes, so a descriptor that exists is a descriptor that document could
+ * contain.
  */
 final readonly class FileDescriptor implements \JsonSerializable
 {
@@ -27,13 +29,11 @@ final readonly class FileDescriptor implements \JsonSerializable
 
     private const string NOT_A_NAME = '#[/\\\\\x00-\x1f\x7f]#';
 
-    private const string MEDIA_TYPE = '#^[a-z0-9][a-z0-9!\#$&^_.+-]*/[a-z0-9][a-z0-9!\#$&^_.+-]*$#';
-
     public function __construct(
         public FileId $id,
         public string $name,
         public int $size,
-        public string $type,
+        public MediaType $type,
     ) {
         if ($name === '' || \strlen($name) > self::NAME_LIMIT) {
             throw new \InvalidArgumentException(\sprintf('A file name must be between 1 and %d bytes long.', self::NAME_LIMIT));
@@ -47,10 +47,6 @@ final readonly class FileDescriptor implements \JsonSerializable
 
         if ($size <= 0) {
             throw new \InvalidArgumentException('A stored file has at least one byte.');
-        }
-
-        if (preg_match(self::MEDIA_TYPE, $type) !== 1) {
-            throw new \InvalidArgumentException(\sprintf('"%s" is not a media type.', $type));
         }
     }
 
@@ -78,7 +74,7 @@ final readonly class FileDescriptor implements \JsonSerializable
             throw new \InvalidArgumentException('A file reference is an object with id, name, size and type.');
         }
 
-        return new self(FileId::fromString($id), $name, $size, $type);
+        return new self(FileId::fromString($id), $name, $size, MediaType::of($type));
     }
 
     /** Whether two descriptions are of the same file, in every member. */
@@ -87,7 +83,7 @@ final readonly class FileDescriptor implements \JsonSerializable
         return $this->id->equals($other->id)
             && $this->name === $other->name
             && $this->size === $other->size
-            && $this->type === $other->type;
+            && $this->type->equals($other->type);
     }
 
     /**
@@ -95,6 +91,6 @@ final readonly class FileDescriptor implements \JsonSerializable
      */
     public function jsonSerialize(): array
     {
-        return ['id' => (string) $this->id, 'name' => $this->name, 'size' => $this->size, 'type' => $this->type];
+        return ['id' => (string) $this->id, 'name' => $this->name, 'size' => $this->size, 'type' => (string) $this->type];
     }
 }

@@ -103,7 +103,7 @@ final class FlysystemFileStoreTest extends KernelTestCase
 
         // THEN the store records what the bytes are — which is why an author has
         // to write down the types fileinfo really reports
-        self::assertSame('image/png', $stored->type);
+        self::assertSame('image/png', (string) $stored->type);
         self::assertSame('notes.txt', $stored->name);
     }
 

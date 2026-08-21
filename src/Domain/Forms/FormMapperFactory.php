@@ -9,6 +9,8 @@ use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateRangeValidator;
 use App\Domain\Forms\Definition\Field;
+use App\Domain\Forms\Definition\FileAcceptValidator;
+use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\GenericField;
 use App\Domain\Forms\Definition\NumberField;
@@ -53,6 +55,7 @@ final class FormMapperFactory
             ->withValidator(CollectionField::class, new UniqueFieldNamesValidator())
             ->withValidator(CollectionField::class, new CollectionCountValidator())
             ->withValidator(NumberField::class, new NumberRangeValidator())
+            ->withValidator(FileField::class, new FileAcceptValidator())
             ->withValidator(DateField::class, new DateRangeValidator())
             ->withSchema(PresentationDocument::class, Schema::fromFile(__DIR__ . '/Presentation/presentation.schema.json'))
             ->withValidator(PresentationDocument::class, new UniqueItemNamesValidator())

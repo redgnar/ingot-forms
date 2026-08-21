@@ -6,17 +6,18 @@ namespace App\Tests\Domain\Forms\ValueObject;
 
 use App\Domain\Forms\ValueObject\FileDescriptor;
 use App\Domain\Forms\ValueObject\FileId;
+use App\Domain\Forms\ValueObject\MediaType;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
  * What a form knows about a file it holds.
  *
- * Two things are being pinned. The invariants — a name that cannot be mistaken
- * for a path, a size no file can have, something that is not a media type — and
- * the fact that a descriptor survives the trip through a values document
- * unchanged, because a client echoing one back is exactly how a reference is
- * made.
+ * Two things are being pinned. The invariants it carries itself — a name that
+ * cannot be mistaken for a path, a size no file can have — and the fact that a
+ * descriptor survives the trip through a values document unchanged, because a
+ * client echoing one back is exactly how a reference is made. What counts as a
+ * kind of bytes is {@see MediaTypeTest}.
  */
 final class FileDescriptorTest extends TestCase
 {
@@ -26,7 +27,7 @@ final class FileDescriptorTest extends TestCase
         $id = FileId::next();
 
         // WHEN
-        $descriptor = new FileDescriptor($id, 'invoice.pdf', 214003, 'application/pdf');
+        $descriptor = new FileDescriptor($id, 'invoice.pdf', 214003, MediaType::of('application/pdf'));
 
         // THEN every member is handed out, and as JSON it is the document a
         // values file carries
@@ -43,7 +44,7 @@ final class FileDescriptorTest extends TestCase
     public function testADescriptorSurvivesTheTripThroughAValuesDocument(): void
     {
         // GIVEN what an upload answered with
-        $descriptor = new FileDescriptor(FileId::next(), 'scan.jpeg', 12, 'image/jpeg');
+        $descriptor = new FileDescriptor(FileId::next(), 'scan.jpeg', 12, MediaType::of('image/jpeg'));
 
         // WHEN it comes back the way a client echoes it — decoded JSON
         $echoed = FileDescriptor::fromDocument(json_decode(json_encode($descriptor, \JSON_THROW_ON_ERROR), false, 512, \JSON_THROW_ON_ERROR));
@@ -65,7 +66,7 @@ final class FileDescriptorTest extends TestCase
         self::assertTrue($descriptor->id->equals($id));
         self::assertSame('a.png', $descriptor->name);
         self::assertSame(3, $descriptor->size);
-        self::assertSame('image/png', $descriptor->type);
+        self::assertSame('image/png', (string) $descriptor->type);
     }
 
     /**
@@ -75,12 +76,12 @@ final class FileDescriptorTest extends TestCase
     public function testWhatAFileMayBeCalledAndMayBe(string $name, int $size, string $type): void
     {
         // GIVEN / WHEN
-        $descriptor = new FileDescriptor(FileId::next(), $name, $size, $type);
+        $descriptor = new FileDescriptor(FileId::next(), $name, $size, MediaType::of($type));
 
         // THEN — the limits themselves are reachable, not only the far side of them
         self::assertSame($name, $descriptor->name);
         self::assertSame($size, $descriptor->size);
-        self::assertSame($type, $descriptor->type);
+        self::assertSame($type, (string) $descriptor->type);
     }
 
     /**
@@ -105,7 +106,7 @@ final class FileDescriptorTest extends TestCase
         // GIVEN / WHEN / THEN
         $this->expectException(\InvalidArgumentException::class);
 
-        new FileDescriptor(FileId::next(), $name, $size, $type);
+        new FileDescriptor(FileId::next(), $name, $size, MediaType::of($type));
     }
 
     /**
@@ -122,12 +123,6 @@ final class FileDescriptorTest extends TestCase
         yield 'a name carrying a delete character' => ["invoice\x7f.pdf", 1, 'text/plain'];
         yield 'a file of no bytes' => ['a.txt', 0, 'text/plain'];
         yield 'a file of fewer than no bytes' => ['a.txt', -1, 'text/plain'];
-        yield 'no type' => ['a.txt', 1, ''];
-        yield 'a type without a subtype' => ['a.txt', 1, 'pdf'];
-        yield 'a type with nothing after the slash' => ['a.txt', 1, 'application/'];
-        yield 'a type with nothing before it' => ['a.txt', 1, '/pdf'];
-        yield 'a type shouted' => ['a.txt', 1, 'APPLICATION/PDF'];
-        yield 'a type with a space in it' => ['a.txt', 1, 'application/x pdf'];
     }
 
     #[DataProvider('refusedDocuments')]
@@ -166,7 +161,7 @@ final class FileDescriptorTest extends TestCase
     public function testTwoDescriptionsOfDifferentFiles(FileDescriptor $other): void
     {
         // GIVEN the description a client was handed
-        $descriptor = new FileDescriptor(self::anId(), 'invoice.pdf', 214003, 'application/pdf');
+        $descriptor = new FileDescriptor(self::anId(), 'invoice.pdf', 214003, MediaType::of('application/pdf'));
 
         // WHEN / THEN a claim differing in any member is a claim about something
         // else, which is what the reference gate compares
@@ -179,18 +174,18 @@ final class FileDescriptorTest extends TestCase
      */
     public static function differences(): iterable
     {
-        yield 'another file' => [new FileDescriptor(FileId::next(), 'invoice.pdf', 214003, 'application/pdf')];
-        yield 'another name' => [new FileDescriptor(self::anId(), 'INVOICE.pdf', 214003, 'application/pdf')];
-        yield 'another size' => [new FileDescriptor(self::anId(), 'invoice.pdf', 214004, 'application/pdf')];
-        yield 'another type' => [new FileDescriptor(self::anId(), 'invoice.pdf', 214003, 'application/x-pdf')];
+        yield 'another file' => [new FileDescriptor(FileId::next(), 'invoice.pdf', 214003, MediaType::of('application/pdf'))];
+        yield 'another name' => [new FileDescriptor(self::anId(), 'INVOICE.pdf', 214003, MediaType::of('application/pdf'))];
+        yield 'another size' => [new FileDescriptor(self::anId(), 'invoice.pdf', 214004, MediaType::of('application/pdf'))];
+        yield 'another type' => [new FileDescriptor(self::anId(), 'invoice.pdf', 214003, MediaType::of('application/x-pdf'))];
     }
 
     public function testTheSameDescriptionIsTheSameFile(): void
     {
         // GIVEN / WHEN / THEN
         self::assertTrue(
-            new FileDescriptor(self::anId(), 'invoice.pdf', 214003, 'application/pdf')
-                ->equals(new FileDescriptor(self::anId(), 'invoice.pdf', 214003, 'application/pdf')),
+            new FileDescriptor(self::anId(), 'invoice.pdf', 214003, MediaType::of('application/pdf'))
+                ->equals(new FileDescriptor(self::anId(), 'invoice.pdf', 214003, MediaType::of('application/pdf'))),
         );
     }
 
