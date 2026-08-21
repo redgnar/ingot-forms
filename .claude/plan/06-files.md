@@ -58,23 +58,31 @@ adapter. See the closing section for what it changed and why.
    superseded, right after it commits; and `app:files:purge-temporary` collects, per form, whatever
    nobody ever saved and is older than `FILES_TEMPORARY_DAYS`. `app:forms:purge-expired` remains the
    end of everything. No reference counting anywhere — every layer asks the values.
-9. **A delete never happens *inside* a form transaction**, because a store delete does not roll back.
-   After the commit it may, and that is exactly where the save's own collection runs: the decision is
-   made on the locked row, the deleting happens once the row is safe, and a delete that fails is
-   picked up by the command rather than failing somebody's save.
-10. **Many files is `collection` + `file`, not a `multiple` option.** Stage 05 already built the item
+9. **A delete never happens inside a transaction that also writes the row**, because a store delete
+   does not roll back. After the commit it may, and that is where the save's own collection runs: the
+   decision is made on the locked row, the deleting happens once the row is safe, and a delete that
+   fails is picked up by the command rather than failing somebody's save. A delete may, however, be
+   **serialized by the row lock** — see decision 10; there the lock is ordering, not atomicity, and the
+   transaction writes nothing at all.
+10. **Deleting a temporary file takes the form's row lock**, the same one a save takes. It is what turns
+    the reference gate from a check into a guarantee: without it, a file can vanish between the gate
+    accepting it and the commit naming it, and the row ends up naming bytes that are gone. With it
+    there is only one order of events — either the save commits first and the delete then finds the
+    file referenced and refuses, or the delete goes first and the save is refused honestly with
+    `form.file.unknown`.
+11. **Many files is `collection` + `file`, not a `multiple` option.** Stage 05 already built the item
     that asks something repeatedly, with `min`/`max` counting entries and a pointer per entry. A
     second way to say "several" would be a second set of counting rules that can drift.
-11. **`accept` and `maxSize` are both required on a file item.** A file item without them is a
+12. **`accept` and `maxSize` are both required on a file item.** A file item without them is a
     contract that says "any bytes, any size", which no deployment can honour and no client can check.
     Refusing that at definition time costs nothing.
-12. **The upload knows nothing about which item it is for.** It takes bytes for a form, full stop. An
+13. **The upload knows nothing about which item it is for.** It takes bytes for a form, full stop. An
     item's `accept`/`maxSize` are published in the schema and enforced at the save gate, and the page
     compares the descriptor it just received against the item's own rules, so nobody learns at
     confirmation time. Addressing the item in the upload URL would need a second addressing scheme (an
     item inside a collection has a *definition* path, `lines/scan`, not a value path) to enforce a
     rule that is already enforced.
-13. **The upload is the one endpoint whose body is not JSON; the download the one that does not answer
+14. **The upload is the one endpoint whose body is not JSON; the download the one that does not answer
     with a document.** Stated as deliberate exceptions in `CLAUDE.md` rather than left to be
     discovered. Base64 in a JSON envelope was the alternative: +33% on the wire and the whole payload
     through the JSON parser, for nothing.
@@ -134,7 +142,13 @@ interface FileStore
     /** Writes an upload and returns what the server measured while doing it. */
     public function put(FormId $form, FileId $file, IncomingFile $upload): FileDescriptor;
 
-    /** What the store recorded about this form's file, or null if it holds no such file. */
+    /**
+     * What the store recorded about this form's file, or null if it holds no such file.
+     *
+     * Null unless **both** halves are there and agree: the sidecar's facts and bytes whose size
+     * matches them. A sidecar whose bytes are gone would otherwise let the gate accept a reference
+     * to nothing, which is the one thing the gate exists to prevent.
+     */
     public function describe(FormId $form, FileId $file): ?FileDescriptor;
 
     /** @throws FileMissing when the bytes are not there */
@@ -150,7 +164,12 @@ interface FileStore
     /** @return iterable<FormId> every form the store holds files for */
     public function formsWithFiles(): iterable;
 
-    /** @return list<FileId> this form's files last written before the given moment */
+    /**
+     * This form's files last written before the given moment — counted by *either* half, so a
+     * lone blob and a lone sidecar are both candidates for collection.
+     *
+     * @return list<FileId>
+     */
     public function writtenBefore(FormId $form, \DateTimeImmutable $moment): array;
 
     public function delete(FormId $form, FileId $file): void;
@@ -168,6 +187,58 @@ authors the four facts and `describe()` reads back exactly what was written. The
 bytes (`symfony/mime`, `ext-fileinfo`), the size from the stream, and the name is `basename`d,
 stripped of control characters, capped at 255 bytes and replaced by `file` if nothing survives — so
 the schema's `pattern` on `name` is always satisfiable by the descriptor we hand out.
+
+## How a file is found, and in which order things are written
+
+There is **no column about files anywhere in `forms`**, and there is no `files` table: the values
+document is the index of what a form holds. That is not an omission, it is the same rule the rest of
+this service keeps — the values are what passed validation and what is served byte for byte, so a
+second record of the same fact could only ever be a copy that drifts.
+
+```
+GET /api/forms/{formId}/files/{fileId}
+   -> forms->get(formId)              one row read; expiry answers 410 here, as everywhere
+   -> Values::fromJson(row.data)      the decode every read already does
+   -> FileReferences::in(form)        walks the definition's file positions, reads them out of the values
+   -> a descriptor with that id?      no -> 404. This is the whole of the authorization
+   -> store->open(formId, fileId)     {formId}/{fileId}, facts from {fileId}.json
+```
+
+So there are two indexes and both are natural: the **values** index a form's files logically (which
+item holds which id, under which pointer), and the **store's per-form directory** indexes them
+physically (what is there for this form, whatever the row says). Every question this service actually
+asks is answered by one of them — "give me this file of this form" costs one row read and one stream
+open, cheaper than a join; "what does this form hold" is the walk the page already does to draw its
+chips; "which form does this file belong to" never arises, because no route names a file without its
+form. What they cannot answer is aggregate housekeeping — storage per form, per tenant, everything
+uploaded last week — and that is the honest cost, in a service that does not even have a form list
+endpoint.
+
+If such a question ever arrives, the answer is a **derived** index: a table rebuildable from the
+values and a store listing, authoritative about nothing, changing neither the contract nor the
+descriptor.
+
+**What replaces the foreign key.** Nothing in the database enforces that the values name files that
+exist — gate 3 does, at the moment of writing, and after that the invariant holds because every path
+that deletes bytes consults the values first. The other direction (bytes nothing names) is a legal
+state with a name: *temporary*, indexed by the store listing, collected by the command.
+
+**And the ordering that keeps both true**, in one line each:
+
+- **content before reference** — bytes are written by an earlier request, and gate 3 refuses a
+  reference to bytes that are not there. Nothing in the save transaction writes to the store.
+- **reference before content, when removing** — `DeleteForm` and the purge remove the row first and
+  the bytes second. The reverse order can leave a live form naming files that are gone, which is the
+  one state this design does not tolerate; a directory whose row is already gone, on the other hand,
+  is exactly what `app:files:purge-temporary` collects.
+- **nothing in a transaction but the row** — a rollback can lose nothing, and a store that is briefly
+  unreachable cannot fail a save. Deletes run after the commit, and whatever they miss the command
+  collects.
+- **a temporary file is deleted under the form's row lock** — the check that a referenced file exists
+  is only a guarantee if nothing can remove that file while the save it belongs to is in flight. The
+  lock is the whole of it: `DELETE …/files/{fileId}` and `app:files:purge-temporary` take
+  `getForUpdate` on the form, read the values that are really stored, and delete only then. Neither
+  writes a column, so nothing here needs to roll back.
 
 ## Upload: our controller or tus
 
@@ -276,7 +347,7 @@ $superseded = $this->transactions->run(function () use ($id, $values): array {
     $after = $this->references->in($form);         // what it names now
     $this->forms->save($form);
 
-    return FileReferences::dropped($before, $after);
+    return FileReferences::dropped($before, $after);   // by id, so a reference that only moved stays
 });
 
 foreach ($superseded as $file) {
@@ -301,7 +372,9 @@ for that request than silently reviving what it points at.
 **`DELETE /api/forms/{id}/files/{fileId}`** — the mirror of the upload, for the page's own "remove"
 control and for the moment somebody picks a second file into the same item. It deletes a file **only
 while nothing stored names it**, and answers `409 form.file.attached` otherwise, so this endpoint can
-never take away a file a saved document depends on; `404`/`410` as everywhere else. It is the cheapest
+never take away a file a saved document depends on; `404`/`410` as everywhere else. It reads those
+values on the **locked** row (decision 10), so it cannot slip between a save's reference check and its
+commit. It is the cheapest
 layer and the one that catches most of the churn, because most abandoned uploads are abandoned by
 somebody who is still on the page.
 
@@ -313,9 +386,11 @@ somebody who is still on the page.
 for each formId the store holds files for:
     form = repository->readForCleanup(formId)          // no expiry guard: this is physical cleanup
     if (form === null) -> forget(formId)               // no row: these bytes cannot belong to anything
-    else:
+    else: transactions->run(fn () =>                   // the row lock, for ordering only (decision 10)
+        form  = repository->getForUpdate(formId)       // re-read: the values may have moved on
         named = FileReferences::in(form)               // the definition's file positions, read out of the values
         for each file written before now - FILES_TEMPORARY_DAYS and not in named -> delete it
+    )
 ```
 
 The age threshold is what keeps it from racing a person who is still filling the form in: days, not
@@ -326,6 +401,44 @@ It is also the safety net for everything else. Bytes whose row is already gone a
 a purge whose store delete failed is repaired here rather than leaking forever, and so is a save whose
 best-effort delete did not land. That closes the "a purge has to succeed in two places" worry the file
 item was postponed over.
+
+### Zombies: every way a file ends up outside `data`
+
+The command is defined negatively — *whatever the values do not name* — which is why one mechanism
+covers every species. Worth enumerating them anyway, because a list is how you find out whether the
+mechanism has a hole:
+
+| how it is made | collected by |
+|---|---|
+| uploaded, then the tab was closed; or the save was refused for some other field | the command, after the threshold |
+| picked a second file into the same item before saving | the page's `DELETE`, at once; the command if the call never happened |
+| superseded by a save that stored a different file | the save, after its commit; the command if that delete failed |
+| bytes written, sidecar never written (a crash between the two) | the command — it counts a lone half as a candidate |
+| sidecar left behind by a delete that half-failed | the command, same rule |
+| the form's row is already gone (a failed store delete in `DeleteForm` or the purge) | the command, `forget(formId)` — no row means these bytes cannot belong to anything |
+| the form expired while the file was still temporary | `app:forms:purge-expired`, with the whole directory |
+
+Two rules make that table exhaustive rather than hopeful. **`describe()` requires both halves and
+agreeing sizes**, so a half-written or half-deleted file is *invisible* — the gate refuses to name it
+and the download cannot serve it, which means a zombie is never anything but garbage. And **the age
+threshold applies to every candidate**, including lone halves: a blob written a millisecond ago whose
+sidecar is still on its way must not look like a corpse.
+
+One case that looks like a zombie and is not: the same file id named by **two** positions (a descriptor
+copied into two items, or into two entries of a list). `FileReferences::dropped()` compares by id, and
+the command keeps anything any position names, so dropping one of the two references leaves the file
+alone.
+
+**How the command stays cheap.** It lists a form's directory *first* and only reads the row if
+something there is older than the threshold — so the common case (a form whose files are all recent,
+or all attached and untouched) costs one listing and no database work at all. `--limit` bounds a run,
+and a run that stops early is a run that resumes tomorrow; nothing about the rule is stateful.
+
+**And how you find out it stopped working.** The command reports what it collected, per species: files
+freed, rowless directories forgotten, lone halves removed. Those numbers are supposed to be near zero,
+because layers one and two are supposed to catch almost everything — a number that keeps growing is
+the signal that the page's `DELETE` or the post-commit delete is broken, and it is the only warning
+this design gets.
 
 ## Download
 
@@ -483,8 +596,8 @@ Each step ends with a green `make ci`; the steps that change what a definition d
 0. `FileId`, `FileDescriptor`, `IncomingFile`, `FileStream`, the `FileStore` port,
    `FlysystemFileStore`, the in-memory fake for application tests, the bundle, the config, the env,
    `docker/php.ini`. Tests: a round trip through the real store (put → describe → open → count →
-   forget), that a sidecar-less file reads as absent, and that no name a client sends can escape its
-   form's directory.
+   forget); that a file missing either half — no sidecar, no bytes, or a size that disagrees — reads
+   as absent; and that no name a client sends can escape its form's directory.
 1. `FileField`, its rules, the meta-schema, `DataSchemaDeriver`, and the definition battery
    (`tests/Domain/Forms/Definition/Field/FileFieldTest.php`): which option combinations are allowed,
    what the item contributes to both contracts, and that every option survives storage.
@@ -493,17 +606,21 @@ Each step ends with a green `make ci`; the steps that change what a definition d
    so the accepted rows are genuinely accepted.
 3. The upload endpoint and `UploadFormFile`: the budget, the three size failures, the `413` listener,
    the OpenAPI multipart body, integration tests for every guard. Its mirror in the same step:
-   `DELETE …/files/{fileId}` and `DiscardFormFile`, refusing anything the stored values name.
+   `DELETE …/files/{fileId}` and `DiscardFormFile` — on the locked row, refusing anything the stored
+   values name.
 4. The download endpoint and `ReadFormFile`: bytes, headers, streaming, and the two `404`s that look
    alike.
 5. Housekeeping, all four collectors: `SaveFormData` deletes what its commit superseded (unit tests
    against the fake pin the *order* — the comparison inside the transaction, the deleting after it, and
-   a store failure that does not fail the save); `DeleteForm` forgets the bytes before removing the row;
+   a store failure that does not fail the save); `DeleteForm` removes the row and *then* the bytes;
    `PurgeExpiredForms` stops being one bulk `DELETE` and works per form (`expiredIds`/`removeExpired`),
-   store first, row second, so a half-finished run is a resumable one; `PurgeTemporaryFiles` and
-   `app:files:purge-temporary` arrive with `readForCleanup` on the repository. Tests pin the rules that
-   matter: nothing left in either place, a store failure leaves the row, and a file the values still
-   name is never collected however old it is.
+   the same way round; `PurgeTemporaryFiles` and `app:files:purge-temporary` arrive with
+   `readForCleanup` on the repository, and both of the collectors that touch a live form take its row
+   lock first. The command lists before it reads a row, counts what it collected per species, and
+   treats a lone blob or a lone sidecar as a candidate like any other. Tests pin the rules that matter: nothing left in either place, a store failure leaves no
+   form naming absent bytes, a file the values still name is never collected however old it is, and a
+   delete that arrives while a save is in flight ends with either a stored reference and the file, or
+   no reference and no file — never one without the other.
 6. The presentation: `file` in both engines, `dropzone` in the richer one, the JSON payload
    convention, the page text, `columns` previews, and a browser battery per kit that attaches a real
    file (a fixture path inside the container), saves, reloads and follows the download link.
