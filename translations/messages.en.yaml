@@ -15,6 +15,13 @@ page:
         add: 'Add'
         remove: 'Remove'
         edit: 'Edit'
+    history:
+        title: 'Earlier versions'
+        empty: 'Nothing has been saved yet.'
+        confirmed: 'sent'
+        restore_all: 'Restore this version'
+        restore_field: 'Put this back'
+        failed: 'The earlier versions could not be read.'
     file:
         pick: 'Choose a file'
         drop: 'Drop a file here, or choose one'

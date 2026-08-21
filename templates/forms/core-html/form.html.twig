@@ -33,6 +33,10 @@
         tbody.entry-invalid > tr:first-child > td { background: #fdecea; }
         .entry-form summary { cursor: pointer; font-size: .875rem; margin-left: -.75rem; }
         .flash { background: #e8f5e9; border-radius: .25rem; color: #1b5e20; margin-bottom: 1.5rem; padding: .75rem 1rem; }
+        .history { border: 1px solid #ddd; border-radius: .25rem; font-size: .875rem; margin-bottom: 1.5rem; padding: .5rem .75rem; }
+        .history summary { cursor: pointer; font-weight: 600; }
+        .history ol, .history ul { margin: .5rem 0; padding-left: 1.25rem; }
+        .history button { font: inherit; }
         .file-held { font-size: .875rem; margin: .25rem 0 0; }
         .file-progress { color: #555; font-size: .875rem; margin: .25rem 0 0; }
     </style>
@@ -49,6 +53,39 @@
        hidden again the moment it stops being true. #}
     <p class="flash" id="form-saved" hidden>{{ 'page.saved'|trans }}</p>
 {% endif %}
+
+{# Earlier versions. Page chrome, not the presentation's business: no document
+   carries a code for it, the same way none carries one for "your answers are
+   saved". Nothing is fetched until somebody opens it, and every row it draws is
+   a clone of a template below — a kit does not write markup in JavaScript. #}
+<details class="history" data-history>
+    <summary>{{ 'page.history.title'|trans }}</summary>
+    <p class="hint" data-history-empty hidden>{{ 'page.history.empty'|trans }}</p>
+    <p class="error" data-history-error hidden>{{ 'page.history.failed'|trans }}</p>
+    <ol data-history-list></ol>
+
+    <div data-history-version hidden>
+        {% if not readOnly %}
+            <p><button type="button" data-history-restore>{{ 'page.history.restore_all'|trans }}</button></p>
+        {% endif %}
+        <ul data-history-members></ul>
+    </div>
+
+    <template data-history-moment>
+        <li>
+            <button type="button" data-history-open><time data-history-when></time></button>
+            <span data-history-confirmed hidden>{{ 'page.history.confirmed'|trans }}</span>
+        </li>
+    </template>
+    <template data-history-member>
+        <li>
+            <b data-history-name></b> <span data-history-value></span>
+            {% if not readOnly %}
+                <button type="button" data-history-put hidden>{{ 'page.history.restore_field'|trans }}</button>
+            {% endif %}
+        </li>
+    </template>
+</details>
 
 <form id="form">
     {# Where the buttons go is the presentation's business, so nothing is added

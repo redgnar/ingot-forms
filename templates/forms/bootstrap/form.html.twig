@@ -39,6 +39,47 @@
         </div>
     {% endif %}
 
+    {# Earlier versions. Page chrome, not the presentation's business — and folded
+       away without borrowing anybody's JavaScript, the way this kit folds
+       everything. Nothing is fetched until somebody opens it, and every row it
+       draws is a clone of a template below. #}
+    <details class="border rounded mb-4 bg-body" data-history data-controller="history"
+             data-history-id-value="{{ id }}" data-action="toggle->history#opened">
+        <summary class="px-3 py-2 fw-semibold">{{ 'page.history.title'|trans }}</summary>
+        <div class="px-3 pb-3 small">
+            <p class="text-secondary mb-0 d-none" data-history-target="empty" data-history-empty>{{ 'page.history.empty'|trans }}</p>
+            <p class="text-danger mb-0 d-none" data-history-target="failed" data-history-error>{{ 'page.history.failed'|trans }}</p>
+            <ol class="list-unstyled mb-0" data-history-target="list" data-history-list></ol>
+
+            <div class="mt-3 d-none" data-history-target="version" data-history-version>
+                {% if not readOnly %}
+                    <button type="button" class="btn btn-sm btn-outline-primary mb-2" data-history-restore
+                            data-action="history#restore">{{ 'page.history.restore_all'|trans }}</button>
+                {% endif %}
+                <ul class="list-unstyled mb-0" data-history-target="members" data-history-members></ul>
+            </div>
+
+            <template data-history-target="moment">
+                <li class="mb-1 d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-link p-0" data-history-open data-action="history#show">
+                        <time data-history-when></time>
+                    </button>
+                    <span class="badge text-bg-secondary d-none" data-history-confirmed>{{ 'page.history.confirmed'|trans }}</span>
+                </li>
+            </template>
+            <template data-history-target="member">
+                <li class="mb-1 d-flex align-items-center gap-2">
+                    <span class="fw-semibold" data-history-name></span>
+                    <span data-history-value></span>
+                    {% if not readOnly %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 d-none"
+                                data-history-put data-action="history#put">{{ 'page.history.restore_field'|trans }}</button>
+                    {% endif %}
+                </li>
+            </template>
+        </div>
+    </details>
+
     <form novalidate>
         {# Where the buttons go is the presentation's business, so nothing is
            added here: a document that offers none draws none, and it cannot

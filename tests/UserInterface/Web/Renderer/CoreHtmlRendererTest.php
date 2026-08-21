@@ -169,9 +169,10 @@ final class CoreHtmlRendererTest extends KernelTestCase
         // THEN each is drawn as asked, labelled as asked, and says what it does
         self::assertSame('Send it', $page->filter('button[data-action="confirm"]')->text());
         self::assertSame('Save for later', $page->filter('a[data-action="save"]')->text());
-        // and nothing adds a pair of its own at the bottom: the only other
-        // buttons on this page belong to a control, not to the form
-        self::assertCount(1, $page->filter('button:not([data-action="remove-file"])'));
+        // and nothing adds a pair of its own at the bottom. Counted inside the
+        // form: the only other buttons on this page belong to a control or to the
+        // history panel, and neither is the form's doing
+        self::assertCount(1, $page->filter('#form button:not([data-action="remove-file"])'));
     }
 
     public function testAFileIsPickedWithOneControlAndHeldInAnother(): void
@@ -266,6 +267,49 @@ final class CoreHtmlRendererTest extends KernelTestCase
             ['pl', 'de'],
             $page->filter('[data-name="country"] input')->each(static fn(Crawler $input): ?string => $input->attr('value')),
         );
+    }
+
+    public function testEarlierVersionsAreOfferedWithoutBeingFetched(): void
+    {
+        // GIVEN a form being filled in
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::form(), 'en')));
+        $panel = $page->filter('[data-history]');
+
+        // THEN the panel is there, folded, and holding nothing yet: a page nobody
+        // looks into should not pay for what it would have shown
+        self::assertCount(1, $panel);
+        self::assertNull($panel->attr('open'));
+        self::assertSame('', $panel->filter('[data-history-list]')->text());
+
+        // AND the rows it will draw are rendered here, not written in JavaScript —
+        // one for a moment, one for an answer that moment held
+        self::assertCount(1, $panel->filter('template[data-history-moment]'));
+        self::assertCount(1, $panel->filter('template[data-history-member]'));
+
+        // AND a way to put a whole version back, and one answer of it
+        self::assertCount(1, $panel->filter('[data-history-restore]'));
+        self::assertCount(1, $panel->filter('template[data-history-member] [data-history-put]'));
+
+        // AND it is not part of the form: what a person filled in is one thing,
+        // and the tools around it are another
+        self::assertCount(0, $page->filter('#form [data-history]'));
+    }
+
+    public function testAConfirmedFormOffersItsEarlierVersionsToReadAndNotToRestore(): void
+    {
+        // GIVEN a form locked for good
+        $form = self::form();
+        $form->saveDraft(self::withInvoice(), new StubValues());
+        $form->confirm(new StubValues());
+
+        // WHEN
+        $panel = new Crawler($this->renderer->render(new RenderedForm($form, 'en')))->filter('[data-history]');
+
+        // THEN what it used to say is still worth reading — and there is nothing
+        // to press, because a locked form takes no draft, restored or otherwise
+        self::assertCount(1, $panel);
+        self::assertCount(0, $panel->filter('[data-history-restore]'));
+        self::assertCount(0, $panel->filter('[data-history-put]'));
     }
 
     public function testAConfirmedFormIsDrawnToBeReadNotChanged(): void

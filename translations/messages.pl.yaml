@@ -11,6 +11,13 @@ page:
         add: 'Dodaj'
         remove: 'Usuń'
         edit: 'Edytuj'
+    history:
+        title: 'Wcześniejsze wersje'
+        empty: 'Nic jeszcze nie zapisano.'
+        confirmed: 'wysłane'
+        restore_all: 'Przywróć tę wersję'
+        restore_field: 'Przywróć to'
+        failed: 'Nie udało się odczytać wcześniejszych wersji.'
     file:
         pick: 'Wybierz plik'
         drop: 'Przeciągnij plik tutaj albo wybierz go'

@@ -161,7 +161,9 @@ final class BootstrapFormPageTest extends PantherTestCase
         // and who has to unfold the accordion before they can reach what is in
         // it — the folding is the browser's own, not a library's
         self::assertFalse($this->browser->findElement(WebDriverBy::id('item-bio'))->isDisplayed());
-        $this->browser->findElement(WebDriverBy::cssSelector('details summary'))->click();
+        // The form's own, not the page's: the history panel is folded away the same
+        // way, and it is not what a person opens to answer a question.
+        $this->browser->findElement(WebDriverBy::cssSelector('form details summary'))->click();
         $this->browser->findElement(WebDriverBy::id('item-bio'))->sendKeys(str_repeat('x', 60));
 
         // WHEN they try to finish it without the consent

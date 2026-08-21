@@ -164,8 +164,8 @@ final class BootstrapRendererTest extends KernelTestCase
 
         // AND an accordion folds away without borrowing anybody's JavaScript,
         // opened because the document asked for it
-        self::assertSame('Anything else?', $page->filter('details')->children('summary')->text());
-        self::assertNotNull($page->filter('details')->attr('open'));
+        self::assertSame('Anything else?', $page->filter('form details')->children('summary')->text());
+        self::assertNotNull($page->filter('form details')->attr('open'));
 
         // AND a row puts its items side by side, each as wide as it asked
         $columns = $page->filter('.row')->first()->children('div');
@@ -304,6 +304,46 @@ final class BootstrapRendererTest extends KernelTestCase
         self::assertSame('input->form#touched', $main->attr('data-action'));
         self::assertStringContainsString('d-none', $page->filter('[data-form-target="saved"]')->attr('class') ?? '');
         self::assertStringContainsString('d-none', $page->filter('[data-form-target="problem"]')->attr('class') ?? '');
+    }
+
+    public function testEarlierVersionsAreOfferedWithTheBehaviourThatReadsThem(): void
+    {
+        // GIVEN a form being filled in
+        $page = new Crawler($this->render());
+        $panel = $page->filter('[data-history]');
+
+        // THEN the panel is there, folded, and knows which form to ask about
+        self::assertCount(1, $panel);
+        self::assertNull($panel->attr('open'));
+        self::assertSame('history', $panel->attr('data-controller'));
+        self::assertNotNull($panel->attr('data-history-id-value'));
+
+        // AND the rows it will draw are rendered here rather than written in
+        // JavaScript
+        self::assertCount(1, $panel->filter('template[data-history-target="moment"]'));
+        self::assertCount(1, $panel->filter('template[data-history-target="member"]'));
+        self::assertCount(1, $panel->filter('[data-action="history#restore"]'));
+
+        // AND it is not part of the form, and it did not borrow a widget's clothes:
+        // `card` is what a document asks for, not what the page wears
+        self::assertCount(0, $page->filter('form [data-history]'));
+        self::assertStringNotContainsString('card', (string) $panel->attr('class'));
+    }
+
+    public function testAConfirmedFormOffersItsEarlierVersionsToReadAndNotToRestore(): void
+    {
+        // GIVEN a form locked for good
+        $form = self::form();
+        $form->saveDraft(self::withInvoice(), new StubValues());
+        $form->confirm(new StubValues());
+
+        // WHEN
+        $panel = new Crawler($this->renderer->render(new RenderedForm($form, 'en')))->filter('[data-history]');
+
+        // THEN readable, and nothing to press
+        self::assertCount(1, $panel);
+        self::assertCount(0, $panel->filter('[data-action="history#restore"]'));
+        self::assertCount(0, $panel->filter('[data-history-put]'));
     }
 
     public function testAConfirmedFormIsDrawnToBeReadNotChanged(): void
@@ -504,7 +544,9 @@ final class BootstrapRendererTest extends KernelTestCase
         self::assertCount(2, $page->filter('[data-entry]'));
         self::assertNotNull($page->filter('[data-name="sku"]')->attr('disabled'));
         self::assertCount(0, $page->filter('[data-controller="entries"]'));
-        self::assertCount(0, $page->filter('template'));
+        // Of the form's own: the history panel keeps the rows it clones whether or
+        // not this form can still be changed.
+        self::assertCount(0, $page->filter('form template'));
     }
 
     /**
