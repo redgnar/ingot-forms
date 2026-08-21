@@ -16,5 +16,8 @@ return [
     // Icons as SVG in the markup, imported into the repository rather than
     // fetched at runtime.
     Symfony\UX\Icons\UXIconsBundle::class => ['all' => true],
+    // Where a form's bytes live: a directory here, a bucket somewhere else. Which
+    // one is configuration, and only one adapter class of ours knows it exists.
+    League\FlysystemBundle\FlysystemBundle::class => ['all' => true],
     DAMA\DoctrineTestBundle\DAMADoctrineTestBundle::class => ['test' => true],
 ];

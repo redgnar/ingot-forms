@@ -1,0 +1,5 @@
+# The suite writes real bytes, so it gets a directory of its own — `make
+# storage-clean` empties it. Cases need no cleanup between them: every form is a
+# fresh uuid, so no two tests can see each other's files.
+parameters:
+    files.dir: '%kernel.project_dir%/var/storage/files-test'

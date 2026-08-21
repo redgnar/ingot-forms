@@ -6,7 +6,7 @@
 RUN   := docker compose run --rm --no-deps php
 RUNDB := docker compose run --rm php
 
-.PHONY: setup image up down install update require assets db-reset cache-clear test test-unit test-integration test-browser test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
+.PHONY: setup image up down install update require assets db-reset cache-clear storage-clean test test-unit test-integration test-browser test-filter test-file coverage mutation openapi docs schema check-values lint stan cs cs-fix validate audit deptrac migrate db-test console ci shell
 
 setup: ## Bring a fresh checkout all the way up: image, dependencies, an empty database, serving
 	@[ -d ../ingot ] || { echo 'The ingot library must sit next to this project: git clone https://github.com/redgnar/ingot.git ../ingot'; exit 1; }
@@ -55,6 +55,9 @@ assets: ## Download the vendor JavaScript and CSS named in importmap.php into as
 cache-clear: ## Throw away what this code derived (data schemas, mapper metadata) — after a rules change
 	$(RUN) sh -c 'bin/console cache:pool:clear --all && bin/console cache:clear \
 		&& bin/console cache:pool:clear --all --env=test && bin/console cache:clear --env=test'
+
+storage-clean: ## Empty the file store (dev and test). Bytes only: forms keep the references, so this is a clean slate, not a repair
+	$(RUN) sh -c 'rm -rf var/storage/files var/storage/files-test'
 
 db-test: ## Create the test database and bring its schema up to date
 	$(RUNDB) bin/console doctrine:database:create --env=test --if-not-exists

@@ -21,6 +21,10 @@ ENV PANTHER_NO_SANDBOX=1 \
     PANTHER_CHROME_BINARY=/usr/bin/chromium-browser \
     PANTHER_CHROMEDRIVER_BINARY=/usr/bin/chromedriver
 
+# Uploads need more than the 2M default, and the limit belongs to the image
+# rather than to whoever remembers to set it.
+COPY php.ini /usr/local/etc/php/conf.d/ingot-forms.ini
+
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 ENV COMPOSER_CACHE_DIR=/app/.cache/composer

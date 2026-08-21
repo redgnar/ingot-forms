@@ -1,3 +1,10 @@
+parameters:
+    # Where uploaded bytes live. A directory is one node: more than one instance
+    # needs a shared volume, or an S3-style Flysystem adapter — configuration
+    # either way, never code.
+    files.default_dir: '%kernel.project_dir%/var/storage/files'
+    files.dir: '%env(default:files.default_dir:FILES_DIR)%'
+
 services:
     _defaults:
         autowire: true
@@ -24,6 +31,9 @@ services:
             - '../src/Domain/Forms/{Form,FormStatus,DeriveMode}.php'
             - '../src/Infrastructure/Persistence/FormRecord.php'
             - '../src/UserInterface/Api/Problem/ProblemException.php'
+            # an upload on its way in, and an open file on its way out
+            - '../src/Application/Forms/File/'
+            - '../src/Application/Forms/Exception/'
             - '../src/UserInterface/Web/Renderer/RenderedForm.php'
             # request DTOs and the attributes/constraints describing them
             - '../src/UserInterface/Api/Request/{CreateFormRequest,DataSchemaQuery,SaveFormDataRequest}.php'
@@ -63,6 +73,11 @@ services:
     App\Domain\Forms\Port\ValuesValidator: '@App\Infrastructure\Validation\StagedValuesValidator'
     App\Application\Forms\Port\Transactions: '@App\Infrastructure\Persistence\DoctrineTransactions'
     App\Application\Forms\Port\DataSchemas: '@App\Infrastructure\Cache\CachedDataSchemaProvider'
+    App\Application\Forms\Port\FileStore: '@App\Infrastructure\Files\FlysystemFileStore'
+
+    App\Infrastructure\Files\FlysystemFileStore:
+        arguments:
+            $storage: '@forms.files.storage'
 
     App\Infrastructure\Cache\CachedDataSchemaProvider:
         arguments:

@@ -1,0 +1,11 @@
+# One storage, named after what it holds. Which adapter fills it is a deployment
+# decision: a directory here, and on a deployment that needs bytes shared between
+# instances, `league/flysystem-async-aws-s3` with a bucket instead — no
+# application code changes either way, because the facts about a file are kept in
+# a file of their own rather than in a store's own metadata.
+flysystem:
+    storages:
+        forms.files.storage:
+            adapter: 'local'
+            options:
+                directory: '%files.dir%'
