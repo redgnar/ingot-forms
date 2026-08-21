@@ -40,4 +40,11 @@ final class InMemoryFormHistory implements FormHistory
     {
         return ($this->history[(string) $form][$seq - 1] ?? null)[1] ?? null;
     }
+
+    public function documentsOf(FormId $form): iterable
+    {
+        foreach (array_reverse($this->history[(string) $form] ?? []) as [, $document]) {
+            yield $document;
+        }
+    }
 }

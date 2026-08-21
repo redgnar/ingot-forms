@@ -44,7 +44,8 @@ services:
             - '../src/Infrastructure/Persistence/{FormRecord,FormRevisionRecord}.php'
             - '../src/UserInterface/Api/Problem/ProblemException.php'
             # an upload on its way in, and an open file on its way out
-            - '../src/Application/Forms/File/'
+            # values, unlike FormFiles beside them
+            - '../src/Application/Forms/File/{IncomingFile,FileStream,CollectedFiles}.php'
             - '../src/Application/Forms/History/'
             - '../src/Application/Forms/Exception/'
             - '../src/UserInterface/Web/Renderer/RenderedForm.php'

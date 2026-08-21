@@ -6,6 +6,7 @@ namespace App\Tests\Application\Forms\UseCase;
 
 use App\Application\Forms\Exception\FileAttached;
 use App\Application\Forms\Exception\FileMissing;
+use App\Application\Forms\File\FormFiles;
 use App\Application\Forms\UseCase\DiscardFormFile;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\FormDefinition;
@@ -18,6 +19,7 @@ use App\Domain\Forms\ValueObject\FileId;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Tests\Application\Forms\Fake\ImmediateTransactions;
 use App\Tests\Application\Forms\Fake\InMemoryFileStore;
+use App\Tests\Application\Forms\Fake\InMemoryFormHistory;
 use App\Tests\Application\Forms\Fake\InMemoryForms;
 use App\Tests\Domain\Forms\Fake\SpyParser;
 use App\Tests\Domain\Forms\Fake\StubValues;
@@ -34,7 +36,14 @@ use PHPUnit\Framework\TestCase;
  */
 final class DiscardFormFileTest extends TestCase
 {
+    private InMemoryFormHistory $history;
+
     private const string DEFINITION = '{"items":[{"type":"file","name":"invoice","accept":["application/pdf"],"maxSize":1024}]}';
+
+    protected function setUp(): void
+    {
+        $this->history = new InMemoryFormHistory();
+    }
 
     public function testATemporaryFileGoesUnderTheRowLock(): void
     {
@@ -47,7 +56,7 @@ final class DiscardFormFileTest extends TestCase
         $files->hold($id, $file, 'invoice.pdf', 'bytes', 'application/pdf');
 
         // WHEN
-        new DiscardFormFile($transactions, $forms, $files, new FileReferences())($id, $file);
+        $this->discard($transactions, $forms, $files)($id, $file);
 
         // THEN it is gone, and the decision was made on a locked row
         self::assertNull($files->describe($id, $file));
@@ -63,12 +72,12 @@ final class DiscardFormFileTest extends TestCase
         $id = self::plant($forms);
         $file = FileId::next();
         $descriptor = $files->hold($id, $file, 'invoice.pdf', 'bytes', 'application/pdf');
-        $forms->get($id)->saveDraft(self::values($descriptor->jsonSerialize()), new StubValues());
+        $this->save($forms, $id, self::values($descriptor->jsonSerialize()));
 
         // WHEN / THEN a saved document is what makes a file permanent, and this
         // endpoint is not how it stops being permanent
         try {
-            new DiscardFormFile(new ImmediateTransactions(), $forms, $files, new FileReferences())($id, $file);
+            $this->discard(new ImmediateTransactions(), $forms, $files)($id, $file);
             self::fail('Expected FileAttached.');
         } catch (FileAttached $refusal) {
             self::assertTrue($refusal->fileId->equals($file));
@@ -76,6 +85,31 @@ final class DiscardFormFileTest extends TestCase
 
         self::assertNotNull($files->describe($id, $file));
         self::assertSame([], $files->deleted);
+    }
+
+    public function testAFileOnlyAnOlderSaveNamesStaysAsWell(): void
+    {
+        // GIVEN a form that saved one file and then saved another instead
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $id = self::plant($forms);
+        $replaced = FileId::next();
+        $kept = FileId::next();
+        $first = $files->hold($id, $replaced, 'first.pdf', 'old bytes', 'application/pdf');
+        $second = $files->hold($id, $kept, 'second.pdf', 'new bytes', 'application/pdf');
+        $this->save($forms, $id, self::values($first->jsonSerialize()));
+        $this->save($forms, $id, self::values($second->jsonSerialize()));
+
+        // WHEN the page asks for the replaced one to go
+        try {
+            $this->discard(new ImmediateTransactions(), $forms, $files)($id, $replaced);
+            self::fail('Expected FileAttached.');
+        } catch (FileAttached) {
+            // THEN it stays: a save that named it is still there to be put back,
+            // and this endpoint is for uploads no save ever named
+            self::assertNotNull($files->describe($id, $replaced));
+            self::assertSame([], $files->deleted);
+        }
     }
 
     public function testAFileThisFormNeverHeldIsNotThereToThrowAway(): void
@@ -87,7 +121,7 @@ final class DiscardFormFileTest extends TestCase
         // WHEN / THEN
         $this->expectException(FileMissing::class);
 
-        new DiscardFormFile(new ImmediateTransactions(), $forms, new InMemoryFileStore(), new FileReferences())($id, FileId::next());
+        $this->discard(new ImmediateTransactions(), $forms, new InMemoryFileStore())($id, FileId::next());
     }
 
     public function testAnotherFormsFileIsNotThereEither(): void
@@ -102,7 +136,7 @@ final class DiscardFormFileTest extends TestCase
 
         // WHEN the other form asks for it to go
         try {
-            new DiscardFormFile(new ImmediateTransactions(), $forms, $files, new FileReferences())($theirs, $file);
+            $this->discard(new ImmediateTransactions(), $forms, $files)($theirs, $file);
             self::fail('Expected FileMissing.');
         } catch (FileMissing) {
             // THEN nothing happened to it: the pair is what addresses bytes
@@ -116,14 +150,13 @@ final class DiscardFormFileTest extends TestCase
         $forms = new InMemoryForms();
         $files = new InMemoryFileStore();
         $id = self::plant($forms);
-        $form = $forms->get($id);
-        $form->saveDraft(self::values([]), new StubValues());
-        $form->confirm(new StubValues());
+        $this->save($forms, $id, self::values([]));
+        $forms->get($id)->confirm(new StubValues());
         $file = FileId::next();
         $files->hold($id, $file, 'never-saved.pdf', 'bytes', 'application/pdf');
 
         // WHEN
-        new DiscardFormFile(new ImmediateTransactions(), $forms, $files, new FileReferences())($id, $file);
+        $this->discard(new ImmediateTransactions(), $forms, $files)($id, $file);
 
         // THEN it goes: the values can never change again, so a file they do not
         // name is garbage here as much as anywhere
@@ -144,7 +177,23 @@ final class DiscardFormFileTest extends TestCase
         // deletion is for
         $this->expectException(FormGone::class);
 
-        new DiscardFormFile(new ImmediateTransactions(), $forms, $files, new FileReferences())($id, $file);
+        $this->discard(new ImmediateTransactions(), $forms, $files)($id, $file);
+    }
+
+    private function discard(ImmediateTransactions $transactions, InMemoryForms $forms, InMemoryFileStore $files): DiscardFormFile
+    {
+        return new DiscardFormFile($transactions, $forms, $files, new FormFiles(new FileReferences(), $this->history));
+    }
+
+    /**
+     * Saving, the way the repository does it: the form holds the document and the
+     * history keeps it — and the history is what "has this form ever named that
+     * file" is asked of.
+     */
+    private function save(InMemoryForms $forms, FormId $id, \stdClass $document): void
+    {
+        $forms->get($id)->saveDraft($document, new StubValues());
+        $this->history->append($id, json_encode($document, \JSON_THROW_ON_ERROR));
     }
 
     private static function plant(InMemoryForms $forms): FormId

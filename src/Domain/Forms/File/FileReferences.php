@@ -8,7 +8,6 @@ use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\FormDefinition;
-use App\Domain\Forms\Form;
 use App\Domain\Forms\ValueObject\FileDescriptor;
 use App\Domain\Forms\ValueObject\FileReference;
 use Ingot\JsonPointer;
@@ -32,16 +31,11 @@ use Ingot\JsonPointer;
 final class FileReferences
 {
     /**
-     * @return list<FileReference>
-     */
-    public function in(Form $form): array
-    {
-        return $this->named($form->definition()->structure(), $form->values()?->document());
-    }
-
-    /**
-     * The same, for values that are not stored yet — which is how the gate looks
-     * at a document on its way in.
+     * The files one document names, at the positions the definition declares them.
+     *
+     * One document at a time on purpose: the callers ask this of a document on its
+     * way in (the gate) and of every document a form has ever stored (everything
+     * else), and neither needs this to know where the document came from.
      *
      * @return list<FileReference>
      */

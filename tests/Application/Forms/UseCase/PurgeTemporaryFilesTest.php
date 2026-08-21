@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Application\Forms\UseCase;
 
+use App\Application\Forms\File\FormFiles;
 use App\Application\Forms\UseCase\PurgeTemporaryFiles;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\FormDefinition;
@@ -16,6 +17,7 @@ use App\Domain\Forms\ValueObject\FileId;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Tests\Application\Forms\Fake\ImmediateTransactions;
 use App\Tests\Application\Forms\Fake\InMemoryFileStore;
+use App\Tests\Application\Forms\Fake\InMemoryFormHistory;
 use App\Tests\Application\Forms\Fake\InMemoryForms;
 use App\Tests\Application\Forms\Fake\RecordingLogger;
 use App\Tests\Domain\Forms\Fake\SpyParser;
@@ -33,6 +35,13 @@ use PHPUnit\Framework\TestCase;
  */
 final class PurgeTemporaryFilesTest extends TestCase
 {
+    private InMemoryFormHistory $history;
+
+    protected function setUp(): void
+    {
+        $this->history = new InMemoryFormHistory();
+    }
+
     public function testAnUploadNobodyKeptIsCollected(): void
     {
         // GIVEN a form holding an old file its values never named
@@ -43,7 +52,7 @@ final class PurgeTemporaryFilesTest extends TestCase
         $files->hold($id, $abandoned, 'never-saved.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
 
         // WHEN
-        $collected = self::purge($forms, $files)();
+        $collected = $this->purge($forms, $files)();
 
         // THEN it is gone, counted as the whole file it was, and the decision was
         // made on a locked row
@@ -61,14 +70,39 @@ final class PurgeTemporaryFilesTest extends TestCase
         $id = self::plant($forms);
         $file = FileId::next();
         $descriptor = $files->hold($id, $file, 'invoice.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-365 days'));
-        $forms->get($id)->saveDraft(self::names($descriptor), new StubValues());
+        $this->save($forms, $id, self::names($descriptor));
 
         // WHEN
-        $collected = self::purge($forms, $files)();
+        $collected = $this->purge($forms, $files)();
 
         // THEN age is not what makes a file garbage — being named by nothing is
         self::assertTrue($collected->isEmpty());
         self::assertNotNull($files->describe($id, $file));
+    }
+
+    public function testAFileOnlyAnOlderSaveNamesIsNeverCollectedEither(): void
+    {
+        // GIVEN a form that named a file a year ago and named a different one
+        // since
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $id = self::plant($forms);
+        $replaced = FileId::next();
+        $kept = FileId::next();
+        $first = $files->hold($id, $replaced, 'first.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-365 days'));
+        $second = $files->hold($id, $kept, 'second.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-365 days'));
+        $this->save($forms, $id, self::names($first));
+        $this->save($forms, $id, self::names($second));
+
+        // WHEN
+        $collected = $this->purge($forms, $files)();
+
+        // THEN neither goes. What makes a file garbage is that no save of its form
+        // ever named it — age only decides when garbage is taken, not what is
+        // garbage
+        self::assertTrue($collected->isEmpty());
+        self::assertNotNull($files->describe($id, $replaced));
+        self::assertNotNull($files->describe($id, $kept));
     }
 
     public function testAFreshUploadIsNobodysGarbageYet(): void
@@ -82,7 +116,7 @@ final class PurgeTemporaryFilesTest extends TestCase
         $files->hold($id, $file, 'in-progress.pdf', 'bytes', 'application/pdf');
 
         // WHEN
-        $collected = self::purge($forms, $files)();
+        $collected = $this->purge($forms, $files)();
 
         // THEN nothing was taken — and nothing was even read: the listing comes
         // first, so a form whose files are all recent costs no database work
@@ -101,8 +135,8 @@ final class PurgeTemporaryFilesTest extends TestCase
         $files->hold($id, $file, 'stale.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-3 days'));
 
         // WHEN asked with a week's patience, then with a day's
-        self::assertTrue(self::purge($forms, $files)(days: 7)->isEmpty());
-        $collected = self::purge($forms, $files)(days: 1);
+        self::assertTrue($this->purge($forms, $files)(days: 7)->isEmpty());
+        $collected = $this->purge($forms, $files)(days: 1);
 
         // THEN
         self::assertSame(1, $collected->files);
@@ -120,7 +154,7 @@ final class PurgeTemporaryFilesTest extends TestCase
         $files->hold($orphaned, FileId::next(), 'b.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
 
         // WHEN
-        $collected = self::purge($forms, $files)();
+        $collected = $this->purge($forms, $files)();
 
         // THEN the whole directory goes, counted as the form it belonged to —
         // this is what repairs the other collectors' failures
@@ -140,7 +174,7 @@ final class PurgeTemporaryFilesTest extends TestCase
         $files->holdHalf($id, $half, new \DateTimeImmutable('-30 days'));
 
         // WHEN
-        $collected = self::purge($forms, $files)();
+        $collected = $this->purge($forms, $files)();
 
         // THEN it is taken, and counted apart: a half is invisible to everything
         // else in this system, so this is the only place it is ever named
@@ -160,7 +194,7 @@ final class PurgeTemporaryFilesTest extends TestCase
         $forms->unreadable = true;
 
         // WHEN
-        $collected = self::purge($forms, $files)();
+        $collected = $this->purge($forms, $files)();
 
         // THEN nothing is taken: what it names cannot be read, so nothing of it
         // can be judged garbage — and the count is what keeps that from being
@@ -181,7 +215,7 @@ final class PurgeTemporaryFilesTest extends TestCase
         $files->hold($second, FileId::next(), 'b.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
 
         // WHEN one form's worth is asked for
-        $collected = self::purge($forms, $files)(limit: 1);
+        $collected = $this->purge($forms, $files)(limit: 1);
 
         // THEN a run that stops early is a run that resumes tomorrow
         self::assertSame(1, $collected->files);
@@ -198,23 +232,34 @@ final class PurgeTemporaryFilesTest extends TestCase
         $files->hold($id, FileId::next(), 'never-saved.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
 
         // WHEN
-        self::purge($forms, $files, $logger)();
+        $this->purge($forms, $files, $logger)();
 
         // THEN these numbers are the only warning this design gets when the page
         // or the save stops throwing files away, so they are written down
         self::assertSame(['Collected files no stored document names.'], $logger->messagesAt('info'));
     }
 
-    private static function purge(InMemoryForms $forms, InMemoryFileStore $files, ?RecordingLogger $logger = null): PurgeTemporaryFiles
+    private function purge(InMemoryForms $forms, InMemoryFileStore $files, ?RecordingLogger $logger = null): PurgeTemporaryFiles
     {
         return new PurgeTemporaryFiles(
             new ImmediateTransactions(),
             $forms,
             $files,
-            new FileReferences(),
+            new FormFiles(new FileReferences(), $this->history),
             $logger ?? new RecordingLogger(),
             7,
         );
+    }
+
+    /**
+     * Saving, the way the repository does it. What a collector must leave alone is
+     * every file any save of a form has named, so a test that saves has to say so
+     * in both places.
+     */
+    private function save(InMemoryForms $forms, FormId $id, \stdClass $document): void
+    {
+        $forms->get($id)->saveDraft($document, new StubValues());
+        $this->history->append($id, json_encode($document, \JSON_THROW_ON_ERROR));
     }
 
     private static function plant(InMemoryForms $forms): FormId

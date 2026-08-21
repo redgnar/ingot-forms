@@ -35,4 +35,16 @@ interface FormHistory
      * the form has no such revision.
      */
     public function documentOf(FormId $form, int $seq): ?string;
+
+    /**
+     * Every save's document, **newest first**, as the text each was stored as.
+     *
+     * The order is not a detail: the question asked of this is "has this form ever
+     * named that file", and the answer is almost always in the newest document —
+     * which is also why the row's own values need not be read separately. They are
+     * the newest revision.
+     *
+     * @return iterable<string>
+     */
+    public function documentsOf(FormId $form): iterable;
 }

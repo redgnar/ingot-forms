@@ -180,7 +180,7 @@ final class FileApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(200);
     }
 
-    public function testWhatTheValuesDoNotNameCannotBeDownloaded(): void
+    public function testWhatNoSaveEverNamedCannotBeDownloaded(): void
     {
         // GIVEN an upload nobody saved
         $id = $this->createForm();
@@ -191,8 +191,9 @@ final class FileApiTest extends WebTestCase
         // WHEN
         $this->client->request('GET', \sprintf('/api/forms/%s/files/%s', $id, $file));
 
-        // THEN the same answer as for a file that never existed — the values are
-        // the index of what may be fetched, and they name nothing yet
+        // THEN the same answer as for a file that never existed — what a form's
+        // documents name is the index of what may be fetched, and no document
+        // names this yet
         self::assertResponseStatusCodeSame(404);
         self::assertSame('urn:problem:ingot-forms:file-not-found', $this->responseBody()['type']);
 
@@ -245,7 +246,7 @@ final class FileApiTest extends WebTestCase
         self::assertSame('urn:problem:ingot-forms:file-attached', $this->responseBody()['type']);
     }
 
-    public function testASaveTakesNothingAway(): void
+    public function testASaveTakesNothingAwayAndWhatItReplacedStaysFetchable(): void
     {
         // GIVEN a form that saved a file
         $id = $this->createForm();
@@ -268,10 +269,11 @@ final class FileApiTest extends WebTestCase
         self::assertInstanceOf(FileStore::class, $store);
         self::assertNotNull($store->describe(FormId::fromString($id), FileId::fromString($file)));
 
-        // ...even though nothing may fetch it any more: what a download answers
-        // for is what the stored values name.
+        // ...and it can still be fetched, because the save that named it is still
+        // there to be read and put back. That is what a download answers for now:
+        // not what the form holds, but what it has ever held.
         $this->client->request('GET', \sprintf('/api/forms/%s/files/%s', $id, $file));
-        self::assertResponseStatusCodeSame(404);
+        self::assertResponseStatusCodeSame(200);
     }
 
     public function testAPartWithNoBytesInItIsNotAnUpload(): void

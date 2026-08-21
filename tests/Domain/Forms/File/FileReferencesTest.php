@@ -6,12 +6,8 @@ namespace App\Tests\Domain\Forms\File;
 
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\File\FileReferences;
-use App\Domain\Forms\Form;
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\FormMapperFactory;
-use App\Domain\Forms\ValueObject\ExpireDate;
-use App\Domain\Forms\ValueObject\FormId;
-use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -157,27 +153,6 @@ final class FileReferencesTest extends TestCase
 
         // THEN RFC 6901, so a finding can be resolved against the document
         self::assertSame(['/in~1voice'], self::pointers($found));
-    }
-
-    public function testWhatAFormHoldsIsWhatItsStoredValuesName(): void
-    {
-        // GIVEN a form that was filled in
-        $definition = self::definition();
-        $processor = self::processor();
-        $form = new Form(
-            FormId::next(),
-            $processor->document($definition),
-            ExpireDate::future(new \DateTimeImmutable('+1 day')),
-        );
-
-        // WHEN nothing has been saved yet
-        self::assertSame([], new FileReferences()->in($form));
-
-        // ...and once a draft names a file
-        $form->saveDraft(self::values(['invoice' => self::descriptor(self::A_FILE)]), new StubValues());
-
-        // THEN
-        self::assertSame(['/invoice'], self::pointers(new FileReferences()->in($form)));
     }
 
     /**

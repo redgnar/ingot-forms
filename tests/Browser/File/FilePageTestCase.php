@@ -139,7 +139,7 @@ abstract class FilePageTestCase extends PantherTestCase
         self::assertSame('', $this->heldName() ?? '');
     }
 
-    public function testRemovingAFileTakesItOutOfTheDocument(): void
+    public function testRemovingAFileTakesItOutOfTheDocumentAndLeavesItFetchable(): void
     {
         // GIVEN a form holding a file
         $id = $this->plant();
@@ -161,10 +161,11 @@ abstract class FilePageTestCase extends PantherTestCase
         // THEN the document no longer names it...
         self::assertSame([], $this->eventually(fn(): ?array => $this->values($id) === [] ? [] : null));
 
-        // ...so it cannot be fetched any more: what may be downloaded is what the
-        // stored values name, and they do not name this. The bytes themselves are
-        // untouched — a save takes nothing away — but nothing on this side can see
-        // that, which is exactly what a form's history will be for.
+        // ...and it can still be fetched, because the save that named it is still
+        // there: a save takes nothing away, and what may be downloaded is what
+        // this form has *ever* named. Putting it back is reading that save and
+        // sending it again.
+        self::assertSame(200, $this->api->request('GET', \sprintf('/api/forms/%s/files/%s', $id, $file))->getStatusCode());
     }
 
     /**

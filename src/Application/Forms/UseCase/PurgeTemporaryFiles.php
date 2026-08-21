@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Application\Forms\UseCase;
 
 use App\Application\Forms\File\CollectedFiles;
+use App\Application\Forms\File\FormFiles;
 use App\Application\Forms\Port\FileStore;
 use App\Application\Forms\Port\Transactions;
 use App\Domain\Forms\Exception\FormUnreadable;
-use App\Domain\Forms\File\FileReferences;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\ValueObject\FileId;
 use App\Domain\Forms\ValueObject\FormId;
@@ -19,11 +19,12 @@ use Psr\Log\LoggerInterface;
  * leaves, and the only one that runs on a schedule rather than on somebody's
  * doing.
  *
- * Its rule is one sentence: a file whose form's stored values do not name it, and
- * which has sat untouched longer than the threshold, is garbage. The threshold is
- * what keeps it from racing a person who is still filling a form in — days, not
- * minutes — and the values are asked rather than counted, so nothing has to keep
- * a tally that could drift.
+ * Its rule is one sentence: a file **no save of its form has ever named**, and
+ * which has sat untouched longer than the threshold, is garbage. Ever, not now —
+ * a file a later draft replaced is one somebody can put back, so it waits for the
+ * form. The threshold is what keeps this from racing a person who is still filling
+ * a form in — days, not minutes — and the documents are asked rather than counted,
+ * so nothing has to keep a tally that could drift.
  *
  * It is also the safety net for everything else. Bytes whose row is already gone
  * are provably garbage, so a purge whose store delete failed is repaired here;
@@ -41,7 +42,7 @@ final class PurgeTemporaryFiles
         private readonly Transactions $transactions,
         private readonly FormRepository $forms,
         private readonly FileStore $files,
-        private readonly FileReferences $references,
+        private readonly FormFiles $named,
         private readonly LoggerInterface $logger,
         /** How long an unreferenced file may sit before it is collected. */
         private readonly int $days,
@@ -127,8 +128,8 @@ final class PurgeTemporaryFiles
 
             $named = [];
 
-            foreach ($this->references->in($stored) as $reference) {
-                $named[(string) $reference->descriptor->id] = true;
+            foreach ($this->named->named($stored) as $file) {
+                $named[(string) $file] = true;
             }
 
             $files = 0;

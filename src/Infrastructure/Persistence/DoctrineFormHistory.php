@@ -7,6 +7,7 @@ namespace App\Infrastructure\Persistence;
 use App\Application\Forms\History\FormRevision;
 use App\Application\Forms\Port\FormHistory;
 use App\Domain\Forms\ValueObject\FormId;
+use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -36,6 +37,24 @@ final class DoctrineFormHistory implements FormHistory
             static fn(array $row): FormRevision => new FormRevision($row['seq'], $row['savedAt']),
             $rows,
         );
+    }
+
+    public function documentsOf(FormId $form): iterable
+    {
+        $rows = $this->entityManager
+            ->createQuery(\sprintf('SELECT r.data FROM %s r WHERE r.formId = :form ORDER BY r.seq DESC', FormRevisionRecord::class))
+            ->setParameter('form', $form->toUuid())
+            // Lazily, because whoever walks this is usually done after the first
+            // document.
+            ->toIterable([], AbstractQuery::HYDRATE_ARRAY);
+
+        foreach ($rows as $row) {
+            $data = \is_array($row) ? $row['data'] ?? null : null;
+
+            if (\is_string($data)) {
+                yield $data;
+            }
+        }
     }
 
     public function documentOf(FormId $form, int $seq): ?string
