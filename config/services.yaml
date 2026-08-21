@@ -11,6 +11,11 @@ parameters:
     files.default_max_upload: 10485760
     files.per_form: '%env(int:default:files.default_per_form:FILES_PER_FORM)%'
     files.default_per_form: 50
+    # How long a file nobody saved may sit before app:files:purge-temporary takes
+    # it. Days rather than minutes, so it cannot race somebody who is still
+    # filling a form in.
+    files.temporary_days: '%env(int:default:files.default_temporary_days:FILES_TEMPORARY_DAYS)%'
+    files.default_temporary_days: 7
 
 services:
     _defaults:
@@ -90,6 +95,10 @@ services:
         arguments:
             $budget: '%files.per_form%'
             $maxUpload: '%files.max_upload%'
+
+    App\Application\Forms\UseCase\PurgeTemporaryFiles:
+        arguments:
+            $days: '%files.temporary_days%'
 
     App\Infrastructure\Cache\CachedDataSchemaProvider:
         arguments:

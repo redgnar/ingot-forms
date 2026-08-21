@@ -208,7 +208,7 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
     }
 
 
-    public function testPurgeExpiredDeletesOnlyExpiredRows(): void
+    public function testTheExpiredAreListedAndTheLiveAreNot(): void
     {
         // GIVEN one expired and one live form
         $expiredId = self::uuid();
@@ -217,16 +217,62 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         $this->repository->add(new Form($liveId, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
 
         // WHEN
-        $purged = $this->repository->purgeExpired();
+        $listed = array_map(strval(...), $this->repository->expiredIds(100));
 
-        // THEN the expired row is physically gone — not merely invisible — while the
-        // live one is untouched. The count is asserted as "at least ours", because
-        // this database is shared: anything expired left behind by, say, the request
-        // examples in tests/_requests is swept up by the same call.
-        self::assertGreaterThanOrEqual(1, $purged);
+        // THEN this is what the purge walks — form by form, because bytes live in
+        // another store and no single statement reaches both
+        self::assertContains((string) $expiredId, $listed);
+        self::assertNotContains((string) $liveId, $listed);
+    }
+
+    public function testTheListOfExpiredFormsIsBounded(): void
+    {
+        // GIVEN more expired forms than a batch would take
+        $this->repository->add(new Form(self::uuid(), self::definition(), ExpireDate::at(new \DateTimeImmutable('-2 hours'))));
+        $this->repository->add(new Form(self::uuid(), self::definition(), ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
+
+        // WHEN / THEN a run works through them in batches rather than holding
+        // every id at once
+        self::assertCount(1, $this->repository->expiredIds(1));
+    }
+
+    public function testAnExpiredRowIsDeletedAndALiveOneIsUntouchable(): void
+    {
+        // GIVEN one of each
+        $expiredId = self::uuid();
+        $liveId = self::uuid();
+        $this->repository->add(new Form($expiredId, self::definition(), ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
+        $this->repository->add(new Form($liveId, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+
+        // WHEN both are handed to the purge's own delete
+        $this->repository->removeExpired($expiredId);
+        $this->repository->removeExpired($liveId);
+        // ...and again, because a run that died half way runs again
+        $this->repository->removeExpired($expiredId);
+
+        // THEN the expired row is physically gone and the live one could not be
+        // taken by it: the date is in the statement, so a wrong id costs nobody a
+        // form
         self::assertTrue($liveId->equals($this->repository->get($liveId)->id()));
         $this->expectException(FormNotFound::class);
         $this->repository->get($expiredId);
+    }
+
+    public function testCleanupSeesTheRowTheApiWillNotShow(): void
+    {
+        // GIVEN an expired form that still holds files, and an id with no row
+        $expiredId = self::uuid();
+        $this->repository->add(new Form($expiredId, self::definition(), ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
+
+        // WHEN the collectors read it — inside a transaction, because the read
+        // takes the row lock that keeps a collector from racing a save
+        $form = $this->transactions->run(fn(): ?Form => $this->repository->getForCleanup($expiredId));
+
+        // THEN they get what is physically there — knowing which files an expired
+        // form names is the difference between collecting garbage and losing data
+        self::assertNotNull($form);
+        self::assertTrue($expiredId->equals($form->id()));
+        self::assertNull($this->transactions->run(fn(): ?Form => $this->repository->getForCleanup(self::uuid())));
     }
 
     public function testAFormNobodyDescribedComesBackWithoutOne(): void

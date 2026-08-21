@@ -1,0 +1,242 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Application\Forms\UseCase;
+
+use App\Application\Forms\UseCase\PurgeTemporaryFiles;
+use App\Domain\Forms\Definition\FileField;
+use App\Domain\Forms\Definition\FormDefinition;
+use App\Domain\Forms\File\FileReferences;
+use App\Domain\Forms\Form;
+use App\Domain\Forms\ValueObject\Definition;
+use App\Domain\Forms\ValueObject\ExpireDate;
+use App\Domain\Forms\ValueObject\FileDescriptor;
+use App\Domain\Forms\ValueObject\FileId;
+use App\Domain\Forms\ValueObject\FormId;
+use App\Tests\Application\Forms\Fake\ImmediateTransactions;
+use App\Tests\Application\Forms\Fake\InMemoryFileStore;
+use App\Tests\Application\Forms\Fake\InMemoryForms;
+use App\Tests\Application\Forms\Fake\RecordingLogger;
+use App\Tests\Domain\Forms\Fake\SpyParser;
+use App\Tests\Domain\Forms\Fake\StubValues;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * The collector of last resort: uploads nobody kept, and whatever the other three
+ * ways of throwing a file away did not manage to.
+ *
+ * Its rule is one sentence — a file whose form's stored values do not name it, and
+ * which has sat untouched longer than the threshold, is garbage — so what these
+ * tests pin is mostly the *other* side of that: what it must never take, and how
+ * little it costs when there is nothing to do.
+ */
+final class PurgeTemporaryFilesTest extends TestCase
+{
+    public function testAnUploadNobodyKeptIsCollected(): void
+    {
+        // GIVEN a form holding an old file its values never named
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $id = self::plant($forms);
+        $abandoned = FileId::next();
+        $files->hold($id, $abandoned, 'never-saved.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
+
+        // WHEN
+        $collected = self::purge($forms, $files)();
+
+        // THEN it is gone, counted as the whole file it was, and the decision was
+        // made on a locked row
+        self::assertSame(1, $collected->files);
+        self::assertSame(0, $collected->halves);
+        self::assertNull($files->describe($id, $abandoned));
+        self::assertSame([(string) $id], $forms->locked);
+    }
+
+    public function testAFileTheValuesNameIsNeverCollectedHoweverOldItIs(): void
+    {
+        // GIVEN a form whose draft names a file uploaded a year ago
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $id = self::plant($forms);
+        $file = FileId::next();
+        $descriptor = $files->hold($id, $file, 'invoice.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-365 days'));
+        $forms->get($id)->saveDraft(self::names($descriptor), new StubValues());
+
+        // WHEN
+        $collected = self::purge($forms, $files)();
+
+        // THEN age is not what makes a file garbage — being named by nothing is
+        self::assertTrue($collected->isEmpty());
+        self::assertNotNull($files->describe($id, $file));
+    }
+
+    public function testAFreshUploadIsNobodysGarbageYet(): void
+    {
+        // GIVEN a file uploaded a minute ago and not saved — somebody is probably
+        // still filling the form in
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $id = self::plant($forms);
+        $file = FileId::next();
+        $files->hold($id, $file, 'in-progress.pdf', 'bytes', 'application/pdf');
+
+        // WHEN
+        $collected = self::purge($forms, $files)();
+
+        // THEN nothing was taken — and nothing was even read: the listing comes
+        // first, so a form whose files are all recent costs no database work
+        self::assertTrue($collected->isEmpty());
+        self::assertNotNull($files->describe($id, $file));
+        self::assertSame([], $forms->locked);
+    }
+
+    public function testTheThresholdCanBeSaidOutLoud(): void
+    {
+        // GIVEN a file three days old
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $id = self::plant($forms);
+        $file = FileId::next();
+        $files->hold($id, $file, 'stale.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-3 days'));
+
+        // WHEN asked with a week's patience, then with a day's
+        self::assertTrue(self::purge($forms, $files)(days: 7)->isEmpty());
+        $collected = self::purge($forms, $files)(days: 1);
+
+        // THEN
+        self::assertSame(1, $collected->files);
+        self::assertNull($files->describe($id, $file));
+    }
+
+    public function testBytesWhoseFormIsAlreadyGoneCannotBelongToAnything(): void
+    {
+        // GIVEN files under a form with no row — what a purge whose store delete
+        // failed leaves behind
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $orphaned = FormId::next();
+        $files->hold($orphaned, FileId::next(), 'a.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
+        $files->hold($orphaned, FileId::next(), 'b.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
+
+        // WHEN
+        $collected = self::purge($forms, $files)();
+
+        // THEN the whole directory goes, counted as the form it belonged to —
+        // this is what repairs the other collectors' failures
+        self::assertSame(1, $collected->forms);
+        self::assertSame(0, $collected->files);
+        self::assertSame(0, $files->countFor($orphaned));
+    }
+
+    public function testAHalfWrittenFileIsCollectedAndCountedAsOne(): void
+    {
+        // GIVEN bytes whose facts were never written — the crash the store's write
+        // order exists for
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $id = self::plant($forms);
+        $half = FileId::next();
+        $files->holdHalf($id, $half, new \DateTimeImmutable('-30 days'));
+
+        // WHEN
+        $collected = self::purge($forms, $files)();
+
+        // THEN it is taken, and counted apart: a half is invisible to everything
+        // else in this system, so this is the only place it is ever named
+        self::assertSame(0, $collected->files);
+        self::assertSame(1, $collected->halves);
+        self::assertSame(0, $files->countFor($id));
+    }
+
+    public function testAFormNobodyCanReadIsLeftAloneAndCounted(): void
+    {
+        // GIVEN a form whose stored documents today's rules cannot read
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $id = self::plant($forms);
+        $file = FileId::next();
+        $files->hold($id, $file, 'invoice.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
+        $forms->unreadable = true;
+
+        // WHEN
+        $collected = self::purge($forms, $files)();
+
+        // THEN nothing is taken: what it names cannot be read, so nothing of it
+        // can be judged garbage — and the count is what keeps that from being
+        // invisible
+        self::assertSame(1, $collected->unreadable);
+        self::assertSame(0, $collected->files);
+        self::assertNotNull($files->describe($id, $file));
+    }
+
+    public function testARunCanBeBounded(): void
+    {
+        // GIVEN two forms, each holding something old and unnamed
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $first = self::plant($forms);
+        $second = self::plant($forms);
+        $files->hold($first, FileId::next(), 'a.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
+        $files->hold($second, FileId::next(), 'b.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
+
+        // WHEN one form's worth is asked for
+        $collected = self::purge($forms, $files)(limit: 1);
+
+        // THEN a run that stops early is a run that resumes tomorrow
+        self::assertSame(1, $collected->files);
+        self::assertSame(1, $files->countFor($first) + $files->countFor($second));
+    }
+
+    public function testWhatWasCollectedIsSaidOutLoud(): void
+    {
+        // GIVEN something to collect
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $logger = new RecordingLogger();
+        $id = self::plant($forms);
+        $files->hold($id, FileId::next(), 'never-saved.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
+
+        // WHEN
+        self::purge($forms, $files, $logger)();
+
+        // THEN these numbers are the only warning this design gets when the page
+        // or the save stops throwing files away, so they are written down
+        self::assertSame(['Collected files no stored document names.'], $logger->messagesAt('info'));
+    }
+
+    private static function purge(InMemoryForms $forms, InMemoryFileStore $files, ?RecordingLogger $logger = null): PurgeTemporaryFiles
+    {
+        return new PurgeTemporaryFiles(
+            new ImmediateTransactions(),
+            $forms,
+            $files,
+            new FileReferences(),
+            $logger ?? new RecordingLogger(),
+            7,
+        );
+    }
+
+    private static function plant(InMemoryForms $forms): FormId
+    {
+        $id = FormId::next();
+        $forms->add(new Form($id, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+
+        return $id;
+    }
+
+    private static function definition(): Definition
+    {
+        return Definition::stored(
+            '{"items":[{"type":"file","name":"invoice","accept":["application/pdf"],"maxSize":1024}]}',
+            new SpyParser(new FormDefinition([new FileField('invoice', ['application/pdf'], 1024)])),
+        );
+    }
+
+    private static function names(FileDescriptor $descriptor): \stdClass
+    {
+        $document = json_decode(json_encode(['invoice' => $descriptor], \JSON_THROW_ON_ERROR), false, 512, \JSON_THROW_ON_ERROR);
+
+        return $document instanceof \stdClass ? $document : throw new \LogicException('These values are an object.');
+    }
+}

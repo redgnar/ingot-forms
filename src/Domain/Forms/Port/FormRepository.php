@@ -48,6 +48,37 @@ interface FormRepository
     /** Persists what changed on the form handed over. */
     public function save(Form $form): void;
 
-    /** Physically deletes every expired form. Returns how many were removed. */
-    public function purgeExpired(): int;
+    /**
+     * The ids of forms past their expire date, at most this many.
+     *
+     * Physical deletion stopped being one statement the day a form grew files:
+     * bytes live in another store, so the purge works form by form — and this is
+     * what it walks.
+     *
+     * @return list<FormId>
+     */
+    public function expiredIds(int $limit): array;
+
+    /**
+     * Deletes an expired form's row, whether or not it is still there. It refuses
+     * to touch a live one, so a wrong id is a no-op rather than a loss.
+     */
+    public function removeExpired(FormId $id): void;
+
+    /**
+     * The row as it physically is: locked, expiry ignored, null when there is
+     * none.
+     *
+     * The collectors are the only callers of this, and the only ones that must
+     * see what is stored rather than what the API is willing to show — an expired
+     * form still holds files, and knowing which ones it names is the difference
+     * between collecting garbage and losing data. The lock is ordering: it is
+     * what stops a collector from deleting a file between a save's reference
+     * check and that save's commit.
+     *
+     * @throws FormUnreadable when what was stored no longer satisfies today's
+     *         rules — such a form's references cannot be read, so nothing of it
+     *         may be collected
+     */
+    public function getForCleanup(FormId $id): ?Form;
 }

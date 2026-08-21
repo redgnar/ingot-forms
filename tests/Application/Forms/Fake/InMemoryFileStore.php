@@ -23,7 +23,7 @@ use App\Domain\Forms\ValueObject\MediaType;
  */
 final class InMemoryFileStore implements FileStore
 {
-    /** @var array<string, array<string, array{FileDescriptor, string, int}>> form => file => facts, bytes, written at */
+    /** @var array<string, array<string, array{?FileDescriptor, string, int}>> form => file => facts, bytes, written at */
     private array $files = [];
 
     /** @var list<string> "{form}/{file}", in the order they were deleted */
@@ -59,6 +59,19 @@ final class InMemoryFileStore implements FileStore
         return $descriptor;
     }
 
+    /**
+     * Bytes with no facts beside them — the half-written file a crash between the
+     * store's two writes leaves. Invisible to everything except the collector.
+     */
+    public function holdHalf(FormId $form, FileId $file, ?\DateTimeImmutable $writtenAt = null): void
+    {
+        $this->files[(string) $form][(string) $file] = [
+            null,
+            'bytes with nothing to say',
+            ($writtenAt ?? new \DateTimeImmutable())->getTimestamp(),
+        ];
+    }
+
     public function describe(FormId $form, FileId $file): ?FileDescriptor
     {
         return ($this->files[(string) $form][(string) $file] ?? null)[0] ?? null;
@@ -67,6 +80,11 @@ final class InMemoryFileStore implements FileStore
     public function open(FormId $form, FileId $file): FileStream
     {
         $held = $this->files[(string) $form][(string) $file] ?? throw new FileMissing($form, $file);
+
+        if ($held[0] === null) {
+            throw new FileMissing($form, $file);
+        }
+
         $handle = fopen('php://memory', 'r+b');
 
         if ($handle === false) {

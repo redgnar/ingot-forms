@@ -23,6 +23,7 @@ use App\Domain\Forms\ValueObject\Values;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Ingot\Error\MappingFailed;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * The forms port, backed by Doctrine ORM — no platform-specific SQL, so the
@@ -109,19 +110,42 @@ final class DoctrineFormRepository implements FormRepository
         $this->entityManager->flush();
     }
 
-    /** Physically deletes every expired form. Returns the number of rows removed. */
-    public function purgeExpired(): int
+    public function expiredIds(int $limit): array
     {
-        $removed = $this->entityManager
-            ->createQuery(\sprintf('DELETE FROM %s f WHERE f.expireDate <= :now', FormRecord::class))
+        /** @var list<array{id: Uuid|string}> $rows */
+        $rows = $this->entityManager
+            ->createQuery(\sprintf('SELECT f.id FROM %s f WHERE f.expireDate <= :now ORDER BY f.expireDate ASC', FormRecord::class))
+            ->setParameter('now', new \DateTimeImmutable())
+            ->setMaxResults($limit)
+            ->getArrayResult();
+
+        return array_map(
+            static fn(array $row): FormId => FormId::of($row['id'] instanceof Uuid ? $row['id'] : Uuid::fromString($row['id'])),
+            $rows,
+        );
+    }
+
+    public function removeExpired(FormId $id): void
+    {
+        // The date is in the statement rather than checked first: this deletes an
+        // expired row or nothing at all, so a wrong id cannot cost anybody a live
+        // form.
+        $this->entityManager
+            ->createQuery(\sprintf('DELETE FROM %s f WHERE f.id = :id AND f.expireDate <= :now', FormRecord::class))
+            ->setParameter('id', $id->toUuid())
             ->setParameter('now', new \DateTimeImmutable())
             ->execute();
 
-        // A bulk delete goes straight to the database, so anything already
-        // loaded would keep answering from memory for rows that are gone.
+        // A statement goes straight to the database, so anything already loaded
+        // would keep answering from memory for a row that is gone.
         $this->entityManager->clear();
+    }
 
-        return \is_int($removed) ? $removed : 0;
+    public function getForCleanup(FormId $id): ?Form
+    {
+        $record = $this->entityManager->find(FormRecord::class, $id->toUuid(), LockMode::PESSIMISTIC_WRITE);
+
+        return $record === null ? null : $this->toForm($record);
     }
 
     /**

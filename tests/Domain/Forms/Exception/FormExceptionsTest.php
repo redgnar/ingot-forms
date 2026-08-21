@@ -9,6 +9,7 @@ use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
 use App\Domain\Forms\Exception\FormNotFound;
+use App\Domain\Forms\Exception\FormUnreadable;
 use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\ValueObject\FormId;
 use Ingot\Error\ErrorReport;
@@ -51,6 +52,15 @@ final class FormExceptionsTest extends TestCase
         yield 'no data' => [static fn(FormId $id): \RuntimeException => new FormHasNoData($id), 'no data'];
         yield 'not found' => [static fn(FormId $id): \RuntimeException => new FormNotFound($id), 'does not exist'];
         yield 'gone' => [static fn(FormId $id): \RuntimeException => new FormGone($id), 'has expired'];
+        // Not a refusal of anything somebody did: the row is intact and today's
+        // rules cannot read it. It still has to say which form, because that is
+        // the one thing whoever migrates it needs.
+        yield 'unreadable' => [
+            static fn(FormId $id): \RuntimeException => new FormUnreadable($id, ErrorReport::of(
+                new MappingError(JsonPointer::fromString('/items/0/type'), 'mapping.unknown_variant', 'This type is no longer known.'),
+            )),
+            'no longer satisfies',
+        ];
     }
 
     public function testValuesNotValidCarriesTheReportAndSaysWhatItIs(): void

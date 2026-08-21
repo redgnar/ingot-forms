@@ -6,9 +6,13 @@ namespace App\Tests\Application\Forms\Fake;
 
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
+use App\Domain\Forms\Exception\FormUnreadable;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\ValueObject\FormId;
+use Ingot\Error\ErrorReport;
+use Ingot\Error\MappingError;
+use Ingot\JsonPointer;
 
 /**
  * The forms port without a database — same guarantees, kept in an array, so a
@@ -25,6 +29,9 @@ final class InMemoryForms implements FormRepository
 
     /** @var list<string> ids read with the row lock, in order */
     public array $locked = [];
+
+    /** Set to make a cleanup read fail the way a stored document under new rules does. */
+    public bool $unreadable = false;
 
     public function add(Form $form): void
     {
@@ -62,18 +69,51 @@ final class InMemoryForms implements FormRepository
         ++$this->saves;
     }
 
-    public function purgeExpired(): int
+    public function expiredIds(int $limit): array
     {
         $now = new \DateTimeImmutable();
-        $purged = 0;
+        $expired = [];
 
-        foreach ($this->forms as $key => $form) {
+        foreach ($this->forms as $form) {
+            if (\count($expired) >= $limit) {
+                break;
+            }
+
             if ($form->hasExpired($now)) {
-                unset($this->forms[$key]);
-                ++$purged;
+                $expired[] = $form->id();
             }
         }
 
-        return $purged;
+        return $expired;
+    }
+
+    public function removeExpired(FormId $id): void
+    {
+        $form = $this->forms[(string) $id] ?? null;
+
+        if ($form !== null && $form->hasExpired(new \DateTimeImmutable())) {
+            unset($this->forms[(string) $id]);
+        }
+    }
+
+    public function getForCleanup(FormId $id): ?Form
+    {
+        if ($this->unreadable) {
+            throw new FormUnreadable($id, ErrorReport::of(
+                new MappingError(JsonPointer::fromString('/items/0/type'), 'mapping.unknown_variant', 'This type is no longer known.'),
+            ));
+        }
+
+        $form = $this->forms[(string) $id] ?? null;
+
+        if ($form === null) {
+            return null;
+        }
+
+        // Locked like the real one: what a collector decides, it decides on a row
+        // nothing else can move under it.
+        $this->locked[] = (string) $id;
+
+        return $form;
     }
 }
