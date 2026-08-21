@@ -20,6 +20,10 @@ and multi-submission forms are deliberately out of scope.
   first draft, saved by the same transition every later one goes through, judged under the
   same lenient contract, and refused *before* the form exists — a form is never created
   holding something it would not accept later. Findings are rooted at `/data`.
+- **Every accepted save is kept.** A draft save overwrites the current values *and* appends
+  a revision, so a form's history is the record of what it held and when
+  ([History](#history)). Restoring is not an operation: a client reads a revision and sends it
+  back through `PUT …/data`, where it meets the same gates as any other draft.
 - **`expire_date` is required.** Past it, the form answers `410 Gone` everywhere, and
   `bin/console app:forms:purge-expired` (run it from cron) physically deletes the row.
 - **The definition has no name of its own.** It belongs to exactly one form, and that form
@@ -306,6 +310,8 @@ contract clients validate against cannot drift from what the server enforces.
 | `PUT /api/forms/{id}/data` | Save a draft (repeatable). `204`, `409 form-locked` once confirmed. |
 | `POST /api/forms/{id}/confirm` | Strictly validate the stored data and lock the form. `204`; `409` when already confirmed or empty, `422` with the report when invalid. |
 | `GET /api/forms/{id}/data` | The current values (`404 form-data-empty` when none). |
+| `GET /api/forms/{id}/history` | Every accepted save, oldest first: `{seq, savedAt, confirmed}`. |
+| `GET /api/forms/{id}/history/{seq}` | The values that save stored, byte for byte. Send them back through `PUT …/data` to restore them. |
 | `POST /api/forms/{id}/files` | Upload a file for this form. One `multipart/form-data` part named `file`. `201` with the description to put in the values, plus `Location`. |
 | `GET /api/forms/{id}/files/{fileId}` | Download a file **the stored values name**. Always `Content-Disposition: attachment` with `X-Content-Type-Options: nosniff`. |
 | `DELETE /api/forms/{id}/files/{fileId}` | Throw away an upload nobody saved. `409 file-attached` when the stored values name it. |
@@ -344,42 +350,44 @@ uses the exact same document, so the contract cannot drift.
 
 ## Files
 
-A form can hold files, and the design turns on one decision: **the values document is the
-only index of them**. There is no column about files anywhere in `forms` and no `files`
-table — the values are what passed validation and what is served byte for byte, so a second
-record of the same fact could only ever be a copy that drifts.
+A form can hold files, and the design turns on one decision: **the form's own documents are
+the only index of them**. There is no column about files anywhere in `forms` and no `files`
+table — those documents are what passed validation and what is served byte for byte, so a
+second record of the same fact could only ever be a copy that drifts.
 
 Everything follows from that:
 
 ```
 POST /api/forms/{id}/files        bytes in, description out   (no transaction: no column changes)
 PUT  /api/forms/{id}/data         the description, echoed → the form now names the file
-GET  /api/forms/{id}/files/{f}    only what the stored values name
-DELETE …/files/{f}                only what they do not
+GET  /api/forms/{id}/files/{f}    only what some save of this form named
+DELETE …/files/{f}                only what none of them did
 ```
 
 **Temporary, then attached.** A file is *temporary* while no stored document names it and
-*attached* the moment one does. Nothing moves when that happens — the values are the record —
+*attached* the moment one does. Nothing moves when that happens — the documents are the record —
 and a temporary file has no download route at all, so an upload nobody saved is unreachable by
 construction. Not everything uploaded gets saved, so the rest is collected in two places:
 
 1. **the page**, at once: `DELETE …/files/{fileId}` when somebody removes or replaces a file
-   before saving. It refuses anything the stored values name (`409`), so it can never take
-   away a file a saved document depends on.
-2. **`app:files:purge-temporary`**, once a day: per form, whatever the values do not name and
-   which has sat untouched longer than `FILES_TEMPORARY_DAYS`. It lists the store *before* it
+   before saving. It refuses anything any save of this form names (`409`), so it can never take
+   away a file some document — including one somebody could put back — still depends on.
+2. **`app:files:purge-temporary`**, once a day: per form, whatever **no save has ever named**
+   and which has sat untouched longer than `FILES_TEMPORARY_DAYS`. It lists the store *before* it
    reads a row, so a form whose files are all recent costs no database work; it takes the row
    lock, so it cannot slip between a save's reference check and that save's commit; and it
    reports what it took per species — whole files, half-written ones, and directories whose
    form is already gone. **Those numbers are supposed to sit near zero**: one that keeps
    growing is the only warning that the page has stopped throwing files away.
 
-**A save takes nothing away.** Replacing a file leaves the old one where it is: a document
-somebody can put back is a document whose files still matter, and telling a superseded file from
-an abandoned one is what a form's history is for (`.claude/plan/07-history.md`). Until that
-exists, a superseded file is unreachable the moment the document stops naming it — a download
-answers only for what the stored values name — and is collected a week later by the command
-above.
+**A save takes nothing away, and nothing asks about the current values.** Every question about
+files — what may be downloaded, what may be thrown away, what may be collected — is asked of
+what this form has **ever** named: its current document and every earlier save of it
+([History](#history)). So replacing a file leaves the old one fetchable and undeletable, because
+the save that named it is still there to be read and put back; and the only thing collected
+before the form expires is an upload **no save ever named**. `FormFiles` is where that question
+lives, and the definition being immutable is what makes it cheap: every revision is read with
+the same one.
 
 `app:forms:purge-expired` remains the end of everything, and both deletions go **the row
 first, the bytes second**. The other way round can leave a live form naming files that are
@@ -412,6 +420,46 @@ rendered by the server and filled in by the kit's own script — a kit never wri
 JavaScript. The size is checked in the browser before anything is sent; the **kind** of bytes
 is checked against what the server sniffed *after* the upload, and a file the item does not
 want is taken back at once, because nothing names it yet.
+
+## History
+
+Every accepted save is kept. A draft save writes the current values onto the row *and* appends a
+revision, both from the same event (`DraftSaved`) — so a form's history is not a second record
+of anything: it is what the aggregate already reports, persisted instead of dropped. The table is
+append-only, `(form_id, seq)` is the whole key, and `seq` is allocated under the row lock the save
+already holds.
+
+| Method & path | Answers |
+|---|---|
+| `GET /api/forms/{id}/history` | `{"revisions": [{"seq", "savedAt", "confirmed"}]}`, oldest first. Empty for a form nobody filled in. |
+| `GET /api/forms/{id}/history/{seq}` | That save's values, byte for byte, exactly as `GET …/data` serves the current ones. |
+
+`confirmed` is derived and never stored: confirming writes no values, so it is no revision of its
+own — the last one is simply what got locked.
+
+**Restoring is not an operation.** There is no `POST …/restore`, and that is deliberate: a client
+reads a revision and sends it back through `PUT …/data`, where it meets the same three gates as
+any other draft. An old document is not more trustworthy for having been accepted once — the
+files it names may be gone — so it is judged again, and refused with findings that name the
+member. The restore is recorded as a *new* revision: history is append-only, so putting something
+back is a change like any other rather than a rewind.
+
+**Putting one answer back is the client's business too.** Reading a revision hands over a whole
+document; picking members out of it and merging them into what the form holds now is what a
+client does before it sends the result. Both pages do exactly that: the history panel writes the
+old answer into the control and sends nothing, so somebody can look at the form before saving.
+For a list or a file the panel offers the whole version instead — a list is many controls, and a
+file is a description with a chip beside it.
+
+What history does **not** answer is **who**. This service has no identity of any kind, so a
+revision can honestly say *when* and *what* and nothing else; an actor column now would be a
+member nobody can fill, and a changelog with an empty actor reads like an audit log while being a
+diary. When identity arrives it is a service-wide change, not a column, and it lands on this
+table without moving anything else.
+
+Retention does not change: revisions live under the same `expire_date` and leave with the form,
+rows before bytes. More copies of the same personal data inside the same window — worth knowing
+when sizing a database, not a new promise.
 
 ## The page
 
@@ -548,6 +596,10 @@ handed back to clients verbatim. Status is derived from the row (`data IS NULL` 
   `bin/console app:files:purge-temporary` collects uploads no stored document names
   (`--days`, `--limit`); what it prints is meant to stay near zero, so a number that keeps
   growing is worth an alert rather than a log line.
+- **History:** `form_revisions` grows by one row per accepted save, each holding that save's
+  whole values document. Bounded by the form's expire date and by nothing else — there is no cap,
+  deliberately, because a cap cuts history off for exactly the forms that were edited most. Size
+  it from how often forms are saved rather than from how many exist.
 - **Files:** `FILES_DIR` (default `var/storage/files`) is where the bytes go, so it has to
   survive a deploy — a volume, not a container layer. A directory is **one node**: more than
   one instance needs a shared volume, or `composer require league/flysystem-async-aws-s3` and

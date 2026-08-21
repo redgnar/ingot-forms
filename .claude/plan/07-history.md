@@ -193,3 +193,60 @@ and lands on this table as one member. Also: no `POST …/restore`; no server-co
 client can diff two documents it fetched); no history of the definition or the presentation
 (neither can change); no pruning or caps; no undoing a confirmation; no history of *reads*; and
 no history endpoint that hands over every document at once.
+
+## What building it changed
+
+Seven steps, each ending green. Nothing was added to the aggregate, no transition was invented,
+no `POST …/restore` appeared and no actor column crept in — the twelve decisions held. What moved
+is worth writing down.
+
+**Step 0 bought exactly as little as the plan admitted.** Taking the collection out of the save
+path stopped a *save* from deleting anything, but the daily command still asked about the current
+values, so a superseded file survived the commit and went a week later. The promise only landed in
+step 4. Writing that down before building it meant nobody had to discover it.
+
+**`removeExpired` moved its date check out of SQL and into PHP.** It used to be `DELETE … WHERE id
+= :id AND expire_date <= :now`, which is a nice way to make a wrong id harmless — but the
+revisions cannot be deleted by that same statement, and two statements with two separate
+conditions are two things that can drift. One read plus a check in the open keeps the property and
+says it where it can be read.
+
+**The revisions column is called `data`, not `values`.** `VALUES` is reserved in SQL, and quoting
+identifiers per platform is a fight nobody needs; `data` is also what the same thing is called on
+`forms`.
+
+**Reading history became its own port.** `FormRepository` is a collection of forms and stays one:
+a revision is not a form, no rule of the model depends on reading one, and a narrow port is what
+keeps a use case from receiving a database. Writing stays with the repository, because a revision
+is written by the same event that writes the row.
+
+**The row's `data` turned out to be a cache of the newest revision.** Both are written from the
+same event, so the history is the complete record — which is why the file question can be answered
+from the history alone, newest document first, short-circuiting on the first hit. That realisation
+is what made step 4 cheap.
+
+**`FileReferences` shrank to one method.** `in(Form)` — "the files this form's values name" — lost
+its last caller the moment the question became "the files this form has *ever* named", and the new
+question lives in `FormFiles` because it needs the history port. A domain walk that takes one
+document at a time turned out to be the right shape all along.
+
+**Three tests inverted their premise**, and that is the feature landing rather than a regression:
+a file a later draft stopped naming is now downloadable, undeletable, and never collected however
+old. Each of them says why in the test, because a flipped assertion with no explanation is how a
+promise quietly changes.
+
+The page cost three bugs, all found by tests rather than by thinking:
+
+- **The panel wore a widget's clothes.** Giving it Bootstrap's `card` class made three existing
+  assertions count page chrome as a container the document asked for. The fix is both halves: the
+  panel dresses plainly, and assertions that were about the form now say `form …`.
+- **A new Stimulus controller does not exist until the cache is cleared.** The controllers map is
+  generated and cached, so `history_controller.js` was invisible — the same rule this project
+  already keeps for derived schemas, one directory over.
+- **An unscoped `details summary` in an older browser test** started clicking the history panel
+  instead of the form's accordion. A selector that says "the page's only foldable thing" stops
+  being true the moment the page grows another one.
+
+And one lesson about the tests themselves: `eventually()` returns the first non-null answer, so
+waiting for a value to *change* needs the comparison inside the closure. Waiting for
+`held('nickname')` returned the old value instantly and turned a real check into a coin toss.

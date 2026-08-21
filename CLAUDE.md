@@ -32,6 +32,22 @@ or id on the definition (it belongs to one form, which has a UUID of its own; no
 or looks definitions up, so a second name would only be a label that can drift) —
 deliberately.
 
+**How history works.** Every accepted save is kept: `saveDraft()` already reports a `DraftSaved`
+carrying the whole `Values`, so a revision is that event persisted rather than a second record of
+anything — the row and the `form_revisions` row are written from the same event, and neither can
+happen without the other. Append-only, `(form_id, seq)` is the whole key, `seq` is allocated under
+the row lock the save already holds, and the history leaves with its form (rows before bytes).
+**Restoring is not an operation**: a client reads a revision (`GET …/history/{seq}`) and sends it
+back through `PUT …/data`, where it meets the same three gates and is recorded as a *new* revision.
+No `POST …/restore` — a privileged path would be a second way in, and an old document is not more
+trustworthy for having been accepted once. Picking single members out of a revision is likewise
+the client's business, which is why both pages can offer "put this answer back" with no new server
+rule. Reading is a separate, read-only port (`FormHistory`), because `FormRepository` is a
+collection of *forms* and a revision is not one. **"Who" is a stated non-goal**: this service has
+no identity at all, so a revision answers *when* and *what* and nothing else; an actor column now
+would be a member nobody can fill. When identity arrives it lands on that table without moving
+anything else.
+
 **How a file works.** A `file` item's value is not bytes but the **description** of them —
 `{id, name, size, type}`, all four measured by the server when the upload landed and echoed
 back by the client verbatim. That is the whole design, and everything else follows: values stay
@@ -43,12 +59,15 @@ Several files is a `collection` holding a `file`; the counting was built once.
 because the values are what passed validation and what is served byte for byte, so a second
 record would only be a copy that drifts. A file is *temporary* while no stored document names
 it and *attached* the moment one does; nothing moves at that point, and a temporary file has no
-download route, so an upload nobody saved is unreachable by construction. What is not saved is
-collected in two places — the page at once (`DELETE …/files/{id}`, refused for anything the
-values name) and `app:files:purge-temporary` on a schedule (whatever the values do not name and
-has sat longer than `FILES_TEMPORARY_DAYS`, plus directories whose row is already gone). **A
-save takes nothing away**: a document somebody can put back is a document whose files still
-matter, so replacing a file leaves the old one for its form to take with it. Deleting a form and
+download route, so an upload nobody saved is unreachable by construction. Every question about a
+file — what may be downloaded, thrown away or collected — is asked of what the form has **ever**
+named, its current document and every earlier save of it (`FormFiles`, cheap because the
+definition is immutable, so every revision is read with the same one). What is not saved is
+collected in two places — the page at once (`DELETE …/files/{id}`, refused for anything any save
+names) and `app:files:purge-temporary` on a schedule (whatever no save ever named and has sat
+longer than `FILES_TEMPORARY_DAYS`, plus directories whose row is already gone). **A save takes
+nothing away**: a document somebody can put back is a document whose files still matter, so
+replacing a file leaves the old one fetchable until its form goes. Deleting a form and
 purging one both go **the row first, the bytes second**: the other way round can leave a live
 form naming files that are gone, while a directory with no row is provably garbage and gets
 collected. That is what closed the old worry about a purge having to succeed in two places.
@@ -96,7 +115,7 @@ src/Domain/Forms/          the model: Form (aggregate), FormStatus, DeriveMode, 
                            future standalone package.
     Definition/            the field union and the meta-schema
     Event/                 what happened to a form: FormCreated, DraftSaved, FormConfirmed
-    File/                  FileReferences — which files a form's values name, and where
+    File/                  FileReferences — which files one document names, and where
     ValueObject/           FormId, ExpireDate, Values, Definition, FileId, FileDescriptor,
                            FileReference, MediaType
     Exception/             what the model refuses: DefinitionNotValid, ValuesNotValid,
@@ -107,16 +126,19 @@ src/Domain/Forms/          the model: Form (aggregate), FormStatus, DeriveMode, 
 src/Application/Forms/
     UseCase/               one class per thing the system does, each with a single __invoke:
                            CreateForm, SaveFormData, ConfirmForm, DeleteForm, ReadForm,
-                           UploadFormFile, ReadFormFile, DiscardFormFile, PurgeExpiredForms,
-                           PurgeTemporaryFiles. This is where a transaction is opened and
-                           where the order of steps lives.
+                           UploadFormFile, ReadFormFile, DiscardFormFile, ReadFormHistory,
+                           PurgeExpiredForms, PurgeTemporaryFiles. This is where a transaction
+                           is opened and where the order of steps lives.
     File/                  IncomingFile, FileStream, CollectedFiles — an upload on its way
-                           in, an open file on its way out, and what a collector took
-    Port/                  Transactions, DataSchemas, FileStore — what a use case needs and
-                           cannot do itself
+                           in, an open file on its way out, and what a collector took —
+                           plus FormFiles: which files a form has ever named
+    History/               FormRevision — one accepted save, as something to choose by
+    Port/                  Transactions, DataSchemas, FileStore, FormHistory — what a use
+                           case needs and cannot do itself
 src/Infrastructure/        the adapters filling those ports
-    Persistence/           FormRecord (the row, mapped with ORM attributes),
-                           DoctrineFormRepository, DoctrineTransactions
+    Persistence/           FormRecord and FormRevisionRecord (the rows, mapped with ORM
+                           attributes), DoctrineFormRepository, DoctrineFormHistory,
+                           DoctrineTransactions
     Cache/                 CachedDataSchemaProvider
     Files/                 FlysystemFileStore — keys, the sidecar of facts, sniffing, deletes
     Validation/            the schema gate, the Symfony form, the reference gate and the

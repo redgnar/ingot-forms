@@ -1,0 +1,200 @@
+# Every accepted save is kept. A draft save writes the current values onto the row
+# and appends a revision — both from the same event — so a form's history is what
+# the aggregate already reports, persisted instead of dropped.
+#
+# There is no endpoint that restores anything: a client reads a revision and sends
+# it back through PUT …/data, where it meets the same three gates as any other
+# draft. Open the id this creates at {{host}}/forms/{id} to do it by hand.
+
+### A form born holding something, so its history starts at one.
+# @name createHistoryForm
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "text", "name": "nickname", "maxLength": 20 },
+      { "type": "text", "name": "note", "maxLength": 40 }
+    ]
+  },
+  "presentation": {
+    "engine": "core-html",
+    "defaultLocale": "en",
+    "items": [
+      { "name": "nickname", "widget": "text", "label": "h.nickname" },
+      { "name": "note", "widget": "text", "label": "h.note" },
+      { "widget": "save", "label": "h.save" },
+      { "widget": "confirm", "label": "h.send" }
+    ],
+    "translations": {
+      "en": {
+        "h.nickname": "Nickname",
+        "h.note": "Note",
+        "h.save": "Save for later",
+        "h.send": "Send"
+      }
+    }
+  },
+  "data": { "nickname": "Ada", "note": "the first note" }
+}
+
+> {%
+    client.global.set("historyFormId", response.body.id);
+    client.test("201 created", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+%}
+
+### A form born a draft already has a save: a history cannot start shorter than
+### the form.
+GET {{host}}/api/forms/{{historyFormId}}/history
+
+> {%
+    client.test("one revision, unconfirmed", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(response.body.revisions.length === 1, "Expected exactly one save");
+        client.assert(response.body.revisions[0].seq === 1, "Expected it to be numbered 1");
+        client.assert(response.body.revisions[0].confirmed === false, "Expected nothing locked yet");
+    });
+%}
+
+### Change both answers.
+PUT {{host}}/api/forms/{{historyFormId}}/data
+Content-Type: application/json
+
+{ "nickname": "Grace", "note": "the second note" }
+
+> {%
+    client.test("204 stored", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+### Two saves now, oldest first.
+GET {{host}}/api/forms/{{historyFormId}}/history
+
+> {%
+    client.test("two revisions, in order", function () {
+        client.assert(response.body.revisions.length === 2, "Expected two saves");
+        client.assert(response.body.revisions[0].seq === 1, "Expected the oldest first");
+        client.assert(response.body.revisions[1].seq === 2, "Expected the newest last");
+    });
+%}
+
+### The first save, exactly as it was stored.
+# @name firstSave
+GET {{host}}/api/forms/{{historyFormId}}/history/1
+
+> {%
+    client.global.set("firstSave", JSON.stringify(response.body));
+    client.test("the document that save stored", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(response.body.nickname === "Ada", "Expected the first nickname");
+        client.assert(response.body.note === "the first note", "Expected the first note");
+    });
+%}
+
+### Putting one answer back is a client's own doing: take the member you want out
+### of the older save, merge it into what the form holds, and send the result.
+### There is no endpoint for this, and there does not need to be.
+PUT {{host}}/api/forms/{{historyFormId}}/data
+Content-Type: application/json
+
+{ "nickname": "Ada", "note": "the second note" }
+
+> {%
+    client.test("204 stored", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+###
+GET {{host}}/api/forms/{{historyFormId}}/data
+
+> {%
+    client.test("one answer back, the other left alone", function () {
+        client.assert(response.body.nickname === "Ada", "Expected the older nickname");
+        client.assert(response.body.note === "the second note", "Expected the newer note");
+    });
+%}
+
+### Putting a whole save back is the same thing with the whole document — and it
+### is recorded as a new save, because history is append-only: restoring is a
+### change like any other, not a rewind.
+PUT {{host}}/api/forms/{{historyFormId}}/data
+Content-Type: application/json
+
+{{firstSave}}
+
+> {%
+    client.test("204 stored", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+###
+GET {{host}}/api/forms/{{historyFormId}}/history
+
+> {%
+    client.test("four saves, and the newest is the restored one", function () {
+        client.assert(response.body.revisions.length === 4, "Expected four saves");
+        client.assert(response.body.revisions[3].seq === 4, "Expected the restore to be the newest");
+    });
+%}
+
+###
+GET {{host}}/api/forms/{{historyFormId}}/history/4
+
+> {%
+    client.test("the newest save is the one that was put back", function () {
+        client.assert(response.body.nickname === "Ada", "Expected the restored nickname");
+        client.assert(response.body.note === "the first note", "Expected the restored note");
+    });
+%}
+
+### A save that never happened is not there. The same answer as for somebody
+### else's revision number, deliberately.
+GET {{host}}/api/forms/{{historyFormId}}/history/99
+
+> {%
+    client.test("404 revision-not-found", function () {
+        client.assert(response.status === 404, "Expected 404, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:revision-not-found", "Expected revision-not-found");
+    });
+%}
+
+### Confirming stores no values, so it is no save of its own — the last one is
+### what got locked, and the history says so.
+POST {{host}}/api/forms/{{historyFormId}}/confirm
+
+> {%
+    client.test("204 locked", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+###
+GET {{host}}/api/forms/{{historyFormId}}/history
+
+> {%
+    client.test("still four saves, the last one marked", function () {
+        client.assert(response.body.revisions.length === 4, "Expected confirming to add no save");
+        client.assert(response.body.revisions[3].confirmed === true, "Expected the last save to be the locked one");
+    });
+%}
+
+### ...and a locked form takes no draft, restored or otherwise. Its history stays
+### readable, which is all it ever was.
+PUT {{host}}/api/forms/{{historyFormId}}/data
+Content-Type: application/json
+
+{{firstSave}}
+
+> {%
+    client.test("409 form-locked", function () {
+        client.assert(response.status === 409, "Expected 409, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:form-locked", "Expected form-locked");
+    });
+%}
