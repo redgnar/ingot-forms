@@ -683,3 +683,58 @@ goes back to being what it always was — a file no stored document names. The s
 save path entirely, and the one documented exception to "no outside-world call inside a transaction"
 is gone with it. The state the owner asked for is unchanged; only the machinery that used to represent
 it is.
+
+## What building it changed
+
+Eight steps, each ending green. The fourteen decisions all survived contact with the code, and
+there was no migration — the values document stayed the only index of a form's files. What did
+move is worth writing down.
+
+**`MediaType` became a value object** (step 1). Two places in the domain needed the same answer
+to "is that a media type" — a definition saying what an item accepts, and the description of a
+file that was actually stored — and two copies of that answer are two things that can drift.
+It also meant touching step 0's already-committed code, which was the right trade.
+
+**"Too large" is `413` everywhere, not `422`.** The plan gave the deployment ceiling a `422` and
+`post_max_size` a `413`; two statuses for one phenomenon is a distinction a client cannot use,
+and `413` is the precise one. A file over an *item's* `maxSize` is a different thing and keeps
+its `422`: that is a rule about a value, published in the schema and answered at save time.
+
+**The reference gate needed no "this is not a reference" branch.** Checked with
+`make check-values` before writing it: the derived schema *does* assert `format: uuid`, so a
+malformed description never reaches gate 3. One less branch in the code and one more row in the
+values table.
+
+**The values battery grew a `formId()` hook.** Every other item type's value is its own judge, so
+a fresh form id was fine; a file's value *points* at something the form owns, so it has to be
+judged as the form that owns it. That is the shared base's only concession to this feature.
+
+**The forms port lost `purgeExpired()` and gained three methods** — `expiredIds`,
+`removeExpired`, `getForCleanup`. Physical deletion stopped being one statement the moment bytes
+lived elsewhere, and the collectors became the only callers that may see what is physically
+stored rather than what the API is willing to show.
+
+**A logger reached the application layer for the first time**, in three use cases. It is not
+decoration: the collectors' counts and the two invariant breaks (a form naming bytes that are
+gone, a superseded file that could not be deleted) are the *only* warning this design gets,
+because nothing breaks when garbage merely accumulates.
+
+**`PresentedNodes` carries both paths a file control needs.** A template inventing a URL, or a
+kit's JavaScript assembling one, would have been two more places that know how this API is
+addressed; threading the form id through the tree kept it at one.
+
+Three things were found by the tooling rather than by thinking, which is the point of having it:
+
+- **Infection caught an equivalent-mutant smell** in `FileReferences::dropped()`: `$kept[$id] =
+  true` guarded by `isset()` never reads the value, so mutating it changed nothing. Keying by id
+  instead removed the sentinel — and the same run exposed two genuinely missing cases, a kept
+  file listed *before* a dropped one, and two files superseded at once.
+- **The test environment was writing into the development store.** `config/packages/test/*.yaml`
+  loads *before* `config/services.yaml`, so the override never applied; it belongs in
+  `config/services_test.yaml`, which loads last. Invisible until something looked.
+- **The browser battery found a real bug in itself**, which is still a real bug: the random
+  prefix on a temporary fixture leaked into the *client filename*, because the name a person
+  sees is the name that gets sent. The randomness moved into the directory.
+
+And one dependency lesson repeated: `composer require symfony/mime` installed 8.1 next to a
+framework pinned to `^7.4`. Caught before the push this time, by reading what composer said.

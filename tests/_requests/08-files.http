@@ -1,0 +1,351 @@
+# Files. A `file` item's value is not bytes but the description of them, which the
+# upload answers with and the client echoes back — so the values stay one JSON
+# document and the item's own rules (`accept`, `maxSize`) stay in the published
+# schema. Everything else follows from one decision: the stored values are the
+# only index of a form's files.
+#
+# Open the id this creates at {{host}}/forms/{id} to attach one by hand.
+
+### A form that asks for a file.
+# @name createFileForm
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "text", "name": "customer", "required": true, "maxLength": 60 },
+      { "type": "file", "name": "invoice", "accept": ["application/pdf"], "maxSize": 1048576 }
+    ]
+  },
+  "presentation": {
+    "engine": "core-html",
+    "defaultLocale": "en",
+    "items": [
+      { "name": "customer", "widget": "text", "label": "f.customer" },
+      { "name": "invoice", "widget": "file", "label": "f.invoice" },
+      { "widget": "save", "label": "f.save" },
+      { "widget": "confirm", "label": "f.send" }
+    ],
+    "translations": {
+      "en": {
+        "f.customer": "Your name",
+        "f.invoice": "Your invoice",
+        "f.save": "Save for later",
+        "f.send": "Send"
+      }
+    }
+  }
+}
+
+> {%
+    client.global.set("fileFormId", response.body.id);
+    client.test("201 created", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+%}
+
+### The published contract says what a file may be, in the values schema.
+GET {{host}}/api/forms/{{fileFormId}}/schema
+
+> {%
+    client.test("the item's own rules are published", function () {
+        const invoice = response.body.properties.invoice;
+        client.assert(invoice.properties.size.maximum === 1048576, "Expected maxSize as a maximum on size");
+        client.assert(invoice.properties.type.enum[0] === "application/pdf", "Expected accept as an enum of type");
+        client.assert(invoice.required.length === 4, "Expected all four members of a description to be required");
+    });
+%}
+
+### Bytes in. The answer is exactly what the values may hold — id, name, size and
+### media type, all four measured here.
+# @name uploadInvoice
+POST {{host}}/api/forms/{{fileFormId}}/files
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="invoice.pdf"
+Content-Type: application/pdf
+
+< ./examples/invoice.pdf
+--WebAppBoundary--
+
+> {%
+    client.global.set("invoiceFile", response.body.id);
+    client.global.set("invoiceReference", JSON.stringify(response.body));
+    client.test("201 with the description", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+        client.assert(response.body.name === "invoice.pdf", "Expected the name it was sent under");
+        client.assert(response.body.type === "application/pdf", "Expected the type sniffed from the bytes");
+        client.assert(response.body.size === 69, "Expected the size the server counted");
+        client.assert(response.headers.valueOf("Location") !== null, "Expected where to fetch it");
+    });
+%}
+
+### Nothing names it yet, so it cannot be downloaded — the same answer as for a
+### file that never existed.
+GET {{host}}/api/forms/{{fileFormId}}/files/{{invoiceFile}}
+
+> {%
+    client.test("404 file-not-found", function () {
+        client.assert(response.status === 404, "Expected 404, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:file-not-found", "Expected file-not-found");
+    });
+%}
+
+### Echoing the description back is what makes the form hold the file.
+PUT {{host}}/api/forms/{{fileFormId}}/data
+Content-Type: application/json
+
+{
+  "customer": "Ada Lovelace",
+  "invoice": {{invoiceReference}}
+}
+
+> {%
+    client.test("204 stored", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+### ...and now it can be fetched. Always as a file, never as a page.
+GET {{host}}/api/forms/{{fileFormId}}/files/{{invoiceFile}}
+
+> {%
+    client.test("200 with the bytes", function () {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(response.headers.valueOf("Content-Type") === "application/pdf", "Expected the recorded type");
+        client.assert(response.headers.valueOf("Content-Disposition").startsWith("attachment"), "Expected an attachment");
+        client.assert(response.headers.valueOf("X-Content-Type-Options") === "nosniff", "Expected nosniff");
+    });
+%}
+
+### A file the stored values name cannot be thrown away: a saved document is what
+### makes it permanent, and it stops being permanent by being saved out.
+DELETE {{host}}/api/forms/{{fileFormId}}/files/{{invoiceFile}}
+
+> {%
+    client.test("409 file-attached", function () {
+        client.assert(response.status === 409, "Expected 409, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:file-attached", "Expected file-attached");
+    });
+%}
+
+### Saving without it is how it goes — and a save throws away what it superseded.
+PUT {{host}}/api/forms/{{fileFormId}}/data
+Content-Type: application/json
+
+{ "customer": "Ada Lovelace" }
+
+> {%
+    client.test("204 stored", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+### The bytes went with the reference: nothing waited for a schedule.
+GET {{host}}/api/forms/{{fileFormId}}/files/{{invoiceFile}}
+
+> {%
+    client.test("404 gone", function () {
+        client.assert(response.status === 404, "Expected 404, got " + response.status);
+    });
+%}
+
+### An upload nobody saved can be taken back at once.
+# @name uploadAgain
+POST {{host}}/api/forms/{{fileFormId}}/files
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="invoice.pdf"
+Content-Type: application/pdf
+
+< ./examples/invoice.pdf
+--WebAppBoundary--
+
+> {%
+    client.global.set("temporaryFile", response.body.id);
+    client.test("201 created", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+%}
+
+###
+DELETE {{host}}/api/forms/{{fileFormId}}/files/{{temporaryFile}}
+
+> {%
+    client.test("204 gone", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+### ...and it stays gone.
+DELETE {{host}}/api/forms/{{fileFormId}}/files/{{temporaryFile}}
+
+> {%
+    client.test("404 file-not-found", function () {
+        client.assert(response.status === 404, "Expected 404, got " + response.status);
+    });
+%}
+
+### A values document cannot invent a file. This is the one place the server is
+### stricter than its published contract — no schema can say "this id exists".
+PUT {{host}}/api/forms/{{fileFormId}}/data
+Content-Type: application/json
+
+{
+  "customer": "Ada Lovelace",
+  "invoice": {
+    "id": "01a00000-0000-7000-8000-00000000ffff",
+    "name": "invoice.pdf",
+    "size": 69,
+    "type": "application/pdf"
+  }
+}
+
+> {%
+    client.test("422 form.file.unknown", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/invoice/id", "Expected the id to be named");
+        client.assert(response.body.errors[0].code === "form.file.unknown", "Expected form.file.unknown");
+    });
+%}
+
+### ...nor tell a different story about one it does hold.
+# @name uploadForMismatch
+POST {{host}}/api/forms/{{fileFormId}}/files
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="invoice.pdf"
+Content-Type: application/pdf
+
+< ./examples/invoice.pdf
+--WebAppBoundary--
+
+> {%
+    client.global.set("mismatchFile", response.body.id);
+%}
+
+###
+PUT {{host}}/api/forms/{{fileFormId}}/data
+Content-Type: application/json
+
+{
+  "customer": "Ada Lovelace",
+  "invoice": {
+    "id": "{{mismatchFile}}",
+    "name": "something-else.pdf",
+    "size": 69,
+    "type": "application/pdf"
+  }
+}
+
+> {%
+    client.test("422 form.file.mismatch", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/invoice/name", "Expected the member that differs");
+        client.assert(response.body.errors[0].code === "form.file.mismatch", "Expected form.file.mismatch");
+    });
+%}
+
+### The upload takes any bytes — which kind an item wants is a rule about the
+### *value*, so the published schema is what refuses this one.
+# @name uploadNotes
+POST {{host}}/api/forms/{{fileFormId}}/files
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="notes.txt"
+Content-Type: text/plain
+
+< ./examples/notes.txt
+--WebAppBoundary--
+
+> {%
+    client.global.set("notesReference", JSON.stringify(response.body));
+    client.test("201 whatever the bytes are", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+        client.assert(response.body.type === "text/plain", "Expected the type sniffed from the bytes");
+    });
+%}
+
+###
+PUT {{host}}/api/forms/{{fileFormId}}/data
+Content-Type: application/json
+
+{
+  "customer": "Ada Lovelace",
+  "invoice": {{notesReference}}
+}
+
+> {%
+    client.test("422 schema.enum", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/invoice/type", "Expected the type to be named");
+        client.assert(response.body.errors[0].code === "schema.enum", "Expected the published contract to refuse it");
+    });
+%}
+
+### A part with no bytes in it is not an upload.
+POST {{host}}/api/forms/{{fileFormId}}/files
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="empty.pdf"
+Content-Type: application/pdf
+
+< ./examples/empty.pdf
+--WebAppBoundary--
+
+> {%
+    client.test("422 upload-empty", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:upload-empty", "Expected upload-empty");
+    });
+%}
+
+### A confirmed form takes no more bytes: its values can never change again, so
+### they could never name them.
+# @name confirmedForm
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "items": [{ "type": "text", "name": "customer" }] },
+  "data": { "customer": "Ada Lovelace" }
+}
+
+> {%
+    client.global.set("lockedFormId", response.body.id);
+%}
+
+###
+POST {{host}}/api/forms/{{lockedFormId}}/confirm
+
+> {%
+    client.test("204 locked", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+###
+POST {{host}}/api/forms/{{lockedFormId}}/files
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="invoice.pdf"
+Content-Type: application/pdf
+
+< ./examples/invoice.pdf
+--WebAppBoundary--
+
+> {%
+    client.test("409 form-locked", function () {
+        client.assert(response.status === 409, "Expected 409, got " + response.status);
+        client.assert(response.body.type === "urn:problem:ingot-forms:form-locked", "Expected form-locked");
+    });
+%}

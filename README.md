@@ -2,9 +2,9 @@
 
 Backend-only forms management service built on the [ingot](https://github.com/redgnar/ingot)
 mapping engine. A **form is a single fillable document**: one JSON definition, one data set,
-a required expiry date. Definition templates, versioning, multi-submission forms and file
-uploads are deliberately out of scope for this MVP — see `CLAUDE.md` for why a file item is a
-different kind of problem, and the shape it would take if it arrives.
+a required expiry date. A form can hold files too — uploaded beside it and named from inside
+it, so the values stay one JSON document ([Files](#files)). Definition templates, versioning
+and multi-submission forms are deliberately out of scope.
 
 ## Domain model
 
@@ -49,9 +49,10 @@ widget to draw.
 | `date` | `YYYY-MM-DD`, a day that exists | `min`, `max` — calendar dates, `min` no later than `max` |
 | `checkbox` | JSON boolean | `mustBeChecked` |
 | `collection` | JSON array of objects, one per entry | `items` (a definition of its own, 1–1000), `min`, `max` |
+| `file` | the description of an uploaded file: `{id, name, size, type}` | `accept` (media types, at least one, no repeats), `maxSize` — both required |
 | anything else | whatever it came as | the plugin's own keys, kept in `extras` |
 
-Four of those say something worth spelling out:
+Five of those say something worth spelling out:
 
 - **`decimals` bounds precision.** `0` means whole numbers and is published as JSON Schema's
   `integer`; `2` is money, published as the step every value must land on (`multipleOf: 0.01`).
@@ -71,6 +72,17 @@ Four of those say something worth spelling out:
   is required of the values document, since an absent member has none of them. A collection may
   hold a collection, and both kits draw that: a list inside the form of an entry, with its own
   add, its own remove and its own counts.
+- **A `file` holds a description, not bytes.** The bytes are uploaded first
+  (`POST /api/forms/{id}/files`) and the answer to that is exactly what the values document
+  may hold — id, name, size and media type, all four measured by the server. That is what lets
+  the item's own two rules be *published*: `maxSize` becomes a maximum on `size`, `accept`
+  becomes an enum of `type`. Both are required, because a file item without them would promise
+  "any bytes, any size", which no deployment can honour and no client can check. Several files
+  is a `collection` holding a `file` — the counting was built once. **The trap worth knowing**:
+  `type` is what the server sniffed from the bytes, not what the browser claimed, so a
+  definition asking for `.docx` has to list what fileinfo actually reports for it — the upload
+  response is where an author sees this immediately. Everything else about files is in
+  [Files](#files).
 - **`mustBeChecked` is not `required`.** For a box, `false` is an answer, so `required` means
   "decide"; a consent means "agree", and that is published as `const: true` — **in the strict
   contract only**. Having to agree is something finishing the form requires, like `required`
@@ -247,7 +259,7 @@ and query strings ignore unknown parameters the way HTTP clients expect. Members
 from.
 
 **ingot validates the form definition** — meta-schema, typed tree, semantic rules — and
-derives the per-form JSON Schema published to clients. **Submitted values pass two gates**
+derives the per-form JSON Schema published to clients. **Submitted values pass three gates**
 (`src/Infrastructure/Validation/`), cheapest first:
 
 1. the **derived schema**, cached per form and mode — the same document
@@ -262,9 +274,18 @@ derives the per-form JSON Schema published to clients. **Submitted values pass t
    in `tests/Infrastructure/Validation/Field/` proves it never refuses what the schema
    accepts.
 
+3. the **referenced files** (`ReferencedFilesExist`) — for every `file` position the values
+   answer, the store must hold that id under this form, described exactly as the store
+   describes it. Findings carry `form.file.unknown` and `form.file.mismatch`, pointed at the
+   member that is wrong (`/invoice/id`, `/attachments/0/scan/size`). This is the **one place
+   the server is stricter than its published contract**, and it is deliberate: no schema can
+   state "this id exists", any more than it can state "this form has not expired". A client
+   that echoes the upload's answer back verbatim can never trip it.
+
 Values refused by the schema never reach the form: on this project's example definition the
 schema answers in ~60 µs where building and running the form costs ~670 µs, so a payload
-that was never going to fit is rejected without that work.
+that was never going to fit is rejected without that work. The store is asked last, so
+nothing pays for that gate until the document is otherwise perfect.
 
 The definition meets Symfony validation through a custom constraint
 (`src/UserInterface/Api/Request/Constraint/ValidFormDefinition`) on the create DTO; values
@@ -285,14 +306,17 @@ contract clients validate against cannot drift from what the server enforces.
 | `PUT /api/forms/{id}/data` | Save a draft (repeatable). `204`, `409 form-locked` once confirmed. |
 | `POST /api/forms/{id}/confirm` | Strictly validate the stored data and lock the form. `204`; `409` when already confirmed or empty, `422` with the report when invalid. |
 | `GET /api/forms/{id}/data` | The current values (`404 form-data-empty` when none). |
+| `POST /api/forms/{id}/files` | Upload a file for this form. One `multipart/form-data` part named `file`. `201` with the description to put in the values, plus `Location`. |
+| `GET /api/forms/{id}/files/{fileId}` | Download a file **the stored values name**. Always `Content-Disposition: attachment` with `X-Content-Type-Options: nosniff`. |
+| `DELETE /api/forms/{id}/files/{fileId}` | Throw away an upload nobody saved. `409 file-attached` when the stored values name it. |
 
 Writes answer with a status, not a copy: `PUT …/data` and `POST …/confirm` return `204 No
 Content` (or `422` with the report), because the client already knows the values it sent —
 read the form if you need its new state.
 
 Error status map: `400` malformed JSON, `404` unknown form, `409` state conflicts,
-`204` a write that succeeded, `410` expired form (every endpoint), `415` a request body that
-is not `application/json`,
+`204` a write that succeeded, `410` expired form (every endpoint), `413` a body larger than
+this deployment accepts, `415` a request body that is not `application/json`,
 `422` validation reports, `500` opaque fallback.
 
 ## API contract
@@ -317,6 +341,75 @@ implementation, and the published document cannot drift apart in any direction.
 
 The derived schema is what a future frontend validates against (Ajv/Zod) — the server
 uses the exact same document, so the contract cannot drift.
+
+## Files
+
+A form can hold files, and the design turns on one decision: **the values document is the
+only index of them**. There is no column about files anywhere in `forms` and no `files`
+table — the values are what passed validation and what is served byte for byte, so a second
+record of the same fact could only ever be a copy that drifts.
+
+Everything follows from that:
+
+```
+POST /api/forms/{id}/files        bytes in, description out   (no transaction: no column changes)
+PUT  /api/forms/{id}/data         the description, echoed → the form now names the file
+GET  /api/forms/{id}/files/{f}    only what the stored values name
+DELETE …/files/{f}                only what they do not
+```
+
+**Temporary, then attached.** A file is *temporary* while no stored document names it and
+*attached* the moment one does. Nothing moves when that happens — the values are the record —
+and a temporary file has no download route at all, so an upload nobody saved is unreachable by
+construction. Not everything uploaded gets saved, so the rest is collected in three layers,
+soonest and cheapest first:
+
+1. **the page**, at once: `DELETE …/files/{fileId}` when somebody removes or replaces a file
+   before saving. It refuses anything the stored values name (`409`), so it can never take
+   away a file a saved document depends on.
+2. **a save**, right after its commit: what the document named a moment ago and does not name
+   now is superseded, and goes. The comparison is made on the locked row (so it is against the
+   document that was really there) and the deleting happens after the commit (so a rollback
+   can never take bytes with it, and a store that is briefly unreachable cannot fail a save).
+3. **`app:files:purge-temporary`**, once a day: per form, whatever the values do not name and
+   which has sat untouched longer than `FILES_TEMPORARY_DAYS`. It lists the store *before* it
+   reads a row, so a form whose files are all recent costs no database work; it takes the row
+   lock, so it cannot slip between a save's reference check and that save's commit; and it
+   reports what it took per species — whole files, half-written ones, and directories whose
+   form is already gone. **Those numbers are supposed to sit near zero**: one that keeps
+   growing is the only warning that layer 1 or 2 has stopped working.
+
+`app:forms:purge-expired` remains the end of everything, and both deletions go **the row
+first, the bytes second**. The other way round can leave a live form naming files that are
+gone — the one state this design does not tolerate — while a directory whose row is already
+gone is provably garbage and gets collected by the command above. That is what closes the
+worry a file item was postponed over: a purge no longer has to succeed in two places at once.
+
+**The store** is `league/flysystem` behind one port (`FileStore`): a directory in development,
+test and CI, S3 (or anything Flysystem speaks) in production, by configuration rather than by
+code. Two objects per file, under the form that owns it — `{formId}/{fileId}` for the bytes and
+`{fileId}.json` for the facts — because per-object metadata is the one thing Flysystem cannot
+offer portably, and a second file is the same thing everywhere. Writing goes bytes first,
+facts second; deleting goes the other way round; and a file whose halves disagree is reported
+as *absent*, so anything half-written or half-deleted is invisible rather than wrong.
+Ownership is not a column but the location: nothing can be asked for a file without being told
+which form it belongs to.
+
+**Nothing but this API ever reaches the bytes.** No presigned URLs, no public directory, and
+the store lives outside `public/`. Downloads are always `attachment` with `nosniff`, because
+bytes a stranger uploaded, served from this application's own origin, are an XSS vector the
+moment a browser decides to render them. The bytes are streamed, so a large file costs a
+socket rather than a request's worth of memory.
+
+**Both kits draw a file** — `file` in `core-html`, `file` and `dropzone` in `bootstrap` (a
+place to drop one, with the progress of the upload drawn while it happens). The shared
+convention grows by exactly one thing: a control may carry a JSON payload
+(`data-type="json"`), so the hidden control beside the picker holds the description while the
+picker itself is only how somebody chooses bytes. The chip that says which file is held is
+rendered by the server and filled in by the kit's own script — a kit never writes markup in
+JavaScript. The size is checked in the browser before anything is sent; the **kind** of bytes
+is checked against what the server sniffed *after* the upload, and a file the item does not
+want is taken back at once, because nothing names it yet.
 
 ## The page
 
@@ -449,7 +542,21 @@ handed back to clients verbatim. Status is derived from the row (`data IS NULL` 
   for the web server to serve directly. Only the `bootstrap` kit's pages need it; the API does
   not, and in dev and test they are served by the framework.
 - **Cron:** `bin/console app:forms:purge-expired` — expired forms are already invisible
-  to the API (410); this fulfils the promise that expired data leaves the system.
+  to the API (410); this fulfils the promise that expired data leaves the system. Next to it,
+  `bin/console app:files:purge-temporary` collects uploads no stored document names
+  (`--days`, `--limit`); what it prints is meant to stay near zero, so a number that keeps
+  growing is worth an alert rather than a log line.
+- **Files:** `FILES_DIR` (default `var/storage/files`) is where the bytes go, so it has to
+  survive a deploy — a volume, not a container layer. A directory is **one node**: more than
+  one instance needs a shared volume, or `composer require league/flysystem-async-aws-s3` and
+  four lines in `config/packages/flysystem.yaml`. Nothing in the application changes for that,
+  because the facts about a file live in a file of their own rather than in a store's own
+  metadata. `FILES_MAX_UPLOAD` (10 MiB) is the deployment's ceiling and must stay at or below
+  what `docker/php.ini` allows (`upload_max_filesize`, `post_max_size` — 16 MiB) **and** at or
+  above the largest `maxSize` any definition served here asks for: `maxSize` is the published
+  contract, and a limit no client was told about is a limit that breaks somebody's upload.
+  `FILES_PER_FORM` (50) bounds what one form can hold, and `FILES_TEMPORARY_DAYS` (7) is how
+  long a file nobody saved may sit. `make storage-clean` empties the dev and test stores.
 
 ## Development
 

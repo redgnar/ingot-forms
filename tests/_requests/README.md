@@ -25,6 +25,9 @@ These are **not** part of the PHPUnit suites (`make test` only looks at `tests/D
 | `03-validation-errors.http` | 400, 415 and the whole 422 catalogue: envelope (`request.*`) and values (`form.value.*`) |
 | `04-state-and-expiry.http` | 404 / 409 conflicts, and 410 once a form's expire date passes |
 | `05-presentation.http` | how a form is shown: given at creation, read back, and every way a document can be refused |
+| `06-bootstrap-kit.http` | the same form written for the richer kit, and the widgets only it draws |
+| `07-collections.http` | a question asked repeatedly: counting, entries, nesting, and what a presentation of a list may not do |
+| `08-files.http` | bytes in, the description echoed into the values, the download, and every way a file is refused or thrown away |
 
 `04-state-and-expiry.http` is the one file to run by hand rather than in one go: it
 creates a form that expires in five seconds, so the last requests only answer `410`

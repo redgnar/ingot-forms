@@ -27,19 +27,36 @@ aggregate's own `saveDraft()` judges it under the same lenient contract, the ins
 with the rest of the row, and a form that would refuse those values later is never created
 holding them. Definition
 change = delete + recreate. Expired forms answer 410 everywhere; `app:forms:purge-expired`
-deletes them physically. No templates, no versioning, no multi-submission, no file uploads, and no name
+deletes them physically. No templates, no versioning, no multi-submission, and no name
 or id on the definition (it belongs to one form, which has a UUID of its own; nothing groups
 or looks definitions up, so a second name would only be a label that can drift) —
 deliberately.
 
-**Why no file item.** Values are one JSON document stored byte for byte in one column, so a
-file needs a second store — and with it size and content-type limits, orphan collection when a
-repeatable draft save replaces an upload, and a purge that has to succeed in two places to keep
-the promise that expired data leaves the system. Its rules are also the first ones the derived
-schema could not state, and this codebase fixes that in the schema rather than enforcing past
-the contract. When it comes, it most likely comes as an upload endpoint returning an id, with
-the item holding a **reference**: values stay JSON, the contract stays the contract, and the
-weight lands where it belongs.
+**How a file works.** A `file` item's value is not bytes but the **description** of them —
+`{id, name, size, type}`, all four measured by the server when the upload landed and echoed
+back by the client verbatim. That is the whole design, and everything else follows: values stay
+one JSON document, and the item's own rules stay *statable in the derived schema* (`maxSize` is
+a maximum on `size`, `accept` an enum of `type`) instead of being enforced past the contract.
+Several files is a `collection` holding a `file`; the counting was built once.
+
+**The values document is the only index of a form's files** — no column, no `files` table,
+because the values are what passed validation and what is served byte for byte, so a second
+record would only be a copy that drifts. A file is *temporary* while no stored document names
+it and *attached* the moment one does; nothing moves at that point, and a temporary file has no
+download route, so an upload nobody saved is unreachable by construction. What is not saved is
+collected in three layers — the page at once (`DELETE …/files/{id}`, refused for anything the
+values name), a save right after its commit (what it superseded), and
+`app:files:purge-temporary` on a schedule (whatever the values do not name and has sat longer
+than `FILES_TEMPORARY_DAYS`, plus directories whose row is already gone). Both deletions go
+**the row first, the bytes second**: the other way round can leave a live form naming files
+that are gone, while a directory with no row is provably garbage and gets collected. That is
+what closed the old worry about a purge having to succeed in two places.
+
+Three exceptions this buys, each deliberate and each stated where it lives: the upload is the
+one endpoint whose body is not JSON, the download is the one that does not answer with a
+document, and `ReferencedFilesExist` is the one gate that is stricter than the published
+contract — no schema can state "this id exists", any more than "this form has not expired",
+and a client echoing the upload's answer can never trip it.
 
 ## Design principles
 
@@ -57,7 +74,7 @@ of that, not as a separate idea.
   service. A write never answers with the document a `GET` already serves — a second copy is
   a second truth.
 - **YAGNI**: the domain model says no on purpose (no templates, no versioning, no
-  multi-submission, no file uploads, no form list endpoint). Do not add a seam, an abstraction or a config
+  multi-submission, no form list endpoint). Do not add a seam, an abstraction or a config
   knob for a case nobody asked for; add it when the second caller appears.
 - **SOLID**: one action per endpoint and one `__invoke` per use case (S); the field catalogue
   grows by adding a variant, not by editing a switch (O); adapters are substitutable behind
@@ -78,7 +95,9 @@ src/Domain/Forms/          the model: Form (aggregate), FormStatus, DeriveMode, 
                            future standalone package.
     Definition/            the field union and the meta-schema
     Event/                 what happened to a form: FormCreated, DraftSaved, FormConfirmed
-    ValueObject/           FormId, ExpireDate, Values, Definition
+    File/                  FileReferences — which files a form's values name, and where
+    ValueObject/           FormId, ExpireDate, Values, Definition, FileId, FileDescriptor,
+                           FileReference, MediaType
     Exception/             what the model refuses: DefinitionNotValid, ValuesNotValid,
                            FormNotFound, FormGone, FormLocked, FormAlreadyConfirmed,
                            FormHasNoData
@@ -87,15 +106,20 @@ src/Domain/Forms/          the model: Form (aggregate), FormStatus, DeriveMode, 
 src/Application/Forms/
     UseCase/               one class per thing the system does, each with a single __invoke:
                            CreateForm, SaveFormData, ConfirmForm, DeleteForm, ReadForm,
-                           PurgeExpiredForms. This is where a transaction is opened and where
-                           the order of steps lives.
-    Port/                  Transactions, DataSchemas — what a use case needs and cannot
-                           do itself
+                           UploadFormFile, ReadFormFile, DiscardFormFile, PurgeExpiredForms,
+                           PurgeTemporaryFiles. This is where a transaction is opened and
+                           where the order of steps lives.
+    File/                  IncomingFile, FileStream, CollectedFiles — an upload on its way
+                           in, an open file on its way out, and what a collector took
+    Port/                  Transactions, DataSchemas, FileStore — what a use case needs and
+                           cannot do itself
 src/Infrastructure/        the adapters filling those ports
     Persistence/           FormRecord (the row, mapped with ORM attributes),
                            DoctrineFormRepository, DoctrineTransactions
     Cache/                 CachedDataSchemaProvider
-    Validation/            the schema gate, the Symfony form and the staged validator
+    Files/                 FlysystemFileStore — keys, the sidecar of facts, sniffing, deletes
+    Validation/            the schema gate, the Symfony form, the reference gate and the
+                           staged validator
 src/UserInterface/
     Api/Action/            one invokable class per endpoint, suffixed Action
     Api/Request|Problem/   request DTOs, problem+json mapping
@@ -212,11 +236,27 @@ Rules that follow from it, and that the tooling checks:
   so a page can mark the control instead of saying the document is incomplete. Anything that
   reports per object (JSON Schema's `required` does) is unpacked in ingot's
   `OpisSchemaValidator`, which is also where `additionalProperties` is unpacked the same way.
+- **Bytes live beside the form, never in it.** `FileStore` is an **application** port (the
+  model has rules about a *reference*, never about storage), filled by one adapter over
+  `league/flysystem` — a directory in dev/test/CI, S3 in production, by configuration. Every
+  operation is scoped to a form and no path crosses the port, so ownership is structural: a
+  file cannot be asked for without saying which form it belongs to. Two objects per file
+  (`{formId}/{fileId}` and `{fileId}.json`), written bytes-then-facts and deleted the other
+  way round, so a half-finished operation leaves something **invisible** rather than wrong —
+  `describe()` answers only for a file whose halves are both there and agree. Nothing but
+  `ReadFormFileAction` ever reaches the bytes: no presigned URL, no public directory, always
+  `attachment` + `nosniff`, always streamed. A delete never happens inside a transaction that
+  writes a column, but a delete of a *temporary* file does take the form's **row lock** — the
+  lock is ordering, not atomicity, and it is what turns the reference gate from a check into a
+  guarantee: without it a file could vanish between the gate accepting it and the commit
+  naming it.
 - **Requests arrive as DTOs**: actions take `#[MapRequestPayload]` / `#[MapQueryString]`
   arguments from `src/UserInterface/Api/Request/`, validated by `symfony/validator` — never
   read `Request` directly, never hand-roll envelope validation. Every DTO member is
   non-nullable, so an instance means a complete request. Bodies are JSON only
-  (`acceptFormat: 'json'` → 415 otherwise) and closed (`ALLOW_EXTRA_ATTRIBUTES => false` →
+  (`acceptFormat: 'json'` → 415 otherwise, the upload being the one exception — bytes are not a
+  JSON document, and it takes `#[MapUploadedFile]`, which is the same rule in the shape a file
+  arrives in) and closed (`ALLOW_EXTRA_ATTRIBUTES => false` →
   `request.unexpected_key`); query strings ignore unknown parameters. A DTO documents itself
   with swagger-php's `#[OA\Property]`, and NelmioApiDocBundle turns routes + DTOs +
   `#[OA\Response]` into the published contract (`make docs`).
@@ -280,7 +320,10 @@ Rules that follow from it, and that the tooling checks:
 - **A write never answers with the thing it wrote** — that is what `GET` is for, and a
   second copy is a second truth. `PUT …/data` and `POST …/confirm` return `204 No Content`
   (`422` with the report when refused); `POST /api/forms` returns `201` with `{"id": …}` and
-  a `Location` header, because the id is the only part the client could not already know.
+  a `Location` header, because the id is the only part the client could not already know. An
+  upload answers with the whole description for the same reason: the bytes are what was
+  written, and the id plus the three facts the server measured are exactly what the client
+  could not have known — echoing them back into the values is the mechanism itself.
   The same holds one layer down: a use case that creates or changes something returns `void`
   or an identity, never the aggregate.
 - **Persistence stays platform-neutral**: portable Doctrine types only (`uuid`, `text`,
@@ -340,6 +383,7 @@ Local PHP is 8.1 — all tools run inside the pinned Docker image (`docker/Docke
 | `make install` / `make update` | composer install/update (Docker) |
 | `make migrate` / `make db-test` | migrations for dev / test database |
 | `make cache-clear` | drop the derived pools (data schemas, mapper metadata) — after a rules change |
+| `make storage-clean` | empty the file store (dev and test): bytes only, forms keep their references |
 | `make assets` | download the vendor JavaScript/CSS named in `importmap.php` into `assets/vendor/` |
 | `make test` / `make test-unit` | full PHPUnit (starts postgres) / fast domain-only loop |
 | `make test-integration` | Http + Infrastructure suite only |
