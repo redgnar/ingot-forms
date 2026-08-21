@@ -41,7 +41,7 @@ services:
             - '../src/Domain/Forms/Presentation/{PresentationDocument,Section,PresentedItem}.php'
             - '../src/Domain/Forms/Presentation/Rule/'
             - '../src/Domain/Forms/{Form,FormStatus,DeriveMode}.php'
-            - '../src/Infrastructure/Persistence/FormRecord.php'
+            - '../src/Infrastructure/Persistence/{FormRecord,FormRevisionRecord}.php'
             - '../src/UserInterface/Api/Problem/ProblemException.php'
             # an upload on its way in, and an open file on its way out
             - '../src/Application/Forms/File/'

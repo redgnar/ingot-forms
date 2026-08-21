@@ -23,6 +23,7 @@ use App\Domain\Forms\ValueObject\Presentation;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
 use App\Infrastructure\Persistence\DoctrineTransactions;
 use App\Infrastructure\Persistence\FormRecord;
+use App\Infrastructure\Persistence\FormRevisionRecord;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -208,6 +209,121 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
     }
 
 
+    public function testEveryAcceptedSaveIsKeptAsItWasAccepted(): void
+    {
+        // GIVEN a form saved twice
+        $id = self::uuid();
+        $this->repository->add(new Form($id, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+
+        $this->transactions->run(function () use ($id): void {
+            $form = $this->repository->getForUpdate($id);
+            $form->saveDraft(json_decode('{"email": "ada@example.com"}', false, flags: \JSON_THROW_ON_ERROR), new StubValues());
+            $this->repository->save($form);
+        });
+        $this->transactions->run(function () use ($id): void {
+            $form = $this->repository->getForUpdate($id);
+            $form->saveDraft(json_decode('{"email": "eve@example.com"}', false, flags: \JSON_THROW_ON_ERROR), new StubValues());
+            $this->repository->save($form);
+        });
+
+        // THEN there is one revision per save, numbered per form and holding the
+        // exact text that was validated — the row keeps what the form holds now,
+        // the history what it held then
+        self::assertSame(
+            [1 => '{"email":"ada@example.com"}', 2 => '{"email":"eve@example.com"}'],
+            self::revisionsOf($id),
+        );
+        self::assertSame('{"email":"eve@example.com"}', $this->repository->get($id)->valuesJson());
+    }
+
+    public function testAFormBornADraftHasAHistoryOfOne(): void
+    {
+        // GIVEN a form created holding values
+        $id = self::uuid();
+        $form = new Form($id, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day')));
+        $form->saveDraft(json_decode('{"email": "ada@example.com"}', false, flags: \JSON_THROW_ON_ERROR), new StubValues());
+
+        // WHEN it is inserted whole
+        $this->repository->add($form);
+
+        // THEN its first draft is its first revision: a form's history cannot
+        // start shorter than the form
+        self::assertSame([1 => '{"email":"ada@example.com"}'], self::revisionsOf($id));
+    }
+
+    public function testConfirmingChangesNothingAboutTheHistory(): void
+    {
+        // GIVEN a form that saved once and was then confirmed
+        $id = self::uuid();
+        $this->repository->add(new Form($id, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+        $this->transactions->run(function () use ($id): void {
+            $form = $this->repository->getForUpdate($id);
+            $form->saveDraft(json_decode('{"email": "ada@example.com"}', false, flags: \JSON_THROW_ON_ERROR), new StubValues());
+            $this->repository->save($form);
+        });
+        $this->transactions->run(function () use ($id): void {
+            $form = $this->repository->getForUpdate($id);
+            $form->confirm(new StubValues());
+            $this->repository->save($form);
+        });
+
+        // THEN confirming stored nothing new, so it is no revision of its own —
+        // the last one is what was confirmed
+        self::assertSame([1 => '{"email":"ada@example.com"}'], self::revisionsOf($id));
+        self::assertNotNull($this->repository->get($id)->confirmedAt());
+    }
+
+    public function testAFormsHistoryLeavesWithIt(): void
+    {
+        // GIVEN a form with two revisions, and another one nobody is deleting
+        $id = self::uuid();
+        $other = self::uuid();
+
+        foreach ([$id, $other] as $form) {
+            $this->repository->add(new Form($form, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+            $this->transactions->run(function () use ($form): void {
+                $stored = $this->repository->getForUpdate($form);
+                $stored->saveDraft(json_decode('{"email": "ada@example.com"}', false, flags: \JSON_THROW_ON_ERROR), new StubValues());
+                $this->repository->save($stored);
+            });
+        }
+
+        // WHEN
+        $this->repository->remove($id);
+
+        // THEN nothing of it is left in either table, and the other form's
+        // history is untouched
+        self::assertSame([], self::revisionsOf($id));
+        self::assertSame([1 => '{"email":"ada@example.com"}'], self::revisionsOf($other));
+    }
+
+    public function testAnExpiredFormsHistoryGoesWithTheRowAndALiveOnesStays(): void
+    {
+        // GIVEN one expired form and one live one, each having saved once
+        $expired = self::uuid();
+        $live = self::uuid();
+        $this->repository->add(new Form($expired, self::definition(), ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
+        $this->repository->add(new Form($live, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+
+        foreach ([$expired, $live] as $form) {
+            $this->transactions->run(function () use ($form): void {
+                $stored = $this->repository->getForCleanup($form);
+                self::assertNotNull($stored);
+                $stored->saveDraft(json_decode('{"email": "ada@example.com"}', false, flags: \JSON_THROW_ON_ERROR), new StubValues());
+                $this->repository->save($stored);
+            });
+        }
+
+        // WHEN both are handed to the purge's own delete
+        $this->repository->removeExpired($expired);
+        $this->repository->removeExpired($live);
+
+        // THEN the expired one leaves with its history, and the live one keeps
+        // both its row and its history: the purge cannot touch it
+        self::assertSame([], self::revisionsOf($expired));
+        self::assertSame([1 => '{"email":"ada@example.com"}'], self::revisionsOf($live));
+    }
+
     public function testTheExpiredAreListedAndTheLiveAreNot(): void
     {
         // GIVEN one expired and one live form
@@ -346,6 +462,33 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
             'engine' => 'core-html',
             'items' => [['name' => 'email', 'widget' => 'textarea', 'label' => 'contact.email'], ['widget' => 'confirm']],
         ]));
+    }
+
+    /**
+     * The history as it is actually stored, seq => the text that was accepted.
+     * Read straight out of the table: this is a test about what the adapter
+     * writes, and step 2 is what gives the rest of the world a way to ask.
+     *
+     * @return array<int, string>
+     */
+    private static function revisionsOf(FormId $id): array
+    {
+        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+
+        /** @var list<array{seq: int, data: string}> $rows */
+        $rows = $entityManager
+            ->createQuery(\sprintf('SELECT r.seq, r.data FROM %s r WHERE r.formId = :form ORDER BY r.seq ASC', FormRevisionRecord::class))
+            ->setParameter('form', $id->toUuid())
+            ->getArrayResult();
+
+        $history = [];
+
+        foreach ($rows as $row) {
+            $history[$row['seq']] = $row['data'];
+        }
+
+        return $history;
     }
 
     private static function definition(): Definition

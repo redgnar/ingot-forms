@@ -60,9 +60,16 @@ final class DoctrineFormRepository implements FormRepository
         $record->dataSavedAt = $form->dataSavedAt();
 
         $this->entityManager->persist($record);
-        $this->entityManager->flush();
 
-        $form->releaseEvents();
+        // The one thing an insert cannot say as a column: a form born holding
+        // values has a history, and it starts with those.
+        foreach ($form->releaseEvents() as $event) {
+            if ($event instanceof DraftSaved) {
+                $this->entityManager->persist($this->revision($event));
+            }
+        }
+
+        $this->entityManager->flush();
     }
 
     /**
@@ -92,7 +99,13 @@ final class DoctrineFormRepository implements FormRepository
      */
     public function remove(FormId $id): void
     {
-        $this->entityManager->remove($this->liveRow($id, null));
+        $record = $this->liveRow($id, null);
+        // The revisions first: a crash between the two leaves a form whose
+        // history is shorter than it was, which the next attempt finishes — the
+        // other way round leaves rows belonging to nothing that nobody will ever
+        // look for again.
+        $this->forgetRevisions($id);
+        $this->entityManager->remove($record);
         $this->entityManager->flush();
     }
 
@@ -127,14 +140,17 @@ final class DoctrineFormRepository implements FormRepository
 
     public function removeExpired(FormId $id): void
     {
-        // The date is in the statement rather than checked first: this deletes an
-        // expired row or nothing at all, so a wrong id cannot cost anybody a live
-        // form.
-        $this->entityManager
-            ->createQuery(\sprintf('DELETE FROM %s f WHERE f.id = :id AND f.expireDate <= :now', FormRecord::class))
-            ->setParameter('id', $id->toUuid())
-            ->setParameter('now', new \DateTimeImmutable())
-            ->execute();
+        $record = $this->entityManager->find(FormRecord::class, $id->toUuid());
+
+        // A live form is none of the purge's business, and a row that is already
+        // gone is nothing to do: either way a wrong id costs nobody a form.
+        if ($record === null || !ExpireDate::at($record->expireDate)->hasPassed(new \DateTimeImmutable())) {
+            return;
+        }
+
+        $this->forgetRevisions($id);
+        $this->entityManager->remove($record);
+        $this->entityManager->flush();
 
         // A statement goes straight to the database, so anything already loaded
         // would keep answering from memory for a row that is gone.
@@ -239,5 +255,44 @@ final class DoctrineFormRepository implements FormRepository
     {
         $record->data = (string) $event->values;
         $record->dataSavedAt = $event->occurredAt;
+        // The row keeps what the form holds now; the history keeps what it held
+        // then. Both come from the same event, so neither can be written without
+        // the other.
+        $this->entityManager->persist($this->revision($event));
+    }
+
+    /**
+     * One accepted save, as its own row. The number is allocated here rather than
+     * by the database: a save already holds the form's row lock, so nothing can
+     * take the same one — and a sequence of the database's own would number
+     * across forms, which is not what "the seventh save of this form" means.
+     */
+    private function revision(DraftSaved $event): FormRevisionRecord
+    {
+        $revision = new FormRevisionRecord();
+        $revision->formId = $event->formId->toUuid();
+        $revision->seq = $this->lastSequence($event->formId) + 1;
+        $revision->savedAt = $event->occurredAt;
+        $revision->data = (string) $event->values;
+
+        return $revision;
+    }
+
+    private function lastSequence(FormId $id): int
+    {
+        $last = $this->entityManager
+            ->createQuery(\sprintf('SELECT MAX(r.seq) FROM %s r WHERE r.formId = :form', FormRevisionRecord::class))
+            ->setParameter('form', $id->toUuid())
+            ->getSingleScalarResult();
+
+        return is_numeric($last) ? (int) $last : 0;
+    }
+
+    private function forgetRevisions(FormId $id): void
+    {
+        $this->entityManager
+            ->createQuery(\sprintf('DELETE FROM %s r WHERE r.formId = :form', FormRevisionRecord::class))
+            ->setParameter('form', $id->toUuid())
+            ->execute();
     }
 }
