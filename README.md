@@ -361,23 +361,25 @@ DELETE …/files/{f}                only what they do not
 **Temporary, then attached.** A file is *temporary* while no stored document names it and
 *attached* the moment one does. Nothing moves when that happens — the values are the record —
 and a temporary file has no download route at all, so an upload nobody saved is unreachable by
-construction. Not everything uploaded gets saved, so the rest is collected in three layers,
-soonest and cheapest first:
+construction. Not everything uploaded gets saved, so the rest is collected in two places:
 
 1. **the page**, at once: `DELETE …/files/{fileId}` when somebody removes or replaces a file
    before saving. It refuses anything the stored values name (`409`), so it can never take
    away a file a saved document depends on.
-2. **a save**, right after its commit: what the document named a moment ago and does not name
-   now is superseded, and goes. The comparison is made on the locked row (so it is against the
-   document that was really there) and the deleting happens after the commit (so a rollback
-   can never take bytes with it, and a store that is briefly unreachable cannot fail a save).
-3. **`app:files:purge-temporary`**, once a day: per form, whatever the values do not name and
+2. **`app:files:purge-temporary`**, once a day: per form, whatever the values do not name and
    which has sat untouched longer than `FILES_TEMPORARY_DAYS`. It lists the store *before* it
    reads a row, so a form whose files are all recent costs no database work; it takes the row
    lock, so it cannot slip between a save's reference check and that save's commit; and it
    reports what it took per species — whole files, half-written ones, and directories whose
    form is already gone. **Those numbers are supposed to sit near zero**: one that keeps
-   growing is the only warning that layer 1 or 2 has stopped working.
+   growing is the only warning that the page has stopped throwing files away.
+
+**A save takes nothing away.** Replacing a file leaves the old one where it is: a document
+somebody can put back is a document whose files still matter, and telling a superseded file from
+an abandoned one is what a form's history is for (`.claude/plan/07-history.md`). Until that
+exists, a superseded file is unreachable the moment the document stops naming it — a download
+answers only for what the stored values name — and is collected a week later by the command
+above.
 
 `app:forms:purge-expired` remains the end of everything, and both deletions go **the row
 first, the bytes second**. The other way round can leave a live form naming files that are

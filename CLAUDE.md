@@ -44,13 +44,14 @@ because the values are what passed validation and what is served byte for byte, 
 record would only be a copy that drifts. A file is *temporary* while no stored document names
 it and *attached* the moment one does; nothing moves at that point, and a temporary file has no
 download route, so an upload nobody saved is unreachable by construction. What is not saved is
-collected in three layers — the page at once (`DELETE …/files/{id}`, refused for anything the
-values name), a save right after its commit (what it superseded), and
-`app:files:purge-temporary` on a schedule (whatever the values do not name and has sat longer
-than `FILES_TEMPORARY_DAYS`, plus directories whose row is already gone). Both deletions go
-**the row first, the bytes second**: the other way round can leave a live form naming files
-that are gone, while a directory with no row is provably garbage and gets collected. That is
-what closed the old worry about a purge having to succeed in two places.
+collected in two places — the page at once (`DELETE …/files/{id}`, refused for anything the
+values name) and `app:files:purge-temporary` on a schedule (whatever the values do not name and
+has sat longer than `FILES_TEMPORARY_DAYS`, plus directories whose row is already gone). **A
+save takes nothing away**: a document somebody can put back is a document whose files still
+matter, so replacing a file leaves the old one for its form to take with it. Deleting a form and
+purging one both go **the row first, the bytes second**: the other way round can leave a live
+form naming files that are gone, while a directory with no row is provably garbage and gets
+collected. That is what closed the old worry about a purge having to succeed in two places.
 
 Three exceptions this buys, each deliberate and each stated where it lives: the upload is the
 one endpoint whose body is not JSON, the download is the one that does not answer with a

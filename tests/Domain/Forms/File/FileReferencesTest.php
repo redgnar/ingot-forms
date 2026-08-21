@@ -10,13 +10,8 @@ use App\Domain\Forms\Form;
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\FormMapperFactory;
 use App\Domain\Forms\ValueObject\ExpireDate;
-use App\Domain\Forms\ValueObject\FileDescriptor;
-use App\Domain\Forms\ValueObject\FileId;
-use App\Domain\Forms\ValueObject\FileReference;
 use App\Domain\Forms\ValueObject\FormId;
-use App\Domain\Forms\ValueObject\MediaType;
 use App\Tests\Domain\Forms\Fake\StubValues;
-use Ingot\JsonPointer;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -183,56 +178,6 @@ final class FileReferencesTest extends TestCase
 
         // THEN
         self::assertSame(['/invoice'], self::pointers(new FileReferences()->in($form)));
-    }
-
-    public function testWhatASaveSupersededIsEveryFileTheDocumentStoppedNaming(): void
-    {
-        // GIVEN what a document named before a save and after it: one file kept,
-        // one dropped from the middle, one dropped and named twice
-        $kept = FileId::next();
-        $dropped = FileId::next();
-        $twice = FileId::next();
-        $before = self::referencesTo($kept, $dropped, $twice, $twice);
-        $after = self::referencesTo($kept);
-
-        // WHEN
-        $superseded = FileReferences::dropped($before, $after);
-
-        // THEN every id the document dropped, once each, in the order it named
-        // them — and a list, because that is what a caller iterates
-        self::assertSame([(string) $dropped, (string) $twice], array_map(strval(...), $superseded));
-        // A list, not a map keyed by id: what a caller does with this is walk it
-        self::assertSame([0, 1], array_keys($superseded));
-    }
-
-    public function testADocumentThatNamesTheSameFilesSupersedesNothing(): void
-    {
-        // GIVEN the same two files before and after
-        $first = FileId::next();
-        $second = FileId::next();
-
-        // WHEN / THEN a save that changed something else took nothing away
-        self::assertSame([], FileReferences::dropped(
-            self::referencesTo($first, $second),
-            self::referencesTo($second, $first),
-        ));
-    }
-
-    /**
-     * @return list<FileReference>
-     */
-    private static function referencesTo(FileId ...$files): array
-    {
-        $references = [];
-
-        foreach ($files as $index => $file) {
-            $references[] = new FileReference(
-                JsonPointer::fromString('/invoice')->append($index),
-                new FileDescriptor($file, 'invoice.pdf', 10, MediaType::of('application/pdf')),
-            );
-        }
-
-        return $references;
     }
 
     /**

@@ -9,6 +9,7 @@ use App\Domain\Forms\Form;
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
+use App\Domain\Forms\ValueObject\FileId;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -242,6 +243,35 @@ final class FileApiTest extends WebTestCase
         // how it stops being permanent
         self::assertResponseStatusCodeSame(409);
         self::assertSame('urn:problem:ingot-forms:file-attached', $this->responseBody()['type']);
+    }
+
+    public function testASaveTakesNothingAway(): void
+    {
+        // GIVEN a form that saved a file
+        $id = $this->createForm();
+        $this->upload($id, 'invoice.pdf', '%PDF-1.4 a tiny invoice');
+        $reference = $this->responseBody();
+        $file = $reference['id'];
+        self::assertIsString($file);
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), json_encode(['invoice' => $reference], \JSON_THROW_ON_ERROR));
+        self::assertResponseStatusCodeSame(204);
+
+        // WHEN a later draft stops naming it
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), '{}');
+        self::assertResponseStatusCodeSame(204);
+
+        // THEN the bytes are still in the store. A document somebody can put back
+        // is a document whose files still matter, so a superseded file waits for
+        // its form — the only thing collected earlier is an upload no document
+        // ever named.
+        $store = self::getContainer()->get(FileStore::class);
+        self::assertInstanceOf(FileStore::class, $store);
+        self::assertNotNull($store->describe(FormId::fromString($id), FileId::fromString($file)));
+
+        // ...even though nothing may fetch it any more: what a download answers
+        // for is what the stored values name.
+        $this->client->request('GET', \sprintf('/api/forms/%s/files/%s', $id, $file));
+        self::assertResponseStatusCodeSame(404);
     }
 
     public function testAPartWithNoBytesInItIsNotAnUpload(): void
