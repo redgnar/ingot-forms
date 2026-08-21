@@ -313,6 +313,25 @@ final class OpenApiComplianceTest extends WebTestCase
             ['GET', '/api/forms/{id}/presentation', 410, true, '', static function (self $test): void {
                 $test->client->request('GET', \sprintf('/api/forms/%s/presentation', $test->expiredForm()));
             }],
+            ['GET', '/api/forms/{id}/history', 200, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/forms/%s/history', $test->savedForm()));
+            }],
+            ['GET', '/api/forms/{id}/history', 404, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/forms/%s/history', Uuid::v7()->toRfc4122()));
+            }],
+            ['GET', '/api/forms/{id}/history', 410, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/forms/%s/history', $test->expiredForm()));
+            }],
+            ['GET', '/api/forms/{id}/history/{seq}', 200, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/forms/%s/history/1', $test->savedForm()));
+            }],
+            ['GET', '/api/forms/{id}/history/{seq}', 404, true, '', static function (self $test): void {
+                // The form exists and was never saved that many times
+                $test->client->request('GET', \sprintf('/api/forms/%s/history/7', $test->savedForm()));
+            }],
+            ['GET', '/api/forms/{id}/history/{seq}', 410, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/forms/%s/history/1', $test->expiredForm()));
+            }],
             ['POST', '/api/forms/{id}/files', 201, true, '', static function (self $test): void {
                 $test->uploadTo($test->createForm());
             }],
@@ -499,6 +518,16 @@ final class OpenApiComplianceTest extends WebTestCase
         self::assertResponseStatusCodeSame(204);
 
         return [$form, $reference['id']];
+    }
+
+    /** A form that has saved something, so it has a history to read. */
+    private function savedForm(): string
+    {
+        $id = $this->createForm();
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), self::PARTIAL_DATA);
+        self::assertResponseStatusCodeSame(204);
+
+        return $id;
     }
 
     private function createForm(): string

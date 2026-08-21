@@ -315,6 +315,30 @@ paths:
                 form-data-not-valid:
                   summary: 'A value the derived schema refuses'
                   value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /age, code: schema.type, message: 'The data (string) must match the type: number' }] }
+  '/api/forms/{id}/history':
+    get:
+      summary: 'List every accepted save of this form'
+      description: 'Oldest first. The documents themselves are read one at a time (`GET /api/forms/{id}/history/{seq}`), because a list carrying every version of every answer is a response nobody asked for. `confirmed` marks the save a confirmation locked — derived, never stored: confirming writes no values, so it is no revision of its own.'
+      operationId: getFormHistory
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      responses:
+        '200':
+          description: 'The history, oldest first. Empty for a form nobody has filled in.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormHistory'
+        '404':
+          $ref: '#/components/responses/FormNotFound'
+        '410':
+          $ref: '#/components/responses/FormGone'
   '/api/forms/{id}/presentation':
     get:
       summary: 'Read how the form is shown'
@@ -345,6 +369,45 @@ paths:
                 presentation-not-set:
                   summary: 'The form exists; how to show it was never said'
                   value: { type: 'urn:problem:ingot-forms:presentation-not-set', title: 'The form has no presentation.', status: 404 }
+        '410':
+          $ref: '#/components/responses/FormGone'
+  '/api/forms/{id}/history/{seq}':
+    get:
+      summary: 'Read one save of this form'
+      description: 'The values as that save stored them, byte for byte — exactly as `GET /api/forms/{id}/data` serves the current ones. Send them back through `PUT /api/forms/{id}/data` to restore them, whole or in part; there is no endpoint that does it for you.'
+      operationId: getFormRevision
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+        -
+          name: seq
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9]+'
+      responses:
+        '200':
+          description: 'The values that save stored.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormValues'
+        '404':
+          description: 'Unknown form, or a form with no such save.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                revision-not-found:
+                  summary: 'The form exists and was never saved that many times'
+                  value: { type: 'urn:problem:ingot-forms:revision-not-found', title: 'The form has no such save.', status: 404 }
         '410':
           $ref: '#/components/responses/FormGone'
   '/api/forms/{id}/schema':
@@ -507,6 +570,36 @@ components:
         type:
           description: 'A media type, lower case, as the server sniffed it — not as the browser claimed.'
           type: string
+      type: object
+      additionalProperties: false
+    FormRevision:
+      description: 'One accepted save of a form. The document itself is read one at a time; this is what a client chooses by.'
+      required:
+        - seq
+        - savedAt
+        - confirmed
+      properties:
+        seq:
+          description: 'Per form, in the order the saves happened.'
+          type: integer
+          minimum: 1
+        savedAt:
+          type: string
+          format: date-time
+        confirmed:
+          description: 'Whether a confirmation locked this save. Derived, never stored — confirming writes no values, so it is no revision of its own.'
+          type: boolean
+      type: object
+      additionalProperties: false
+    FormHistory:
+      description: 'Every accepted save of one form, oldest first.'
+      required:
+        - revisions
+      properties:
+        revisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormRevision'
       type: object
       additionalProperties: false
     FormEnvelope:

@@ -9,6 +9,7 @@ use App\Application\Forms\Exception\FileBudgetSpent;
 use App\Application\Forms\Exception\FileEmpty;
 use App\Application\Forms\Exception\FileMissing;
 use App\Application\Forms\Exception\FileTooLarge;
+use App\Application\Forms\Exception\RevisionNotFound;
 use App\Domain\Forms\Exception\DefinitionNotValid;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormGone;
@@ -125,6 +126,14 @@ final class ProblemExceptionListener
         // nothing about another form's ids either way.
         if ($throwable instanceof FileMissing) {
             $event->setResponse($this->factory->simple(404, 'file-not-found', 'This form holds no such file.', $throwable->getMessage()));
+
+            return;
+        }
+
+        // A save that never happened, for a form that did. The same answer as for
+        // somebody else's revision number, deliberately.
+        if ($throwable instanceof RevisionNotFound) {
+            $event->setResponse($this->factory->simple(404, 'revision-not-found', 'The form has no such save.', $throwable->getMessage()));
 
             return;
         }

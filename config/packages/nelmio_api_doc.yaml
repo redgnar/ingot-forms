@@ -98,6 +98,36 @@ nelmio_api_doc:
                         type:
                             type: string
                             description: A media type, lower case, as the server sniffed it — not as the browser claimed.
+                FormRevision:
+                    type: object
+                    description: >-
+                        One accepted save of a form. The document itself is read one at a
+                        time; this is what a client chooses by.
+                    required: [seq, savedAt, confirmed]
+                    additionalProperties: false
+                    properties:
+                        seq:
+                            type: integer
+                            minimum: 1
+                            description: Per form, in the order the saves happened.
+                        savedAt:
+                            type: string
+                            format: date-time
+                        confirmed:
+                            type: boolean
+                            description: >-
+                                Whether a confirmation locked this save. Derived, never stored —
+                                confirming writes no values, so it is no revision of its own.
+                FormHistory:
+                    type: object
+                    description: Every accepted save of one form, oldest first.
+                    required: [revisions]
+                    additionalProperties: false
+                    properties:
+                        revisions:
+                            type: array
+                            items:
+                                $ref: '#/components/schemas/FormRevision'
                 FormEnvelope:
                     type: object
                     description: The canonical JSON shape of a form read back from the API.

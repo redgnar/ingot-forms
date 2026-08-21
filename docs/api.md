@@ -22,7 +22,9 @@ this reference cannot drift from the implementation.
 | [`DELETE /api/forms/{id}/files/{fileId}`](#delete-apiformsidfilesfileid) | `discardFormFile` | Throw away an uploaded file this form has not saved | `204`, `404`, `409`, `410` |
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
 | [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `415`, `410`, `422` |
+| [`GET /api/forms/{id}/history`](#get-apiformsidhistory) | `getFormHistory` | List every accepted save of this form | `200`, `404`, `410` |
 | [`GET /api/forms/{id}/presentation`](#get-apiformsidpresentation) | `getFormPresentation` | Read how the form is shown | `200`, `404`, `410` |
+| [`GET /api/forms/{id}/history/{seq}`](#get-apiformsidhistoryseq) | `getFormRevision` | Read one save of this form | `200`, `404`, `410` |
 | [`GET /api/forms/{id}/schema`](#get-apiformsidschema) | `getFormDataSchema` | Read the values schema derived from the definition | `200`, `404`, `410`, `422` |
 | [`POST /api/forms/{id}/files`](#post-apiformsidfiles) | `uploadFormFile` | Upload a file for this form | `201`, `404`, `409`, `410`, `413`, `422` |
 
@@ -193,6 +195,26 @@ Repeatable; overwrites the previous draft. Values are validated against the draf
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | The body is not a JSON object, or the values break the form-s own contract. |
 
+### GET /api/forms/{id}/history
+
+`operationId: getFormHistory` — List every accepted save of this form
+
+Oldest first. The documents themselves are read one at a time (`GET /api/forms/{id}/history/{seq}`), because a list carrying every version of every answer is a response nobody asked for. `confirmed` marks the save a confirmation locked — derived, never stored: confirming writes no values, so it is no revision of its own.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | `application/json` | [`FormHistory`](#formhistory) | The history, oldest first. Empty for a form nobody has filled in. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
+| `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
+
 ### GET /api/forms/{id}/presentation
 
 `operationId: getFormPresentation` — Read how the form is shown
@@ -211,6 +233,27 @@ The document as it was set. Codes are served unresolved: which language a client
 |---|---|---|---|
 | `200` | `application/json` | [`FormPresentation`](#formpresentation) | The presentation document. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | Unknown form, or a form nobody has said anything about yet. |
+| `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
+
+### GET /api/forms/{id}/history/{seq}
+
+`operationId: getFormRevision` — Read one save of this form
+
+The values as that save stored them, byte for byte — exactly as `GET /api/forms/{id}/data` serves the current ones. Send them back through `PUT /api/forms/{id}/data` to restore them, whole or in part; there is no endpoint that does it for you.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+| `seq` | path | yes | `string` (pattern `[0-9]+`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | `application/json` | [`FormValues`](#formvalues) | The values that save stored. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | Unknown form, or a form with no such save. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 
 ### GET /api/forms/{id}/schema
@@ -312,6 +355,28 @@ What an upload answers with, and exactly what a `file` item in this form's value
 | `name` | `string` (min length 1, max length 255) | yes |  |
 | `size` | `integer` (≥ 1) | yes |  |
 | `type` | `string` | yes | A media type, lower case, as the server sniffed it — not as the browser claimed. |
+
+No other properties are allowed.
+
+### FormRevision
+
+One accepted save of a form. The document itself is read one at a time; this is what a client chooses by.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `seq` | `integer` (≥ 1) | yes | Per form, in the order the saves happened. |
+| `savedAt` | `string` (`date-time`) | yes |  |
+| `confirmed` | `boolean` | yes | Whether a confirmation locked this save. Derived, never stored — confirming writes no values, so it is no revision of its own. |
+
+No other properties are allowed.
+
+### FormHistory
+
+Every accepted save of one form, oldest first.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `revisions` | `array` of [`FormRevision`](#formrevision) | yes |  |
 
 No other properties are allowed.
 

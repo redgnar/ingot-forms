@@ -45,6 +45,7 @@ services:
             - '../src/UserInterface/Api/Problem/ProblemException.php'
             # an upload on its way in, and an open file on its way out
             - '../src/Application/Forms/File/'
+            - '../src/Application/Forms/History/'
             - '../src/Application/Forms/Exception/'
             - '../src/UserInterface/Web/Renderer/RenderedForm.php'
             # request DTOs and the attributes/constraints describing them
@@ -86,6 +87,7 @@ services:
     App\Application\Forms\Port\Transactions: '@App\Infrastructure\Persistence\DoctrineTransactions'
     App\Application\Forms\Port\DataSchemas: '@App\Infrastructure\Cache\CachedDataSchemaProvider'
     App\Application\Forms\Port\FileStore: '@App\Infrastructure\Files\FlysystemFileStore'
+    App\Application\Forms\Port\FormHistory: '@App\Infrastructure\Persistence\DoctrineFormHistory'
 
     App\Infrastructure\Files\FlysystemFileStore:
         arguments:
