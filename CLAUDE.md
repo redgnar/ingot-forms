@@ -43,7 +43,17 @@ No `POST …/restore` — a privileged path would be a second way in, and an old
 trustworthy for having been accepted once. Picking single members out of a revision is likewise
 the client's business, which is why both pages can offer "put this answer back" with no new server
 rule. Reading is a separate, read-only port (`FormHistory`), because `FormRepository` is a
-collection of *forms* and a revision is not one. **"Who" is a stated non-goal**: this service has
+collection of *forms* and a revision is not one.
+
+**On a page, history is asked for like everything else.** `history` and `reset` are
+`PresentationActions` beside `save` and `confirm` — so a document that does not ask for them draws
+neither, and one that does decides where they sit. The panel lists the moments and nothing they
+held: a value outside the form it belongs to says nothing, so looking at one is **a page**,
+`/forms/{id}/versions/{seq}`, drawn from that save's document and read-only. That is what makes it
+complete without a line of client code — every control, list and attached file is drawn by the
+code that already draws the current version — and it is why the way out of it (putting that
+version back) is an ordinary `PUT …/data` like every other write from a page. `reset` is the same
+page drawn again with nothing sent. **"Who" is a stated non-goal**: this service has
 no identity at all, so a revision answers *when* and *what* and nothing else; an actor column now
 would be a member nobody can fill. When identity arrives it lands on that table without moving
 anything else.

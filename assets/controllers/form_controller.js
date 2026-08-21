@@ -14,14 +14,19 @@ export default class extends Controller {
     // The sentence for a refusal that names no item comes from the page, which
     // got it from this application's own catalogue: a controller has no business
     // holding English.
-    static values = { id: String, refused: String };
+    static values = { id: String, page: String, refused: String };
     static targets = ['saved', 'problem', 'problemText', 'error', 'control'];
 
     save(event) {
         event.preventDefault();
 
         this.#send('/data', 'PUT', this.#collect()).then((ok) => {
-            if (ok) this.savedTarget.classList.remove('d-none');
+            if (!ok) return;
+
+            if (this.hasSavedTarget) this.savedTarget.classList.remove('d-none');
+            // A save makes a new moment, and a panel that does not show it is
+            // lying about what this form remembers.
+            this.dispatch('saved', { prefix: 'form' });
         });
     }
 
@@ -35,10 +40,32 @@ export default class extends Controller {
         }
     }
 
+    // Back to what the form holds. Drawn again by the server rather than undone
+    // control by control: the page that shows what is stored is the page the
+    // server sends, and reproducing it here would be a second answer to the same
+    // question.
+    reset(event) {
+        event.preventDefault();
+        window.location.assign(this.pageValue);
+    }
+
+    // Putting a version back is an ordinary draft save of a document this page
+    // happens to have read — the same gates, the same refusals. Afterwards the
+    // form is drawn again, because every control on it has just changed.
+    async restoreVersion(event) {
+        event.preventDefault();
+        const seq = event.currentTarget.dataset.historyRestore;
+        const response = await fetch(`/api/forms/${this.idValue}/history/${seq}`);
+
+        if (response.ok && (await this.#send('/data', 'PUT', await response.json()))) {
+            window.location.assign(this.pageValue);
+        }
+    }
+
     // The notice says that what is on the page is what the form holds, so the
     // first thing somebody changes afterwards takes it away.
     touched() {
-        this.savedTarget.classList.add('d-none');
+        if (this.hasSavedTarget) this.savedTarget.classList.add('d-none');
     }
 
     // Structure carries identity: what a control answers is read from where it
@@ -118,9 +145,15 @@ export default class extends Controller {
     }
 
     #clearMessages() {
-        this.savedTarget.classList.add('d-none');
-        this.problemTarget.classList.add('d-none');
-        this.problemTextTarget.textContent = '';
+        // A page drawn from an earlier save carries no notices — there is nothing
+        // to save there, only a version to put back — so this controller has to
+        // work without them.
+        if (this.hasSavedTarget) this.savedTarget.classList.add('d-none');
+
+        if (this.hasProblemTarget) {
+            this.problemTarget.classList.add('d-none');
+            this.problemTextTarget.textContent = '';
+        }
 
         for (const slot of this.errorTargets) {
             slot.classList.add('d-none');
@@ -206,6 +239,8 @@ export default class extends Controller {
         }
 
         if (rest.length === 0 && (body.errors ?? []).length > 0) return;
+
+        if (!this.hasProblemTarget) return;
 
         this.problemTextTarget.textContent = rest.join(' ') || body.detail || body.title || this.refusedValue;
         this.problemTarget.classList.remove('d-none');

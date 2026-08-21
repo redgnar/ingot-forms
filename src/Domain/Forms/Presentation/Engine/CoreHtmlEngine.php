@@ -58,6 +58,11 @@ final class CoreHtmlEngine implements PresentationEngine
 
     public function actions(): array
     {
-        return [PresentationActions::SAVE, PresentationActions::CONFIRM];
+        return [
+            PresentationActions::SAVE,
+            PresentationActions::CONFIRM,
+            PresentationActions::RESET,
+            PresentationActions::HISTORY,
+        ];
     }
 }

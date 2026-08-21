@@ -250,3 +250,33 @@ The page cost three bugs, all found by tests rather than by thinking:
 And one lesson about the tests themselves: `eventually()` returns the first non-null answer, so
 waiting for a value to *change* needs the comparison inside the closure. Waiting for
 `held('nickname')` returned the old value instantly and turned a real check into a coin toss.
+
+## What the owner asked for afterwards
+
+Six notes, once they had used it. Two of them overturn what this plan decided, and both were right.
+
+1. **The panel belongs where the document puts it, and only if it asks.** Step 5 called history
+   "chrome, not presentation" and drew it at the top of every page. That was wrong on both counts:
+   a tool nobody asked for is a page saying the wrong thing, and *where* it goes has been the
+   presentation's business since actions were put in the document. So `history` is now a
+   `PresentationActions` widget beside `save` and `confirm` — opt-in by construction, placed by the
+   document, labelled by it, and drawn by each kit as its own panel. The panel's own words stay in
+   `translations/`; only the trigger's label comes from the document, exactly like the other three.
+2. **A list of values means nothing.** The member-by-member dump is gone. A value outside the form
+   it belongs to says nothing, and the form itself is the only context that gives it meaning.
+3. **Looking at a version is a page, not a browser trick.** `GET /forms/{id}/versions/{seq}` draws
+   the same form from that save's document, read-only — so every control, every list and every
+   attached file is right, drawn by the code that already knows how, with no new client code at
+   all. Disabled fields and buttons fall out of the read-only path that already existed. This is
+   what replaced "put this answer back into the control", and it is strictly more honest: what you
+   see is that whole document, not a few members of it.
+4. **Two things per moment: View and Restore.** Restore is the ordinary `PUT …/data` this plan
+   already settled on; from the list or from the version page, the same one.
+5. **The way out is always at the top of a version page**, and there are two: put this version
+   back, or go back to the current one.
+6. **`reset` was missing from the start.** The way back to what the form holds is the same
+   operation as "back to the current version" — draw the page again, send nothing — so it is one
+   behaviour with two names, and the second name is a fourth action a document can ask for.
+
+And one behaviour nobody had to ask for twice: a save refreshes the panel, because a save makes a
+new moment and a list that does not show it is lying about what the form remembers.

@@ -68,10 +68,11 @@ final class BootstrapEngineTest extends TestCase
 
     public function testWhatAFormDoesIsNotAKitsToInvent(): void
     {
-        // GIVEN / WHEN / THEN both kits offer the same two things, because those
-        // are the form's doing rather than the kit's
+        // GIVEN / WHEN / THEN both kits offer the same four things, because those
+        // are the form's doing rather than the kit's: two that write, and two that
+        // only read — the way back to what is stored, and the way into what was
         self::assertSame(new CoreHtmlEngine()->actions(), new BootstrapEngine()->actions());
-        self::assertSame(['save', 'confirm'], new BootstrapEngine()->actions());
+        self::assertSame(['save', 'confirm', 'reset', 'history'], new BootstrapEngine()->actions());
     }
 
     public function testWhatThisKitAddsIsWhatThePlainOneCouldNotDo(): void

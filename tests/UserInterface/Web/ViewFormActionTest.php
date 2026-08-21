@@ -200,6 +200,47 @@ final class ViewFormActionTest extends WebTestCase
         self::assertStringContainsString('someones-vue-kit', (string) $this->client->getResponse()->getContent());
     }
 
+    public function testAnEarlierVersionIsTheSamePageDrawnFromThatSave(): void
+    {
+        // GIVEN a form saved twice through the API
+        $id = $this->plant();
+        $this->save($id, '{"email": "ada@example.com"}');
+        $this->save($id, '{"email": "eve@example.com"}');
+
+        // WHEN the page for the first save is asked for
+        $page = $this->client->request('GET', \sprintf('/forms/%s/versions/1', $id));
+
+        // THEN it is the same page, drawn from that document and only readable —
+        // which is what makes every control, list and file right without a line of
+        // new code
+        self::assertResponseIsSuccessful();
+        self::assertSame('ada@example.com', $page->filter('#item-email')->attr('value'));
+        self::assertNotNull($page->filter('#item-email')->attr('disabled'));
+
+        // AND the way out is on it: put this version back, or go to the current one
+        self::assertSame('1', $page->filter('[data-history-restore]')->attr('data-history-restore'));
+        self::assertStringContainsString($id, (string) $page->filter('.viewing a')->attr('href'));
+
+        // ...while the current page is unchanged, because looking is not saving
+        $current = $this->client->request('GET', \sprintf('/forms/%s', $id));
+        self::assertSame('eve@example.com', $current->filter('#item-email')->attr('value'));
+        self::assertNull($current->filter('#item-email')->attr('disabled'));
+    }
+
+    public function testAVersionThisFormNeverHadIsNotAPage(): void
+    {
+        // GIVEN a form saved once
+        $id = $this->plant();
+        $this->save($id, '{"email": "ada@example.com"}');
+
+        // WHEN / THEN asking for a save that never happened is the same kind of
+        // mistake as asking for a form that is not there — answered with a page,
+        // because a person is no client of RFC 9457
+        $this->client->request('GET', \sprintf('/forms/%s/versions/7', $id));
+        self::assertResponseStatusCodeSame(404);
+        self::assertStringContainsString('no such earlier version', (string) $this->client->getResponse()->getContent());
+    }
+
     public function testAnUnknownFormIsNotFoundAndAnExpiredOneIsGone(): void
     {
         // GIVEN / WHEN / THEN
@@ -241,6 +282,17 @@ final class ViewFormActionTest extends WebTestCase
      * The same form, described for the richer kit — its own words for grouping
      * and for the control a searchable choice gets.
      */
+    private function save(string $id, string $values): void
+    {
+        $this->client->request(
+            'PUT',
+            \sprintf('/api/forms/%s/data', $id),
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: $values,
+        );
+        self::assertResponseStatusCodeSame(204);
+    }
+
     private function plantRich(): string
     {
         $id = FormId::next();

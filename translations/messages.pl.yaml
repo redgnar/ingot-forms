@@ -12,11 +12,12 @@ page:
         remove: 'Usuń'
         edit: 'Edytuj'
     history:
-        title: 'Wcześniejsze wersje'
         empty: 'Nic jeszcze nie zapisano.'
         confirmed: 'wysłane'
-        restore_all: 'Przywróć tę wersję'
-        restore_field: 'Przywróć to'
+        view: 'Pokaż'
+        restore: 'Przywróć'
+        viewing: 'Patrzysz na wcześniejszą wersję tego formularza. Nic tu nie da się zmienić.'
+        back: 'Wróć do aktualnej wersji'
         failed: 'Nie udało się odczytać wcześniejszych wersji.'
     file:
         pick: 'Wybierz plik'
@@ -29,6 +30,7 @@ page:
     error:
         form-not-found: 'Nie ma takiego formularza.'
         presentation-not-set: 'Nikt nie powiedział, jak pokazać ten formularz.'
+        version-not-found: 'Ten formularz nie ma takiej wcześniejszej wersji.'
         form-gone: 'Ten formularz wygasł.'
         form-unreadable: 'Ten formularz zapisano według reguł, które od tego czasu się zmieniły, i nie da się go pokazać.'
         unexpected: 'Coś poszło nie tak.'

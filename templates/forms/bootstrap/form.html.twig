@@ -16,17 +16,33 @@
 </head>
 <body class="bg-body-tertiary">
 <main class="container py-5" style="max-width: 46rem;"
-      {%- if not readOnly %} data-controller="form" data-form-id-value="{{ id }}"
+      {%- if not confirmed %} data-controller="form" data-form-id-value="{{ id }}"
+      data-form-page-value="{{ path('web_form_view', {id: id}) }}"
       data-form-refused-value="{{ 'page.refused'|trans }}" data-action="input->form#touched"{% endif %}>
 
     {# Page chrome, not the designer's business: no presentation carries a code
        for what somebody is told about their own doing, and this application
        translates its own sentences from `translations/`. #}
-    {% if readOnly %}
+    {% if version is not null %}
+        {# Always at the top, because it is the answer to "why can I not type in
+           this?" — and it carries the only two things left to do here. #}
+        <div class="alert alert-warning" role="status">
+            <p class="mb-2 d-flex align-items-center gap-2">
+                {{ ux_icon('tabler:clock', {class: 'icon'}) }}{{ 'page.history.viewing'|trans }}
+            </p>
+            {% if not confirmed %}
+                <button type="button" class="btn btn-sm btn-primary me-2" data-history-restore="{{ version }}"
+                        data-action="click->form#restoreVersion">{{ 'page.history.restore'|trans }}</button>
+            {% endif %}
+            <a class="btn btn-sm btn-outline-secondary" href="{{ path('web_form_view', {id: id}) }}">{{ 'page.history.back'|trans }}</a>
+        </div>
+    {% endif %}
+
+    {% if confirmed %}
         <div class="alert alert-secondary d-flex align-items-center gap-2" role="status">
             {{ ux_icon('tabler:lock', {class: 'icon'}) }}{{ 'page.confirmed'|trans }}
         </div>
-    {% else %}
+    {% elseif version is null %}
         <div class="alert alert-success d-none" role="status" data-form-target="saved">
             <span class="d-flex align-items-center gap-2">
                 {{ ux_icon('tabler:circle-check', {class: 'icon'}) }}{{ 'page.saved'|trans }}
@@ -39,62 +55,25 @@
         </div>
     {% endif %}
 
-    {# Earlier versions. Page chrome, not the presentation's business — and folded
-       away without borrowing anybody's JavaScript, the way this kit folds
-       everything. Nothing is fetched until somebody opens it, and every row it
-       draws is a clone of a template below. #}
-    <details class="border rounded mb-4 bg-body" data-history data-controller="history"
-             data-history-id-value="{{ id }}" data-action="toggle->history#opened">
-        <summary class="px-3 py-2 fw-semibold">{{ 'page.history.title'|trans }}</summary>
-        <div class="px-3 pb-3 small">
-            <p class="text-secondary mb-0 d-none" data-history-target="empty" data-history-empty>{{ 'page.history.empty'|trans }}</p>
-            <p class="text-danger mb-0 d-none" data-history-target="failed" data-history-error>{{ 'page.history.failed'|trans }}</p>
-            <ol class="list-unstyled mb-0" data-history-target="list" data-history-list></ol>
-
-            <div class="mt-3 d-none" data-history-target="version" data-history-version>
-                {% if not readOnly %}
-                    <button type="button" class="btn btn-sm btn-outline-primary mb-2" data-history-restore
-                            data-action="history#restore">{{ 'page.history.restore_all'|trans }}</button>
-                {% endif %}
-                <ul class="list-unstyled mb-0" data-history-target="members" data-history-members></ul>
-            </div>
-
-            <template data-history-target="moment">
-                <li class="mb-1 d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-sm btn-link p-0" data-history-open data-action="history#show">
-                        <time data-history-when></time>
-                    </button>
-                    <span class="badge text-bg-secondary d-none" data-history-confirmed>{{ 'page.history.confirmed'|trans }}</span>
-                </li>
-            </template>
-            <template data-history-target="member">
-                <li class="mb-1 d-flex align-items-center gap-2">
-                    <span class="fw-semibold" data-history-name></span>
-                    <span data-history-value></span>
-                    {% if not readOnly %}
-                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 d-none"
-                                data-history-put data-action="history#put">{{ 'page.history.restore_field'|trans }}</button>
-                    {% endif %}
-                </li>
-            </template>
-        </div>
-    </details>
+    {# What a panel needs and a node cannot carry: which form this is, whether it
+       can still be changed at all, and where it lives. #}
+    {% set chrome = {id: id, confirmed: confirmed, page: path('web_form_view', {id: id})} %}
 
     <form novalidate>
         {# Where the buttons go is the presentation's business, so nothing is
            added here: a document that offers none draws none, and it cannot
            offer none by accident. #}
-        {{ _self.nodes(nodes, readOnly, false) }}
+        {{ _self.nodes(nodes, readOnly, false, chrome) }}
     </form>
 </main>
 </body>
 </html>
 
-{% macro nodes(nodes, readOnly, inEntry) %}
-    {% for node in nodes %}{{ _self.node(node, readOnly, inEntry) }}{% endfor %}
+{% macro nodes(nodes, readOnly, inEntry, chrome) %}
+    {% for node in nodes %}{{ _self.node(node, readOnly, inEntry, chrome) }}{% endfor %}
 {% endmacro %}
 
-{% macro node(node, readOnly, inEntry) %}
+{% macro node(node, readOnly, inEntry, chrome) %}
     {% if node.kind == 'container' %}
         {% if node.widget == 'accordion' %}
             {# Folded away without borrowing anybody's JavaScript: a browser has
@@ -103,7 +82,7 @@
                 <summary class="card-header fw-semibold">{{ node.label }}</summary>
                 <div class="card-body">
                     {% if node.hint %}<p class="text-body-secondary">{{ node.hint }}</p>{% endif %}
-                    {{ _self.nodes(node.children, readOnly, inEntry) }}
+                    {{ _self.nodes(node.children, readOnly, inEntry, chrome) }}
                 </div>
             </details>
         {% elseif node.widget == 'row' %}
@@ -112,7 +91,7 @@
             <div class="row g-3 mb-4">
                 {% for child in node.children %}
                     <div class="{{ child.options.width|default(false) ? 'col-md-' ~ child.options.width : 'col' }}">
-                        {{ _self.node(child, readOnly, inEntry) }}
+                        {{ _self.node(child, readOnly, inEntry, chrome) }}
                     </div>
                 {% endfor %}
             </div>
@@ -121,12 +100,17 @@
                 {% if node.label %}<div class="card-header fw-semibold">{{ node.label }}</div>{% endif %}
                 <div class="card-body">
                     {% if node.hint %}<p class="text-body-secondary">{{ node.hint }}</p>{% endif %}
-                    {{ _self.nodes(node.children, readOnly, inEntry) }}
+                    {{ _self.nodes(node.children, readOnly, inEntry, chrome) }}
                 </div>
             </div>
         {% endif %}
     {% elseif node.kind == 'action' %}
-        {% if not readOnly %}
+        {# The panel is drawn even on a page that cannot be changed: what a form
+           used to say is worth reading whether or not it can still be edited. The
+           ones that write are not. #}
+        {% if node.widget == 'history' %}
+            {{ _self.history(node, chrome) }}
+        {% elseif not readOnly %}
             {% if node.appearance == 'link' %}
                 <a href="#" class="btn btn-link px-0 me-3" data-action="click->form#{{ node.widget }}">{{ node.label }}</a>
             {% else %}
@@ -146,7 +130,7 @@
             <p class="text-body-secondary">{{ node.label }}</p>
         {% endif %}
     {% elseif node.kind == 'collection' %}
-        {{ _self.entries(node, readOnly) }}
+        {{ _self.entries(node, readOnly, chrome) }}
     {% else %}
         {{ _self.item(node, readOnly) }}
     {% endif %}
@@ -156,7 +140,7 @@
    row with the form it is answered in folded underneath, and one blank form kept
    aside for adding another. The counts are Stimulus values, so the controller
    greys out its own buttons — the server is still what decides. #}
-{% macro entries(node, readOnly) %}
+{% macro entries(node, readOnly, chrome) %}
     <div class="mb-4" data-collection="{{ node.name }}"
          {%- if not readOnly %} data-controller="entries" data-entries-pending-value="{{ node.pending }}"
          data-entries-ticked-value="{{ 'page.ticked'|trans }}" data-entries-unticked-value="{{ 'page.unticked'|trans }}"
@@ -174,7 +158,7 @@
                 </tr>
             </thead>
             {% for entry in node.entries %}
-                {{ _self.entry(node, entry, readOnly) }}
+                {{ _self.entry(node, entry, readOnly, chrome) }}
             {% endfor %}
             {% if not readOnly %}
                 {# Inside the table, because asking for one more entry is
@@ -196,7 +180,7 @@
         {% if not readOnly %}
             {# The same form once more, holding nothing: what gets cloned. #}
             <template data-entries-target="blank">
-                {{ _self.entry(node, {'nodes': node.blank, 'cells': node.columns|map(column => {'name': column.name, 'text': null, 'ticked': null})}, false) }}
+                {{ _self.entry(node, {'nodes': node.blank, 'cells': node.columns|map(column => {'name': column.name, 'text': null, 'ticked': null})}, false, chrome) }}
             </template>
         {% endif %}
 
@@ -206,7 +190,7 @@
 
 {# One entry, in one <tbody>: one element is one entry, which is what the
    controller counts, clones and removes. #}
-{% macro entry(node, entry, readOnly) %}
+{% macro entry(node, entry, readOnly, chrome) %}
     <tbody data-entry>
         <tr>
             {% for cell in entry.cells %}
@@ -225,11 +209,44 @@
             <td colspan="{{ entry.cells|length + 1 }}" class="border-0 pt-0">
                 <details class="card"{{ node.options.open ?? false ? ' open' : '' }}>
                     <summary class="card-header py-2 small">{{ 'page.entry.edit'|trans }}</summary>
-                    <div class="card-body">{{ _self.nodes(entry.nodes, readOnly, true) }}</div>
+                    <div class="card-body">{{ _self.nodes(entry.nodes, readOnly, true, chrome) }}</div>
                 </details>
             </td>
         </tr>
     </tbody>
+{% endmacro %}
+
+{# Earlier versions: a list of moments and nothing else. What a save *said* is
+   shown by the form itself — "View" draws this same page from that document — so a
+   member-by-member dump here would be values out of the only context that gives
+   them meaning.
+
+   Folded away without borrowing anybody's JavaScript, the way this kit folds
+   everything; nothing is fetched until somebody opens it; and every row is a clone
+   of the template below. #}
+{% macro history(node, chrome) %}
+    <details class="border rounded mb-4 bg-body" data-history data-controller="history"
+             data-history-id-value="{{ chrome.id }}" data-history-page-value="{{ chrome.page }}"
+             data-action="toggle->history#opened form:saved@window->history#load">
+        <summary class="px-3 py-2 fw-semibold">{{ node.label }}</summary>
+        <div class="px-3 pb-3 small">
+            <p class="text-secondary mb-0 d-none" data-history-target="empty" data-history-empty>{{ 'page.history.empty'|trans }}</p>
+            <p class="text-danger mb-0 d-none" data-history-target="failed" data-history-error>{{ 'page.history.failed'|trans }}</p>
+            <ol class="list-unstyled mb-0" data-history-target="list" data-history-list></ol>
+
+            <template data-history-target="moment">
+                <li class="mb-1 d-flex align-items-center gap-2">
+                    <time data-history-when></time>
+                    <span class="badge text-bg-secondary d-none" data-history-confirmed>{{ 'page.history.confirmed'|trans }}</span>
+                    <a class="btn btn-sm btn-link p-0" data-history-view>{{ 'page.history.view'|trans }}</a>
+                    {% if not chrome.confirmed %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0"
+                                data-history-restore data-action="click->form#restoreVersion">{{ 'page.history.restore'|trans }}</button>
+                    {% endif %}
+                </li>
+            </template>
+        </div>
+    </details>
 {% endmacro %}
 
 {% macro item(node, readOnly) %}

@@ -329,7 +329,9 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         // GIVEN one expired and one live form
         $expiredId = self::uuid();
         $liveId = self::uuid();
-        $this->repository->add(new Form($expiredId, self::definition(), ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
+        // Long expired, so it sorts to the front: the list comes back oldest first
+        // and in batches, and this database is shared with whatever else ran.
+        $this->repository->add(new Form($expiredId, self::definition(), ExpireDate::at(new \DateTimeImmutable('-10 years'))));
         $this->repository->add(new Form($liveId, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
 
         // WHEN

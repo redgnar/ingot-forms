@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\UserInterface\Web;
 
+use App\Application\Forms\Exception\RevisionNotFound;
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
 use App\Domain\Forms\Exception\FormUnreadable;
@@ -45,6 +46,9 @@ final class ErrorPageListener
         // HTTP exception brings its own wording, which passes through as itself.
         [$status, $message] = match (true) {
             $throwable instanceof FormNotFound => [404, 'page.error.form-not-found'],
+            // Asking a page for a version this form never had is the same kind of
+            // mistake as asking for a form that is not there.
+            $throwable instanceof RevisionNotFound => [404, 'page.error.version-not-found'],
             $throwable instanceof PresentationNotSet => [404, 'page.error.presentation-not-set'],
             $throwable instanceof FormGone => [410, 'page.error.form-gone'],
             $throwable instanceof FormUnreadable => [409, 'page.error.form-unreadable'],

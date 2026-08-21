@@ -16,11 +16,12 @@ page:
         remove: 'Remove'
         edit: 'Edit'
     history:
-        title: 'Earlier versions'
         empty: 'Nothing has been saved yet.'
         confirmed: 'sent'
-        restore_all: 'Restore this version'
-        restore_field: 'Put this back'
+        view: 'View'
+        restore: 'Restore'
+        viewing: 'You are looking at an earlier version of this form. Nothing here can be changed.'
+        back: 'Back to the current version'
         failed: 'The earlier versions could not be read.'
     file:
         pick: 'Choose a file'
@@ -33,6 +34,7 @@ page:
     error:
         form-not-found: 'There is no such form.'
         presentation-not-set: 'Nobody has said how to show this form.'
+        version-not-found: 'This form has no such earlier version.'
         form-gone: 'This form has expired.'
         form-unreadable: 'This form was stored under rules that have since changed, and cannot be shown.'
         unexpected: 'Something went wrong.'

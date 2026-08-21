@@ -173,7 +173,10 @@ for (const trigger of document.querySelectorAll('[data-action="save"]')) {
     trigger.addEventListener('click', async (event) => {
         event.preventDefault();
 
-        if (await send('/data', 'PUT', collect()) && saved) saved.hidden = false;
+        if (await send('/data', 'PUT', collect())) {
+            if (saved) saved.hidden = false;
+            if (versions !== null && versions.open) loadVersions();
+        }
     });
 }
 
@@ -431,22 +434,23 @@ document.getElementById('form').addEventListener('click', (event) => {
     if (reference !== null) discard(reference.id);
 });
 
-// Earlier versions. Nothing is fetched until somebody opens the panel, and every
-// row drawn below is a clone of a template the server rendered — this file moves
-// markup, it does not write it.
+// Earlier versions: a list of moments and nothing else. What a save *said* is
+// shown by the form itself — "View" is this same page drawn from that document —
+// so nothing here lists values out of the only context that gives them meaning.
+//
+// Nothing is fetched until somebody opens the panel, and every row is a clone of
+// a template the server rendered: this file moves markup, it does not write it.
+const page = document.body.dataset.page;
 const versions = document.querySelector('[data-history]');
 
 if (versions !== null) {
     versions.addEventListener('toggle', () => {
-        if (versions.open && versions.dataset.loaded === undefined) loadHistory();
+        if (versions.open) loadVersions();
     });
 }
 
-async function loadHistory() {
-    versions.dataset.loaded = 'yes';
+async function loadVersions() {
     const list = versions.querySelector('[data-history-list]');
-    list.textContent = '';
-
     let revisions = null;
 
     try {
@@ -462,6 +466,8 @@ async function loadHistory() {
         return;
     }
 
+    list.textContent = '';
+    versions.querySelector('[data-history-error]').hidden = true;
     versions.querySelector('[data-history-empty]').hidden = revisions.length > 0;
 
     for (const revision of revisions) {
@@ -470,115 +476,44 @@ async function loadHistory() {
 
         when.textContent = new Date(revision.savedAt).toLocaleString();
         when.dateTime = revision.savedAt;
-        row.querySelector('[data-history-open]').dataset.historyOpen = revision.seq;
         row.querySelector('[data-history-confirmed]').hidden = !revision.confirmed;
+        // The page this form is drawn at, plus the version: the one place that
+        // knows the shape of that address is the server, which put it on the body.
+        row.querySelector('[data-history-view]').href = `${page}/versions/${revision.seq}`;
+
+        const restore = row.querySelector('[data-history-restore]');
+        if (restore !== null) restore.dataset.historyRestore = revision.seq;
+
         list.append(row);
     }
 }
 
-// One earlier version, member by member: what it held, and — for the answers a
-// single control holds — a way to put just that one back.
-async function showVersion(seq) {
+// Putting a version back is an ordinary draft save of a document this page
+// happens to have read — the same gates, the same refusals. Afterwards the form
+// is drawn again by the server, because every control on it has just changed.
+async function restoreVersion(seq) {
     const response = await fetch(`/api/forms/${formId}/history/${seq}`);
 
-    if (!response.ok) {
-        versions.querySelector('[data-history-error]').hidden = false;
+    if (response.ok && (await send('/data', 'PUT', await response.json()))) window.location.assign(page);
+}
+
+document.addEventListener('click', (event) => {
+    const restore = event.target.closest('[data-history-restore]');
+
+    if (restore !== null && restore.dataset.historyRestore !== '') {
+        event.preventDefault();
+        restoreVersion(restore.dataset.historyRestore);
 
         return;
     }
 
-    const version = await response.json();
-    const members = versions.querySelector('[data-history-members]');
-    members.textContent = '';
-    versions.querySelector('[data-history-version]').hidden = false;
-    versions.querySelector('[data-history-version]').dataset.historyVersion = seq;
-
-    for (const [name, value] of Object.entries(version)) {
-        const row = versions.querySelector('template[data-history-member]').content.cloneNode(true);
-        row.querySelector('[data-history-name]').textContent = name;
-        row.querySelector('[data-history-value]').textContent = reads(value);
-
-        const put = row.querySelector('[data-history-put]');
-
-        // Only what one control holds. A list is many controls and a file is a
-        // description with a chip beside it — those two go back with the whole
-        // version, which is the button above.
-        if (put !== null && controlFor(name) !== null && (value === null || typeof value !== 'object')) {
-            put.dataset.historyPut = name;
-            put.hidden = false;
-        }
-
-        members.append(row);
+    // Back to what the form holds — which is what a page drawn again shows, so
+    // there is nothing to undo by hand and nothing to get wrong.
+    if (event.target.closest('[data-action="reset"]') !== null) {
+        event.preventDefault();
+        window.location.assign(page);
     }
-}
-
-function reads(value) {
-    if (value === null || typeof value !== 'object') return String(value);
-    // A file reads as what it is called, like it does in a list's own row.
-    if (typeof value.name === 'string' && typeof value.id === 'string') return value.name;
-
-    return JSON.stringify(value);
-}
-
-// The control that holds this answer at the top of the form — never one inside an
-// entry, because a member of a list is answered once per entry.
-function controlFor(name) {
-    return ownControls(document.getElementById('form')).find((control) => control.dataset.name === name) ?? null;
-}
-
-// The collector, backwards: what a control holds is written the way it is read.
-function place(control, value) {
-    if (control.classList.contains('choice')) {
-        for (const option of control.querySelectorAll('input')) option.checked = option.value === String(value);
-    } else if (control.type === 'checkbox') {
-        control.checked = Boolean(value);
-    } else {
-        control.value = String(value);
-    }
-
-    control.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-if (versions !== null) {
-    versions.addEventListener('click', async (event) => {
-        const moment = event.target.closest('[data-history-open]');
-
-        if (moment !== null) {
-            event.preventDefault();
-            await showVersion(moment.dataset.historyOpen);
-
-            return;
-        }
-
-        const put = event.target.closest('[data-history-put]');
-
-        if (put !== null) {
-            event.preventDefault();
-            const response = await fetch(`/api/forms/${formId}/history/${versions.querySelector('[data-history-version]').dataset.historyVersion}`);
-            const version = await response.json();
-            const control = controlFor(put.dataset.historyPut);
-
-            // Written into the control rather than sent: somebody puts an answer
-            // back, looks at the form, and saves when they mean to.
-            if (control !== null) place(control, version[put.dataset.historyPut]);
-
-            return;
-        }
-
-        const whole = event.target.closest('[data-history-restore]');
-
-        if (whole !== null) {
-            event.preventDefault();
-            const seq = versions.querySelector('[data-history-version]').dataset.historyVersion;
-            const response = await fetch(`/api/forms/${formId}/history/${seq}`);
-
-            // An ordinary draft save of a document this page happens to have read
-            // — the same gates, the same refusals. The page is drawn again by the
-            // server, because every control on it has just changed.
-            if (response.ok && (await send('/data', 'PUT', await response.json()))) window.location.reload();
-        }
-    });
-}
+});
 
 for (const trigger of document.querySelectorAll('[data-action="confirm"]')) {
     trigger.addEventListener('click', async (event) => {

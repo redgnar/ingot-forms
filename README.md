@@ -192,12 +192,15 @@ other rather than half-drawn, which is what naming the engine at the top of the 
 An engine this application does not know is accepted with its widgets unchecked — the bargain a
 plugin item type gets, and for the same reason.
 
-**Saving and confirming are items too.** `save` and `confirm` are placed wherever the document
-wants them, labelled by a code like everything else, and drawn as a button or — with
+**What a form does is an item too.** Four widgets say it: `save` and `confirm` write, `reset`
+goes back to what the form holds, and `history` opens what it held before. Each is placed wherever
+the document wants it, labelled by a code like everything else, and drawn as a button or — with
 `options.appearance: link` — as a link. Those names are not a kit's to invent: they say what a
 form does, so a kit declares how it draws them, not whether they exist. **At least one `confirm`
 is required**, because where the trigger goes is a design decision and leaving it out is not one:
-the page would be unfinishable. Nothing is added at the bottom of the page by the renderer.
+the page would be unfinishable. The other three are opt-in, and that is the whole of the opting:
+a document that does not ask for `history` has no panel, and one that does decides where it
+sits. Nothing is added at the bottom of the page by the renderer.
 
 **What the server enforces**, in every scope: the form is shown whole — every item the
 definition declares appears, exactly once, and a value a client fills in rather than a person is
@@ -446,10 +449,23 @@ back is a change like any other rather than a rewind.
 
 **Putting one answer back is the client's business too.** Reading a revision hands over a whole
 document; picking members out of it and merging them into what the form holds now is what a
-client does before it sends the result. Both pages do exactly that: the history panel writes the
-old answer into the control and sends nothing, so somebody can look at the form before saving.
-For a list or a file the panel offers the whole version instead — a list is many controls, and a
-file is a description with a chip beside it.
+client does before it sends the result. Nothing on the server needs to know.
+
+**On the pages, history is two things a document asks for.** `history` draws a panel listing the
+moments this form was saved at — moments and nothing else, because a value outside the form it
+belongs to says nothing. Each one offers **View** and **Restore**:
+
+- **View** is a link to `/forms/{id}/versions/{seq}`: the same page, drawn from that save's
+  document and read-only. That is what makes it cheap and complete at once — every control, every
+  list and every attached file is drawn by the code that already knows how, so nothing is
+  assembled in the browser and nothing can be edited. The two ways out are at the top of it:
+  put this version back, or go back to the current one.
+- **Restore** is an ordinary `PUT …/data` with that document, from the panel or from the version
+  page, after which the server draws the form again — every control on it has just changed.
+
+`reset` is the same "draw it again" with nothing sent: the way back to what the form actually
+holds, for somebody who typed over it and changed their mind. A save refreshes the panel, because
+a save makes a new moment and a list that does not show it is lying.
 
 What history does **not** answer is **who**. This service has no identity of any kind, so a
 revision can honestly say *when* and *what* and nothing else; an actor column now would be a

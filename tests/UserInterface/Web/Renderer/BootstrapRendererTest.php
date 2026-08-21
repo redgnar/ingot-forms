@@ -85,10 +85,13 @@ final class BootstrapRendererTest extends KernelTestCase
             ['name' => 'source', 'widget' => 'hidden'],
             ['widget' => 'save', 'label' => 't.save', 'options' => ['appearance' => 'link']],
             ['widget' => 'confirm', 'label' => 't.send'],
+            ['widget' => 'reset', 'label' => 't.reset'],
         ],
         'translations' => [
             'en' => [
                 't.title' => 'Welcome aboard',
+                't.reset' => 'Start again',
+                't.history' => 'Earlier versions',
                 't.invoice' => 'Invoice',
                 't.scan' => 'Scan',
                 't.note' => 'Everything here can be finished later',
@@ -306,28 +309,40 @@ final class BootstrapRendererTest extends KernelTestCase
         self::assertStringContainsString('d-none', $page->filter('[data-form-target="problem"]')->attr('class') ?? '');
     }
 
-    public function testEarlierVersionsAreOfferedWithTheBehaviourThatReadsThem(): void
+    public function testEarlierVersionsAreOfferedWhereTheDocumentAsksAndNotBefore(): void
     {
-        // GIVEN a form being filled in
+        // GIVEN a form whose document asks for the panel, after its triggers
         $page = new Crawler($this->render());
         $panel = $page->filter('[data-history]');
 
-        // THEN the panel is there, folded, and knows which form to ask about
+        // THEN it is there, labelled as the document asked, folded, and knows
+        // which form to ask about and where that form lives
         self::assertCount(1, $panel);
+        self::assertSame('Earlier versions', $panel->filter('summary')->text());
         self::assertNull($panel->attr('open'));
         self::assertSame('history', $panel->attr('data-controller'));
         self::assertNotNull($panel->attr('data-history-id-value'));
+        self::assertNotNull($panel->attr('data-history-page-value'));
 
-        // AND the rows it will draw are rendered here rather than written in
-        // JavaScript
+        // AND the row it will draw is rendered here rather than written in
+        // JavaScript: a moment, a way to look at it, and a way to put it back
         self::assertCount(1, $panel->filter('template[data-history-target="moment"]'));
-        self::assertCount(1, $panel->filter('template[data-history-target="member"]'));
-        self::assertCount(1, $panel->filter('[data-action="history#restore"]'));
+        self::assertCount(1, $panel->filter('template [data-history-view]'));
+        self::assertCount(1, $panel->filter('template [data-action="click->form#restoreVersion"]'));
 
-        // AND it is not part of the form, and it did not borrow a widget's clothes:
-        // `card` is what a document asks for, not what the page wears
-        self::assertCount(0, $page->filter('form [data-history]'));
+        // AND it did not borrow a widget's clothes: `card` is what a document asks
+        // for, not what a panel wears
         self::assertStringNotContainsString('card', (string) $panel->attr('class'));
+    }
+
+    public function testAFormWhoseDocumentAsksForNoHistoryHasNone(): void
+    {
+        // GIVEN / WHEN the same form, presented without the panel — which is the
+        // default shape of this document
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::formFrom(self::PRESENTATION), 'en')));
+
+        // THEN nothing offers it: the tools on a page are the document's choice
+        self::assertCount(0, $page->filter('[data-history]'));
     }
 
     public function testAConfirmedFormOffersItsEarlierVersionsToReadAndNotToRestore(): void
@@ -338,12 +353,45 @@ final class BootstrapRendererTest extends KernelTestCase
         $form->confirm(new StubValues());
 
         // WHEN
-        $panel = new Crawler($this->renderer->render(new RenderedForm($form, 'en')))->filter('[data-history]');
+        $page = new Crawler($this->renderer->render(new RenderedForm($form, 'en')));
 
-        // THEN readable, and nothing to press
-        self::assertCount(1, $panel);
-        self::assertCount(0, $panel->filter('[data-action="history#restore"]'));
-        self::assertCount(0, $panel->filter('[data-history-put]'));
+        // THEN what it used to say is still worth reading, so the panel stays —
+        // and there is nothing to press, and nothing listening either
+        self::assertCount(1, $page->filter('[data-history]'));
+        self::assertCount(0, $page->filter('[data-history-restore]'));
+        self::assertCount(0, $page->filter('[data-controller="form"]'));
+    }
+
+    public function testAnEarlierVersionIsDrawnFromThatSaveAndCannotBeChanged(): void
+    {
+        // GIVEN a form holding one thing, and an earlier save that held another
+        $form = self::form();
+        $form->saveDraft(self::withInvoice(), new StubValues());
+
+        // WHEN the page is drawn from that older document
+        $page = new Crawler($this->renderer->render(new RenderedForm(
+            $form,
+            'en',
+            1,
+            '{"email": "ada@example.com"}',
+        )));
+
+        // THEN every control shows what that save held, and none of them can be
+        // touched — drawn by the same code that draws the current version, so a
+        // list or a file needs no special case
+        self::assertSame('ada@example.com', $page->filter('#item-email')->attr('value'));
+        self::assertNotNull($page->filter('#item-email')->attr('disabled'));
+
+        // AND the only two things left to do are at the top
+        self::assertSame('1', $page->filter('.alert-warning [data-history-restore]')->attr('data-history-restore'));
+        self::assertStringContainsString((string) $form->id(), (string) $page->filter('.alert-warning a')->attr('href'));
+
+        // AND nothing that writes is offered while looking at the past — while the
+        // behaviour that puts a version back is still there, because that is the
+        // way out
+        self::assertCount(0, $page->filter('[data-action="click->form#save"]'));
+        self::assertCount(0, $page->filter('[data-action="click->form#confirm"]'));
+        self::assertCount(1, $page->filter('[data-controller="form"]'));
     }
 
     public function testAConfirmedFormIsDrawnToBeReadNotChanged(): void
@@ -620,7 +668,11 @@ final class BootstrapRendererTest extends KernelTestCase
 
     private static function form(): Form
     {
-        return self::formFrom(self::PRESENTATION);
+        $presentation = self::PRESENTATION;
+        // Asked for like anything else on the page, which is what the panel is.
+        $presentation['items'][] = ['widget' => 'history', 'label' => 't.history'];
+
+        return self::formFrom($presentation);
     }
 
     /**

@@ -50,7 +50,7 @@ final class PresentedNodes
         }
 
         /** @var array<string, mixed> $values */
-        $values = json_decode($request->form->valuesJson() ?? '{}', true, flags: \JSON_THROW_ON_ERROR);
+        $values = json_decode($request->values(), true, flags: \JSON_THROW_ON_ERROR);
         $document = $presentation->structure();
 
         $declared = [];

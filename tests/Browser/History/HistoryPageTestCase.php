@@ -6,7 +6,6 @@ namespace App\Tests\Browser\History;
 
 use Facebook\WebDriver\Exception\WebDriverException;
 use Facebook\WebDriver\WebDriverBy;
-use Facebook\WebDriver\WebDriverElement;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\Panther\Client;
 use Symfony\Component\Panther\PantherTestCase;
@@ -38,9 +37,9 @@ abstract class HistoryPageTestCase extends PantherTestCase
         $this->api = HttpClient::create(['base_uri' => self::$baseUri]);
     }
 
-    public function testSomebodyPutsOneAnswerBackAndSavesIt(): void
+    public function testSomebodyLooksAtAnEarlierVersion(): void
     {
-        // GIVEN a form saved twice, the second time with both answers changed
+        // GIVEN a form saved twice, the second time differently
         $id = $this->plant();
         $this->browser->request('GET', \sprintf('/forms/%s', $id));
         $this->fill('nickname', 'Ada');
@@ -50,72 +49,100 @@ abstract class HistoryPageTestCase extends PantherTestCase
 
         $this->clear('nickname');
         $this->fill('nickname', 'Grace');
-        $this->clear('note');
-        $this->fill('note', 'the second note');
         $this->click(self::SAVE);
         $this->eventually(fn(): ?bool => ($this->values($id)['nickname'] ?? null) === 'Grace' ? true : null);
 
-        // WHEN the panel is opened and the first moment is read
+        // WHEN they open the panel and look at the first moment
         $this->click('[data-history] summary');
         $this->eventually(fn(): ?bool => $this->moments() >= 2 ? true : null);
-        $this->browser->findElements(WebDriverBy::cssSelector('[data-history-list] button'))[0]->click();
+        // Clicked with a retry: the list refreshes itself when a save lands, so an
+        // element found a moment ago may already have been replaced.
+        $this->eventually(fn(): ?bool => $this->clickFirst('[data-history-view]'));
 
-        // ...and one answer of it is put back
-        $put = $this->eventually(fn(): ?WebDriverElement => $this->putBack('nickname'));
-        self::assertInstanceOf(WebDriverElement::class, $put);
-        $put->click();
+        // THEN the page shows what that save held, and nothing on it can be
+        // touched: it is the same page drawn from that document, so every control
+        // is right without the browser assembling anything
+        $shown = $this->eventually(fn(): ?string => $this->held('nickname') === 'Ada' ? 'Ada' : null);
+        self::assertSame('Ada', $shown);
+        self::assertNotNull($this->browser->findElement(WebDriverBy::cssSelector('[data-name="nickname"]'))->getAttribute('disabled'));
+        self::assertSame([], $this->browser->findElements(WebDriverBy::cssSelector(self::SAVE)));
 
-        // THEN the control holds the old answer while the page still holds the new
-        // one beside it: putting an answer back writes into the form and sends
-        // nothing, so somebody can look before they save
-        self::assertSame('Ada', $this->eventually(fn(): ?string => $this->held('nickname') === 'Ada' ? 'Ada' : null));
-        self::assertSame('the second note', $this->held('note'));
-
-        // ...and saving stores exactly that: one answer back, the other left alone
-        $this->click(self::SAVE);
-        $stored = $this->eventually(fn(): ?array => ($this->values($id)['nickname'] ?? null) === 'Ada' ? $this->values($id) : null);
-        self::assertIsArray($stored);
-        self::assertSame(['nickname' => 'Ada', 'note' => 'the second note'], $stored);
+        // AND what the form actually holds is untouched: looking is not saving
+        self::assertSame('Grace', ($this->values($id)['nickname'] ?? null));
     }
 
-    public function testSomebodyPutsAWholeVersionBack(): void
+    public function testSomebodyPutsThatVersionBackFromWhereTheyAreLookingAtIt(): void
     {
-        // GIVEN the same form, saved twice
+        // GIVEN somebody looking at the first of two saves
         $id = $this->plant();
         $this->browser->request('GET', \sprintf('/forms/%s', $id));
         $this->fill('nickname', 'Ada');
-        $this->fill('note', 'the first note');
         $this->click(self::SAVE);
         $this->eventually(fn(): ?array => $this->values($id));
-
         $this->clear('nickname');
         $this->fill('nickname', 'Grace');
         $this->click(self::SAVE);
         $this->eventually(fn(): ?bool => ($this->values($id)['nickname'] ?? null) === 'Grace' ? true : null);
+        $this->browser->request('GET', \sprintf('/forms/%s/versions/1', $id));
 
-        // WHEN the whole first version is put back
-        $this->click('[data-history] summary');
-        $this->eventually(fn(): ?bool => $this->moments() >= 2 ? true : null);
-        $this->browser->findElements(WebDriverBy::cssSelector('[data-history-list] button'))[0]->click();
-        // Waited for on screen rather than merely present: the panel that holds it
-        // is folded away until a version has been read.
-        $this->eventually(
-            fn(): ?bool => ($this->browser->findElements(WebDriverBy::cssSelector('[data-history-restore]'))[0] ?? null)?->isDisplayed() === true
-                    ? true
-                    : null,
-        );
+        // WHEN they press the one thing that writes here
         $this->click('[data-history-restore]');
 
         // THEN the form holds it again — as an ordinary save, so the history grew
-        // rather than rewound
+        // rather than rewound — and the page they land on is the current one
         $stored = $this->eventually(fn(): ?array => ($this->values($id)['nickname'] ?? null) === 'Ada' ? $this->values($id) : null);
         self::assertIsArray($stored);
-        self::assertSame(['nickname' => 'Ada', 'note' => 'the first note'], $stored);
+        self::assertSame('Ada', $stored['nickname'] ?? null);
         self::assertSame(3, $this->moments(true));
-
-        // ...and the page was drawn again by the server, because every control on
-        // it had just changed
         self::assertSame('Ada', $this->eventually(fn(): ?string => $this->held('nickname') === 'Ada' ? 'Ada' : null));
+        self::assertNull($this->browser->findElement(WebDriverBy::cssSelector('[data-name="nickname"]'))->getAttribute('disabled'));
+    }
+
+    public function testSomebodyPutsAVersionBackStraightFromTheList(): void
+    {
+        // GIVEN the same two saves
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->fill('nickname', 'Ada');
+        $this->click(self::SAVE);
+        $this->eventually(fn(): ?array => $this->values($id));
+        $this->clear('nickname');
+        $this->fill('nickname', 'Grace');
+        $this->click(self::SAVE);
+        $this->eventually(fn(): ?bool => ($this->values($id)['nickname'] ?? null) === 'Grace' ? true : null);
+
+        // WHEN the panel is opened — which is also the first proof that a save
+        // makes a new moment appear without a reload — and the older one is put
+        // back from the list
+        $this->click('[data-history] summary');
+        $this->eventually(fn(): ?bool => $this->moments() >= 2 ? true : null);
+        $this->eventually(fn(): ?bool => $this->clickFirst('[data-history-restore]'));
+
+        // THEN
+        $stored = $this->eventually(fn(): ?array => ($this->values($id)['nickname'] ?? null) === 'Ada' ? $this->values($id) : null);
+        self::assertIsArray($stored);
+        self::assertSame('Ada', $stored['nickname'] ?? null);
+    }
+
+    public function testStartingAgainGoesBackToWhatTheFormHolds(): void
+    {
+        // GIVEN a form that has saved something, and somebody who has typed over
+        // it without saving
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->fill('nickname', 'Ada');
+        $this->click(self::SAVE);
+        $this->eventually(fn(): ?array => $this->values($id));
+        $this->clear('nickname');
+        $this->fill('nickname', 'something else entirely');
+
+        // WHEN they start again
+        $this->click('[data-action="reset"], [data-action="click->form#reset"]');
+
+        // THEN the page shows what is stored, because it is the page the server
+        // sends — nothing was undone control by control
+        self::assertSame('Ada', $this->eventually(fn(): ?string => $this->held('nickname') === 'Ada' ? 'Ada' : null));
+        self::assertSame('Ada', $this->values($id)['nickname'] ?? null);
     }
 
     private function moments(bool $throughTheApi = false): int
@@ -126,18 +153,7 @@ abstract class HistoryPageTestCase extends PantherTestCase
             return \is_array($body) && \is_array($body['revisions'] ?? null) ? \count($body['revisions']) : 0;
         }
 
-        return \count($this->browser->findElements(WebDriverBy::cssSelector('[data-history-list] button')));
-    }
-
-    private function putBack(string $name): ?WebDriverElement
-    {
-        foreach ($this->browser->findElements(WebDriverBy::cssSelector('[data-history-put]')) as $button) {
-            if ($button->getAttribute('data-history-put') === $name) {
-                return $button->isDisplayed() ? $button : null;
-            }
-        }
-
-        return null;
+        return \count($this->browser->findElements(WebDriverBy::cssSelector('[data-history-view]')));
     }
 
     private function held(string $name): ?string
@@ -155,6 +171,22 @@ abstract class HistoryPageTestCase extends PantherTestCase
     private function clear(string $name): void
     {
         $this->browser->findElement(WebDriverBy::cssSelector(\sprintf('[data-name="%s"]', $name)))->clear();
+    }
+
+    /**
+     * Clicks the first of these there is, or answers null so a wait can try again.
+     */
+    private function clickFirst(string $selector): ?bool
+    {
+        $element = $this->browser->findElements(WebDriverBy::cssSelector($selector))[0] ?? null;
+
+        if ($element === null || !$element->isDisplayed()) {
+            return null;
+        }
+
+        $element->click();
+
+        return true;
     }
 
     private function click(string $selector): void
@@ -206,12 +238,16 @@ abstract class HistoryPageTestCase extends PantherTestCase
                         ['name' => 'note', 'widget' => 'text', 'label' => 't.note'],
                         ['widget' => 'save', 'label' => 't.save'],
                         ['widget' => 'confirm', 'label' => 't.send'],
+                        ['widget' => 'reset', 'label' => 't.reset'],
+                        ['widget' => 'history', 'label' => 't.history'],
                     ],
                     'translations' => ['en' => [
                         't.nickname' => 'Nickname',
                         't.note' => 'Note',
                         't.save' => 'Save for later',
                         't.send' => 'Send',
+                        't.reset' => 'Start again',
+                        't.history' => 'Earlier versions',
                     ]],
                 ],
             ],

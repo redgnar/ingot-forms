@@ -61,6 +61,7 @@ final class CoreHtmlRendererTest extends KernelTestCase
             ['name' => 'campaign', 'widget' => 'hidden'],
             ['widget' => 'save', 'label' => 'contact.save', 'options' => ['appearance' => 'link']],
             ['widget' => 'confirm', 'label' => 'contact.send'],
+            ['widget' => 'reset', 'label' => 'contact.reset'],
         ],
         'translations' => [
             'en' => [
@@ -78,6 +79,8 @@ final class CoreHtmlRendererTest extends KernelTestCase
                 'contact.invoice' => 'Your invoice',
                 'contact.save' => 'Save for later',
                 'contact.send' => 'Send it',
+                'contact.reset' => 'Start again',
+                'contact.history' => 'Earlier versions',
             ],
             'pl' => ['contact.email' => 'E-mail (pl)'],
         ],
@@ -169,10 +172,14 @@ final class CoreHtmlRendererTest extends KernelTestCase
         // THEN each is drawn as asked, labelled as asked, and says what it does
         self::assertSame('Send it', $page->filter('button[data-action="confirm"]')->text());
         self::assertSame('Save for later', $page->filter('a[data-action="save"]')->text());
-        // and nothing adds a pair of its own at the bottom. Counted inside the
-        // form: the only other buttons on this page belong to a control or to the
-        // history panel, and neither is the form's doing
-        self::assertCount(1, $page->filter('#form button:not([data-action="remove-file"])'));
+        // and the document asked for three things to press, so three is what it
+        // got — nothing adds one of its own
+        self::assertSame(
+            ['save', 'confirm', 'reset'],
+            $page->filter('#form [data-action="save"], #form [data-action="confirm"], #form [data-action="reset"]')
+                ->each(static fn(Crawler $node): ?string => $node->attr('data-action')),
+        );
+        self::assertSame('Start again', $page->filter('[data-action="reset"]')->text());
     }
 
     public function testAFileIsPickedWithOneControlAndHeldInAnother(): void
@@ -269,30 +276,39 @@ final class CoreHtmlRendererTest extends KernelTestCase
         );
     }
 
-    public function testEarlierVersionsAreOfferedWithoutBeingFetched(): void
+    public function testEarlierVersionsAreOfferedWhereTheDocumentAsksAndNotBefore(): void
     {
-        // GIVEN a form being filled in
+        // GIVEN a form whose document asks for the panel, after its triggers
         $page = new Crawler($this->renderer->render(new RenderedForm(self::form(), 'en')));
         $panel = $page->filter('[data-history]');
 
-        // THEN the panel is there, folded, and holding nothing yet: a page nobody
-        // looks into should not pay for what it would have shown
+        // THEN it is there, labelled as the document asked, folded, and holding
+        // nothing yet: a page nobody looks into should not pay for what it would
+        // have shown
         self::assertCount(1, $panel);
+        self::assertSame('Earlier versions', $panel->filter('summary')->text());
         self::assertNull($panel->attr('open'));
         self::assertSame('', $panel->filter('[data-history-list]')->text());
 
-        // AND the rows it will draw are rendered here, not written in JavaScript —
-        // one for a moment, one for an answer that moment held
+        // AND the row it will draw is rendered here, not written in JavaScript:
+        // a moment, a way to look at it, and a way to put it back
         self::assertCount(1, $panel->filter('template[data-history-moment]'));
-        self::assertCount(1, $panel->filter('template[data-history-member]'));
+        self::assertCount(1, $panel->filter('template [data-history-view]'));
+        self::assertCount(1, $panel->filter('template [data-history-restore]'));
 
-        // AND a way to put a whole version back, and one answer of it
-        self::assertCount(1, $panel->filter('[data-history-restore]'));
-        self::assertCount(1, $panel->filter('template[data-history-member] [data-history-put]'));
+        // AND nothing of what a save *held* is listed here: a value outside the
+        // form it belongs to says nothing, and looking at it is what View is for
+        self::assertCount(0, $panel->filter('[data-history-members]'));
+    }
 
-        // AND it is not part of the form: what a person filled in is one thing,
-        // and the tools around it are another
-        self::assertCount(0, $page->filter('#form [data-history]'));
+    public function testAFormWhoseDocumentAsksForNoHistoryHasNone(): void
+    {
+        // GIVEN the same form, presented without the panel
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::formWithoutHistory(), 'en')));
+
+        // THEN nothing offers it: the tools on a page are the document's choice,
+        // like everything else about how a form is shown
+        self::assertCount(0, $page->filter('[data-history]'));
     }
 
     public function testAConfirmedFormOffersItsEarlierVersionsToReadAndNotToRestore(): void
@@ -303,13 +319,44 @@ final class CoreHtmlRendererTest extends KernelTestCase
         $form->confirm(new StubValues());
 
         // WHEN
-        $panel = new Crawler($this->renderer->render(new RenderedForm($form, 'en')))->filter('[data-history]');
+        $page = new Crawler($this->renderer->render(new RenderedForm($form, 'en')));
 
-        // THEN what it used to say is still worth reading — and there is nothing
-        // to press, because a locked form takes no draft, restored or otherwise
-        self::assertCount(1, $panel);
-        self::assertCount(0, $panel->filter('[data-history-restore]'));
-        self::assertCount(0, $panel->filter('[data-history-put]'));
+        // THEN what it used to say is still worth reading, so the panel stays —
+        // and there is nothing to press, because a locked form takes no draft,
+        // restored or otherwise
+        self::assertCount(1, $page->filter('[data-history]'));
+        self::assertCount(0, $page->filter('[data-history-restore]'));
+        self::assertCount(0, $page->filter('[data-action="reset"]'));
+    }
+
+    public function testAnEarlierVersionIsDrawnFromThatSaveAndCannotBeChanged(): void
+    {
+        // GIVEN a form holding one thing, and an earlier save that held another
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "eve@example.com"}'), new StubValues());
+
+        // WHEN the page is drawn from that older document
+        $page = new Crawler($this->renderer->render(new RenderedForm(
+            $form,
+            'en',
+            1,
+            '{"email": "ada@example.com"}',
+        )));
+
+        // THEN every control shows what that save held — drawn by the same code
+        // that draws the current one, so a list or a file needs no special case
+        self::assertSame('ada@example.com', $page->filter('#item-email')->attr('value'));
+        self::assertNotNull($page->filter('#item-email')->attr('disabled'));
+
+        // AND the only two things left to do are at the top: put this version
+        // back, or go back to the current one
+        self::assertCount(1, $page->filter('.viewing [data-history-restore]'));
+        self::assertSame('1', $page->filter('.viewing [data-history-restore]')->attr('data-history-restore'));
+        self::assertStringContainsString((string) $form->id(), (string) $page->filter('.viewing a')->attr('href'));
+
+        // AND nothing that writes is offered while looking at the past
+        self::assertCount(0, $page->filter('[data-action="save"]'));
+        self::assertCount(0, $page->filter('[data-action="confirm"]'));
     }
 
     public function testAConfirmedFormIsDrawnToBeReadNotChanged(): void
@@ -654,6 +701,19 @@ final class CoreHtmlRendererTest extends KernelTestCase
         return $form;
     }
 
+    private static function values(string $json): \stdClass
+    {
+        $values = json_decode($json, false, 512, \JSON_THROW_ON_ERROR);
+
+        return $values instanceof \stdClass ? $values : throw new \LogicException('These values are an object.');
+    }
+
+    /** The same form, presented without the panel — which is the default shape. */
+    private static function formWithoutHistory(): Form
+    {
+        return self::formPresentedAs(self::PRESENTATION);
+    }
+
     private static function withInvoice(): \stdClass
     {
         $invoice = new \stdClass();
@@ -671,11 +731,21 @@ final class CoreHtmlRendererTest extends KernelTestCase
     private static function form(bool $withTranslations = true): Form
     {
         $presentation = self::PRESENTATION;
+        // Asked for like anything else on the page, which is what the panel is.
+        $presentation['items'][] = ['widget' => 'history', 'label' => 'contact.history'];
 
         if (!$withTranslations) {
             unset($presentation['translations'], $presentation['defaultLocale']);
         }
 
+        return self::formPresentedAs($presentation);
+    }
+
+    /**
+     * @param array<string, mixed> $presentation
+     */
+    private static function formPresentedAs(array $presentation): Form
+    {
         $processor = new PresentationProcessor(self::mapper());
 
         return new Form(

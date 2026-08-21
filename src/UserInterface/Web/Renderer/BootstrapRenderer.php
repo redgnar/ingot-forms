@@ -34,7 +34,12 @@ final class BootstrapRenderer implements FormRenderer
         return $this->twig->render('forms/bootstrap/form.html.twig', [
             'id' => (string) $request->form->id(),
             'locale' => $request->locale,
-            'readOnly' => $request->form->status() === FormStatus::Confirmed,
+            // Two different reasons a page cannot be changed, and the templates
+            // need both: a confirmed form is closed for good, while an earlier
+            // version is only being looked at — its restore is the way out.
+            'confirmed' => $request->form->status() === FormStatus::Confirmed,
+            'version' => $request->version,
+            'readOnly' => $request->form->status() === FormStatus::Confirmed || $request->version !== null,
             // A document that names no widget for a group gets this kit's plainest
             // way of grouping, and for a standalone item, a paragraph.
             'nodes' => $this->nodes->of($request, 'card', 'paragraph'),

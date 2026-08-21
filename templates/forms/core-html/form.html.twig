@@ -37,16 +37,31 @@
         .history summary { cursor: pointer; font-weight: 600; }
         .history ol, .history ul { margin: .5rem 0; padding-left: 1.25rem; }
         .history button { font: inherit; }
+        .viewing { background: #fff8e1; }
+        .viewing p { margin: 0 0 .5rem; }
         .file-held { font-size: .875rem; margin: .25rem 0 0; }
         .file-progress { color: #555; font-size: .875rem; margin: .25rem 0 0; }
     </style>
 </head>
-<body data-form="{{ id }}" data-read-only="{{ readOnly ? 'yes' : 'no' }}" data-refused="{{ 'page.refused'|trans }}"
+<body data-form="{{ id }}" data-page="{{ path('web_form_view', {id: id}) }}"
+      data-read-only="{{ readOnly ? 'yes' : 'no' }}" data-refused="{{ 'page.refused'|trans }}"
       data-file-uploading="{{ 'page.file.uploading'|trans }}" data-file-too-large="{{ 'page.file.too_large'|trans }}"
       data-file-rejected="{{ 'page.file.rejected_type'|trans }}" data-file-failed="{{ 'page.file.failed'|trans }}">
-{% if readOnly %}
+{% if version is not null %}
+    {# Always at the top, because it is the answer to "why can I not type in
+       this?" — and it carries the only two things left to do here. #}
+    <div class="notice viewing">
+        <p>{{ 'page.history.viewing'|trans }}</p>
+        {% if not confirmed %}
+            <button type="button" data-history-restore="{{ version }}">{{ 'page.history.restore'|trans }}</button>
+        {% endif %}
+        <a href="{{ path('web_form_view', {id: id}) }}">{{ 'page.history.back'|trans }}</a>
+    </div>
+{% endif %}
+
+{% if confirmed %}
     <p class="notice">{{ 'page.confirmed'|trans }}</p>
-{% else %}
+{% elseif version is null %}
     {# Page chrome, not part of the presentation: what somebody is told about
        their own progress is this adapter's business, so no document has to
        carry a code for it. Shown by the script once a draft is stored, and
@@ -54,44 +69,15 @@
     <p class="flash" id="form-saved" hidden>{{ 'page.saved'|trans }}</p>
 {% endif %}
 
-{# Earlier versions. Page chrome, not the presentation's business: no document
-   carries a code for it, the same way none carries one for "your answers are
-   saved". Nothing is fetched until somebody opens it, and every row it draws is
-   a clone of a template below — a kit does not write markup in JavaScript. #}
-<details class="history" data-history>
-    <summary>{{ 'page.history.title'|trans }}</summary>
-    <p class="hint" data-history-empty hidden>{{ 'page.history.empty'|trans }}</p>
-    <p class="error" data-history-error hidden>{{ 'page.history.failed'|trans }}</p>
-    <ol data-history-list></ol>
-
-    <div data-history-version hidden>
-        {% if not readOnly %}
-            <p><button type="button" data-history-restore>{{ 'page.history.restore_all'|trans }}</button></p>
-        {% endif %}
-        <ul data-history-members></ul>
-    </div>
-
-    <template data-history-moment>
-        <li>
-            <button type="button" data-history-open><time data-history-when></time></button>
-            <span data-history-confirmed hidden>{{ 'page.history.confirmed'|trans }}</span>
-        </li>
-    </template>
-    <template data-history-member>
-        <li>
-            <b data-history-name></b> <span data-history-value></span>
-            {% if not readOnly %}
-                <button type="button" data-history-put hidden>{{ 'page.history.restore_field'|trans }}</button>
-            {% endif %}
-        </li>
-    </template>
-</details>
+{# What a panel needs and a node cannot carry: which form this is, whether it can
+   still be changed at all, and where it lives. #}
+{% set chrome = {id: id, confirmed: confirmed, page: path('web_form_view', {id: id})} %}
 
 <form id="form">
     {# Where the buttons go is the presentation's business, so nothing is added
        here: a document that offers none draws none. It cannot offer none by
        accident — a presentation without a way to confirm is refused. #}
-    {{ _self.nodes(nodes, readOnly, false) }}
+    {{ _self.nodes(nodes, readOnly, false, {confirmed: confirmed}) }}
 
     <p class="error" id="form-error" hidden></p>
 </form>
@@ -100,15 +86,20 @@
 </body>
 </html>
 
-{% macro nodes(nodes, readOnly, inEntry) %}
+{% macro nodes(nodes, readOnly, inEntry, chrome) %}
     {% for node in nodes %}
         {% if node.kind == 'container' %}
             <fieldset>
                 {% if node.label %}<legend>{{ node.label }}</legend>{% endif %}
-                {{ _self.nodes(node.children, readOnly, inEntry) }}
+                {{ _self.nodes(node.children, readOnly, inEntry, chrome) }}
             </fieldset>
         {% elseif node.kind == 'action' %}
-            {% if not readOnly %}
+            {# The panel is drawn even on a page that cannot be changed: what a
+               form used to say is worth reading whether or not it can still be
+               edited. The two that write are not. #}
+            {% if node.widget == 'history' %}
+                {{ _self.history(node, chrome) }}
+            {% elseif not readOnly %}
                 {% if node.appearance == 'link' %}
                     <a href="#" class="action-link" data-action="{{ node.widget }}">{{ node.label }}</a>
                 {% else %}
@@ -116,7 +107,7 @@
                 {% endif %}
             {% endif %}
         {% elseif node.kind == 'collection' %}
-            {{ _self.entries(node, readOnly) }}
+            {{ _self.entries(node, readOnly, chrome) }}
         {% elseif node.kind == 'decoration' %}
             {% if node.widget == 'heading' %}
                 <h2>{{ node.label }}</h2>
@@ -133,7 +124,7 @@
    it is answered in folded underneath, and one blank form kept aside for adding
    another. The counts are on the wrapper so the page can grey out its own
    buttons — the server is still what decides. #}
-{% macro entries(node, readOnly) %}
+{% macro entries(node, readOnly, chrome) %}
     {# A fieldset, because that is what this is: a group of controls with a name.
        The browser draws the frame and cuts the name into it, which is what makes
        a list inside a list readable at a glance — a plain box leaves somebody
@@ -153,7 +144,7 @@
                 </tr>
             </thead>
             {% for entry in node.entries %}
-                {{ _self.entry(node, entry, readOnly) }}
+                {{ _self.entry(node, entry, readOnly, chrome) }}
             {% endfor %}
             {% if not readOnly %}
                 {# Inside the table, because asking for one more entry is
@@ -173,7 +164,7 @@
         {% if not readOnly %}
             {# The same form once more, holding nothing: what gets cloned. #}
             <template data-blank>
-                {{ _self.entry(node, {'nodes': node.blank, 'cells': node.columns|map(column => {'name': column.name, 'text': null, 'ticked': null})}, false) }}
+                {{ _self.entry(node, {'nodes': node.blank, 'cells': node.columns|map(column => {'name': column.name, 'text': null, 'ticked': null})}, false, chrome) }}
             </template>
         {% endif %}
 
@@ -184,7 +175,7 @@
 {# One entry: what it says in the list, and the form it is answered in. Both in
    one <tbody>, so one element is one entry — which is what the module counts,
    clones and removes. #}
-{% macro entry(node, entry, readOnly) %}
+{% macro entry(node, entry, readOnly, chrome) %}
     <tbody data-entry>
         <tr>
             {% for cell in entry.cells %}
@@ -200,11 +191,38 @@
             <td colspan="{{ entry.cells|length + 1 }}">
                 <details class="entry-form"{{ node.options.open ?? false ? ' open' : '' }}>
                     <summary>{{ 'page.entry.edit'|trans }}</summary>
-                    {{ _self.nodes(entry.nodes, readOnly, true) }}
+                    {{ _self.nodes(entry.nodes, readOnly, true, chrome) }}
                 </details>
             </td>
         </tr>
     </tbody>
+{% endmacro %}
+
+{# Earlier versions: a list of moments and nothing else. What a save *said* is
+   shown by the form itself — "View" draws this same page from that document — so
+   a member-by-member dump here would be values out of the only context that
+   gives them meaning.
+
+   Nothing is fetched until somebody opens this, and every row is a clone of the
+   template below: a kit does not write markup in JavaScript. #}
+{% macro history(node, chrome) %}
+    <details class="history" data-history>
+        <summary>{{ node.label }}</summary>
+        <p class="hint" data-history-empty hidden>{{ 'page.history.empty'|trans }}</p>
+        <p class="error" data-history-error hidden>{{ 'page.history.failed'|trans }}</p>
+        <ol data-history-list></ol>
+
+        <template data-history-moment>
+            <li>
+                <time data-history-when></time>
+                <span data-history-confirmed hidden>{{ 'page.history.confirmed'|trans }}</span>
+                <a data-history-view href="#">{{ 'page.history.view'|trans }}</a>
+                {% if not chrome.confirmed %}
+                    <button type="button" data-history-restore>{{ 'page.history.restore'|trans }}</button>
+                {% endif %}
+            </li>
+        </template>
+    </details>
 {% endmacro %}
 
 {% macro item(node, readOnly) %}
