@@ -30,6 +30,11 @@ final class CoreHtmlCollectionPageTest extends CollectionPageTestCase
         return 'number';
     }
 
+    protected static function invalidRowMark(): string
+    {
+        return 'entry-invalid';
+    }
+
     protected static function choiceWidget(): string
     {
         return 'radio';

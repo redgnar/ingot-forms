@@ -77,6 +77,24 @@ function clearMessages() {
         slot.hidden = true;
         slot.textContent = '';
     }
+
+    for (const entry of document.querySelectorAll('[data-entry].entry-invalid')) {
+        entry.classList.remove('entry-invalid');
+    }
+}
+
+// A message nobody can see is not a message. An entry is answered in a form that
+// is folded away, so a refusal about it unfolds every form on the way to it — and
+// marks each entry it is inside, so the row still says "look here" once somebody
+// folds it back up.
+function reveal(slot) {
+    for (let form = slot.closest('details'); form !== null; form = form.parentElement?.closest('details') ?? null) {
+        form.open = true;
+    }
+
+    for (let entry = slot.closest('[data-entry]'); entry !== null; entry = entry.parentElement?.closest('[data-entry]') ?? null) {
+        entry.classList.add('entry-invalid');
+    }
 }
 
 // A refusal points at the item it is about — `/email`, or `/lines/2/quantity`
@@ -118,6 +136,7 @@ function showErrors(body) {
         if (slot) {
             slot.textContent = error.message;
             slot.hidden = false;
+            reveal(slot);
         } else {
             rest.push(error.message);
         }

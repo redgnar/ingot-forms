@@ -127,6 +127,24 @@ export default class extends Controller {
         for (const control of this.controlTargets) {
             control.classList.remove('is-invalid');
         }
+
+        for (const row of this.element.querySelectorAll('tr.table-danger')) {
+            row.classList.remove('table-danger');
+        }
+    }
+
+    // A message nobody can see is not a message. An entry is answered in a form
+    // that is folded away, so a refusal about it unfolds every form on the way to
+    // it — and marks each row it is inside, so the table still says "look here"
+    // once somebody folds it back up.
+    #reveal(slot) {
+        for (let form = slot.closest('details'); form !== null; form = form.parentElement?.closest('details') ?? null) {
+            form.open = true;
+        }
+
+        for (let entry = slot.closest('[data-entry]'); entry !== null; entry = entry.parentElement?.closest('[data-entry]') ?? null) {
+            entry.querySelector('tr')?.classList.add('table-danger');
+        }
     }
 
     // A refusal points at the item it is about — `/email`, or `/lines/2/quantity`
@@ -173,6 +191,7 @@ export default class extends Controller {
 
             slot.textContent = error.message;
             slot.classList.remove('d-none');
+            this.#reveal(slot);
 
             const entry = slot.closest('[data-entry]') ?? this.element;
 

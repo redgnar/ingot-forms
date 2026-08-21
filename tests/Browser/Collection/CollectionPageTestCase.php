@@ -43,6 +43,9 @@ abstract class CollectionPageTestCase extends PantherTestCase
     /** ...and a choice, as something to pick from rather than a list to open. */
     abstract protected static function choiceWidget(): string;
 
+    /** How this kit marks the row of an entry a refusal was about. */
+    abstract protected static function invalidRowMark(): string;
+
     protected function setUp(): void
     {
         $this->browser = self::createPantherClient(['browser' => static::CHROME]);
@@ -285,6 +288,67 @@ abstract class CollectionPageTestCase extends PantherTestCase
         );
     }
 
+    public function testARefusalUnfoldsItsWayIntoViewAndMarksTheRow(): void
+    {
+        // GIVEN a second entry, added and left empty, then folded away again —
+        // exactly what somebody does before pressing send
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->click(static::addTrigger());
+        $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] details summary'))[1]->click();
+        self::assertNull($this->entries()[1]->findElement(WebDriverBy::cssSelector('details'))->getAttribute('open'));
+
+        // WHEN the form is sent
+        $this->click('[data-action="confirm"], [data-action="click->form#confirm"]');
+
+        // THEN the form it is about is unfolded, so the message is on screen
+        // rather than hidden behind a summary nobody would think to open
+        $shown = $this->eventually(function (): ?bool {
+            $slots = $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] [data-error="sku"]'));
+
+            return ($slots[1] ?? null)?->isDisplayed() === true ? true : null;
+        });
+        self::assertTrue($shown);
+        self::assertSame('true', $this->entries()[1]->findElement(WebDriverBy::cssSelector('details'))->getAttribute('open'));
+
+        // AND the row is marked, so folding it back up does not hide that the
+        // entry still needs something — and the entry beside it is left alone
+        self::assertStringContainsString(static::invalidRowMark(), $this->markOf(1));
+        self::assertStringNotContainsString(static::invalidRowMark(), $this->markOf(0));
+    }
+
+    public function testARefusalTwoScopesDownUnfoldsBothFormsOnItsWay(): void
+    {
+        // GIVEN an entry of a nested list, added and left empty, everything
+        // folded back up
+        $id = $this->plantNested();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->click('[data-entry] details summary');
+        $this->click(\sprintf('[data-collection="parts"] %s', static::addTrigger()));
+        $this->click('[data-entry] details summary');
+
+        // WHEN the form is sent
+        $this->click('[data-action="confirm"], [data-action="click->form#confirm"]');
+
+        // THEN the message is on screen, which is only possible with every form
+        // on its way unfolded: a closed one hides what is inside it, and there
+        // are two of them here — the entry of the outer list, and the entry of
+        // the list inside that entry
+        $shown = $this->eventually(function (): ?bool {
+            $slots = $this->browser->findElements(WebDriverBy::cssSelector('[data-collection="parts"] [data-entry] [data-error="code"]'));
+
+            return ($slots[2] ?? null)?->isDisplayed() === true ? true : null;
+        });
+
+        self::assertTrue($shown);
+
+        // AND both entries on the way are marked: the one that owes the answer,
+        // and the one whose list holds it
+        self::assertStringContainsString(static::invalidRowMark(), $this->markOf(0));
+        self::assertStringContainsString(static::invalidRowMark(), $this->markOf(2, 'parts'));
+        self::assertStringNotContainsString(static::invalidRowMark(), $this->markOf(0, 'parts'));
+    }
+
     public function testTheButtonsObeyTheCountsTheDefinitionGives(): void
     {
         // GIVEN a list that must hold one entry and may hold three
@@ -330,10 +394,26 @@ abstract class CollectionPageTestCase extends PantherTestCase
     /**
      * @return list<\Facebook\WebDriver\WebDriverElement>
      */
-    final protected function entries(): array
+    final protected function entries(string $list = 'lines'): array
     {
-        return array_values(
-            $this->browser->findElements(WebDriverBy::cssSelector('[data-collection="lines"] table > tbody[data-entry]')),
+        return array_values($this->browser->findElements(
+            // The list's own table, not the one belonging to a list inside it.
+            WebDriverBy::cssSelector(\sprintf('[data-collection="%s"] > table > tbody[data-entry]', $list)),
+        ));
+    }
+
+    /**
+     * How a kit says "this entry": on its row, or on the entry holding it.
+     */
+    final protected function markOf(int $entry, string $list = 'lines'): string
+    {
+        $entries = $this->entries($list);
+        self::assertArrayHasKey($entry, $entries);
+
+        return \sprintf(
+            '%s %s',
+            (string) $entries[$entry]->getAttribute('class'),
+            (string) ($entries[$entry]->findElements(WebDriverBy::cssSelector('tr'))[0] ?? null)?->getAttribute('class'),
         );
     }
 

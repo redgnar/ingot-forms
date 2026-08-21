@@ -31,6 +31,11 @@ final class BootstrapCollectionPageTest extends CollectionPageTestCase
         return 'stepper';
     }
 
+    protected static function invalidRowMark(): string
+    {
+        return 'table-danger';
+    }
+
     protected static function choiceWidget(): string
     {
         return 'radio-buttons';

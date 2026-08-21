@@ -144,6 +144,11 @@ Rules that follow from it, and that the tooling checks:
   never a second name for a control the other kit already draws — and never a restyling of one
   (a floating label was tried and removed: it moved the same question's text, and it could not
   be applied to a choice group or a slider, so every page mixing them was labelled two ways).
+- **A message nobody can see is not a message.** An entry is answered in a form folded away
+  under its row, so placing a refusal is not enough: both kits unfold every form on the way to
+  it and mark each entry it is inside (`entry-invalid` in the plain kit, `table-danger` in the
+  richer one), so the row still says "look here" after somebody folds it back up. Clearing the
+  messages clears the marks.
 - **Front-end assets are AssetMapper's, and only where a kit asked for them.** `importmap.php`
   names what the browser may import, `assets/vendor/` is committed (so a clone, CI and the
   browser suite need no network), `make assets` refreshes it and a deploy runs

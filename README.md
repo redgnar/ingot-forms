@@ -369,7 +369,9 @@ wire, `data-error` marks where a refusal about it goes, and for a list **structu
 identity** — `data-collection` marks the list, `data-entry` marks one entry, `data-cell` marks a
 previewed value. Values are collected scope by scope in the order the entries appear, so adding
 or removing one renumbers nothing, and a pointer like `/lines/1/quantity` is resolved by walking
-that same structure back down. What *is* scoped by name is an id and a radio group: the same form
+that same structure back down. A refusal about an entry also **unfolds its way into view** and
+marks the rows it is inside, because a message left inside a folded form is a message nobody
+sees. What *is* scoped by name is an id and a radio group: the same form
 is drawn once per entry, so both carry the entry they belong to (`item-lines-1-sku`,
 `unit--lines-1`) — without that, a label would point at another entry's control and radios of
 different entries would be one group, unpicking each other. A blank entry carries a token instead
