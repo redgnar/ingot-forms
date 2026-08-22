@@ -58,6 +58,9 @@
         .comfort { border: 1px solid var(--line); border-radius: .25rem; font-size: .875rem; margin: 0 0 1.5rem; padding: .25rem .75rem .5rem; }
         .comfort legend { font-size: .875rem; font-weight: 400; }
         .comfort label { display: inline-block; font-weight: 400; margin-right: .75rem; }
+        .comfort summary { cursor: pointer; }
+        .language { font-size: .875rem; margin: 0 0 1.5rem; }
+        .language a, .language strong { margin-right: .75rem; }
         fieldset { border: 1px solid var(--frame); border-radius: .25rem; margin: 0 0 1.5rem; padding: 1rem 1.25rem; }
         legend { font-weight: 600; padding: 0 .25rem; }
         .item { margin: 0 0 1rem; }
@@ -105,7 +108,16 @@
                     return null;
                 }
             };
-            root.dataset.theme = read('theme') || 'auto';
+            var asks = function (query) {
+                return window.matchMedia && window.matchMedia(query).matches;
+            };
+            // Whoever has said something is answered first: the reader, then
+            // their machine, then the document's own preference — a document may
+            // prefer dark, it cannot impose it.
+            var theme = read('theme');
+            var dark = theme === 'dark'
+                || (theme === null && (asks('(prefers-color-scheme: dark)') || '{{ theme }}' === 'dark'));
+            root.dataset.theme = dark ? 'dark' : 'light';
             var contrast = read('contrast');
 
             if (contrast !== null) {
@@ -135,19 +147,10 @@
     </div>
 {% endif %}
 
-{# What a reader can ask of this page, and the one thing on it no document has a
-   say in: how a form looks is the presentation's business, how it *reads* is the
-   reader's. Radios and boxes rather than buttons pretending to be switches —
-   this kit's answer to everything is the control the browser already has. Kept
-   outside the form, because nothing here is an answer to a question. #}
-<fieldset class="comfort" data-comfort>
-    <legend>{{ 'page.comfort.legend'|trans }}</legend>
-    {% for choice, code in {'auto': 'page.comfort.theme_auto', 'light': 'page.comfort.theme_light', 'dark': 'page.comfort.theme_dark'} %}
-        <label><input type="radio" name="comfort-theme" value="{{ choice }}" data-comfort-theme> {{ code|trans }}</label>
-    {% endfor %}
-    <label><input type="checkbox" data-comfort-toggle="contrast"> {{ 'page.comfort.contrast'|trans }}</label>
-    <label><input type="checkbox" data-comfort-toggle="text"> {{ 'page.comfort.text'|trans }}</label>
-</fieldset>
+{# The reader's own switches. Where they sit is the document's business (the
+   `comfort` widget), but a document that places none does not get to take them
+   away: then they are here, before anything else on the page. #}
+{% if not comfortPlaced %}{{ _self.comfort() }}{% endif %}
 
 {% if confirmed %}
     <p class="notice">{{ 'page.confirmed'|trans }}</p>
@@ -165,13 +168,13 @@
 
 {# What a panel needs and a node cannot carry: which form this is, whether it can
    still be changed at all, and where it lives. #}
-{% set chrome = {id: id, confirmed: confirmed, page: path('web_form_view', {id: id})} %}
+{% set chrome = {id: id, confirmed: confirmed, version: version, page: path('web_form_view', {id: id})} %}
 
 <form id="form">
     {# Where the buttons go is the presentation's business, so nothing is added
        here: a document that offers none draws none. It cannot offer none by
        accident — a presentation without a way to confirm is refused. #}
-    {{ _self.nodes(nodes, readOnly, false, {confirmed: confirmed}) }}
+    {{ _self.nodes(nodes, readOnly, false, chrome) }}
 
     <p class="error" id="form-error" hidden></p>
 </form>
@@ -179,6 +182,43 @@
 <script type="module" src="/js/core-html-form.js"></script>
 </body>
 </html>
+
+{# What a reader can ask of this page, and the one thing on it no document has a
+   say in: how a form looks is the presentation's business, how it *reads* is the
+   reader's. Radios and boxes rather than buttons pretending to be switches —
+   this kit's answer to everything is the control the browser already has. Kept
+   outside the form, because nothing here is an answer to a question. #}
+{% macro comfort() %}
+    {# Folded away, because three switches somebody may never touch should not be
+       the first thing above every form — and folding is something a browser has
+       done on its own for years. #}
+    <details class="comfort" data-comfort>
+        <summary>{{ 'page.comfort.legend'|trans }}</summary>
+        {% for switch, code in {'dark': 'page.comfort.dark', 'contrast': 'page.comfort.contrast', 'text': 'page.comfort.text'} %}
+            <label><input type="checkbox" data-comfort-toggle="{{ switch }}"> {{ code|trans }}</label>
+        {% endfor %}
+    </details>
+{% endmacro %}
+
+{# The same page in another language: one link per catalogue the document carries,
+   each named in its own language, because somebody looking for theirs is not
+   reading this one. A switch with one position is not a switch, so a document
+   with a single catalogue draws nothing here. #}
+{% macro language(node, chrome) %}
+    {% if node.languages is not empty %}
+        <nav class="language" aria-label="{{ 'page.language'|trans }}">
+            {% for one in node.languages %}
+                {% if one.current %}
+                    <strong aria-current="true">{{ one.text }}</strong>
+                {% else %}
+                    <a data-language href="{{ chrome.version is null
+                        ? path('web_form_view_localized', {_locale: one.locale, id: chrome.id})
+                        : path('web_form_version_localized', {_locale: one.locale, id: chrome.id, seq: chrome.version}) }}">{{ one.text }}</a>
+                {% endif %}
+            {% endfor %}
+        </nav>
+    {% endif %}
+{% endmacro %}
 
 {% macro nodes(nodes, readOnly, inEntry, chrome) %}
     {% for node in nodes %}
@@ -203,7 +243,11 @@
         {% elseif node.kind == 'collection' %}
             {{ _self.entries(node, readOnly, chrome) }}
         {% elseif node.kind == 'decoration' %}
-            {% if node.widget == 'heading' %}
+            {% if node.widget == 'comfort' %}
+                {{ _self.comfort() }}
+            {% elseif node.widget == 'language' %}
+                {{ _self.language(node, chrome) }}
+            {% elseif node.widget == 'heading' %}
                 <h2>{{ node.label }}</h2>
             {% else %}
                 <p>{{ node.label }}</p>

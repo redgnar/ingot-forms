@@ -53,7 +53,7 @@ final class CoreHtmlEngine implements PresentationEngine
 
     public function decorations(): array
     {
-        return ['heading', 'paragraph'];
+        return ['heading', 'paragraph', 'comfort', 'language'];
     }
 
     public function skins(): array

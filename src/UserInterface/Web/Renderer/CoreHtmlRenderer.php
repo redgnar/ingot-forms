@@ -33,6 +33,8 @@ final class CoreHtmlRenderer implements FormRenderer
 
     public function render(RenderedForm $request): string
     {
+        $nodes = $this->nodes->of($request, 'fieldset', 'paragraph');
+
         return $this->twig->render('forms/core-html/form.html.twig', [
             'id' => (string) $request->form->id(),
             'locale' => $request->locale,
@@ -42,7 +44,15 @@ final class CoreHtmlRenderer implements FormRenderer
             'confirmed' => $request->form->status() === FormStatus::Confirmed,
             'version' => $request->version,
             'readOnly' => $request->form->status() === FormStatus::Confirmed || $request->version !== null,
-            'nodes' => $this->nodes->of($request, 'fieldset', 'paragraph'),
+            'nodes' => $nodes,
+            // Where the reader's own switches go is the document's business; that
+            // they are somewhere is not. A document that places none gets them at
+            // the top rather than losing them.
+            'comfortPlaced' => PresentedNodes::draws($nodes, 'comfort'),
+            // Which way round the colours start for a reader who has never said.
+            // The reader's own choice, and their machine's, are both answered
+            // before this one.
+            'theme' => $request->form->presentation()?->structure()->theme ?? '',
         ]);
     }
 }

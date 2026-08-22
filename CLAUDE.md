@@ -26,7 +26,10 @@ draw that — a list inside the form of an entry, as deep as the definition goes
 aggregate's own `saveDraft()` judges it under the same lenient contract, the insert writes it
 with the rest of the row, and a form that would refuse those values later is never created
 holding them. Definition
-change = delete + recreate. Expired forms answer 410 everywhere; `app:forms:purge-expired`
+change = delete + recreate. **Filling a form in through the API is the foundation** and the page
+is a client of it — server-rendered interactivity (Live Components and the like) was weighed and
+refused in this session, because it would be a second way in and would move rules the definition
+owns into the presentation. Expired forms answer 410 everywhere; `app:forms:purge-expired`
 deletes them physically. No templates, no versioning, no multi-submission, and no name
 or id on the definition (it belongs to one form, which has a UUID of its own; nothing groups
 or looks definitions up, so a second name would only be a label that can drift) —
@@ -191,10 +194,17 @@ Rules that follow from it, and that the tooling checks:
   entrypoint each, so exactly one Bootstrap is ever loaded. The invariant is tested: **the same
   form under two skins renders byte-identical markup**. A skin needing a class or an element has
   become a second kit and must be one.
-- **How a page *reads* is the reader's, and no document has a say in it.** Colours
+- **How a page *reads* is the reader's; where the switches sit is the document's.** Colours
   (system/light/dark), high contrast and larger text are attributes on `<html>`, applied before
   the first paint by inline script and kept in that browser's `localStorage` — never on the
-  server, which has no identity to hang them on. Contrast is **not** a skin but an overlay on top
+  server, which has no identity to hang them on. Each is a plain on/off, folded away behind one
+  summary; a document may say which way the colours *start* (`theme`), and is answered after the
+  reader and after their machine. A document places them with the `comfort` widget and cannot
+  remove them: a page whose document places none draws them at the top
+  (`PresentedNodes::draws()` is what the renderer asks). Beside it, `language` offers the same
+  page in every catalogue the document carries, each named in its own catalogue, and draws
+  nothing when there is only one. Both are `decorations` — they stand alone and say nothing
+  about the form — and both are marked as detours, so unsaved answers travel with the reader. Contrast is **not** a skin but an overlay on top
   of whichever one the document chose: an accessibility preference outranks an aesthetic one.
   Both kits offer all three: the richer one as a bar of buttons driven by a Stimulus
   controller, the plain one as radios and checkboxes its own module reads — "no machinery"

@@ -200,10 +200,12 @@ final class BootstrapFormPageTest extends PantherTestCase
         $id = $this->plant();
         $this->browser->request('GET', \sprintf('/forms/%s', $id));
 
-        // WHEN they ask for more contrast, darker colours and bigger text
+        // WHEN they unfold the switches and ask for more contrast, darker
+        // colours and bigger text
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-controller="comfort"] summary'))->click();
         $this->browser->findElement(WebDriverBy::cssSelector('[data-comfort-target="contrast"]'))->click();
         $this->browser->findElement(WebDriverBy::cssSelector('[data-comfort-target="text"]'))->click();
-        $this->browser->findElement(WebDriverBy::cssSelector('label[for="comfort-theme-dark"]'))->click();
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-comfort-target="dark"]'))->click();
 
         // THEN the page says so about itself, and the buttons say which state
         // they are in rather than only looking pressed
@@ -220,14 +222,14 @@ final class BootstrapFormPageTest extends PantherTestCase
         $this->browser->request('GET', \sprintf('/forms/%s', $id));
 
         self::assertSame(
-            ['high', 'large', 'dark', 'dark'],
+            ['high', 'large', 'dark'],
             $this->browser->executeScript(
                 'const root = document.documentElement;'
-                . ' return [root.dataset.contrast, root.dataset.text, root.dataset.theme, root.dataset.bsTheme];',
+                . ' return [root.dataset.contrast, root.dataset.text, root.dataset.bsTheme];',
             ),
         );
         self::assertSame('true', $this->browser->executeScript(
-            'return document.querySelector("#comfort-theme-dark").checked ? "true" : "false";',
+            'return document.querySelector(\'[data-comfort-target="dark"]\').getAttribute("aria-pressed");',
         ));
     }
 

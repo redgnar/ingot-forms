@@ -25,8 +25,8 @@ a [skin](#skins).
 
 ## Contents
 
-- [core-html](#core-html) — [controls](#core-html-controls) · [grouping](#core-html-grouping) · [text between things](#core-html-decorations) · [triggers](#core-html-triggers)
-- [bootstrap](#bootstrap) — [controls](#bootstrap-controls) · [grouping](#bootstrap-grouping) · [text between things](#bootstrap-decorations) · [triggers](#bootstrap-triggers) · [skins](#skins)
+- [core-html](#core-html) — [controls](#core-html-controls) · [grouping](#core-html-grouping) · [text between things](#core-html-decorations) · [the page's own](#core-html-page) · [triggers](#core-html-triggers)
+- [bootstrap](#bootstrap) — [controls](#bootstrap-controls) · [grouping](#bootstrap-grouping) · [text between things](#bootstrap-decorations) · [the page's own](#bootstrap-page) · [triggers](#bootstrap-triggers) · [skins](#skins)
 - [What both kits do without being asked](#what-both-kits-do-without-being-asked)
 - [Reference links](#reference-links)
 
@@ -147,6 +147,35 @@ for when a form is a form rather than a product.
 |---|---|
 | `heading` | `<h2>` |
 | `paragraph` | `<p>` |
+
+
+<a id="core-html-page"></a>
+## The page's own
+
+Two widgets that say nothing about the form and everything about the page it is drawn on. Both
+stand alone, hold nothing and take no `name`.
+
+### `comfort` — the reader's own switches
+
+- **Draws:** a `<details>` folded away, holding three checkboxes: dark colours, high contrast, larger text
+- **Options:** —
+- **Notes:** placing it is how a document decides *where* the switches go. Leaving it out is not
+  how a document decides they are gone: a page with no `comfort` widget still draws them at the
+  top. What they control — colours, contrast, text size — is the reader's, and a document that
+  could delete the control would be deciding somebody else's contrast for them.
+
+### `language` — the same page, in another language
+
+- **Draws:** `<nav class="language">` with one link per language
+- **From the document:** one entry per catalogue in `translations`, in the order the document
+  carries them, the current one marked and not a link
+- **Options:** `choices` — a translation code per locale (`{"pl": "t.polish", "en": "t.english"}`),
+  each resolved **in its own catalogue**, so the list reads *Polski · English* whatever language
+  the page is in. Without it each entry reads as its locale code.
+- **Notes:** a switch with one position is not a switch — a document carrying a single catalogue
+  (or none, because its client keeps its own) draws nothing here, so the widget is safe to place
+  before you know how many languages the form will end up with. The links are marked as detours,
+  so answers nobody has saved yet travel with the reader and are put back on arrival.
 
 <a id="core-html-triggers"></a>
 ## Triggers
@@ -328,6 +357,35 @@ that the plain kit has no markup for.
 | `alert` | [Alert](https://getbootstrap.com/docs/5.3/components/alerts/) | `tone` — any Bootstrap colour name (`info` by default, `warning`, `danger`, `success`, …) |
 | `divider` | `<hr>` | — |
 
+
+<a id="bootstrap-page"></a>
+## The page's own
+
+Two widgets that say nothing about the form and everything about the page it is drawn on. Both
+stand alone, hold nothing and take no `name`.
+
+### `comfort` — the reader's own switches
+
+- **Draws:** a `<details>` folded away behind one icon, holding three toggle buttons — dark colours, high contrast, larger text ([Buttons](https://getbootstrap.com/docs/5.3/components/buttons/))
+- **Options:** —
+- **Notes:** placing it is how a document decides *where* the switches go. Leaving it out is not
+  how a document decides they are gone: a page with no `comfort` widget still draws them at the
+  top. What they control — colours, contrast, text size — is the reader's, and a document that
+  could delete the control would be deciding somebody else's contrast for them.
+
+### `language` — the same page, in another language
+
+- **Draws:** a `<nav>` of links
+- **From the document:** one entry per catalogue in `translations`, in the order the document
+  carries them, the current one marked and not a link
+- **Options:** `choices` — a translation code per locale (`{"pl": "t.polish", "en": "t.english"}`),
+  each resolved **in its own catalogue**, so the list reads *Polski · English* whatever language
+  the page is in. Without it each entry reads as its locale code.
+- **Notes:** a switch with one position is not a switch — a document carrying a single catalogue
+  (or none, because its client keeps its own) draws nothing here, so the widget is safe to place
+  before you know how many languages the form will end up with. The links are marked as detours,
+  so answers nobody has saved yet travel with the reader and are put back on arrival.
+
 <a id="bootstrap-triggers"></a>
 ## Triggers
 
@@ -335,6 +393,31 @@ The same four as the plain kit, doing the same four things over HTTP. What diffe
 drawing: [buttons](https://getbootstrap.com/docs/5.3/components/buttons/) rather than plain
 ones, `confirm` in the primary colour with a send icon, and the `history` panel as a folded
 card that fetches its list when somebody opens it and refreshes it after every save.
+
+## What `options` can say, and what it cannot
+
+`options` is **read by the kit, never forwarded**. There is no pass-through to Bootstrap: the
+five members below are the whole of what these two kits look at, and anything else a document
+puts there is carried, stored and ignored. That is deliberate — a member that reaches a
+component untouched is a member nobody can validate, document or keep working across a version
+of Bootstrap — but it does mean that "Bootstrap can do X" and "this kit can be asked for X" are
+two different questions. The second column is the first one's answer.
+
+| Option | Read on | Does | The component it belongs to |
+|---|---|---|---|
+| `width: 1–12` | any item that is a direct child of a `row` | how many of the twelve columns it takes | [Grid columns](https://getbootstrap.com/docs/5.3/layout/grid/#grid-options) — Bootstrap also has offsets, order, per-breakpoint widths and auto-layout; none of them are exposed |
+| `open: true` | `accordion`, `table` | starts unfolded | the browser's own [`<details>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/details), not [Bootstrap's accordion](https://getbootstrap.com/docs/5.3/components/accordion/) — so its "only one open at a time" behaviour is not available either |
+| `tone: "info" \| "warning" \| "danger" \| "success" \| …` | `alert` | which Bootstrap colour the alert takes | [Alerts](https://getbootstrap.com/docs/5.3/components/alerts/) — the colour is exposed; dismissible alerts, icons and links inside them are not |
+| `columns: true` | `radio` | lays the options out side by side | [Inline checks and radios](https://getbootstrap.com/docs/5.3/forms/checks-radios/#inline) — reversed layout and switch-style radios are not exposed |
+| `appearance: "link"` | any action (`save`, `confirm`, `reset`, `history`) | draws the trigger as a link rather than a button | [Button variants](https://getbootstrap.com/docs/5.3/components/buttons/#variants) — the colour of a trigger is the kit's decision (`confirm` is primary, the rest are outline-secondary), not the document's |
+
+Two more members that are not `options` but are worth listing beside them: `choices` on a
+`select`-ish item words its values, and `choices` on `language` words the languages. Both are
+translation codes, resolved from the document's own catalogues.
+
+**If you need something this list does not have**, it is a change to the kit — a widget or an
+option, added deliberately, drawn by both templates if it belongs to both, and tested. That is a
+small change to make; it is just not one a document can make on its own.
 
 <a id="skins"></a>
 ## Skins
@@ -390,9 +473,11 @@ and refusals are tied to their control, a choice group is a group named by its q
 upload's progress is a number as well as a bar, and a new entry takes the caret. None of it is
 an option a document turns on.
 
-**The reader decides how the page reads.** Colours (system / light / dark), high contrast and
-larger text, offered by both kits — the richer one as buttons, the plain one as radios and
-checkboxes — applied before the first paint and remembered in that browser only. Nothing reaches
+**The reader decides how the page reads.** Dark colours, high contrast and larger text, offered
+by both kits behind one folded summary — the richer one as buttons, the plain one as checkboxes
+— applied before the first paint and remembered in that browser only. Where nobody has chosen,
+the machine is asked (`prefers-color-scheme`, `prefers-contrast`) and then the document's own
+`theme`, in that order. Nothing reaches
 the server; there is no identity here to hang a preference on. High contrast is *not* a skin but
 an overlay on top of whichever one the document chose, because an accessibility preference
 outranks an aesthetic one.

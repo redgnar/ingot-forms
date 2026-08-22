@@ -1,8 +1,8 @@
 import { Controller } from '@hotwired/stimulus';
 
 /**
- * The three things a reader can ask of this page: which colours, how much
- * contrast, how big the text.
+ * The three things a reader can ask of this page: darker colours, more contrast,
+ * bigger text.
  *
  * None of it reaches the server. This service has no idea who anybody is, so
  * there is nowhere to keep a person's preference except the browser they are
@@ -11,77 +11,64 @@ import { Controller } from '@hotwired/stimulus';
  *
  * The page has already applied what it found in storage before this controller
  * existed: an inline script in the head, because a preference applied after the
- * first paint is a preference the reader watches being applied. What is left
- * here is to show which one they are on, to write a change down, and to keep
- * following the machine while they are on "system" — which means what the
- * machine says now, not what it said when the page was opened.
+ * first paint is one the reader watches being applied. What is left here is to
+ * show which switches are on, and to write a change down.
+ *
+ * Each switch is a plain on/off. There used to be a third state for the colours
+ * — "follow the system" — and on a machine that says "light" it was a second
+ * button that did what the first one did. What the machine says is still where
+ * the page starts; it is just no longer something to press.
  */
 export default class extends Controller {
-    static targets = ['theme', 'contrast', 'text'];
+    static targets = ['dark', 'contrast', 'text'];
 
     static values = { stash: { type: String, default: 'ingot-forms' } };
 
+    // switch → the attribute it sets on <html>, what "on" means, and what to
+    // remember it as. Bootstrap reads `data-bs-theme` itself; the other two are
+    // ours, and read by `comfort.css`.
+    static SWITCHES = {
+        dark: { attribute: 'bsTheme', on: 'dark', off: 'light', stash: 'theme' },
+        contrast: { attribute: 'contrast', on: 'high', off: 'off', stash: 'contrast' },
+        text: { attribute: 'text', on: 'large', off: 'off', stash: 'text' },
+    };
+
     connect() {
-        const root = document.documentElement;
-
-        for (const choice of this.themeTargets) {
-            choice.checked = choice.value === (root.dataset.theme ?? 'auto');
+        for (const [name, how] of Object.entries(this.constructor.SWITCHES)) {
+            if (this[`has${name[0].toUpperCase()}${name.slice(1)}Target`]) {
+                this.#reflect(this[`${name}Target`], document.documentElement.dataset[how.attribute] === how.on);
+            }
         }
-
-        this.#reflect(this.contrastTarget, root.dataset.contrast === 'high');
-        this.#reflect(this.textTarget, root.dataset.text === 'large');
-
-        this.system = window.matchMedia('(prefers-color-scheme: dark)');
-        this.follow = () => this.#paint();
-        this.system.addEventListener('change', this.follow);
     }
 
-    disconnect() {
-        this.system.removeEventListener('change', this.follow);
-    }
-
-    theme(event) {
-        document.documentElement.dataset.theme = event.target.value;
-        this.#remember('theme', event.target.value);
-        this.#paint();
+    dark(event) {
+        this.#toggle(event.currentTarget, 'dark');
     }
 
     contrast(event) {
-        this.#toggle(event.currentTarget, 'contrast', 'high');
+        this.#toggle(event.currentTarget, 'contrast');
     }
 
     text(event) {
-        this.#toggle(event.currentTarget, 'text', 'large');
+        this.#toggle(event.currentTarget, 'text');
     }
 
-    // What the reader chose is one thing; which colours that comes to is
-    // another, and only the choice is worth remembering.
-    #paint() {
+    #toggle(button, name) {
+        const how = this.constructor.SWITCHES[name];
         const root = document.documentElement;
-        const chosen = root.dataset.theme ?? 'auto';
-
-        if (chosen === 'dark' || (chosen === 'auto' && this.system.matches)) {
-            root.dataset.bsTheme = 'dark';
-        } else {
-            delete root.dataset.bsTheme;
-        }
-    }
-
-    #toggle(button, name, on) {
-        const root = document.documentElement;
-        const wanted = root.dataset[name] !== on;
+        const wanted = root.dataset[how.attribute] !== how.on;
 
         if (wanted) {
-            root.dataset[name] = on;
+            root.dataset[how.attribute] = how.on;
         } else {
-            delete root.dataset[name];
+            delete root.dataset[how.attribute];
         }
 
         this.#reflect(button, wanted);
-        // Written down either way: a reader whose machine asks for contrast and
-        // who turned it off here means it, and must not be given it back by the
-        // next page.
-        this.#remember(name, wanted ? on : 'off');
+        // Written down either way: a reader whose machine asks for dark, or
+        // whose document prefers it, and who turns it off here means that, and
+        // must not be given it back by the next page.
+        this.#remember(how.stash, wanted ? how.on : how.off);
     }
 
     #reflect(button, on) {

@@ -51,6 +51,8 @@ final class BootstrapRenderer implements FormRenderer
 
     public function render(RenderedForm $request): string
     {
+        $nodes = $this->nodes->of($request, 'card', 'paragraph');
+
         return $this->twig->render('forms/bootstrap/form.html.twig', [
             'id' => (string) $request->form->id(),
             'locale' => $request->locale,
@@ -67,7 +69,15 @@ final class BootstrapRenderer implements FormRenderer
             'readOnly' => $request->form->status() === FormStatus::Confirmed || $request->version !== null,
             // A document that names no widget for a group gets this kit's plainest
             // way of grouping, and for a standalone item, a paragraph.
-            'nodes' => $this->nodes->of($request, 'card', 'paragraph'),
+            'nodes' => $nodes,
+            // Where the reader's own switches go is the document's business; that
+            // they are somewhere is not. A document that places none gets them at
+            // the top rather than losing them.
+            'comfortPlaced' => PresentedNodes::draws($nodes, 'comfort'),
+            // Which way round the colours start for a reader who has never said.
+            // The reader's own choice, and their machine's, are both answered
+            // before this one.
+            'theme' => $request->form->presentation()?->structure()->theme ?? '',
         ]);
     }
 }

@@ -30,10 +30,12 @@
             var asks = function (query) {
                 return window.matchMedia && window.matchMedia(query).matches;
             };
-            var theme = read('theme') || 'auto';
-            root.dataset.theme = theme;
+            // Whoever has said something is answered first: the reader, then
+            // their machine, then the document's own preference — a document may
+            // prefer dark, it cannot impose it.
+            var theme = read('theme');
 
-            if (theme === 'dark' || (theme === 'auto' && asks('(prefers-color-scheme: dark)'))) {
+            if (theme === 'dark' || (theme === null && (asks('(prefers-color-scheme: dark)') || '{{ theme }}' === 'dark'))) {
                 root.dataset.bsTheme = 'dark';
             }
 
@@ -58,30 +60,10 @@
       data-form-refused-value="{{ 'page.refused'|trans }}"
       data-action="input->form#touched click->form#leaving"{% endif %}>
 
-    {# What a reader can ask of this page, and the one thing on it no document
-       has a say in: how a form looks is the presentation's business, how it
-       *reads* is the reader's. Nothing here is sent anywhere — this service has
-       no idea who anybody is, so the only place a person's own setting can live
-       is the browser they are reading in. #}
-    <div class="d-flex flex-wrap align-items-center gap-2 mb-4 small" data-controller="comfort"
-         role="group" aria-labelledby="comfort-legend">
-        <span class="text-body-secondary me-1" id="comfort-legend">{{ 'page.comfort.legend'|trans }}</span>
-
-        <div class="btn-group btn-group-sm" role="radiogroup" aria-labelledby="comfort-theme-legend">
-            <span class="visually-hidden" id="comfort-theme-legend">{{ 'page.comfort.theme'|trans }}</span>
-            {% for choice, code in {'auto': 'page.comfort.theme_auto', 'light': 'page.comfort.theme_light', 'dark': 'page.comfort.theme_dark'} %}
-                <input type="radio" class="btn-check" name="comfort-theme" id="comfort-theme-{{ choice }}"
-                       value="{{ choice }}" autocomplete="off" data-comfort-target="theme"
-                       data-action="change->comfort#theme">
-                <label class="btn btn-outline-secondary" for="comfort-theme-{{ choice }}">{{ code|trans }}</label>
-            {% endfor %}
-        </div>
-
-        <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false"
-                data-comfort-target="contrast" data-action="comfort#contrast">{{ 'page.comfort.contrast'|trans }}</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false"
-                data-comfort-target="text" data-action="comfort#text">{{ 'page.comfort.text'|trans }}</button>
-    </div>
+    {# The reader's own switches. Where they sit is the document's business (the
+       `comfort` widget), but a document that places none does not get to take
+       them away: then they are here, before anything else on the page. #}
+    {% if not comfortPlaced %}{{ _self.comfort() }}{% endif %}
 
     {# Page chrome, not the designer's business: no presentation carries a code
        for what somebody is told about their own doing, and this application
@@ -127,7 +109,7 @@
 
     {# What a panel needs and a node cannot carry: which form this is, whether it
        can still be changed at all, and where it lives. #}
-    {% set chrome = {id: id, confirmed: confirmed, page: path('web_form_view', {id: id})} %}
+    {% set chrome = {id: id, confirmed: confirmed, version: version, page: path('web_form_view', {id: id})} %}
 
     <form novalidate>
         {# Where the buttons go is the presentation's business, so nothing is
@@ -138,6 +120,49 @@
 </main>
 </body>
 </html>
+
+{# What a reader can ask of this page, and the one thing on it no document has a
+   say in: how a form looks is the presentation's business, how it *reads* is the
+   reader's. Nothing here is sent anywhere — this service has no idea who anybody
+   is, so the only place a person's own setting can live is the browser they are
+   reading in. #}
+{% macro comfort() %}
+    <details class="mb-4" data-controller="comfort">
+        {# Folded away, because three switches somebody may never touch should not
+           be the first thing above every form. The browser folds it on its own,
+           the way this kit folds everything else. #}
+        <summary class="comfort-summary d-inline-flex align-items-center gap-2 small text-body-secondary">
+            {{ ux_icon('tabler:adjustments-horizontal', {class: 'icon'}) }}
+            <span class="visually-hidden">{{ 'page.comfort.legend'|trans }}</span>
+        </summary>
+        <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+            {% for switch, code in {'dark': 'page.comfort.dark', 'contrast': 'page.comfort.contrast', 'text': 'page.comfort.text'} %}
+                <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false"
+                        data-comfort-target="{{ switch }}" data-action="comfort#{{ switch }}">{{ code|trans }}</button>
+            {% endfor %}
+        </div>
+    </details>
+{% endmacro %}
+
+{# The same page in another language: one link per catalogue the document carries,
+   each named in its own language, because somebody looking for theirs is not
+   reading this one. A switch with one position is not a switch, so a document
+   with a single catalogue draws nothing here. #}
+{% macro language(node, chrome) %}
+    {% if node.languages is not empty %}
+        <nav class="d-flex flex-wrap align-items-center gap-2 mb-4 small" aria-label="{{ 'page.language'|trans }}">
+            {% for one in node.languages %}
+                {% if one.current %}
+                    <span class="fw-semibold" aria-current="true">{{ one.text }}</span>
+                {% else %}
+                    <a data-language href="{{ chrome.version is null
+                        ? path('web_form_view_localized', {_locale: one.locale, id: chrome.id})
+                        : path('web_form_version_localized', {_locale: one.locale, id: chrome.id, seq: chrome.version}) }}">{{ one.text }}</a>
+                {% endif %}
+            {% endfor %}
+        </nav>
+    {% endif %}
+{% endmacro %}
 
 {% macro nodes(nodes, readOnly, inEntry, chrome) %}
     {% for node in nodes %}{{ _self.node(node, readOnly, inEntry, chrome) }}{% endfor %}
@@ -190,7 +215,11 @@
             {% endif %}
         {% endif %}
     {% elseif node.kind == 'decoration' %}
-        {% if node.widget == 'heading' %}
+        {% if node.widget == 'comfort' %}
+            {{ _self.comfort() }}
+        {% elseif node.widget == 'language' %}
+            {{ _self.language(node, chrome) }}
+        {% elseif node.widget == 'heading' %}
             <h2 class="h4 mt-4 mb-3">{{ node.label }}</h2>
         {% elseif node.widget == 'alert' %}
             <div class="alert alert-{{ node.options.tone|default('info') }}" role="note">{{ node.label }}</div>

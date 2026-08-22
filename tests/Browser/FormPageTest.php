@@ -179,10 +179,12 @@ final class FormPageTest extends PantherTestCase
         $id = $this->plant();
         $this->browser->request('GET', \sprintf('/forms/%s', $id));
 
-        // WHEN they tick the two boxes and pick the dark colours
-        $this->browser->findElement(WebDriverBy::cssSelector('[data-comfort-toggle="contrast"]'))->click();
-        $this->browser->findElement(WebDriverBy::cssSelector('[data-comfort-toggle="text"]'))->click();
-        $this->browser->findElement(WebDriverBy::cssSelector('[data-comfort-theme][value="dark"]'))->click();
+        // WHEN they unfold the switches and tick all three
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-comfort] summary'))->click();
+
+        foreach (['contrast', 'text', 'dark'] as $switch) {
+            $this->browser->findElement(WebDriverBy::cssSelector(\sprintf('[data-comfort-toggle="%s"]', $switch)))->click();
+        }
 
         // THEN the page says so about itself — no framework involved, and no
         // switch this kit had to invent: they are a browser's own controls
@@ -207,6 +209,9 @@ final class FormPageTest extends PantherTestCase
         );
         self::assertTrue($this->browser->executeScript(
             'return document.querySelector(\'[data-comfort-toggle="contrast"]\').checked;',
+        ));
+        self::assertTrue($this->browser->executeScript(
+            'return document.querySelector(\'[data-comfort-toggle="dark"]\').checked;',
         ));
     }
 

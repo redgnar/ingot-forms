@@ -118,6 +118,12 @@ final class PresentedNodes
                     // How it looks is the document's to ask for and a kit's to
                     // honour; anything it does not know draws as a button.
                     'appearance' => ($item->options['appearance'] ?? null) === 'link' ? 'link' : 'button',
+                    // What this page can be read in: the catalogues the document
+                    // carries, each named in its own language, because a person
+                    // looking for their language is not reading this one.
+                    'languages' => $widget === 'language'
+                        ? self::languages($item, $translations, $locale, $default)
+                        : [],
                     'children' => $this->nodes($form, $item->items, $declared, $values, $translations, $locale, $default, $container, $decoration, $scope),
                 ];
 
@@ -326,6 +332,63 @@ final class PresentedNodes
      * null until it holds one. Built here rather than in a template, because a
      * template decides nothing about the form.
      */
+    /**
+     * The languages this document can be read in, in the order it carries them.
+     *
+     * A switch with one position is not a switch: a document with a single
+     * catalogue (or none, because its client keeps its own) draws nothing here.
+     *
+     * @param array<string, array<string, string>> $translations
+     *
+     * @return list<array{locale: string, text: string, current: bool}>
+     */
+    private static function languages(PresentedItem $item, array $translations, string $locale, ?string $default): array
+    {
+        $locales = array_keys($translations);
+
+        if (\count($locales) < 2) {
+            return [];
+        }
+
+        $languages = [];
+
+        foreach ($locales as $one) {
+            $languages[] = [
+                'locale' => $one,
+                // Read in its own catalogue on purpose: "Polski" is what somebody
+                // looking for Polish is looking for, and they are not reading the
+                // page they are on.
+                'text' => self::text($item->choices[$one] ?? null, $translations, $one, $default) ?? $one,
+                'current' => $one === $locale,
+            ];
+        }
+
+        return $languages;
+    }
+
+    /**
+     * Whether the document placed this widget itself, anywhere in the tree.
+     *
+     * @param list<array<string, mixed>> $nodes
+     */
+    public static function draws(array $nodes, string $widget): bool
+    {
+        foreach ($nodes as $node) {
+            if (($node['widget'] ?? null) === $widget) {
+                return true;
+            }
+
+            /** @var list<array<string, mixed>> $children */
+            $children = $node['children'] ?? [];
+
+            if (self::draws($children, $widget)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static function downloadOf(string $form, mixed $value): ?string
     {
         $id = \is_array($value) ? $value['id'] ?? null : null;

@@ -306,7 +306,13 @@ adding a class. Two ship here:
   form with a choice group or a slider would end up labelled two ways at once. It is also the
   kit that can be **dressed** (below).
 
-### Skins
+### Skins and the starting colours
+
+A document may also say **which way round the colours start**, with a top-level
+`"theme": "light" | "dark"`. It is a preference and not a setting: a reader who has chosen is
+answered first, their machine second (`prefers-color-scheme`), and this last — so a document
+that prefers dark shows dark to somebody who has never said and whose machine does not ask for
+light, and never overrides either of them.
 
 **A skin is how a form looks, and never what it may say.** The `bootstrap` kit offers four —
 `default`, `material` (Bootswatch Materia), `flatly` and `lux` — and a document picks one with a
@@ -383,17 +389,32 @@ for its type — the first in each row below.
 |---|---|---|---|
 | grouping | `fieldset` | `card`, `accordion`, `row` | yes |
 | saying something | `heading`, `paragraph` | `heading`, `paragraph`, `alert`, `divider` | no |
+| about the page itself | `comfort`, `language` | the same two | no |
 | doing something | `save`, `confirm`, `reset`, `history` | the same four | no |
+
+**Where a thing goes is always yours.** There is no "top / bottom / off" option anywhere,
+because a widget placed in the document is already that, and more: the panel of earlier versions
+is the `history` widget, so it sits wherever you put it and does not exist at all in a document
+that does not ask for it. The same holds for `save`, `reset`, the reader's switches and the
+language switch. The one thing placement cannot do is take the reader's switches away — a
+document that places no `comfort` still gets them, at the top.
 
 **Options a widget understands** (`options` on the presented item):
 
 | Option | On | Does |
 |---|---|---|
 | `appearance: "link"` | any action | draws the trigger as a link instead of a button |
+| `choices: {locale: code}` | `language` | words each language, resolved in its own catalogue |
 | `open: true` | `accordion`, `table` | starts unfolded |
 | `width: 1–12` | any item inside a `row` | how many of the twelve columns it takes |
 | `tone: "info" \| "warning" \| …` | `alert` | which Bootstrap tone to paint |
 | `columns: true` | `radio` | lays the options out side by side |
+
+That is the whole list: `options` is **read by the kit, never forwarded to Bootstrap**, so
+anything else a document puts there is carried and ignored.
+[kits.md](kits.md#what-options-can-say-and-what-it-cannot) sets each one against what the
+Bootstrap component it belongs to can do, which is the honest way to see what is and is not
+available.
 
 Two rules about the vocabulary that save time later:
 
@@ -411,12 +432,21 @@ Three things about a page belong to the person reading it, and no document can s
 
 | Switch | Values | Where it comes from when nobody chose |
 |---|---|---|
-| colours | system / light / dark | `prefers-color-scheme` |
+| dark colours | on / off | `prefers-color-scheme`, then the document's `theme` |
 | high contrast | on / off | `prefers-contrast` |
 | larger text | on / off | off |
 
-Both kits offer all three — the richer kit as a small bar of buttons, the plain kit as radios
-and checkboxes in a `fieldset` — and both remember the choice **in that browser only**. Nothing
+Both kits offer all three, folded away behind one summary until somebody wants them — the
+richer kit as toggle buttons behind an icon, the plain kit as checkboxes — and both remember the
+choice **in that browser only**. Where
+that bar sits is yours: place a `comfort` widget and it is drawn there instead of at the top.
+Leaving it out moves it back to the top rather than removing it, because the switches are the
+reader's and a document that could delete them would be deciding somebody else's contrast.
+
+Next to it, the `language` widget offers the same page in every language the document carries a
+catalogue for — the current one marked, the others as links that pin `_locale` in the URL. It is
+purely opt-in: a form with one catalogue has nothing to switch, and a document that asks for the
+widget anyway draws nothing rather than a list of one. Nothing
 is sent to the server: this service has no identity of any kind, so there is nowhere else it
 could live, and a reading preference is a fact about a screen and a pair of eyes rather than
 about a form.

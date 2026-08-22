@@ -656,14 +656,16 @@ final class CoreHtmlRendererTest extends KernelTestCase
         // asked for with the controls a browser already has — this kit's answer
         // to everything, and the reason it needs no framework to have them
         self::assertSame(
-            ['auto', 'light', 'dark'],
-            $switches->filter('input[data-comfort-theme]')->each(static fn(Crawler $one): ?string => $one->attr('value')),
+            ['dark', 'contrast', 'text'],
+            $switches->filter('input[type="checkbox"][data-comfort-toggle]')->each(
+                static fn(Crawler $one): ?string => $one->attr('data-comfort-toggle'),
+            ),
         );
-        self::assertSame(
-            ['contrast', 'text'],
-            $switches->filter('input[data-comfort-toggle]')->each(static fn(Crawler $one): ?string => $one->attr('data-comfort-toggle')),
-        );
-        self::assertSame('fieldset', $switches->nodeName());
+
+        // AND they are folded away until somebody wants them, by the browser
+        // itself — this kit borrows nobody's JavaScript to open a panel
+        self::assertSame('details', $switches->nodeName());
+        self::assertSame('How this page reads', trim($switches->filter('summary')->text()));
 
         // AND they sit outside the form, because none of it is an answer to a
         // question the form asked
@@ -678,6 +680,74 @@ final class CoreHtmlRendererTest extends KernelTestCase
         // listens to what the machine says about this reader
         self::assertStringContainsString('prefers-color-scheme: dark', $drawn);
         self::assertStringContainsString('prefers-contrast: more', $drawn);
+    }
+
+    public function testTheReadersSwitchesStandWhereTheDocumentPutsThem(): void
+    {
+        // GIVEN a document that places them itself, after the first question
+        $presentation = self::PRESENTATION;
+        array_splice($presentation['items'], 1, 0, [['widget' => 'comfort']]);
+
+        // WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::formPresentedAs($presentation), 'en')));
+
+        // THEN they are drawn once, where the document asked — not there *and*
+        // at the top, which is what a default that ignores the document does
+        self::assertCount(1, $page->filter('[data-comfort]'));
+        self::assertSame('h2', $page->filter('[data-comfort]')->previousAll()->first()->nodeName());
+    }
+
+    public function testADocumentThatPlacesNoSwitchesDoesNotTakeThemAway(): void
+    {
+        // GIVEN a document that says nothing about them
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::form(), 'en')));
+
+        // THEN the page still has them, before everything else: where they sit
+        // is the document's business, and that a reader has them is not
+        self::assertCount(1, $page->filter('[data-comfort]'));
+        self::assertCount(0, $page->filter('[data-comfort]')->previousAll()->filter('h2'));
+    }
+
+    public function testALanguageSwitchOffersEveryCatalogueTheDocumentCarries(): void
+    {
+        // GIVEN a document carrying two catalogues, each naming both languages
+        $presentation = [...self::PRESENTATION, 'items' => [
+            ...self::PRESENTATION['items'],
+            ['widget' => 'language', 'choices' => ['en' => 'lang.en', 'pl' => 'lang.pl']],
+        ]];
+        $presentation['translations']['en'] += ['lang.en' => 'English', 'lang.pl' => 'Polish'];
+        $presentation['translations']['pl'] += ['lang.en' => 'Angielski', 'lang.pl' => 'Polski'];
+
+        // WHEN the page is drawn in English
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::formPresentedAs($presentation), 'en')));
+        $nav = $page->filter('nav.language');
+
+        // THEN the one being read is not a link, and every other is — each named
+        // in its *own* language, because somebody looking for theirs is not
+        // reading this one
+        self::assertSame('English', trim($nav->filter('[aria-current]')->text()));
+        self::assertSame(['Polski'], $nav->filter('a')->each(static fn(Crawler $one): string => trim($one->text())));
+
+        // AND the link pins the language in the URL and is marked as a detour,
+        // so what somebody typed goes with them and comes back
+        self::assertSame('/pl/forms/' . $page->filter('body')->attr('data-form'), $nav->filter('a')->attr('href'));
+        self::assertNotNull($nav->filter('a')->attr('data-language'));
+    }
+
+    public function testASwitchWithOnePositionIsNotASwitch(): void
+    {
+        // GIVEN a document carrying a single catalogue
+        $presentation = [...self::PRESENTATION, 'items' => [
+            ...self::PRESENTATION['items'],
+            ['widget' => 'language'],
+        ]];
+        $presentation['translations'] = ['en' => $presentation['translations']['en']];
+
+        // WHEN / THEN there is nothing to switch to, so nothing is drawn — a
+        // document may ask for the widget without knowing how many languages it
+        // will end up carrying
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::formPresentedAs($presentation), 'en')));
+        self::assertCount(0, $page->filter('nav.language'));
     }
 
     public function testEveryNameThePagePointsAtIsOnThePage(): void

@@ -265,3 +265,34 @@ it was born. "No machinery" always meant no framework. So it has the same three 
 as radios and checkboxes in a `fieldset`: the plainest controls there are, twenty lines in a
 module that already existed, sharing the storage keys with the other kit so a reader's choice
 holds whichever kit drew the page.
+
+## What the owner asked for once it was on the page
+
+**Where the page's own things go is the document's business.** The switches and the language
+links became widgets — `comfort` and `language`, declared by both engines as things that stand
+alone — so a document places them like everything else. The panel of earlier versions needed
+nothing: `history` was already a widget, which is why there is no "top / bottom / none" option
+anywhere. The one thing placement cannot do is *remove* the switches: a document that places no
+`comfort` gets them at the top, because what they control is the reader's and a document that
+could delete the control would be deciding somebody else's contrast for them.
+
+**"System" was a button that did what "Light" did.** On a machine that says light, the two were
+indistinguishable, and the owner said so. Three radios became one on/off: dark or not, starting
+from what the machine says. The state that was lost — "follow the machine from now on" — was
+worth less than the button it cost, and what the machine says is still where every page starts.
+
+**A document may prefer a starting theme** (`"theme": "light" | "dark"`, beside `skin`), and it
+is answered *after* the reader and after their machine. A preference, not a setting.
+
+**Three switches above every form are three switches in the way of it.** They fold away now,
+behind one icon in the richer kit and one line in the plain one — `<details>` again, which is
+this codebase's answer to folding anything.
+
+**And three things the owner saw that the tests could not.** Materia draws a field as an inset
+shadow rather than a border, so tom-select's own control — which has neither — was an invisible
+strip until something was picked; it gets an inset underline now, which is the line where a skin
+draws one and sits on the border where a skin draws a box. The stepper's buttons were a skin's
+raised buttons at a skin's standalone size, dwarfing the number between them: no elevation, less
+padding, and a focus *outline* rather than a shadow, because the rule that removed the shadow
+would otherwise have removed the focus ring with it. That last one was only visible on hover —
+the state nobody screenshots.

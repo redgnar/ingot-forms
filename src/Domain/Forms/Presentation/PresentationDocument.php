@@ -43,6 +43,10 @@ final readonly class PresentationDocument
         // dresses forms in — and, like everything else here, fixed for good: a
         // form that will never change has no reason for its description to.
         public ?string $skin = null,
+        // Which way round the colours start, for a reader who has never said.
+        // A document may prefer dark; it cannot impose it — somebody who has
+        // chosen, or whose machine asks for dark, is answered first.
+        public ?string $theme = null,
     ) {}
 
     /**

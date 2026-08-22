@@ -533,21 +533,27 @@ final class BootstrapRendererTest extends KernelTestCase
         $page = new Crawler($this->render());
         $bar = $page->filter('[data-controller="comfort"]');
 
-        // THEN the page offers colours, contrast and a bigger text — none of
-        // which the presentation has a word for, because how a form *reads* is
-        // the reader's business and not the document's
+        // THEN the page offers darker colours, more contrast and bigger text —
+        // three plain on/off switches, none of which the presentation decides,
+        // because how a form *reads* is the reader's business
         self::assertCount(1, $bar);
         self::assertSame(
-            ['auto', 'light', 'dark'],
-            $bar->filter('input[data-comfort-target="theme"]')->each(static fn(Crawler $one): ?string => $one->attr('value')),
+            ['dark', 'contrast', 'text'],
+            $bar->filter('button[aria-pressed="false"]')->each(
+                static fn(Crawler $one): ?string => $one->attr('data-comfort-target'),
+            ),
         );
-        self::assertCount(1, $bar->filter('button[data-comfort-target="contrast"][aria-pressed="false"]'));
-        self::assertCount(1, $bar->filter('button[data-comfort-target="text"][aria-pressed="false"]'));
 
-        // AND it is worded from this application's own catalogue: these are our
-        // sentences, not the form author's
+        // AND they are folded away until somebody wants them: three buttons
+        // above every form are three buttons in the way of the form
+        self::assertSame('details', $bar->nodeName());
+        self::assertNull($bar->attr('open'));
+        self::assertCount(1, $bar->filter('summary svg'));
+
+        // AND they are worded from this application's own catalogue: these are
+        // our sentences, not the form author's
         self::assertSame('High contrast', trim($bar->filter('[data-comfort-target="contrast"]')->text()));
-        self::assertSame('Dark', trim($bar->filter('label[for="comfort-theme-dark"]')->text()));
+        self::assertSame('Dark colours', trim($bar->filter('[data-comfort-target="dark"]')->text()));
     }
 
     public function testWhatTheReaderAskedForIsAppliedBeforeThePageIsPainted(): void
@@ -638,6 +644,53 @@ final class BootstrapRendererTest extends KernelTestCase
         $this->expectExceptionMessage('chrome-yellow');
 
         $this->dressedIn('chrome-yellow');
+    }
+
+    public function testThePagesOwnWidgetsAreDrawnWhereTheDocumentPutsThem(): void
+    {
+        // GIVEN a document that places the reader's switches itself and carries
+        // a second catalogue to offer
+        $presentation = self::PRESENTATION;
+        $presentation['items'] = [['widget' => 'comfort'], ...$presentation['items'], ['widget' => 'language']];
+        $presentation['translations']['pl'] = ['t.send' => 'Wyślij'];
+
+        // WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::formFrom($presentation), 'en')));
+
+        // THEN the switches are drawn once, where they were asked for, and the
+        // language switch offers the catalogue the document carries
+        self::assertCount(1, $page->filter('[data-controller="comfort"]'));
+        self::assertSame(['pl'], $page->filter('nav a[data-language]')->each(
+            static fn(Crawler $one): string => substr((string) $one->attr('href'), 1, 2),
+        ));
+    }
+
+    public function testTheSwitchesAreThereEvenWhenTheDocumentSaysNothing(): void
+    {
+        // GIVEN / WHEN a document that mentions neither
+        $page = new Crawler($this->render());
+
+        // THEN a reader still has the switches — placement is the document's to
+        // decide, having them is not — and no language switch is invented for a
+        // document with one catalogue
+        self::assertCount(1, $page->filter('[data-controller="comfort"]'));
+        self::assertCount(0, $page->filter('nav a[data-language]'));
+    }
+
+    public function testADocumentMayPreferDarkAndIsAnsweredLast(): void
+    {
+        // GIVEN a document that would rather start dark
+        $page = $this->renderer->render(new RenderedForm(self::formFrom([...self::PRESENTATION, 'theme' => 'dark']), 'en'));
+
+        // THEN the page starts that way — but only after asking the reader's own
+        // choice and their machine, in that order, which is what the script in
+        // the head does before anything is painted
+        self::assertStringContainsString("'dark' === 'dark'", $page);
+        self::assertStringContainsString("read('theme')", $page);
+        self::assertStringContainsString('prefers-color-scheme: dark', $page);
+
+        // AND a document that prefers nothing says nothing
+        self::assertStringContainsString("'' === 'dark'", $this->render());
     }
 
     public function testEveryNameThePagePointsAtIsOnThePage(): void

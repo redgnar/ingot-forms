@@ -43,7 +43,12 @@ interface PresentationEngine
     public function containers(): array;
 
     /**
-     * Widgets that carry no value and hold nothing — text on the page.
+     * Widgets that carry no value and hold nothing: text on the page, and the
+     * two things that are about the *page* rather than about the form — the
+     * reader's own switches and the way to another language. Those two are
+     * placed by the document like everything else, because where they sit is a
+     * layout decision; what they control is not the document's to decide, and a
+     * page a document leaves them out of still offers the switches somewhere.
      *
      * @return list<string>
      */

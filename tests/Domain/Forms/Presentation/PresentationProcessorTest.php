@@ -181,6 +181,25 @@ final class PresentationProcessorTest extends TestCase
         self::assertSame('material', $stored['skin'] ?? null);
     }
 
+    public function testADocumentMayPreferAStartingThemeAndNothingElse(): void
+    {
+        // GIVEN a document that would rather start dark
+        $processor = self::processor();
+        $stored = $processor->normalize($processor->parse([...self::document(), 'theme' => 'dark']));
+
+        // THEN it travels and is stored with the rest of the document
+        self::assertSame('dark', $stored['theme'] ?? null);
+
+        // AND there are two ways round for colours and no third: a document
+        // asking for something else is refused where it asked
+        try {
+            $processor->parse([...self::document(), 'theme' => 'sepia']);
+            self::fail('Expected the meta-schema to refuse it.');
+        } catch (PresentationNotValid $exception) {
+            self::assertSame('/theme', $exception->report->errors[0]->pointer->toString());
+        }
+    }
+
     public function testADocumentThatNamesNoSkinSaysNothingAboutOne(): void
     {
         // GIVEN / WHEN a document that leaves the look to the deployment

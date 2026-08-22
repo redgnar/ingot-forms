@@ -373,6 +373,19 @@ final class PresentationRules
 
     private static function judgeUnnamed(PresentedItem $shown, string $path, ?PresentationEngine $engine, string $named): ?MappingError
     {
+        // Words for something to pick, on something nobody picks from. The one
+        // exception is the language switch, whose "options" are the catalogues
+        // this document carries — everywhere else this is a member that would be
+        // silently ignored, and silence is how a document comes to be wrong.
+        if ($shown->choices !== [] && $shown->widget !== 'language') {
+            return self::error(
+                $path . '/choices',
+                'presentation.choice.not-allowed',
+                \sprintf('"%s" offers nothing to pick, so it has no options to word.', $shown->widget ?? 'This item'),
+                $shown->widget ?? '',
+            );
+        }
+
         return $shown->isContainer()
             ? self::judgeAgainst($shown, $path, $named, $engine?->containers(), 'hold other items')
             : self::judgeAgainst(

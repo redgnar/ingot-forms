@@ -503,36 +503,34 @@ const comfort = document.querySelector('[data-comfort]');
 
 if (comfort !== null) {
     const root = document.documentElement;
-    const remember = (name, value) => {
-        try {
-            localStorage.setItem(`ingot-forms:${name}`, value);
-        } catch {
-            // No storage to keep it in (a private window, storage turned off):
-            // the choice holds for this page and is forgotten on the next one.
-        }
+    // Each switch is a plain on/off: the attribute it sets on <html>, what "on"
+    // and "off" mean there, and what to remember it as. The stylesheet reads
+    // those attributes and nothing else.
+    const switches = {
+        dark: { attribute: 'theme', on: 'dark', off: 'light', stash: 'theme' },
+        contrast: { attribute: 'contrast', on: 'high', off: 'off', stash: 'contrast' },
+        text: { attribute: 'text', on: 'large', off: 'off', stash: 'text' },
     };
 
-    for (const choice of comfort.querySelectorAll('[data-comfort-theme]')) {
-        choice.checked = choice.value === (root.dataset.theme ?? 'auto');
-        choice.addEventListener('change', () => {
-            // "System" is the absence of a choice rather than a third scheme:
-            // the stylesheet asks the machine, now and whenever it changes.
-            root.dataset.theme = choice.value;
-            remember('theme', choice.value);
-        });
-    }
+    for (const box of comfort.querySelectorAll('[data-comfort-toggle]')) {
+        const how = switches[box.dataset.comfortToggle];
 
-    for (const toggle of comfort.querySelectorAll('[data-comfort-toggle]')) {
-        const name = toggle.dataset.comfortToggle;
-        const on = name === 'contrast' ? 'high' : 'large';
+        if (how === undefined) continue;
 
-        toggle.checked = root.dataset[name] === on;
-        toggle.addEventListener('change', () => {
-            // Written down either way: a reader whose machine asks for contrast
-            // and who turns it off here means it, and must not be given it back
-            // by the next page.
-            root.dataset[name] = toggle.checked ? on : 'off';
-            remember(name, toggle.checked ? on : 'off');
+        box.checked = root.dataset[how.attribute] === how.on;
+        box.addEventListener('change', () => {
+            root.dataset[how.attribute] = box.checked ? how.on : how.off;
+
+            try {
+                // Written down either way: a reader whose machine asks for dark,
+                // or whose document prefers it, and who turns it off here means
+                // that, and must not be given it back by the next page.
+                localStorage.setItem(`ingot-forms:${how.stash}`, box.checked ? how.on : how.off);
+            } catch {
+                // No storage to keep it in (a private window, storage turned
+                // off): the choice holds for this page and is forgotten on the
+                // next one.
+            }
         });
     }
 }
@@ -732,9 +730,10 @@ document.addEventListener('click', (event) => {
         window.location.assign(page);
     }
 
-    // On the way to an earlier version, and only there: this is the one
-    // navigation this page knows about in advance.
-    if (event.target.closest('[data-history-view]') !== null) keepUnsaved();
+    // The two links that lead away from this page and back: an earlier version,
+    // and the same page in another language. Both are detours, and what somebody
+    // typed goes with them.
+    if (event.target.closest('[data-history-view], [data-language]') !== null) keepUnsaved();
 });
 
 for (const trigger of document.querySelectorAll('[data-action="confirm"]')) {

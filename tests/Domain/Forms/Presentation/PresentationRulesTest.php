@@ -327,6 +327,42 @@ final class PresentationRulesTest extends TestCase
         self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
     }
 
+    public function testThePagesOwnWidgetsStandWhereTheDocumentPutsThem(): void
+    {
+        // GIVEN a document that places the reader's switches and a language
+        // switch of its own, in the middle of the form
+        $presentation = self::presentation([
+            ['widget' => 'comfort'],
+            ['name' => 'email'],
+            ['widget' => 'language', 'choices' => ['pl' => 't.pl', 'en' => 't.en']],
+        ]);
+
+        // WHEN / THEN both are things a kit draws that stand on their own, so
+        // where they sit is a layout decision like every other
+        self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
+    }
+
+    public function testWordingSomethingThatOffersNothingToPickIsRefused(): void
+    {
+        // GIVEN words for options on a heading, which has none
+        $presentation = self::presentation([
+            ['name' => 'email'],
+            ['widget' => 'heading', 'label' => 't.h', 'choices' => ['pl' => 't.pl']],
+        ]);
+
+        // WHEN
+        $report = self::rules()->check(self::definition(), $presentation);
+
+        // THEN it is refused rather than ignored: a member nobody reads is how a
+        // document comes to be quietly wrong about itself — and the finding
+        // points at the member, in the item it was written in, and names what
+        // was asked for
+        self::assertSame('presentation.choice.not-allowed', $report->errors[0]->code);
+        self::assertSame('/items/1/choices', $report->errors[0]->pointer->toString());
+        self::assertSame('heading', $report->errors[0]->input);
+        self::assertStringContainsString('"heading"', $report->errors[0]->message);
+    }
+
     public function testAChoiceCanBeGivenWordsForItsOptions(): void
     {
         // GIVEN a document saying what each option of a choice reads like

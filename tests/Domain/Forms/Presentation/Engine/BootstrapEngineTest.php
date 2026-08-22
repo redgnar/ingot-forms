@@ -63,7 +63,17 @@ final class BootstrapEngineTest extends TestCase
         // THEN the three ways this kit groups, and what it can say between groups
         self::assertSame('bootstrap', $engine->id());
         self::assertSame(['card', 'accordion', 'row'], $engine->containers());
-        self::assertSame(['heading', 'paragraph', 'alert', 'divider'], $engine->decorations());
+        self::assertSame(['heading', 'paragraph', 'alert', 'divider', 'comfort', 'language'], $engine->decorations());
+
+        // The last two stand alone like the others and say nothing about the
+        // form: they are the page's own — what a reader can ask of it, and the
+        // way to another language. Both kits have them, because a page is a page
+        // whichever kit drew it; a document places them and does not own what
+        // they control.
+        foreach (['comfort', 'language'] as $ofThePage) {
+            self::assertContains($ofThePage, $engine->decorations());
+            self::assertContains($ofThePage, new CoreHtmlEngine()->decorations());
+        }
     }
 
     public function testWhatAFormDoesIsNotAKitsToInvent(): void

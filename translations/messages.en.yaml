@@ -7,12 +7,10 @@ page:
     confirmed: 'This form is confirmed. It can be read, not changed.'
     unsaved: 'These answers are back on the page, and still not saved.'
     refused: 'The request was refused.'
+    language: 'Language'
     comfort:
         legend: 'How this page reads'
-        theme: 'Colours'
-        theme_auto: 'System'
-        theme_light: 'Light'
-        theme_dark: 'Dark'
+        dark: 'Dark colours'
         contrast: 'High contrast'
         text: 'Larger text'
     stepper:

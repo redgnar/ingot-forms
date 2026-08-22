@@ -76,7 +76,7 @@ final class BootstrapEngine implements PresentationEngine
 
     public function decorations(): array
     {
-        return ['heading', 'paragraph', 'alert', 'divider'];
+        return ['heading', 'paragraph', 'alert', 'divider', 'comfort', 'language'];
     }
 
     public function skins(): array

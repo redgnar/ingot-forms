@@ -52,8 +52,11 @@ export default class extends Controller {
     // On the way to an earlier version, and only there: the one navigation this
     // page knows about in advance. Delegated from the whole page, because the link
     // that leads there is drawn by a panel this controller does not own.
+    // The two links on this page that lead away from it and back: an earlier
+    // version, and the same page in another language. Both are detours, and what
+    // somebody typed goes with them.
     leaving(event) {
-        if (event.target.closest('[data-history-view]') !== null) this.#keepUnsaved();
+        if (event.target.closest('[data-history-view], [data-language]') !== null) this.#keepUnsaved();
     }
 
     save(event) {
