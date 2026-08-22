@@ -199,7 +199,7 @@ Repeatable; overwrites the previous draft. Values are validated against the draf
 
 `operationId: getFormHistory` — List every accepted save of this form
 
-Oldest first. The documents themselves are read one at a time (`GET /api/forms/{id}/history/{seq}`), because a list carrying every version of every answer is a response nobody asked for. `confirmed` marks the save a confirmation locked — derived, never stored: confirming writes no values, so it is no revision of its own.
+Newest first, because that is what somebody looking for an earlier version is usually after. The documents themselves are read one at a time (`GET /api/forms/{id}/history/{seq}`), because a list carrying every version of every answer is a response nobody asked for. `confirmed` marks the save a confirmation locked — derived, never stored: confirming writes no values, so it is no revision of its own.
 
 **Parameters**
 
@@ -211,7 +211,7 @@ Oldest first. The documents themselves are read one at a time (`GET /api/forms/{
 
 | Status | Content type | Body | Description |
 |---|---|---|---|
-| `200` | `application/json` | [`FormHistory`](#formhistory) | The history, oldest first. Empty for a form nobody has filled in. |
+| `200` | `application/json` | [`FormHistory`](#formhistory) | The history, newest first. Empty for a form nobody has filled in. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 
@@ -372,7 +372,7 @@ No other properties are allowed.
 
 ### FormHistory
 
-Every accepted save of one form, oldest first.
+Every accepted save of one form, newest first.
 
 | Property | Type | Required | Description |
 |---|---|---|---|

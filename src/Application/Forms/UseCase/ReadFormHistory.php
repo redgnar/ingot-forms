@@ -45,10 +45,10 @@ final class ReadFormHistory
         }
 
         // Confirming stores no values, so it is no revision of its own: what was
-        // locked is whatever was last saved. Said here rather than stored, because
-        // a stored marker is a second copy of `confirmed_at`.
-        $last = \count($revisions) - 1;
-        $revisions[$last] = $revisions[$last]->locked();
+        // locked is whatever was last saved — which is the first of these, because
+        // a history reads newest first. Said here rather than stored, because a
+        // stored marker is a second copy of `confirmed_at`.
+        $revisions[0] = $revisions[0]->locked();
 
         return $revisions;
     }

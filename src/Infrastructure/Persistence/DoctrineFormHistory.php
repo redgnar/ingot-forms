@@ -29,7 +29,7 @@ final class DoctrineFormHistory implements FormHistory
     {
         /** @var list<array{seq: int, savedAt: \DateTimeImmutable}> $rows */
         $rows = $this->entityManager
-            ->createQuery(\sprintf('SELECT r.seq, r.savedAt FROM %s r WHERE r.formId = :form ORDER BY r.seq ASC', FormRevisionRecord::class))
+            ->createQuery(\sprintf('SELECT r.seq, r.savedAt FROM %s r WHERE r.formId = :form ORDER BY r.seq DESC', FormRevisionRecord::class))
             ->setParameter('form', $form->toUuid())
             ->getArrayResult();
 

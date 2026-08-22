@@ -14,8 +14,47 @@ export default class extends Controller {
     // The sentence for a refusal that names no item comes from the page, which
     // got it from this application's own catalogue: a controller has no business
     // holding English.
-    static values = { id: String, page: String, refused: String };
-    static targets = ['saved', 'problem', 'problemText', 'error', 'control'];
+    static values = { id: String, page: String, version: Number, refused: String };
+    static targets = ['saved', 'unsaved', 'problem', 'problemText', 'error', 'control'];
+
+    // Looking at an earlier version means leaving this page, and leaving a page
+    // throws away what nobody saved. So what is on it goes with you: kept for the
+    // length of the detour, in this tab only, and taken back the moment you
+    // return. Anything that settles the question — a save, a restore, starting
+    // again — drops it.
+    connect() {
+        // On a version page, nothing is touched: what somebody typed is waiting
+        // for them to come back, and this page is the middle of that trip rather
+        // than the end.
+        if (this.hasVersionValue && this.versionValue > 0) {
+            return;
+        }
+
+        // After every controller on the page is up: filling a list presses the
+        // button that adds one, and a button whose controller has not connected
+        // yet does nothing at all.
+        setTimeout(() => {
+            const kept = this.#takeUnsaved();
+
+            if (kept !== null) {
+                this.#fill(this.element, kept);
+                // A page that shows something other than what the server holds has
+                // to admit it.
+                if (this.hasUnsavedTarget) this.unsavedTarget.classList.remove('d-none');
+            }
+
+            // Whatever the page holds now — drawn by the server, or drawn and then
+            // filled back in — is the baseline the next detour is measured against.
+            this.asDrawn = JSON.stringify(this.#collect());
+        });
+    }
+
+    // On the way to an earlier version, and only there: the one navigation this
+    // page knows about in advance. Delegated from the whole page, because the link
+    // that leads there is drawn by a panel this controller does not own.
+    leaving(event) {
+        if (event.target.closest('[data-history-view]') !== null) this.#keepUnsaved();
+    }
 
     save(event) {
         event.preventDefault();
@@ -23,6 +62,8 @@ export default class extends Controller {
         this.#send('/data', 'PUT', this.#collect()).then((ok) => {
             if (!ok) return;
 
+            this.#forgetUnsaved();
+            this.asDrawn = JSON.stringify(this.#collect());
             if (this.hasSavedTarget) this.savedTarget.classList.remove('d-none');
             // A save makes a new moment, and a panel that does not show it is
             // lying about what this form remembers.
@@ -46,6 +87,7 @@ export default class extends Controller {
     // question.
     reset(event) {
         event.preventDefault();
+        this.#forgetUnsaved();
         window.location.assign(this.pageValue);
     }
 
@@ -54,6 +96,7 @@ export default class extends Controller {
     // form is drawn again, because every control on it has just changed.
     async restoreVersion(event) {
         event.preventDefault();
+        this.#forgetUnsaved();
         const seq = event.currentTarget.dataset.historyRestore;
         const response = await fetch(`/api/forms/${this.idValue}/history/${seq}`);
 
@@ -144,11 +187,105 @@ export default class extends Controller {
         return false;
     }
 
+    // The collector, backwards: putting a document onto the page the same way it is
+    // read off it. It walks the same structure, so a list inside a list comes back
+    // as one too.
+    #fill(scope, values) {
+        for (const control of this.#ownControls(scope)) {
+            this.#place(control, values[control.dataset.name] ?? null);
+        }
+
+        for (const list of this.#ownLists(scope)) {
+            const entries = Array.isArray(values[list.dataset.collection]) ? values[list.dataset.collection] : [];
+            const rows = () => this.#entriesOf(list);
+
+            while (rows().length > entries.length) {
+                const before = rows().length;
+                rows().at(-1).querySelector('[data-entries-target="remove"]')?.click();
+
+                if (rows().length === before) break;
+            }
+
+            // Pressed the way a person presses it: one path for one more entry —
+            // and bounded, because a button whose controller is not listening does
+            // nothing, and a loop waiting for it would take the browser down.
+            while (rows().length < entries.length) {
+                const before = rows().length;
+                list.querySelector('[data-entries-target="add"]')?.click();
+
+                if (rows().length === before) break;
+            }
+
+            rows().forEach((entry, index) => this.#fill(entry, entries[index]));
+        }
+    }
+
+    #place(control, value) {
+        if (control.dataset.choice !== undefined) {
+            for (const option of control.querySelectorAll('input')) {
+                option.checked = value !== null && option.value === String(value);
+            }
+        } else if (control.type === 'checkbox') {
+            control.checked = value === true;
+        } else if (control.dataset.type === 'json') {
+            // A file is a description plus the line that says which one is held,
+            // and the controller that draws that line is the one that owns it.
+            control.closest('[data-controller~="file"]')?.dispatchEvent(new CustomEvent('file:place', { detail: value }));
+        } else {
+            control.value = value === null ? '' : String(value);
+        }
+
+        control.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    #keepUnsaved() {
+        const now = JSON.stringify(this.#collect());
+
+        // Nothing was typed, so there is nothing to carry — and saying "these are
+        // not saved" about the form's own values would be a lie.
+        if (now === this.asDrawn) {
+            this.#forgetUnsaved();
+
+            return;
+        }
+
+        try {
+            sessionStorage.setItem(this.#stash(), now);
+        } catch {
+            // No storage to keep it in (a private window, storage turned off): the
+            // detour costs what it used to cost, and nothing else breaks.
+        }
+    }
+
+    #takeUnsaved() {
+        try {
+            const kept = sessionStorage.getItem(this.#stash());
+            sessionStorage.removeItem(this.#stash());
+
+            return kept === null ? null : JSON.parse(kept);
+        } catch {
+            return null;
+        }
+    }
+
+    #forgetUnsaved() {
+        try {
+            sessionStorage.removeItem(this.#stash());
+        } catch {
+            // Nothing was kept, so nothing is left behind.
+        }
+    }
+
+    #stash() {
+        return `ingot-forms:unsaved:${this.idValue}`;
+    }
+
     #clearMessages() {
         // A page drawn from an earlier save carries no notices — there is nothing
         // to save there, only a version to put back — so this controller has to
         // work without them.
         if (this.hasSavedTarget) this.savedTarget.classList.add('d-none');
+        if (this.hasUnsavedTarget) this.unsavedTarget.classList.add('d-none');
 
         if (this.hasProblemTarget) {
             this.problemTarget.classList.add('d-none');

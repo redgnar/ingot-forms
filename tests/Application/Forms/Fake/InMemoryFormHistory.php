@@ -32,7 +32,7 @@ final class InMemoryFormHistory implements FormHistory
     {
         return array_map(
             static fn(array $entry): FormRevision => $entry[0],
-            $this->history[(string) $form] ?? [],
+            array_reverse($this->history[(string) $form] ?? []),
         );
     }
 

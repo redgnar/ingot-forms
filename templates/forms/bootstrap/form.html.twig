@@ -18,7 +18,9 @@
 <main class="container py-5" style="max-width: 46rem;"
       {%- if not confirmed %} data-controller="form" data-form-id-value="{{ id }}"
       data-form-page-value="{{ path('web_form_view', {id: id}) }}"
-      data-form-refused-value="{{ 'page.refused'|trans }}" data-action="input->form#touched"{% endif %}>
+      data-form-version-value="{{ version ?? 0 }}"
+      data-form-refused-value="{{ 'page.refused'|trans }}"
+      data-action="input->form#touched click->form#leaving"{% endif %}>
 
     {# Page chrome, not the designer's business: no presentation carries a code
        for what somebody is told about their own doing, and this application
@@ -34,7 +36,8 @@
                 <button type="button" class="btn btn-sm btn-primary me-2" data-history-restore="{{ version }}"
                         data-action="click->form#restoreVersion">{{ 'page.history.restore'|trans }}</button>
             {% endif %}
-            <a class="btn btn-sm btn-outline-secondary" href="{{ path('web_form_view', {id: id}) }}">{{ 'page.history.back'|trans }}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ path('web_form_view', {id: id}) }}"
+               data-history-back>{{ 'page.history.back'|trans }}</a>
         </div>
     {% endif %}
 
@@ -43,6 +46,12 @@
             {{ ux_icon('tabler:lock', {class: 'icon'}) }}{{ 'page.confirmed'|trans }}
         </div>
     {% elseif version is null %}
+        {# What somebody typed and carried across a look at an earlier version. #}
+        <div class="alert alert-secondary d-none" role="status" data-form-target="unsaved" data-unsaved>
+            <span class="d-flex align-items-center gap-2">
+                {{ ux_icon('tabler:clock', {class: 'icon'}) }}{{ 'page.unsaved'|trans }}
+            </span>
+        </div>
         <div class="alert alert-success d-none" role="status" data-form-target="saved">
             <span class="d-flex align-items-center gap-2">
                 {{ ux_icon('tabler:circle-check', {class: 'icon'}) }}{{ 'page.saved'|trans }}
@@ -391,6 +400,9 @@
             <div{{ html.attributes({
                 'class': node.widget == 'dropzone' ? 'border border-2 border-secondary-subtle rounded-3 p-4 text-center' : null,
                 'data-controller': 'file',
+                'data-action': node.widget == 'dropzone' and not readOnly
+                    ? 'dragover->file#over dragleave->file#leave drop->file#dropped file:place->file#place'
+                    : 'file:place->file#place',
                 'data-file-upload-value': node.upload,
                 'data-file-accept-value': node.accept|join(','),
                 'data-file-max-size-value': node.maxSize,
@@ -398,9 +410,6 @@
                 'data-file-too-large-value': 'page.file.too_large'|trans,
                 'data-file-rejected-value': 'page.file.rejected_type'|trans,
                 'data-file-failed-value': 'page.file.failed'|trans,
-                'data-action': node.widget == 'dropzone' and not readOnly
-                    ? 'dragover->file#over dragleave->file#leave drop->file#dropped'
-                    : null,
             })|raw }}>
                 <input{{ html.attributes({
                     'type': 'hidden',

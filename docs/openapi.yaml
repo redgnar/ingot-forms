@@ -318,7 +318,7 @@ paths:
   '/api/forms/{id}/history':
     get:
       summary: 'List every accepted save of this form'
-      description: 'Oldest first. The documents themselves are read one at a time (`GET /api/forms/{id}/history/{seq}`), because a list carrying every version of every answer is a response nobody asked for. `confirmed` marks the save a confirmation locked — derived, never stored: confirming writes no values, so it is no revision of its own.'
+      description: 'Newest first, because that is what somebody looking for an earlier version is usually after. The documents themselves are read one at a time (`GET /api/forms/{id}/history/{seq}`), because a list carrying every version of every answer is a response nobody asked for. `confirmed` marks the save a confirmation locked — derived, never stored: confirming writes no values, so it is no revision of its own.'
       operationId: getFormHistory
       parameters:
         -
@@ -330,7 +330,7 @@ paths:
             pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
       responses:
         '200':
-          description: 'The history, oldest first. Empty for a form nobody has filled in.'
+          description: 'The history, newest first. Empty for a form nobody has filled in.'
           content:
             application/json:
               schema:
@@ -592,7 +592,7 @@ components:
       type: object
       additionalProperties: false
     FormHistory:
-      description: 'Every accepted save of one form, oldest first.'
+      description: 'Every accepted save of one form, newest first.'
       required:
         - revisions
       properties:

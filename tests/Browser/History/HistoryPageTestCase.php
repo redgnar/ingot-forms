@@ -52,12 +52,13 @@ abstract class HistoryPageTestCase extends PantherTestCase
         $this->click(self::SAVE);
         $this->eventually(fn(): ?bool => ($this->values($id)['nickname'] ?? null) === 'Grace' ? true : null);
 
-        // WHEN they open the panel and look at the first moment
+        // WHEN they open the panel and look at the oldest moment — the list reads
+        // newest first, so that is the row at the bottom
         $this->click('[data-history] summary');
         $this->eventually(fn(): ?bool => $this->moments() >= 2 ? true : null);
         // Clicked with a retry: the list refreshes itself when a save lands, so an
         // element found a moment ago may already have been replaced.
-        $this->eventually(fn(): ?bool => $this->clickFirst('[data-history-view]'));
+        $this->eventually(fn(): ?bool => $this->clickOldest('[data-history-view]'));
 
         // THEN the page shows what that save held, and nothing on it can be
         // touched: it is the same page drawn from that document, so every control
@@ -116,12 +117,71 @@ abstract class HistoryPageTestCase extends PantherTestCase
         // back from the list
         $this->click('[data-history] summary');
         $this->eventually(fn(): ?bool => $this->moments() >= 2 ? true : null);
-        $this->eventually(fn(): ?bool => $this->clickFirst('[data-history-restore]'));
+        $this->eventually(fn(): ?bool => $this->clickOldest('[data-history-restore]'));
 
         // THEN
         $stored = $this->eventually(fn(): ?array => ($this->values($id)['nickname'] ?? null) === 'Ada' ? $this->values($id) : null);
         self::assertIsArray($stored);
         self::assertSame('Ada', $stored['nickname'] ?? null);
+    }
+
+    public function testWhatSomebodyTypedSurvivesALookAtAnEarlierVersion(): void
+    {
+        // GIVEN a form that saved something once, and somebody who has since typed
+        // over it and added a row without saving
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->fill('nickname', 'Ada');
+        $this->click(self::SAVE);
+        $this->eventually(fn(): ?array => $this->values($id));
+
+        $this->clear('nickname');
+        $this->fill('nickname', 'Grace');
+        $this->click('[data-action="add-entry"], [data-action="click->entries#add"]');
+        $this->eventually(fn(): ?bool => $this->rows() === 1 ? true : null);
+        $this->fillIn('[data-entry] [data-name="sku"]', 'X1');
+
+        // WHEN they go and look at the earlier version, then come back
+        $this->click('[data-history] summary');
+        $this->eventually(fn(): ?bool => $this->moments() >= 1 ? true : null);
+        $this->eventually(fn(): ?bool => $this->clickOldest('[data-history-view]'));
+        self::assertSame('Ada', $this->eventually(fn(): ?string => $this->held('nickname') === 'Ada' ? 'Ada' : null));
+        $this->eventually(fn(): ?bool => $this->clickFirst('[data-history-back]'));
+
+        // THEN what they had typed is back — the row too, because a detour that
+        // loses work is not a detour — and the page says out loud that none of it
+        // is saved
+        self::assertSame('Grace', $this->eventually(fn(): ?string => $this->held('nickname') === 'Grace' ? 'Grace' : null));
+        self::assertSame(1, $this->rows());
+        self::assertSame('X1', $this->browser->findElement(WebDriverBy::cssSelector('[data-entry] [data-name="sku"]'))->getAttribute('value'));
+        self::assertTrue($this->browser->findElement(WebDriverBy::cssSelector('[data-unsaved]'))->isDisplayed());
+
+        // AND nothing was stored on the way: looking is not saving, and neither is
+        // coming back
+        // The list is part of the document too, empty at the time of that save.
+        self::assertSame(['nickname' => 'Ada', 'lines' => []], $this->values($id));
+    }
+
+    public function testWhatASaveSettledIsNotCarriedBackAgain(): void
+    {
+        // GIVEN somebody who typed, saved, and then went to look at an earlier
+        // version
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->fill('nickname', 'Ada');
+        $this->click(self::SAVE);
+        $this->eventually(fn(): ?array => $this->values($id));
+        $this->click('[data-history] summary');
+        $this->eventually(fn(): ?bool => $this->moments() >= 1 ? true : null);
+        $this->eventually(fn(): ?bool => $this->clickFirst('[data-history-view]'));
+
+        // WHEN they come back
+        $this->eventually(fn(): ?bool => $this->clickFirst('[data-history-back]'));
+
+        // THEN there is nothing to carry: a save settled it, so the page is simply
+        // the page, with nothing claiming to be unsaved
+        self::assertSame('Ada', $this->eventually(fn(): ?string => $this->held('nickname') === 'Ada' ? 'Ada' : null));
+        self::assertFalse($this->browser->findElement(WebDriverBy::cssSelector('[data-unsaved]'))->isDisplayed());
     }
 
     public function testStartingAgainGoesBackToWhatTheFormHolds(): void
@@ -156,6 +216,16 @@ abstract class HistoryPageTestCase extends PantherTestCase
         return \count($this->browser->findElements(WebDriverBy::cssSelector('[data-history-view]')));
     }
 
+    private function rows(): int
+    {
+        return \count($this->browser->findElements(WebDriverBy::cssSelector('[data-entry]')));
+    }
+
+    private function fillIn(string $selector, string $value): void
+    {
+        $this->browser->findElement(WebDriverBy::cssSelector($selector))->sendKeys($value);
+    }
+
     private function held(string $name): ?string
     {
         $value = $this->browser->findElement(WebDriverBy::cssSelector(\sprintf('[data-name="%s"]', $name)))->getAttribute('value');
@@ -178,7 +248,23 @@ abstract class HistoryPageTestCase extends PantherTestCase
      */
     private function clickFirst(string $selector): ?bool
     {
-        $element = $this->browser->findElements(WebDriverBy::cssSelector($selector))[0] ?? null;
+        return $this->clickAt($selector, 0);
+    }
+
+    /**
+     * The oldest moment in the panel: the list reads newest first, so the last row
+     * is the first thing that happened.
+     */
+    private function clickOldest(string $selector): ?bool
+    {
+        $found = $this->browser->findElements(WebDriverBy::cssSelector($selector));
+
+        return $found === [] ? null : $this->clickAt($selector, \count($found) - 1);
+    }
+
+    private function clickAt(string $selector, int $index): ?bool
+    {
+        $element = $this->browser->findElements(WebDriverBy::cssSelector($selector))[$index] ?? null;
 
         if ($element === null || !$element->isDisplayed()) {
             return null;
@@ -229,6 +315,9 @@ abstract class HistoryPageTestCase extends PantherTestCase
                 'definition' => ['items' => [
                     ['type' => 'text', 'name' => 'nickname', 'maxLength' => 20],
                     ['type' => 'text', 'name' => 'note', 'maxLength' => 40],
+                    ['type' => 'collection', 'name' => 'lines', 'max' => 3, 'items' => [
+                        ['type' => 'text', 'name' => 'sku', 'maxLength' => 8],
+                    ]],
                 ]],
                 'presentation' => [
                     'engine' => static::engine(),
@@ -236,6 +325,9 @@ abstract class HistoryPageTestCase extends PantherTestCase
                     'items' => [
                         ['name' => 'nickname', 'widget' => 'text', 'label' => 't.nickname'],
                         ['name' => 'note', 'widget' => 'text', 'label' => 't.note'],
+                        ['name' => 'lines', 'widget' => 'table', 'label' => 't.lines', 'columns' => ['sku'], 'items' => [
+                            ['name' => 'sku', 'widget' => 'text', 'label' => 't.sku'],
+                        ]],
                         ['widget' => 'save', 'label' => 't.save'],
                         ['widget' => 'confirm', 'label' => 't.send'],
                         ['widget' => 'reset', 'label' => 't.reset'],
@@ -244,6 +336,8 @@ abstract class HistoryPageTestCase extends PantherTestCase
                     'translations' => ['en' => [
                         't.nickname' => 'Nickname',
                         't.note' => 'Note',
+                        't.lines' => 'Lines',
+                        't.sku' => 'SKU',
                         't.save' => 'Save for later',
                         't.send' => 'Send',
                         't.reset' => 'Start again',

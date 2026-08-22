@@ -74,6 +74,7 @@ function entriesOf(list) {
 function clearMessages() {
     document.getElementById('form-error').hidden = true;
     if (saved) saved.hidden = true;
+    if (unsaved) unsaved.hidden = true;
 
     for (const slot of document.querySelectorAll('[data-error]')) {
         slot.hidden = true;
@@ -174,6 +175,8 @@ for (const trigger of document.querySelectorAll('[data-action="save"]')) {
         event.preventDefault();
 
         if (await send('/data', 'PUT', collect())) {
+            forgetUnsaved();
+            asDrawn = JSON.stringify(collect());
             if (saved) saved.hidden = false;
             if (versions !== null && versions.open) loadVersions();
         }
@@ -267,6 +270,31 @@ function claim(entry, pending, mine) {
 // load would not know about it.
 let claimed = 0;
 
+// One more entry, wherever it was asked for: by somebody pressing the button, or
+// by a document being put back onto the page.
+function addEntry(list) {
+    const blank = ownPart(list, 'template[data-blank]');
+
+    if (blank === null) return;
+
+    const added = blank.content.cloneNode(true);
+    claim(added, list.dataset.pending, `n${++claimed}`);
+    // A new entry has nothing in its row yet, so the only thing to do with it is
+    // answer it: it arrives unfolded.
+    for (const form of added.querySelectorAll('details')) form.open = true;
+
+    const foot = ownPart(list, '[data-entries-foot]');
+    // Before the footer: a table's footer comes after its bodies.
+    if (foot === null) {
+        ownPart(list, 'table')?.append(added);
+    } else {
+        foot.before(added);
+    }
+
+    for (const nested of added.querySelectorAll?.('[data-collection]') ?? []) guard(nested);
+    guard(list);
+}
+
 document.getElementById('form').addEventListener('click', (event) => {
     const trigger = event.target.closest('[data-action]');
     const list = listOf(trigger);
@@ -275,25 +303,7 @@ document.getElementById('form').addEventListener('click', (event) => {
 
     if (trigger.dataset.action === 'add-entry') {
         event.preventDefault();
-        const blank = ownPart(list, 'template[data-blank]');
-
-        if (blank !== null) {
-            const added = blank.content.cloneNode(true);
-            claim(added, list.dataset.pending, `n${++claimed}`);
-            // A new entry has nothing in its row yet, so the only thing to do
-            // with it is answer it: it arrives unfolded.
-            for (const form of added.querySelectorAll('details')) form.open = true;
-
-            const foot = ownPart(list, '[data-entries-foot]');
-            // Before the footer: a table's footer comes after its bodies.
-            if (foot === null) {
-                ownPart(list, 'table')?.append(added);
-            } else {
-                foot.before(added);
-            }
-
-            for (const nested of added.querySelectorAll?.('[data-collection]') ?? []) guard(nested);
-        }
+        addEntry(list);
     }
 
     if (trigger.dataset.action === 'remove-entry') {
@@ -488,10 +498,124 @@ async function loadVersions() {
     }
 }
 
+// The collector, backwards: putting a document onto the page the same way it is
+// read off it. Used for one thing only — carrying what somebody typed across a
+// look at an earlier version — and it walks the same structure, so a list inside a
+// list comes back as one too.
+function fill(scope, values) {
+    for (const control of ownControls(scope)) {
+        place(control, values[control.dataset.name] ?? null);
+    }
+
+    for (const list of ownLists(scope)) {
+        const entries = Array.isArray(values[list.dataset.collection]) ? values[list.dataset.collection] : [];
+
+        while (entriesOf(list).length > entries.length) entriesOf(list).at(-1).remove();
+
+        // Bounded, and stops the moment adding one stops working: a page that
+        // cannot grow a row must not take the browser down with it.
+        while (entriesOf(list).length < entries.length) {
+            const before = entriesOf(list).length;
+            addEntry(list);
+
+            if (entriesOf(list).length === before) break;
+        }
+
+        entriesOf(list).forEach((entry, index) => {
+            fill(entry, entries[index]);
+            refreshCells(entry);
+        });
+
+        guard(list);
+    }
+}
+
+function place(control, value) {
+    if (control.classList.contains('choice')) {
+        for (const option of control.querySelectorAll('input')) {
+            option.checked = value !== null && option.value === String(value);
+        }
+    } else if (control.type === 'checkbox') {
+        control.checked = value === true;
+    } else if (control.dataset.type === 'json') {
+        // A file is a description plus the line that says which file is held.
+        hold(control.closest('[data-file]'), value);
+    } else {
+        control.value = value === null ? '' : String(value);
+    }
+}
+
+// Looking at an earlier version means leaving this page, and leaving a page
+// throws away what nobody saved. So what is on it goes with you: kept for the
+// length of the detour, in this tab only, and taken back the moment you return.
+// Anything that settles the question — a save, a restore, starting again — drops
+// it, because then there is nothing unsaved to carry.
+const unsaved = document.getElementById('form-unsaved');
+const stash = `ingot-forms:unsaved:${formId}`;
+// What the server drew: anything else on the page is somebody's unsaved doing.
+let asDrawn = null;
+
+function keepUnsaved() {
+    const now = JSON.stringify(collect());
+
+    // Nothing was typed, so there is nothing to carry — and saying "these are not
+    // saved" about the form's own values would be a lie.
+    if (now === asDrawn) {
+        forgetUnsaved();
+
+        return;
+    }
+
+    try {
+        sessionStorage.setItem(stash, now);
+    } catch {
+        // No storage to keep it in (a private window, storage turned off): the
+        // detour costs what it used to cost, and nothing else breaks.
+    }
+}
+
+function takeUnsaved() {
+    try {
+        const kept = sessionStorage.getItem(stash);
+        sessionStorage.removeItem(stash);
+
+        return kept === null ? null : JSON.parse(kept);
+    } catch {
+        return null;
+    }
+}
+
+function forgetUnsaved() {
+    try {
+        sessionStorage.removeItem(stash);
+    } catch {
+        // Nothing was kept, so nothing is left behind.
+    }
+}
+
+// Back on the page somebody was typing in: put their answers back and say that
+// they are still not saved, because a page that shows something other than what
+// the server holds has to admit it.
+if (document.body.dataset.version === undefined) {
+    const kept = takeUnsaved();
+
+    if (kept !== null) {
+        fill(document.getElementById('form'), kept);
+        if (unsaved) unsaved.hidden = false;
+    }
+
+    // Whatever the page holds now — drawn by the server, or drawn and then filled
+    // back in — is the baseline the next detour is measured against.
+    asDrawn = JSON.stringify(collect());
+}
+// On a version page, nothing is touched: what somebody typed is waiting for them
+// to come back, and this page is the middle of that trip rather than the end.
+
 // Putting a version back is an ordinary draft save of a document this page
 // happens to have read — the same gates, the same refusals. Afterwards the form
 // is drawn again by the server, because every control on it has just changed.
 async function restoreVersion(seq) {
+    forgetUnsaved();
     const response = await fetch(`/api/forms/${formId}/history/${seq}`);
 
     if (response.ok && (await send('/data', 'PUT', await response.json()))) window.location.assign(page);
@@ -511,8 +635,13 @@ document.addEventListener('click', (event) => {
     // there is nothing to undo by hand and nothing to get wrong.
     if (event.target.closest('[data-action="reset"]') !== null) {
         event.preventDefault();
+        forgetUnsaved();
         window.location.assign(page);
     }
+
+    // On the way to an earlier version, and only there: this is the one
+    // navigation this page knows about in advance.
+    if (event.target.closest('[data-history-view]') !== null) keepUnsaved();
 });
 
 for (const trigger of document.querySelectorAll('[data-action="confirm"]')) {

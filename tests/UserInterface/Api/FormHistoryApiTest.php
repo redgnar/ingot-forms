@@ -66,12 +66,12 @@ final class FormHistoryApiTest extends WebTestCase
         // WHEN the history is read
         $this->client->request('GET', \sprintf('/api/forms/%s/history', $id));
 
-        // THEN both saves are there, oldest first, numbered per form
+        // THEN both saves are there, newest first, numbered per form
         self::assertResponseStatusCodeSame(200);
         $revisions = $this->responseBody()['revisions'] ?? null;
         self::assertIsArray($revisions);
         self::assertCount(2, $revisions);
-        self::assertSame([1, 2], array_column($revisions, 'seq'));
+        self::assertSame([2, 1], array_column($revisions, 'seq'));
         self::assertSame([false, false], array_column($revisions, 'confirmed'));
         $first = $revisions[0];
         self::assertIsArray($first);
@@ -126,7 +126,7 @@ final class FormHistoryApiTest extends WebTestCase
         // save of its own — it stored nothing
         $revisions = $this->responseBody()['revisions'] ?? null;
         self::assertIsArray($revisions);
-        self::assertSame([false, true], array_column($revisions, 'confirmed'));
+        self::assertSame([true, false], array_column($revisions, 'confirmed'));
     }
 
     public function testARevisionSentBackBecomesTheNewestSave(): void
@@ -154,7 +154,7 @@ final class FormHistoryApiTest extends WebTestCase
         $history = $this->responseBody();
         $revisions = $history['revisions'] ?? null;
         self::assertIsArray($revisions);
-        self::assertSame([1, 2, 3], array_column($revisions, 'seq'));
+        self::assertSame([3, 2, 1], array_column($revisions, 'seq'));
 
         $this->client->request('GET', \sprintf('/api/forms/%s/history/3', $id));
         $newest = $this->responseBody();

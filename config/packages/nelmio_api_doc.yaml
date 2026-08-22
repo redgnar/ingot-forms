@@ -120,7 +120,7 @@ nelmio_api_doc:
                                 confirming writes no values, so it is no revision of its own.
                 FormHistory:
                     type: object
-                    description: Every accepted save of one form, oldest first.
+                    description: Every accepted save of one form, newest first.
                     required: [revisions]
                     additionalProperties: false
                     properties:

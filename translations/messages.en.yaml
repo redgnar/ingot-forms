@@ -5,6 +5,7 @@
 page:
     saved: 'Your answers are saved. You can come back and finish this form later.'
     confirmed: 'This form is confirmed. It can be read, not changed.'
+    unsaved: 'These answers are back on the page, and still not saved.'
     refused: 'The request was refused.'
     stepper:
         less: 'Less'

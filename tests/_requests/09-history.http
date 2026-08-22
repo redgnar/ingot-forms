@@ -72,14 +72,15 @@ Content-Type: application/json
     });
 %}
 
-### Two saves now, oldest first.
+### Two saves now, newest first — which is what somebody looking for an earlier
+### version is usually after.
 GET {{host}}/api/forms/{{historyFormId}}/history
 
 > {%
     client.test("two revisions, in order", function () {
         client.assert(response.body.revisions.length === 2, "Expected two saves");
-        client.assert(response.body.revisions[0].seq === 1, "Expected the oldest first");
-        client.assert(response.body.revisions[1].seq === 2, "Expected the newest last");
+        client.assert(response.body.revisions[0].seq === 2, "Expected the newest first");
+        client.assert(response.body.revisions[1].seq === 1, "Expected the oldest last");
     });
 %}
 
@@ -140,7 +141,7 @@ GET {{host}}/api/forms/{{historyFormId}}/history
 > {%
     client.test("four saves, and the newest is the restored one", function () {
         client.assert(response.body.revisions.length === 4, "Expected four saves");
-        client.assert(response.body.revisions[3].seq === 4, "Expected the restore to be the newest");
+        client.assert(response.body.revisions[0].seq === 4, "Expected the restore to be the newest, and first");
     });
 %}
 
@@ -181,7 +182,7 @@ GET {{host}}/api/forms/{{historyFormId}}/history
 > {%
     client.test("still four saves, the last one marked", function () {
         client.assert(response.body.revisions.length === 4, "Expected confirming to add no save");
-        client.assert(response.body.revisions[3].confirmed === true, "Expected the last save to be the locked one");
+        client.assert(response.body.revisions[0].confirmed === true, "Expected the last save — the first listed — to be the locked one");
     });
 %}
 

@@ -62,6 +62,12 @@ export default class extends Controller {
         if (held !== null) fetch(`${this.uploadValue}/${held.id}`, { method: 'DELETE' }).catch(() => {});
     }
 
+    // A description handed over from somewhere else on the page — what somebody
+    // had attached before they went to look at an earlier version.
+    place(event) {
+        this.#hold(event.detail ?? null);
+    }
+
     #send(file) {
         // Bigger than the form allows: the answer is known here, so nothing is
         // sent.

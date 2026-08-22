@@ -22,8 +22,10 @@ use App\Domain\Forms\ValueObject\FormId;
 interface FormHistory
 {
     /**
-     * Oldest first, which is the order they happened in and the order a person
-     * reads a history in.
+     * **Newest first.** What somebody looks for in a history is almost always the
+     * last few moments of it, so that is what a list hands over first — and it is
+     * the order {@see documentsOf()} already answers in, so the whole port reads
+     * one way round.
      *
      * @return list<FormRevision>
      */

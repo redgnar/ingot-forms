@@ -304,7 +304,9 @@ final class BootstrapRendererTest extends KernelTestCase
         // THEN the controller knows which form it is talking to, watches for
         // changes, and has both notices ready and silent
         self::assertCount(1, $main);
-        self::assertSame('input->form#touched', $main->attr('data-action'));
+        // ...and for somebody leaving to look at an earlier version, which is the
+        // one navigation this page knows about in advance
+        self::assertSame('input->form#touched click->form#leaving', $main->attr('data-action'));
         self::assertStringContainsString('d-none', $page->filter('[data-form-target="saved"]')->attr('class') ?? '');
         self::assertStringContainsString('d-none', $page->filter('[data-form-target="problem"]')->attr('class') ?? '');
     }
@@ -452,9 +454,11 @@ final class BootstrapRendererTest extends KernelTestCase
         self::assertSame('8192', $dropzone->attr('data-file-max-size-value'));
 
         // ...and only the dropzone is asked to catch anything dragged onto it,
-        // which is the difference between the two: a way of asking, not a restyle
+        // which is the difference between the two: a way of asking, not a restyle.
+        // Both listen for a description handed over from elsewhere on the page.
         self::assertStringContainsString('drop->file#dropped', (string) $dropzone->attr('data-action'));
-        self::assertNull($picker->attr('data-action'));
+        self::assertStringNotContainsString('drop->file#dropped', (string) $picker->attr('data-action'));
+        self::assertStringContainsString('file:place->file#place', (string) $picker->attr('data-action'));
         self::assertCount(1, $dropzone->filter('input[type="file"]'));
 
         // ...while what the behaviour collects is the hidden control, carrying the

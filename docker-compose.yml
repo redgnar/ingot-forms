@@ -18,8 +18,23 @@ services:
     volumes:
       - .:/app
       - ../ingot:/ingot:ro
+    # A ceiling for everything that runs in here — the browser suite most of all,
+    # because Chrome spawns a process per tab and per renderer and will happily
+    # take every core on the machine. The tests are allowed to be slower; the
+    # machine they run on is not allowed to stutter. Raise it for a build box:
+    # DOCKER_CPUS=12 DOCKER_MEMORY=8g docker compose up -d
+    cpus: ${DOCKER_CPUS:-4}
+    mem_limit: ${DOCKER_MEMORY:-3g}
     environment:
       DATABASE_URL: "postgresql://app:app@postgres:5432/ingot_forms?serverVersion=17&charset=utf8"
+      # Merged with Panther's own arguments, not replacing them. `dev-shm-usage`
+      # is the one that matters in a container (the default /dev/shm is 64 MB and
+      # Chrome crashes rather than slows); the rest is appetite it does not need
+      # for a form: no GPU, few renderers, no background chatter.
+      PANTHER_CHROME_ARGUMENTS: >-
+        --disable-dev-shm-usage --disable-gpu --renderer-process-limit=2
+        --disable-extensions --disable-background-networking
+        --disable-backgrounding-occluded-windows --mute-audio
     depends_on:
       postgres:
         condition: service_healthy

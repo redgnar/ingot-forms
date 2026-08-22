@@ -1,6 +1,7 @@
 page:
     saved: 'Twoje odpowiedzi są zapisane. Możesz wrócić i dokończyć ten formularz później.'
     confirmed: 'Ten formularz jest zatwierdzony. Można go czytać, nie można zmieniać.'
+    unsaved: 'Te odpowiedzi wróciły na stronę i nadal nie są zapisane.'
     refused: 'Żądanie zostało odrzucone.'
     stepper:
         less: 'Mniej'

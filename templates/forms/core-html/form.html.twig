@@ -44,6 +44,7 @@
     </style>
 </head>
 <body data-form="{{ id }}" data-page="{{ path('web_form_view', {id: id}) }}"
+      {%- if version is not null %} data-version="{{ version }}"{% endif %}
       data-read-only="{{ readOnly ? 'yes' : 'no' }}" data-refused="{{ 'page.refused'|trans }}"
       data-file-uploading="{{ 'page.file.uploading'|trans }}" data-file-too-large="{{ 'page.file.too_large'|trans }}"
       data-file-rejected="{{ 'page.file.rejected_type'|trans }}" data-file-failed="{{ 'page.file.failed'|trans }}">
@@ -55,7 +56,7 @@
         {% if not confirmed %}
             <button type="button" data-history-restore="{{ version }}">{{ 'page.history.restore'|trans }}</button>
         {% endif %}
-        <a href="{{ path('web_form_view', {id: id}) }}">{{ 'page.history.back'|trans }}</a>
+        <a href="{{ path('web_form_view', {id: id}) }}" data-history-back>{{ 'page.history.back'|trans }}</a>
     </div>
 {% endif %}
 
@@ -67,6 +68,10 @@
        carry a code for it. Shown by the script once a draft is stored, and
        hidden again the moment it stops being true. #}
     <p class="flash" id="form-saved" hidden>{{ 'page.saved'|trans }}</p>
+    {# What somebody typed and carried across a look at an earlier version. The
+       page owes them the truth about it: these answers are on the page and not in
+       the form. #}
+    <p class="notice" id="form-unsaved" data-unsaved hidden>{{ 'page.unsaved'|trans }}</p>
 {% endif %}
 
 {# What a panel needs and a node cannot carry: which form this is, whether it can

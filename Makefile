@@ -86,8 +86,13 @@ test-file: db-test ## One test file or directory: make test-file FILE=tests/Http
 coverage: db-test
 	$(RUNDB) vendor/bin/phpunit --coverage-text
 
+# Threads, not `max`: Infection with a thread per core is the other thing in this
+# repository that can take a machine hostage. Raise it where nobody is working:
+# INFECTION_THREADS=12 make mutation
+INFECTION_THREADS ?= 4
+
 mutation: ## Mutation testing (Infection): src/Domain only, unit suite, no database
-	$(RUN) vendor/bin/infection --threads=max --no-progress --test-framework-options="--testsuite=unit"
+	$(RUN) vendor/bin/infection --threads=$(INFECTION_THREADS) --no-progress --test-framework-options="--testsuite=unit"
 
 docs: ## Generate the API contract (NelmioApiDocBundle) into docs/ + a Markdown reference
 	$(RUN) sh -c 'bin/console nelmio:apidoc:dump --format=yaml > docs/openapi.yaml'

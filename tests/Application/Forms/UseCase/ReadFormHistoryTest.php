@@ -25,7 +25,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class ReadFormHistoryTest extends TestCase
 {
-    public function testTheSavesComeBackOldestFirst(): void
+    public function testTheSavesComeBackNewestFirst(): void
     {
         // GIVEN a form saved twice
         $forms = new InMemoryForms();
@@ -37,8 +37,9 @@ final class ReadFormHistoryTest extends TestCase
         // WHEN
         $revisions = new ReadFormHistory($forms, $history)($id);
 
-        // THEN in the order they happened, which is the order a person reads them
-        self::assertSame([1, 2], array_map(static fn(object $r): int => $r->seq, $revisions));
+        // THEN the last thing that happened is the first thing offered: what
+        // somebody looks for in a history is almost always its last few moments
+        self::assertSame([2, 1], array_map(static fn(object $r): int => $r->seq, $revisions));
         self::assertSame([false, false], array_map(static fn(object $r): bool => $r->confirmed, $revisions));
     }
 
@@ -65,10 +66,10 @@ final class ReadFormHistoryTest extends TestCase
         // WHEN
         $revisions = new ReadFormHistory($forms, $history)($id);
 
-        // THEN the last save is the one that got locked — confirming stores no
-        // values, so it is no revision of its own, and a stored marker would be a
-        // second copy of `confirmed_at`
-        self::assertSame([false, true], array_map(static fn(object $r): bool => $r->confirmed, $revisions));
+        // THEN the last save is the one that got locked — which is the first of
+        // these. Confirming stores no values, so it is no revision of its own, and
+        // a stored marker would be a second copy of `confirmed_at`
+        self::assertSame([true, false], array_map(static fn(object $r): bool => $r->confirmed, $revisions));
     }
 
     public function testOneSaveComesBackAsTheTextItWasStoredAs(): void
