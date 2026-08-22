@@ -487,6 +487,22 @@ Local PHP is 8.1 — all tools run inside the pinned Docker image (`docker/Docke
 PHPStan: no baseline, no `@phpstan-ignore` unless truly unavoidable (then explain why).
 Formatting is php-cs-fixer's job; every PHP file starts with `declare(strict_types=1);`.
 
+## Where documentation goes
+
+Four places, and putting something in the wrong one is how two of them start disagreeing:
+
+| File | Holds | Written by |
+|---|---|---|
+| `README.md` | what this service is, the domain model, setup, and links to the rest | hand |
+| `docs/configuring-forms.md` | everything somebody needs to **describe a form**: item types, widgets per engine, skins, files, lists, history, every refusal code, a worked example | hand |
+| `docs/architecture.md` | everything somebody needs to **work on the service**: layers, the model, storage, the gates, the pages and their markup conventions, operations, testing | hand |
+| `docs/api.md`, `docs/openapi.yaml` | the endpoint reference | `make docs` — **never by hand** |
+
+So: a new item type or widget, a new refusal code, a new skin → `configuring-forms.md`. A new
+port, adapter, cache, command or env var → `architecture.md`. A rule the model keeps → this file
+*and* whichever of the two describes it to its reader. The README grows a line only when the
+thing is one of the first five facts about the project.
+
 ## Repo conventions
 
 - **Never commit or push on your own initiative** — finish with a green `make ci`, report,
