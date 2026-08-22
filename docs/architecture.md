@@ -165,6 +165,9 @@ JSON endpoints use, and what somebody types goes back through `PUT /api/forms/{i
 `POST /api/forms/{id}/confirm` from the browser. There is no privileged path: whatever a page
 can do, any client can.
 
+What each kit can draw, control by control, is [kits.md](kits.md); this is how the two halves
+fit together.
+
 **A kit is two halves in two layers.** `PresentationEngine` in the domain says what can be drawn
 — that is what a presentation is judged against — and `FormRenderer` in the web layer draws it.
 HTML never reaches the domain and the widget vocabulary never leaves it, which is what makes

@@ -12,6 +12,7 @@ versioning and multi-submission forms are deliberately out of scope.
 | Read this | If you want to |
 |---|---|
 | [docs/configuring-forms.md](docs/configuring-forms.md) | **describe a form**: item types, widgets, skins, files, lists, history, error codes, a worked example |
+| [docs/kits.md](docs/kits.md) | **know exactly what a kit can draw**: every control of both engines, control by control, with links to Bootstrap's own documentation |
 | [docs/architecture.md](docs/architecture.md) | **work on the service**: layers, the model, storage, the validation gates, the pages, operations, testing |
 | [docs/api.md](docs/api.md) · [docs/openapi.yaml](docs/openapi.yaml) | the generated endpoint reference (`make docs` writes both — never edit them by hand) |
 | [tests/_requests/](tests/_requests) | working requests for every endpoint, one file per topic, with assertions |

@@ -454,7 +454,9 @@ Rules that follow from it, and that the tooling checks:
 ## Quality gates (all must pass before any commit)
 
 **Hard rule: run `make ci` before declaring any task done; a task with a red `make ci` is
-not finished.** Every tool runs through a make target — never call phpunit, phpstan,
+not finished.** The one exception is a change that touches **only Markdown or comments** —
+nothing in the chain reads `docs/`, `README.md` or a comment, so running it there spends
+minutes to prove nothing. A change set that mixes prose with code is a code change. Every tool runs through a make target — never call phpunit, phpstan,
 composer or `bin/console` directly, and never on the host. If an isolated run has no
 target, add one here rather than reaching for a raw command.
 
@@ -495,10 +497,12 @@ Four places, and putting something in the wrong one is how two of them start dis
 |---|---|---|
 | `README.md` | what this service is, the domain model, setup, and links to the rest | hand |
 | `docs/configuring-forms.md` | everything somebody needs to **describe a form**: item types, widgets per engine, skins, files, lists, history, every refusal code, a worked example | hand |
+| `docs/kits.md` | what each kit draws, control by control: markup, what the definition contributes, options, Bootstrap links | hand |
 | `docs/architecture.md` | everything somebody needs to **work on the service**: layers, the model, storage, the gates, the pages and their markup conventions, operations, testing | hand |
 | `docs/api.md`, `docs/openapi.yaml` | the endpoint reference | `make docs` — **never by hand** |
 
-So: a new item type or widget, a new refusal code, a new skin → `configuring-forms.md`. A new
+So: a new item type, a new refusal code or a new skin → `configuring-forms.md`, and a new
+**widget** → `kits.md` as well, which is the one document that claims to list them all. A new
 port, adapter, cache, command or env var → `architecture.md`. A rule the model keeps → this file
 *and* whichever of the two describes it to its reader. The README grows a line only when the
 thing is one of the first five facts about the project.

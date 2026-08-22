@@ -355,6 +355,10 @@ thing has no reason to drift.
 
 ## Widget reference
 
+The tables below are the index; [kits.md](kits.md) is the reference — every control of both
+engines, what it draws, what the definition contributes to it, what it can be given, and links
+into Bootstrap's own documentation.
+
 Every presented item names a `widget`. Which ones exist depends on the engine the document was
 written for, and asking for one the engine does not draw for that kind of item is refused at
 creation (`presentation.widget.mismatch`). Leave `widget` out and the item gets the natural one
