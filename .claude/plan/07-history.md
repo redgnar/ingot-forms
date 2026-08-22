@@ -280,3 +280,16 @@ Six notes, once they had used it. Two of them overturn what this plan decided, a
 
 And one behaviour nobody had to ask for twice: a save refreshes the panel, because a save makes a
 new moment and a list that does not show it is lying about what the form remembers.
+
+## What the owner asked for after that
+
+**A save that changes nothing is not a save.** Putting back the version somebody is already
+looking at, or pressing save twice, used to append a second identical moment — an earlier
+version to go back to that is where you already are, stamped at a time when nothing about the
+form changed. The rule belongs to the aggregate, which is the only thing that knows what a form
+holds: `saveDraft()` compares the incoming document with the current one and records nothing when
+they say the same thing. Comparison is by document, not by text — a page collects values in the
+order its controls sit, and that must not read as a change — while a list's entry order and the
+difference between `1` and `1.0` do count, because those change what is stored and served byte
+for byte. `PUT …/data` still answers `204`; there is simply nothing new to go back to. The page
+needed no rule of its own, which is the point: one rule, in the place that owns it.

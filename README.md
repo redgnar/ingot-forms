@@ -20,10 +20,12 @@ and multi-submission forms are deliberately out of scope.
   first draft, saved by the same transition every later one goes through, judged under the
   same lenient contract, and refused *before* the form exists — a form is never created
   holding something it would not accept later. Findings are rooted at `/data`.
-- **Every accepted save is kept.** A draft save overwrites the current values *and* appends
-  a revision, so a form's history is the record of what it held and when
-  ([History](#history)). Restoring is not an operation: a client reads a revision and sends it
-  back through `PUT …/data`, where it meets the same gates as any other draft.
+- **Every accepted save is kept, and a save that changes nothing is not one.** A draft save
+  overwrites the current values *and* appends a revision, so a form's history is the record of
+  what it held and when ([History](#history)) — but sending what the form already holds records
+  nothing at all, whatever order the members arrived in. Restoring is not an operation: a client
+  reads a revision and sends it back through `PUT …/data`, where it meets the same gates as any
+  other draft.
 - **`expire_date` is required.** Past it, the form answers `410 Gone` everywhere, and
   `bin/console app:forms:purge-expired` (run it from cron) physically deletes the row.
 - **The definition has no name of its own.** It belongs to exactly one form, and that form
@@ -431,6 +433,14 @@ revision, both from the same event (`DraftSaved`) — so a form's history is not
 of anything: it is what the aggregate already reports, persisted instead of dropped. The table is
 append-only, `(form_id, seq)` is the whole key, and `seq` is allocated under the row lock the save
 already holds.
+
+**A save that stores what is already stored is not a save.** The aggregate compares the incoming
+document with the one it holds — as documents, so the order the members arrive in does not
+matter, while the order of a list's entries does — and records nothing when they say the same
+thing. `PUT …/data` still answers `204`; there is simply no second identical moment to go back
+to, and no claim that the form changed at a time when nothing about it did. That is also what
+makes putting a version back safe to press twice, and putting back the version somebody is
+already on a no-op rather than a new revision.
 
 | Method & path | Answers |
 |---|---|

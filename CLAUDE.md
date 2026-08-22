@@ -32,7 +32,11 @@ or id on the definition (it belongs to one form, which has a UUID of its own; no
 or looks definitions up, so a second name would only be a label that can drift) —
 deliberately.
 
-**How history works.** Every accepted save is kept: `saveDraft()` already reports a `DraftSaved`
+**How history works.** Every accepted save is kept — and a save that stores what is already
+stored is not one: the aggregate compares the documents (member order does not matter, entry
+order does) and records nothing when they say the same thing, so putting back the version
+somebody is already on is a no-op rather than a second identical moment. Otherwise:
+`saveDraft()` already reports a `DraftSaved`
 carrying the whole `Values`, so a revision is that event persisted rather than a second record of
 anything — the row and the `form_revisions` row are written from the same event, and neither can
 happen without the other. Append-only, `(form_id, seq)` is the whole key, `seq` is allocated under

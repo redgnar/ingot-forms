@@ -91,6 +91,43 @@ final class FormTest extends TestCase
         self::assertGreaterThanOrEqual($before, $form->dataSavedAt());
     }
 
+    public function testSavingWhatIsAlreadyStoredIsNotASave(): void
+    {
+        // GIVEN a form holding a draft
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues(), new \DateTimeImmutable('2026-02-03T04:05:06+00:00'));
+        $form->releaseEvents();
+
+        // WHEN the same answers are sent again, later, with their names in
+        // another order — which is what putting a version back does when the
+        // version is where the form already is
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues(), new \DateTimeImmutable('2026-02-04T04:05:06+00:00'));
+
+        // THEN nothing happened: no second identical moment to go back to, and
+        // no claim that the form changed at a time when nothing about it did
+        self::assertSame([], $form->releaseEvents());
+        self::assertSame('2026-02-03T04:05:06+00:00', $form->dataSavedAt()?->format(\DateTimeInterface::ATOM));
+        self::assertSame('{"email":"ada@example.com"}', $form->valuesJson());
+        self::assertSame(FormStatus::Draft, $form->status());
+    }
+
+    public function testChangingOneAnswerAfterSavingTheSameOnesIsStillASave(): void
+    {
+        // GIVEN a form that has just been sent what it already held
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+        $form->releaseEvents();
+
+        // WHEN something about it actually changes
+        $form->saveDraft(self::values('{"email": "grace@example.com"}'), new StubValues());
+
+        // THEN that is a save like any other: refusing the one that changed
+        // nothing must not leave the form deaf to the one that did
+        self::assertCount(1, $form->releaseEvents());
+        self::assertSame('{"email":"grace@example.com"}', $form->valuesJson());
+    }
+
     public function testValuesThatDoNotFitAreNeverStored(): void
     {
         // GIVEN a form and a verdict of "these do not fit"

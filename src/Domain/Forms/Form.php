@@ -152,7 +152,19 @@ final class Form
 
         $validator->assertFit($this->definition(), $values, DeriveMode::Draft, $this->id());
 
-        $this->data = Values::fromDecoded($values);
+        $saved = Values::fromDecoded($values);
+
+        // A save that stores what is already stored is not a save. It would put
+        // a second identical moment in the history — an earlier version to go
+        // back to that is where somebody already is — and it would say a form
+        // changed at a time when nothing about it did. That is also what makes
+        // putting a version back safe to press twice: the first one is the
+        // change, and the second is nothing at all.
+        if ($this->data !== null && $this->data->equals($saved)) {
+            return;
+        }
+
+        $this->data = $saved;
         $this->dataSavedAt = self::utc($now ?? new \DateTimeImmutable());
         $this->events[] = new DraftSaved($this->id(), $this->dataSavedAt, $this->data);
     }

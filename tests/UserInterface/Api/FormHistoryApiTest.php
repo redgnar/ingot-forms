@@ -85,6 +85,31 @@ final class FormHistoryApiTest extends WebTestCase
         self::assertSame(['age' => 37, 'email' => 'ada@example.com'], $this->responseBody());
     }
 
+    public function testASaveThatStoresWhatIsAlreadyStoredIsNotOne(): void
+    {
+        // GIVEN a form saved once
+        $id = $this->createForm();
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"age": 36, "email": "ada@example.com"}');
+
+        // WHEN the same answers arrive again, with their names in another order
+        // — which is what putting a version back does when the version is where
+        // the form already is
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"email": "ada@example.com", "age": 36}');
+
+        // THEN it was accepted, and it changed nothing: one moment to go back
+        // to, not two identical ones
+        self::assertResponseStatusCodeSame(204);
+        $this->client->request('GET', \sprintf('/api/forms/%s/history', $id));
+        $revisions = $this->responseBody()['revisions'] ?? null;
+        self::assertIsArray($revisions);
+        self::assertCount(1, $revisions);
+
+        // AND the form still holds it, in the text the save that did happen
+        // stored — the second one was not a save, so it did not reorder anything
+        $this->client->request('GET', \sprintf('/api/forms/%s/history/1', $id));
+        self::assertSame(['age' => 36, 'email' => 'ada@example.com'], $this->responseBody());
+    }
+
     public function testAFormBornADraftAlreadyHasASave(): void
     {
         // GIVEN a form created holding values

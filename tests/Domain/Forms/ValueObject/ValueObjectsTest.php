@@ -140,4 +140,45 @@ final class ValueObjectsTest extends TestCase
         // THEN
         self::assertSame(36, $values->document()->age);
     }
+
+    public function testTwoDocumentsSayingTheSameThingAreTheSameDocument(): void
+    {
+        // GIVEN pairs that differ in nothing a reader of the form would notice:
+        // a JSON object is a set of members, and a page collects them in the
+        // order its controls sit rather than the order they were stored in
+        $pairs = [
+            'the same text' => ['{"email":"ada@example.com"}', '{"email":"ada@example.com"}'],
+            'members in another order' => ['{"a":1,"b":2}', '{"b":2,"a":1}'],
+            'members of a nested object in another order' => ['{"who":{"a":1,"b":2}}', '{"who":{"b":2,"a":1}}'],
+            'members inside a list entry in another order' => ['{"lines":[{"a":1,"b":2}]}', '{"lines":[{"b":2,"a":1}]}'],
+            'nothing at all, twice' => ['{}', '{}'],
+        ];
+
+        // WHEN / THEN
+        foreach ($pairs as $why => [$ours, $theirs]) {
+            self::assertTrue(Values::fromJson($ours)->equals(Values::fromJson($theirs)), $why);
+        }
+    }
+
+    public function testADocumentThatReadsDifferentlyIsADifferentDocument(): void
+    {
+        // GIVEN pairs that a form would answer differently — including the ones
+        // an order-blind comparison would wave through
+        $pairs = [
+            'another value' => ['{"a":1}', '{"a":2}'],
+            'another member name' => ['{"a":1}', '{"b":1}'],
+            'one member more' => ['{"a":1}', '{"a":1,"b":2}'],
+            'a member holding nothing is still a member' => ['{"a":null}', '{}'],
+            'entries in another order' => ['{"lines":[1,2]}', '{"lines":[2,1]}'],
+            'one entry more' => ['{"lines":[1]}', '{"lines":[1,2]}'],
+            'a number is not the text of it' => ['{"a":1}', '{"a":"1"}'],
+            'a whole number is not the same text as a fraction of none' => ['{"a":1}', '{"a":1.0}'],
+            'a list is not an object naming its places' => ['{"a":["x"]}', '{"a":{"0":"x"}}'],
+        ];
+
+        // WHEN / THEN
+        foreach ($pairs as $why => [$ours, $theirs]) {
+            self::assertFalse(Values::fromJson($ours)->equals(Values::fromJson($theirs)), $why);
+        }
+    }
 }
