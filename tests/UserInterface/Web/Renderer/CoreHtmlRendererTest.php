@@ -643,6 +643,23 @@ final class CoreHtmlRendererTest extends KernelTestCase
         self::assertSame('status', $page->filter('[data-file-progress]')->attr('role'));
     }
 
+    public function testThePlainKitFollowsTheMachineAndOffersNoSwitchOfItsOwn(): void
+    {
+        // GIVEN / WHEN
+        $drawn = $this->renderer->render(new RenderedForm(self::form(), 'en'));
+        $page = new Crawler($drawn);
+
+        // THEN there is nothing to press: this kit promised no machinery, and a
+        // switch is a button, a store and a script
+        self::assertCount(0, $page->filter('[data-controller="comfort"]'));
+        self::assertStringNotContainsString('localStorage', $drawn);
+
+        // AND it does what it can do with no machinery at all — listen to what
+        // the machine already says about how this reader needs to read
+        self::assertStringContainsString('prefers-color-scheme: dark', $drawn);
+        self::assertStringContainsString('prefers-contrast: more', $drawn);
+    }
+
     public function testEveryNameThePagePointsAtIsOnThePage(): void
     {
         // GIVEN a page with a list, whose entries are the same form drawn again

@@ -50,6 +50,22 @@ interface PresentationEngine
     public function decorations(): array;
 
     /**
+     * What this kit can be dressed in, by the name a document picks one with.
+     *
+     * A skin changes how a page looks and never what a document may say: every
+     * widget above draws under every skin, or it is not a skin but a second kit.
+     * That is the whole rule, and it is why this list lives beside the widget
+     * vocabulary rather than in the layer that draws — a kit is the authority on
+     * what it can be, exactly as it is on what it can draw.
+     *
+     * A kit with nothing to offer here returns an empty list, and a document
+     * that names a skin for it is refused rather than quietly drawn plain.
+     *
+     * @return list<string>
+     */
+    public function skins(): array;
+
+    /**
      * Widgets that do something rather than show something: saving a draft,
      * confirming the form.
      *

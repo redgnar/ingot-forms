@@ -5,6 +5,7 @@
     "required": ["engine", "items"],
     "properties": {
         "engine": {"type": "string", "minLength": 1, "maxLength": 64},
+        "skin": {"type": "string", "minLength": 1, "maxLength": 64},
         "defaultLocale": {"type": "string", "minLength": 2},
         "items": {"$ref": "#/$defs/items"},
         "translations": {

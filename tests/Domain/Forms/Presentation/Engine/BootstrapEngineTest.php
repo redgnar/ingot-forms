@@ -75,6 +75,28 @@ final class BootstrapEngineTest extends TestCase
         self::assertSame(['save', 'confirm', 'reset', 'history'], new BootstrapEngine()->actions());
     }
 
+    public function testOneKitCanBeDressedAndTheOtherCannot(): void
+    {
+        // GIVEN / WHEN
+        $plain = new CoreHtmlEngine();
+        $rich = new BootstrapEngine();
+
+        // THEN the kit built on a framework of custom properties can be dressed,
+        // and says in what — every one of them a light theme, because dark is the
+        // reader's choice and not the document's
+        self::assertSame(['default', 'material', 'flatly', 'lux'], $rich->skins());
+
+        // AND a kit whose whole stylesheet is thirty lines has one look, which is
+        // not the same as having a skin called "default"
+        self::assertSame([], $plain->skins());
+
+        // AND a skin is never a way of asking: both kits draw exactly what they
+        // drew before, whatever they are wearing
+        self::assertSame([], array_intersect($rich->skins(), $rich->actions()));
+        self::assertSame([], array_intersect($rich->skins(), $rich->containers()));
+        self::assertSame([], array_intersect($rich->skins(), $rich->decorations()));
+    }
+
     public function testWhatThisKitAddsIsWhatThePlainOneCouldNotDo(): void
     {
         // GIVEN both kits

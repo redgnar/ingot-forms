@@ -119,12 +119,35 @@ final class BootstrapRendererTest extends KernelTestCase
 
     private BootstrapRenderer $renderer;
 
+    private Environment $twig;
+
     protected function setUp(): void
     {
         self::bootKernel();
         $twig = self::getContainer()->get('twig');
         self::assertInstanceOf(Environment::class, $twig);
-        $this->renderer = new BootstrapRenderer($twig, new PresentedNodes());
+        $this->twig = $twig;
+        $this->renderer = new BootstrapRenderer($twig, new PresentedNodes(), new BootstrapEngine());
+    }
+
+    /** The same kit, dressing what a document leaves undressed in something else. */
+    private function dressedIn(string $skin): BootstrapRenderer
+    {
+        return new BootstrapRenderer($this->twig, new PresentedNodes(), new BootstrapEngine(), $skin);
+    }
+
+    /** Everything from `<body` on: the page itself, without what it loads. */
+    private static function body(string $page): string
+    {
+        return substr($page, (int) strpos($page, '<body'));
+    }
+
+    /** @return list<string> */
+    private static function stylesheets(string $page): array
+    {
+        return new Crawler($page)->filter('link[rel="stylesheet"]')->each(
+            static fn(Crawler $link): string => (string) $link->attr('href'),
+        );
     }
 
     public function testItDrawsWhatItSaysItDraws(): void
@@ -502,6 +525,119 @@ final class BootstrapRendererTest extends KernelTestCase
         self::assertSame('progressbar', $bar->attr('role'));
         self::assertSame('0', $bar->attr('aria-valuenow'));
         self::assertSame('100', $bar->attr('aria-valuemax'));
+    }
+
+    public function testTheReaderIsOfferedTheThreeThingsNoDocumentDecidesForThem(): void
+    {
+        // GIVEN / WHEN
+        $page = new Crawler($this->render());
+        $bar = $page->filter('[data-controller="comfort"]');
+
+        // THEN the page offers colours, contrast and a bigger text — none of
+        // which the presentation has a word for, because how a form *reads* is
+        // the reader's business and not the document's
+        self::assertCount(1, $bar);
+        self::assertSame(
+            ['auto', 'light', 'dark'],
+            $bar->filter('input[data-comfort-target="theme"]')->each(static fn(Crawler $one): ?string => $one->attr('value')),
+        );
+        self::assertCount(1, $bar->filter('button[data-comfort-target="contrast"][aria-pressed="false"]'));
+        self::assertCount(1, $bar->filter('button[data-comfort-target="text"][aria-pressed="false"]'));
+
+        // AND it is worded from this application's own catalogue: these are our
+        // sentences, not the form author's
+        self::assertSame('High contrast', trim($bar->filter('[data-comfort-target="contrast"]')->text()));
+        self::assertSame('Dark', trim($bar->filter('label[for="comfort-theme-dark"]')->text()));
+    }
+
+    public function testWhatTheReaderAskedForIsAppliedBeforeThePageIsPainted(): void
+    {
+        // GIVEN / WHEN
+        $page = new Crawler($this->render());
+        $head = $page->filter('head script')->first()->text();
+
+        // THEN the head carries the one piece of script this kit inlines: a
+        // preference applied after the first paint is a preference the reader
+        // watches being applied to them
+        self::assertStringContainsString("localStorage.getItem('ingot-forms:'", $head);
+        self::assertStringContainsString('prefers-color-scheme: dark', $head);
+        self::assertStringContainsString('prefers-contrast: more', $head);
+
+        // AND it runs before anything the kit loads
+        self::assertLessThan(
+            strpos($this->render(), '<script type="importmap"'),
+            strpos($this->render(), 'ingot-forms:'),
+        );
+    }
+
+    public function testASkinChangesWhatThePageLoadsAndNothingWhateverAboutIt(): void
+    {
+        // GIVEN one form — the same document, the same id — dressed two ways
+        $form = new RenderedForm(self::form(), 'en');
+        $plain = $this->renderer->render($form);
+        $dressed = $this->dressedIn('material')->render($form);
+
+        // THEN the page is the same page, byte for byte. This is the rule that
+        // keeps a skin a skin: the moment one needs a class, an element or a
+        // control of its own it has stopped being a way of looking and become a
+        // second kit, and it has to be one
+        self::assertSame(self::body($plain), self::body($dressed));
+
+        // AND what differs is one stylesheet, which is all a skin ever is
+        self::assertStringContainsString('bootstrap/dist/css/bootstrap.min', implode(' ', self::stylesheets($plain)));
+        self::assertStringContainsString('bootswatch/dist/materia/bootstrap.min', implode(' ', self::stylesheets($dressed)));
+        self::assertStringNotContainsString('bootswatch', implode(' ', self::stylesheets($plain)));
+    }
+
+    public function testExactlyOneBootstrapIsEverLoaded(): void
+    {
+        // GIVEN a page wearing one of the skins
+        $sheets = self::stylesheets($this->renderer->render(
+            new RenderedForm(self::formFrom([...self::PRESENTATION, 'skin' => 'lux']), 'en'),
+        ));
+
+        // THEN the skin is the only Bootstrap on it: two would mean the loser
+        // still costs the reader a download, and which one wins would depend on
+        // the order a bundler happened to emit
+        self::assertCount(1, array_filter($sheets, static fn(string $href): bool => str_contains($href, '/bootstrap.min')));
+        self::assertStringContainsString('bootswatch/dist/lux/', implode(' ', $sheets));
+    }
+
+    public function testTheDeploymentDressesWhatTheDocumentLeavesUndressed(): void
+    {
+        // GIVEN a deployment that dresses its forms in something of its own
+        $renderer = $this->dressedIn('flatly');
+
+        // WHEN a document says nothing about how it should look
+        $sheets = implode(' ', self::stylesheets($renderer->render(new RenderedForm(self::form(), 'en'))));
+
+        // THEN that is what it gets — which is how every form here is re-dressed
+        // without touching a single stored document
+        self::assertStringContainsString('bootswatch/dist/flatly/', $sheets);
+    }
+
+    public function testADocumentThatSaysHowItLooksOutranksTheDeployment(): void
+    {
+        // GIVEN the same deployment, and a document with an opinion
+        $renderer = $this->dressedIn('flatly');
+        $form = self::formFrom([...self::PRESENTATION, 'skin' => 'material']);
+
+        // WHEN / THEN the document wins: it was written for this form, and the
+        // default was written for the ones that said nothing
+        self::assertStringContainsString(
+            'bootswatch/dist/materia/',
+            implode(' ', self::stylesheets($renderer->render(new RenderedForm($form, 'en')))),
+        );
+    }
+
+    public function testADeploymentCannotDressFormsInSomethingThisKitDoesNotHave(): void
+    {
+        // GIVEN / WHEN / THEN a stylesheet nobody has is every page failing on
+        // its first request, so it fails while the container is being built
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('chrome-yellow');
+
+        $this->dressedIn('chrome-yellow');
     }
 
     public function testEveryNameThePagePointsAtIsOnThePage(): void

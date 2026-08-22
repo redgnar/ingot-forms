@@ -1,0 +1,89 @@
+/* What a reader can ask of any page this kit draws, on top of whichever skin the
+   document picked.
+
+   None of this is a skin: a skin is how somebody chose to have the form look,
+   and these are how somebody needs to read it. That is why they are separate
+   files and why this one wins — an accessibility preference outranks an
+   aesthetic one, and no document can spend it on the reader's behalf.
+
+   Everything is driven by an attribute on the root element, set before the first
+   paint by the page's own script and remembered in that browser only. Bootstrap
+   is built on custom properties, so raising the contrast is a matter of saying
+   which colours, not of restyling anything. */
+
+/* Bootstrap's greys are chosen to be quiet. Quiet is exactly what somebody who
+   asked for contrast is telling us does not work for them, so the whole scale
+   collapses onto the body colour: a hint, a caption and an answer are all read
+   the same way. */
+[data-contrast="high"] {
+    --bs-body-color: #000;
+    --bs-body-color-rgb: 0, 0, 0;
+    --bs-body-bg: #fff;
+    --bs-secondary-color: #000;
+    --bs-tertiary-color: #000;
+    --bs-emphasis-color: #000;
+    --bs-border-color: #000;
+    --bs-border-color-translucent: #000;
+    --bs-link-color: #0000cc;
+    --bs-link-hover-color: #000080;
+    --bs-danger-rgb: 153, 0, 0;
+    --bs-danger-text-emphasis: #900;
+    --bs-secondary-bg: #fff;
+    --bs-tertiary-bg: #fff;
+}
+
+[data-contrast="high"][data-bs-theme="dark"] {
+    --bs-body-color: #fff;
+    --bs-body-color-rgb: 255, 255, 255;
+    --bs-body-bg: #000;
+    --bs-secondary-color: #fff;
+    --bs-tertiary-color: #fff;
+    --bs-emphasis-color: #fff;
+    --bs-border-color: #fff;
+    --bs-border-color-translucent: #fff;
+    --bs-link-color: #9db8ff;
+    --bs-link-hover-color: #cfdcff;
+    --bs-danger-rgb: 255, 138, 128;
+    --bs-danger-text-emphasis: #ff8a80;
+    --bs-secondary-bg: #000;
+    --bs-tertiary-bg: #000;
+}
+
+/* A border that is only just visible is a border that disappears at high
+   contrast, and the frames of this page are what say where one question ends. */
+[data-contrast="high"] .card,
+[data-contrast="high"] .form-control,
+[data-contrast="high"] .form-select,
+[data-contrast="high"] .btn,
+[data-contrast="high"] .table > :not(caption) > * > * {
+    border-color: currentColor;
+}
+
+[data-contrast="high"] .btn,
+[data-contrast="high"] .form-control,
+[data-contrast="high"] .form-select {
+    border-width: 2px;
+}
+
+/* Where the caret is has to be obvious, because at high contrast it is also how
+   somebody keeps their place. */
+[data-contrast="high"] :focus-visible {
+    outline: 3px solid currentColor;
+    outline-offset: 2px;
+}
+
+/* Everything this kit draws is sized in `rem`, so one number moves all of it —
+   the controls with the text, rather than the text alone inside boxes that stay
+   where they were. */
+[data-text="large"] {
+    font-size: 125%;
+}
+
+/* Somebody who asked their system for less movement asked this page too. What
+   moves here is the bar of an upload in progress; the number it reports is what
+   actually carries the news, and that keeps arriving. */
+@media (prefers-reduced-motion: reduce) {
+    .progress-bar {
+        transition: none;
+    }
+}

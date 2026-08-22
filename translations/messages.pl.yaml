@@ -3,6 +3,14 @@ page:
     confirmed: 'Ten formularz jest zatwierdzony. Można go czytać, nie można zmieniać.'
     unsaved: 'Te odpowiedzi wróciły na stronę i nadal nie są zapisane.'
     refused: 'Żądanie zostało odrzucone.'
+    comfort:
+        legend: 'Jak czyta się ta strona'
+        theme: 'Kolory'
+        theme_auto: 'Systemowe'
+        theme_light: 'Jasne'
+        theme_dark: 'Ciemne'
+        contrast: 'Wysoki kontrast'
+        text: 'Większy tekst'
     stepper:
         less: 'Mniej'
         more: 'Więcej'

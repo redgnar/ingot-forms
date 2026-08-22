@@ -183,6 +183,21 @@ Rules that follow from it, and that the tooling checks:
   that sentence either: a template asks the catalogue (`|trans`), and what the browser needs
   is handed to it as a value (`data-form-refused-value`, `data-refused`). Two catalogues, and
   the split is the point: the form's text is the author's, these words are ours.
+- **A skin is how a page looks; it may never change what a document may say.** The engine
+  declares its skins beside its widgets (`skins()`), a presentation may name one (`skin`, judged
+  at `/skin`: `presentation.skin.unknown`, or `presentation.skin.unsupported` for a kit that has
+  none), and `FORMS_SKIN` dresses whatever names nothing — document wins. Four ship for
+  `bootstrap`: `default`, `material`, `flatly`, `lux`, one vendored stylesheet each behind one
+  entrypoint each, so exactly one Bootstrap is ever loaded. The invariant is tested: **the same
+  form under two skins renders byte-identical markup**. A skin needing a class or an element has
+  become a second kit and must be one.
+- **How a page *reads* is the reader's, and no document has a say in it.** Colours
+  (system/light/dark), high contrast and larger text are attributes on `<html>`, applied before
+  the first paint by inline script and kept in that browser's `localStorage` — never on the
+  server, which has no identity to hang them on. Contrast is **not** a skin but an overlay on top
+  of whichever one the document chose: an accessibility preference outranks an aesthetic one.
+  `core-html` offers no switch (no machinery) and follows `prefers-color-scheme`,
+  `prefers-contrast` and `prefers-reduced-motion` instead.
 - **A kit is two halves in two layers**: `PresentationEngine` in the domain says what can be
   drawn (that is what a presentation is judged against), `FormRenderer` in the web layer draws
   it. HTML never reaches the domain, and the vocabulary never leaves it. Two kits ship:

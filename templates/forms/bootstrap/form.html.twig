@@ -12,7 +12,43 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Form {{ id }}</title>
-    {{ importmap('bootstrap-form') }}
+    {# Before the first paint, and therefore inline: a reader who asked for dark
+       or for high contrast must not be shown the other thing on the way in.
+       What is remembered is the choice, not its result — "system" means what the
+       machine says now, so it is worked out again on every page and whenever the
+       machine changes its mind. #}
+    <script>
+        (function () {
+            var root = document.documentElement;
+            var read = function (name) {
+                try {
+                    return localStorage.getItem('ingot-forms:' + name);
+                } catch (error) {
+                    return null;
+                }
+            };
+            var asks = function (query) {
+                return window.matchMedia && window.matchMedia(query).matches;
+            };
+            var theme = read('theme') || 'auto';
+            root.dataset.theme = theme;
+
+            if (theme === 'dark' || (theme === 'auto' && asks('(prefers-color-scheme: dark)'))) {
+                root.dataset.bsTheme = 'dark';
+            }
+
+            var contrast = read('contrast');
+
+            if (contrast === 'high' || (contrast === null && asks('(prefers-contrast: more)'))) {
+                root.dataset.contrast = 'high';
+            }
+
+            if (read('text') === 'large') {
+                root.dataset.text = 'large';
+            }
+        })();
+    </script>
+    {{ importmap('bootstrap-form-' ~ skin) }}
 </head>
 <body class="bg-body-tertiary">
 <main class="container py-5" style="max-width: 46rem;"
@@ -21,6 +57,31 @@
       data-form-version-value="{{ version ?? 0 }}"
       data-form-refused-value="{{ 'page.refused'|trans }}"
       data-action="input->form#touched click->form#leaving"{% endif %}>
+
+    {# What a reader can ask of this page, and the one thing on it no document
+       has a say in: how a form looks is the presentation's business, how it
+       *reads* is the reader's. Nothing here is sent anywhere — this service has
+       no idea who anybody is, so the only place a person's own setting can live
+       is the browser they are reading in. #}
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-4 small" data-controller="comfort"
+         role="group" aria-labelledby="comfort-legend">
+        <span class="text-body-secondary me-1" id="comfort-legend">{{ 'page.comfort.legend'|trans }}</span>
+
+        <div class="btn-group btn-group-sm" role="radiogroup" aria-labelledby="comfort-theme-legend">
+            <span class="visually-hidden" id="comfort-theme-legend">{{ 'page.comfort.theme'|trans }}</span>
+            {% for choice, code in {'auto': 'page.comfort.theme_auto', 'light': 'page.comfort.theme_light', 'dark': 'page.comfort.theme_dark'} %}
+                <input type="radio" class="btn-check" name="comfort-theme" id="comfort-theme-{{ choice }}"
+                       value="{{ choice }}" autocomplete="off" data-comfort-target="theme"
+                       data-action="change->comfort#theme">
+                <label class="btn btn-outline-secondary" for="comfort-theme-{{ choice }}">{{ code|trans }}</label>
+            {% endfor %}
+        </div>
+
+        <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false"
+                data-comfort-target="contrast" data-action="comfort#contrast">{{ 'page.comfort.contrast'|trans }}</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false"
+                data-comfort-target="text" data-action="comfort#text">{{ 'page.comfort.text'|trans }}</button>
+    </div>
 
     {# Page chrome, not the designer's business: no presentation carries a code
        for what somebody is told about their own doing, and this application

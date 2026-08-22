@@ -186,7 +186,31 @@ adding a class. Two ship here:
   `card`, `accordion` or `row`, and `alert`/`divider` between groups. Behaviour is Stimulus and
   icons are UX Icons, delivered by AssetMapper — no build step, no package manager. Every item is labelled the same
   way, above its control: a floating label can only float over a text box or a select, so any
-  form with a choice group or a slider would end up labelled two ways at once.
+  form with a choice group or a slider would end up labelled two ways at once. It is also the
+  kit that can be **dressed** (below).
+
+**A skin is how a form looks, and never what it may say.** The `bootstrap` kit offers four —
+`default`, `material` (Bootswatch Materia), `flatly` and `lux` — and a document picks one with a
+top-level `"skin"`, judged at creation by the same authority that judges its widgets: a name the
+kit does not have is `presentation.skin.unknown` at `/skin`, and naming one for a kit that has
+none (`core-html` has none, deliberately) is `presentation.skin.unsupported`. A document that
+names nothing gets whatever this deployment dresses forms in (`FORMS_SKIN`, default `default`) —
+two knobs with two jobs, and the document wins. The rule that keeps a skin a skin is testable and
+tested: **the same form under two skins renders byte-identical markup**, differing only in which
+stylesheet the page loads. One that needed a class, an element or a control of its own would have
+stopped being a way of looking and become a second kit, and would have to be one. All four are
+light themes on purpose — dark belongs to whoever is reading:
+
+**How a page reads is the reader's, and no document has a say in it.** Every `bootstrap` page
+carries three switches — colours (system/light/dark), high contrast, larger text — applied before
+the first paint by a scrap of inline script and remembered in that browser and nowhere else. This
+service has no idea who anybody is, so there is no other place a person's setting could live, and
+that is the right place for it anyway: it is a fact about a screen and a pair of eyes, not about
+a form. Contrast is not one of the skins and never will be — it is an overlay on top of whichever
+one the document chose, because an accessibility preference outranks an aesthetic one and a
+document must not be able to spend it on somebody's behalf. `core-html` grows no switch (it
+promised no machinery) but does what needs none: it follows `prefers-color-scheme`,
+`prefers-contrast` and `prefers-reduced-motion` from the machine.
 
 The plain controls are deliberately the same names in both; everything the richer kit adds is a
 way of asking the other has no markup for. So a document written for one is *refused* by the

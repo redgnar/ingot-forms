@@ -12,8 +12,24 @@
  * The "importmap:require" command can be used to add new entries to this file.
  */
 return [
-    'bootstrap-form' => [
-        'path' => './assets/pages/bootstrap-form.js',
+    // One entrypoint per skin: each imports its own Bootstrap and then the same
+    // kit, so a page loads exactly one stylesheet for the look it was given and
+    // the rest is shared. Which one a page asks for is the document's business
+    // (or this deployment's default), never the browser's.
+    'bootstrap-form-default' => [
+        'path' => './assets/pages/bootstrap-form-default.js',
+        'entrypoint' => true,
+    ],
+    'bootstrap-form-material' => [
+        'path' => './assets/pages/bootstrap-form-material.js',
+        'entrypoint' => true,
+    ],
+    'bootstrap-form-flatly' => [
+        'path' => './assets/pages/bootstrap-form-flatly.js',
+        'entrypoint' => true,
+    ],
+    'bootstrap-form-lux' => [
+        'path' => './assets/pages/bootstrap-form-lux.js',
         'entrypoint' => true,
     ],
     '@symfony/stimulus-bundle' => [
@@ -37,6 +53,18 @@ return [
     ],
     'tom-select/dist/css/tom-select.bootstrap5.min.css' => [
         'version' => '2.6.2',
+        'type' => 'css',
+    ],
+    'bootswatch/dist/materia/bootstrap.min.css' => [
+        'version' => '5.3.8',
+        'type' => 'css',
+    ],
+    'bootswatch/dist/flatly/bootstrap.min.css' => [
+        'version' => '5.3.8',
+        'type' => 'css',
+    ],
+    'bootswatch/dist/lux/bootstrap.min.css' => [
+        'version' => '5.3.8',
         'type' => 'css',
     ],
 ];

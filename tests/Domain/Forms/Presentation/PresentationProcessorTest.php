@@ -164,6 +164,33 @@ final class PresentationProcessorTest extends TestCase
         );
     }
 
+    public function testASkinIsPartOfTheDocumentAndSurvivesBeingStored(): void
+    {
+        // GIVEN a document that says what the form is to look like
+        $processor = self::processor();
+        $document = [...self::document(), 'skin' => 'material'];
+
+        // WHEN it is read, normalized and read back
+        $stored = $processor->normalize($processor->parse($document));
+        $again = $processor->presentationFromStored(json_encode($stored, \JSON_THROW_ON_ERROR));
+
+        // THEN the look travels with the rest of it: a presentation is one
+        // document, stored whole and immutable whole
+        self::assertSame('material', $processor->parse($document)->skin);
+        self::assertSame('material', $again->skin);
+        self::assertSame('material', $stored['skin'] ?? null);
+    }
+
+    public function testADocumentThatNamesNoSkinSaysNothingAboutOne(): void
+    {
+        // GIVEN / WHEN a document that leaves the look to the deployment
+        $stored = self::processor()->normalize(self::processor()->parse(self::document()));
+
+        // THEN there is no member at all — not an empty one, and not the word
+        // "default": naming nothing is how a document says it does not care
+        self::assertArrayNotHasKey('skin', $stored);
+    }
+
     public function testTheValueObjectCarriesBothShapes(): void
     {
         // GIVEN

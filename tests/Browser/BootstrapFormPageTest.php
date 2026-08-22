@@ -194,6 +194,69 @@ final class BootstrapFormPageTest extends PantherTestCase
         self::assertSame('draft', $this->formStatus($id));
     }
 
+    public function testAReaderTurnsUpTheContrastAndThePageRemembersItNext(): void
+    {
+        // GIVEN a form drawn for somebody who finds it hard to read
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+        // WHEN they ask for more contrast, darker colours and bigger text
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-comfort-target="contrast"]'))->click();
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-comfort-target="text"]'))->click();
+        $this->browser->findElement(WebDriverBy::cssSelector('label[for="comfort-theme-dark"]'))->click();
+
+        // THEN the page says so about itself, and the buttons say which state
+        // they are in rather than only looking pressed
+        self::assertSame('high', $this->browser->executeScript('return document.documentElement.dataset.contrast;'));
+        self::assertSame('large', $this->browser->executeScript('return document.documentElement.dataset.text;'));
+        self::assertSame('dark', $this->browser->executeScript('return document.documentElement.dataset.bsTheme;'));
+        self::assertSame('true', $this->browser->executeScript(
+            'return document.querySelector(\'[data-comfort-target="contrast"]\').getAttribute("aria-pressed");',
+        ));
+
+        // AND the next page is drawn that way from the start: what was asked for
+        // is in this browser, applied before anything is painted, and never sent
+        // anywhere — this service has no idea who is reading
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+        self::assertSame(
+            ['high', 'large', 'dark', 'dark'],
+            $this->browser->executeScript(
+                'const root = document.documentElement;'
+                . ' return [root.dataset.contrast, root.dataset.text, root.dataset.theme, root.dataset.bsTheme];',
+            ),
+        );
+        self::assertSame('true', $this->browser->executeScript(
+            'return document.querySelector("#comfort-theme-dark").checked ? "true" : "false";',
+        ));
+    }
+
+    public function testAFormWearingASkinLoadsThatOneAndStillWorks(): void
+    {
+        // GIVEN a form whose document says how it wants to look
+        $id = $this->plant(skin: 'material');
+
+        // WHEN somebody fills it in and saves, exactly as on any other page
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->browser->findElement(WebDriverBy::id('item-email'))->sendKeys('ada@example.com');
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="click->form#save"]'))->click();
+
+        // THEN it was stored: a skin is a stylesheet, and behaviour does not
+        // know which one it is wearing
+        self::assertSame(['email' => 'ada@example.com', 'terms' => false], $this->eventually(fn(): ?array => $this->values($id)));
+
+        // AND that stylesheet — and only that one — is what the browser loaded
+        $sheets = $this->browser->executeScript(
+            'return [...document.querySelectorAll(\'link[rel="stylesheet"]\')].map((link) => link.getAttribute("href"));',
+        );
+        self::assertIsArray($sheets);
+        // Whatever the driver hands back, read as the text it is — the point is
+        // which files are named, not what a WebDriver calls a list of strings.
+        $loaded = json_encode($sheets, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES);
+        self::assertStringContainsString('bootswatch/dist/materia/', $loaded);
+        self::assertStringNotContainsString('/bootstrap/dist/css/', $loaded);
+    }
+
     public function testConfirmingLocksTheFormAndTheNextViewSaysSo(): void
     {
         // GIVEN a form filled in completely
@@ -250,7 +313,7 @@ final class BootstrapFormPageTest extends PantherTestCase
     /**
      * Creates a form through the API, exactly as anything else would.
      */
-    private function plant(): string
+    private function plant(?string $skin = null): string
     {
         $response = $this->api->request('POST', '/api/forms', [
             'json' => [
@@ -266,8 +329,9 @@ final class BootstrapFormPageTest extends PantherTestCase
                         ['type' => 'checkbox', 'name' => 'terms', 'required' => true, 'mustBeChecked' => true],
                     ],
                 ],
-                'presentation' => [
+                'presentation' => array_filter([
                     'engine' => 'bootstrap',
+                    'skin' => $skin,
                     'defaultLocale' => 'en',
                     'items' => [
                         ['widget' => 'card', 'label' => 't.who', 'items' => [
@@ -305,7 +369,7 @@ final class BootstrapFormPageTest extends PantherTestCase
                             't.send' => 'Send it',
                         ],
                     ],
-                ],
+                ], static fn(mixed $member): bool => $member !== null),
             ],
         ]);
 

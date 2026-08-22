@@ -189,3 +189,77 @@ Content-Type: application/json
         client.assert(response.body.errors[0].code === "presentation.widget.mismatch", "Expected presentation.widget.mismatch");
     });
 %}
+
+### The same kit, dressed. A skin changes how the page looks and nothing about
+### what the document may say — open both ids and compare: the markup is the
+### same to the byte, and only the stylesheet differs.
+# @name aDressedForm
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "items": [{ "type": "text", "name": "email", "required": true }] },
+  "presentation": {
+    "engine": "bootstrap",
+    "skin": "material",
+    "defaultLocale": "en",
+    "items": [
+      { "name": "email", "widget": "text", "label": "t.email" },
+      { "widget": "confirm", "label": "t.send" }
+    ],
+    "translations": { "en": { "t.email": "E-mail", "t.send": "Send it" } }
+  }
+}
+
+> {%
+    client.test("201 — a form that says how it wants to look", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+        client.global.set("dressedFormId", response.body.id);
+    });
+%}
+
+### A look this kit does not have: refused where it was named, at creation.
+# @name aSkinNobodyHas
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "items": [{ "type": "text", "name": "email" }] },
+  "presentation": {
+    "engine": "bootstrap",
+    "skin": "chrome-yellow",
+    "items": [{ "name": "email" }, { "widget": "confirm" }]
+  }
+}
+
+> {%
+    client.test("422 — the kit is the authority on what it can be, as on what it can draw", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "presentation.skin.unknown", "Expected presentation.skin.unknown");
+        client.assert(response.body.errors[0].pointer === "/presentation/skin", "Expected /presentation/skin");
+    });
+%}
+
+### And the kit with one look takes none at all, rather than quietly ignoring it.
+# @name aSkinForThePlainKit
+POST {{host}}/api/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": { "items": [{ "type": "text", "name": "email" }] },
+  "presentation": {
+    "engine": "core-html",
+    "skin": "material",
+    "items": [{ "name": "email" }, { "widget": "confirm" }]
+  }
+}
+
+> {%
+    client.test("422 — a kit with no skins is not a kit whose skin is \"default\"", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "presentation.skin.unsupported", "Expected presentation.skin.unsupported");
+    });
+%}

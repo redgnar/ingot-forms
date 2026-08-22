@@ -16,6 +16,12 @@ parameters:
     # filling a form in.
     files.temporary_days: '%env(int:default:files.default_temporary_days:FILES_TEMPORARY_DAYS)%'
     files.default_temporary_days: 7
+    # What a form is dressed in when its own presentation names no skin. The
+    # document wins where it says something; this is what re-dresses every form
+    # that says nothing, without touching a single stored document. It must be a
+    # skin the kit has, and the renderer refuses to be built otherwise.
+    forms.default_skin: 'default'
+    forms.skin: '%env(default:forms.default_skin:FORMS_SKIN)%'
 
 services:
     _defaults:
@@ -52,6 +58,10 @@ services:
             # request DTOs and the attributes/constraints describing them
             - '../src/UserInterface/Api/Request/{CreateFormRequest,DataSchemaQuery,SaveFormDataRequest}.php'
             - '../src/UserInterface/Api/Request/Constraint/{ValidFormDefinition,ViolationPointer}.php'
+
+    App\UserInterface\Web\Renderer\BootstrapRenderer:
+        arguments:
+            $defaultSkin: '%forms.skin%'
 
     # The definition mapper is configuration, not a consumer's private detail:
     # one named service, built by a domain factory, injected where it is needed.

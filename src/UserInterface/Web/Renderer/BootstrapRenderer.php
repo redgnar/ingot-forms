@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\UserInterface\Web\Renderer;
 
 use App\Domain\Forms\FormStatus;
+use App\Domain\Forms\Presentation\Engine\BootstrapEngine;
 use Twig\Environment;
 
 /**
@@ -16,13 +17,32 @@ use Twig\Environment;
  * different markup. That is the whole difference between two kits, and the
  * reason the split is worth having: the second one cost a class, a template and
  * a stylesheet, not a second understanding of what a form is.
+ *
+ * A skin costs even less: one stylesheet, chosen by name, with the markup below
+ * untouched. That is not a happy accident but the rule — the same form under two
+ * skins renders the same page, differing only in what it loads — and it is what
+ * keeps "a way of looking" from quietly becoming "a way of asking".
  */
 final class BootstrapRenderer implements FormRenderer
 {
     public function __construct(
         private readonly Environment $twig,
         private readonly PresentedNodes $nodes,
-    ) {}
+        private readonly BootstrapEngine $engine,
+        /** What a form is dressed in when its own document names nothing. */
+        private readonly string $defaultSkin = 'default',
+    ) {
+        // A deployment that dresses its forms in something this kit does not
+        // have is a deployment whose every page would 500 on the first request.
+        // Better to say so while the container is being built.
+        if (!\in_array($defaultSkin, $engine->skins(), true)) {
+            throw new \InvalidArgumentException(\sprintf(
+                'The bootstrap kit has no skin named "%s"; it has %s.',
+                $defaultSkin,
+                implode(', ', $engine->skins()),
+            ));
+        }
+    }
 
     public function engine(): string
     {
@@ -34,6 +54,11 @@ final class BootstrapRenderer implements FormRenderer
         return $this->twig->render('forms/bootstrap/form.html.twig', [
             'id' => (string) $request->form->id(),
             'locale' => $request->locale,
+            // What the form is to look like: the document's word if it gave one,
+            // and otherwise whatever this deployment dresses forms in. It reaches
+            // the page as the name of an entrypoint and nothing else — a skin is
+            // one stylesheet, and no markup here knows which one it got.
+            'skin' => $request->form->presentation()?->structure()->skin ?? $this->defaultSkin,
             // Two different reasons a page cannot be changed, and the templates
             // need both: a confirmed form is closed for good, while an earlier
             // version is only being looked at — its restore is the way out.

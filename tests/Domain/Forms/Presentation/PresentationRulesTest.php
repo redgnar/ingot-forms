@@ -275,6 +275,58 @@ final class PresentationRulesTest extends TestCase
         self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
     }
 
+    public function testASkinIsAskedOfTheKitThatWouldDrawIt(): void
+    {
+        // GIVEN a document written for a kit that has skins, naming one of them
+        $presentation = self::presentation([['name' => 'email']], engine: 'bootstrap', skin: 'material');
+        $rules = new PresentationRules(new Engines([new CoreHtmlEngine(), new BootstrapEngine()]));
+
+        // WHEN / THEN what a form looks like is the document's to say, out of
+        // what its kit offers — the same authority that says which controls it
+        // may ask for
+        self::assertTrue($rules->check(self::definition(), $presentation)->isEmpty());
+    }
+
+    public function testASkinTheKitDoesNotHaveIsRefusedWhereItWasNamed(): void
+    {
+        // GIVEN a look nobody here can draw
+        $presentation = self::presentation([['name' => 'email']], engine: 'bootstrap', skin: 'chrome-yellow');
+        $rules = new PresentationRules(new Engines([new CoreHtmlEngine(), new BootstrapEngine()]));
+
+        // WHEN
+        $report = $rules->check(self::definition(), $presentation);
+
+        // THEN it is refused at creation rather than turning into a stylesheet
+        // request nobody can answer, and the finding points at the word itself
+        self::assertSame('presentation.skin.unknown', $report->errors[0]->code);
+        self::assertSame('/skin', $report->errors[0]->pointer->toString());
+        self::assertSame('chrome-yellow', $report->errors[0]->input);
+    }
+
+    public function testAKitWithOneWayOfLookingTakesNoSkinAtAll(): void
+    {
+        // GIVEN a skin named for the kit that has none
+        $presentation = self::presentation([['name' => 'email']], skin: 'material');
+
+        // WHEN
+        $report = self::rules()->check(self::definition(), $presentation);
+
+        // THEN saying so is better than drawing it plain and leaving somebody to
+        // wonder why: a kit with no skins is not a kit whose skin is "default"
+        self::assertSame('presentation.skin.unsupported', $report->errors[0]->code);
+        self::assertSame('/skin', $report->errors[0]->pointer->toString());
+    }
+
+    public function testAnEngineNobodyKnowsIsNotJudgedOnItsLookEither(): void
+    {
+        // GIVEN a document for a kit this application has never heard of
+        $presentation = self::presentation([['name' => 'email']], engine: 'someones-vue-kit', skin: 'brutalist');
+
+        // WHEN / THEN we do not judge the look of something we cannot see, which
+        // is the same bargain its widgets get
+        self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
+    }
+
     public function testAChoiceCanBeGivenWordsForItsOptions(): void
     {
         // GIVEN a document saying what each option of a choice reads like
@@ -694,12 +746,13 @@ final class PresentationRulesTest extends TestCase
      *
      * @param list<array<string, mixed>> $items
      */
-    private static function presentation(array $items, string $engine = 'core-html', bool $complete = true): \App\Domain\Forms\Presentation\PresentationDocument
+    private static function presentation(array $items, string $engine = 'core-html', bool $complete = true, ?string $skin = null): \App\Domain\Forms\Presentation\PresentationDocument
     {
-        return new PresentationProcessor(new FormMapperFactory()->create())->parse([
+        return new PresentationProcessor(new FormMapperFactory()->create())->parse(array_filter([
             'engine' => $engine,
+            'skin' => $skin,
             'items' => [...($complete ? [...$items, ...self::everythingElse($items)] : $items), ['widget' => 'confirm']],
-        ]);
+        ], static fn(mixed $member): bool => $member !== null));
     }
 
     /**

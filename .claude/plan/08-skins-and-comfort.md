@@ -31,11 +31,15 @@ Everything below follows from that split.
    bargain the kit was built on. Material Web Components would be a *third kit* — different
    markup, different vocabulary, a different renderer — and this plan deliberately does not go
    there.
-3. **What ships is `default` and `material`, plus a contrast overlay.** `material` is Bootswatch
-   Materia, pinned to the very Bootstrap we already ship (5.3.8, verified to exist and to be
-   256 KB) and vendored into `assets/vendor/` like everything else. Honest naming: it is
-   Bootstrap wearing Material's clothes, not Material Design. Two skins is enough to prove the
-   seam; a third is a line in an engine class when somebody wants one.
+3. **What ships is `default`, `material`, `flatly` and `lux`, plus a contrast overlay.** All
+   three named ones are Bootswatch themes pinned to the very Bootstrap we already ship (5.3.8,
+   each verified to exist, 227–257 KB) and vendored into `assets/vendor/` like everything else.
+   Honest naming: `material` is Materia — Bootstrap wearing Material's clothes, not Material
+   Design. `flatly` and `lux` are the two the owner asked for on top: the most-used flat theme,
+   and the most distinct minimal one. **All three are light themes on purpose.** Bootswatch's
+   popular dark ones (Darkly, Slate, Cyborg) would fight the reader's own dark switch, and by
+   decision 6 that switch is theirs and not the document's — a skin that decides somebody's
+   light level is a skin doing the reader's job.
 4. **The engine says which skins exist, exactly as it says which widgets exist.**
    `PresentationEngine::skins(): list<string>` joins `controlsFor()`, `containers()`,
    `decorations()` and `actions()`. `core-html` returns `[]` — it has thirty lines of inline CSS
@@ -153,8 +157,8 @@ Independent steps; 1 is worth doing whatever we decide about the rest.
   proves a skinned page loads and still saves. That is the coverage this deserves.
 - **An inline no-flash script is inline JavaScript.** Harmless today (no CSP), worth a note the
   day a policy arrives — a nonce, not a rewrite.
-- **+256 KB of committed CSS per theme.** Two skins is the budget; more is a decision, not a
-  default.
+- **~230–256 KB of committed CSS per theme.** Three named skins is the budget the owner set
+  deliberately; a fourth is a decision to make again, not a default.
 
 ## Non-goals
 
@@ -191,3 +195,41 @@ browser, because `<template>` content is inert there and visible to a server-sid
 **What is not done here, and was in the list**: nothing announces how many entries a list holds
 after one is added or removed. Focus lands in the new entry instead, which is the stronger half;
 a live region for the count can come later if it turns out to be missed.
+
+## What building steps 2 and 3 changed
+
+**The reader's half turned out to need two facts, not one.** What somebody chose (`auto`,
+`light`, `dark`) and what that comes to right now are different things: Bootstrap does not follow
+`prefers-color-scheme` on its own, so "system" has to be worked out — and worked out again when
+the machine changes its mind, which is a media-query listener rather than a value read at load.
+So the root element carries both: `data-theme` is the choice, `data-bs-theme` is the result. Only
+the choice is remembered. Contrast needed the same distinction for a different reason: a machine
+that asks for more contrast turns it on for a reader who never chose, and a reader who then turns
+it *off* means it — so "off" is written down too, rather than left absent and re-derived on the
+next page.
+
+**The overlay is not in `styles/skins/`,** where this plan first put it. It is
+`assets/styles/comfort.css`, beside the kit's own rules, because the plan's own decision 6 says
+contrast is not a skin — filing it with them would have been the first step towards its becoming
+one.
+
+**A skin is one entrypoint, not one `<link>`.** The first sketch had the page link a stylesheet
+by path; what it actually needs is an AssetMapper entrypoint per skin (`bootstrap-form-material`
+and friends), each importing its own Bootstrap and then the shared `kit.js`. That way exactly one
+Bootstrap is ever loaded, the import order is the one AssetMapper guarantees rather than one the
+template hopes for, and nothing has to know where a vendored file ended up after digesting. The
+page's only decision is which name to pass to `importmap()`.
+
+**The markup-identity test had to be written carefully to mean anything.** Rendering two forms
+and comparing them compares two different `FormId`s, and the first version of the test failed on
+exactly that plus a fixture difference. The honest shape is one form, one document, two
+renderers — then the only variable left is the skin, which is the thing under test.
+
+**A changed constructor is a changed mapper.** Adding `skin` to `PresentationDocument` left the
+test suite mapping documents without it until `make cache-clear`: `cache.ingot_mapper` keys on
+class names, and a class whose constructor grew a member has the same name it had yesterday. The
+guide already says this; this stage is one more instance of it.
+
+**Not done, and deliberately**: nothing announces a list's count after an entry is added (step 1
+left focus doing that job), and no automated accessibility audit runs in CI — the relationships
+that matter are asserted by name, which is cheaper and says why it failed.

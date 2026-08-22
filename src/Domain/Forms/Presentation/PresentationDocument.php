@@ -38,6 +38,11 @@ final readonly class PresentationDocument
         // Which catalogue answers when another one is missing a code. Required
         // once catalogues are given, meaningless without them.
         public ?string $defaultLocale = null,
+        // What the form is to look like, out of what its engine offers. Optional
+        // — a document that names none is drawn in whatever this deployment
+        // dresses forms in — and, like everything else here, fixed for good: a
+        // form that will never change has no reason for its description to.
+        public ?string $skin = null,
     ) {}
 
     /**

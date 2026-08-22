@@ -56,6 +56,13 @@ final class CoreHtmlEngine implements PresentationEngine
         return ['heading', 'paragraph'];
     }
 
+    public function skins(): array
+    {
+        // Thirty lines of stylesheet and no ambition to be styled. A document
+        // asking this kit to look like something else is asking the wrong kit.
+        return [];
+    }
+
     public function actions(): array
     {
         return [

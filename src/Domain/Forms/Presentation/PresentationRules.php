@@ -43,13 +43,59 @@ final class PresentationRules
 
     public function check(Definition $definition, PresentationDocument $presentation): ErrorReport
     {
-        return ErrorReport::of(...self::scope(
-            $presentation->items,
-            '/items',
-            self::byName($definition->structure()->items),
-            $this->engines->find($presentation->engine),
-            $presentation->engine,
-        ));
+        $engine = $this->engines->find($presentation->engine);
+
+        return ErrorReport::of(
+            ...self::judgeSkin($presentation, $engine),
+            ...self::scope(
+                $presentation->items,
+                '/items',
+                self::byName($definition->structure()->items),
+                $engine,
+                $presentation->engine,
+            ),
+        );
+    }
+
+    /**
+     * What a form is to look like is asked of the same authority as what it may
+     * be drawn with: a kit says which skins it has, and a name it does not know
+     * is refused here rather than turning into a stylesheet nobody has.
+     *
+     * A kit with no skins at all is not "the default one" — it is a kit whose
+     * look is not a choice, so naming one is a mistake worth saying out loud.
+     *
+     * @return list<MappingError>
+     */
+    private static function judgeSkin(PresentationDocument $presentation, ?PresentationEngine $engine): array
+    {
+        // An engine nobody here has heard of gets the same bargain its widgets
+        // get: we do not judge the look of something we cannot see.
+        if ($presentation->skin === null || $engine === null) {
+            return [];
+        }
+
+        $skins = $engine->skins();
+
+        if ($skins === []) {
+            return [self::error(
+                '/skin',
+                'presentation.skin.unsupported',
+                \sprintf('Engine "%s" draws forms one way, so it takes no skin.', $presentation->engine),
+                $presentation->skin,
+            )];
+        }
+
+        if (!\in_array($presentation->skin, $skins, true)) {
+            return [self::error(
+                '/skin',
+                'presentation.skin.unknown',
+                \sprintf('Engine "%s" has no skin named "%s".', $presentation->engine, $presentation->skin),
+                $presentation->skin,
+            )];
+        }
+
+        return [];
     }
 
     /**

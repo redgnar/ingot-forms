@@ -79,6 +79,17 @@ final class BootstrapEngine implements PresentationEngine
         return ['heading', 'paragraph', 'alert', 'divider'];
     }
 
+    public function skins(): array
+    {
+        // Bootstrap 5.3 is driven by custom properties, so a skin here is a
+        // stylesheet that sets them: no second framework, no markup of its own,
+        // nothing this kit cannot already draw. `material` is Materia — this
+        // kit wearing Material's clothes, which is an honest thing to call it
+        // and not the same as Material Design. All three are light themes on
+        // purpose: dark belongs to whoever is reading, not to the document.
+        return ['default', 'material', 'flatly', 'lux'];
+    }
+
     public function actions(): array
     {
         return [
