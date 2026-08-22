@@ -490,6 +490,53 @@ document.getElementById('form').addEventListener('click', (event) => {
     if (reference !== null) discard(reference.id);
 });
 
+// The three things a reader can ask of this page: which colours, how much
+// contrast, how big the text. The page already applied what it found in storage
+// before this module ran — an inline script in the head, because a preference
+// applied after the first paint is one the reader watches being applied. What is
+// left is to show which one they are on, and to write a change down.
+//
+// Nothing reaches the server. This service has no idea who anybody is, so the
+// browser is the only place a reading preference can live, and the right one: it
+// is a fact about a screen and a pair of eyes rather than about a form.
+const comfort = document.querySelector('[data-comfort]');
+
+if (comfort !== null) {
+    const root = document.documentElement;
+    const remember = (name, value) => {
+        try {
+            localStorage.setItem(`ingot-forms:${name}`, value);
+        } catch {
+            // No storage to keep it in (a private window, storage turned off):
+            // the choice holds for this page and is forgotten on the next one.
+        }
+    };
+
+    for (const choice of comfort.querySelectorAll('[data-comfort-theme]')) {
+        choice.checked = choice.value === (root.dataset.theme ?? 'auto');
+        choice.addEventListener('change', () => {
+            // "System" is the absence of a choice rather than a third scheme:
+            // the stylesheet asks the machine, now and whenever it changes.
+            root.dataset.theme = choice.value;
+            remember('theme', choice.value);
+        });
+    }
+
+    for (const toggle of comfort.querySelectorAll('[data-comfort-toggle]')) {
+        const name = toggle.dataset.comfortToggle;
+        const on = name === 'contrast' ? 'high' : 'large';
+
+        toggle.checked = root.dataset[name] === on;
+        toggle.addEventListener('change', () => {
+            // Written down either way: a reader whose machine asks for contrast
+            // and who turns it off here means it, and must not be given it back
+            // by the next page.
+            root.dataset[name] = toggle.checked ? on : 'off';
+            remember(name, toggle.checked ? on : 'off');
+        });
+    }
+}
+
 // Earlier versions: a list of moments and nothing else. What a save *said* is
 // shown by the form itself — "View" is this same page drawn from that document —
 // so nothing here lists values out of the only context that gives them meaning.

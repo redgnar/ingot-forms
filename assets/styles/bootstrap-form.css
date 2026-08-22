@@ -17,3 +17,54 @@
     height: 1.3em;
     width: 1.3em;
 }
+
+/* A skin may repaint anything; it may not make what we drew unreadable. Materia
+   sets `--bs-secondary: #fff`, which turns every outline-secondary button — the
+   comfort bar, "add entry", "remove", the stepper — into white text on white,
+   and paints a literal `#484848` on them again in dark mode. So the buttons this
+   kit leans on take their colour from what the page is actually made of: the
+   body colour, the border colour, the link colour, whatever the skin has set
+   those to and whichever theme is on.
+   The selector is written twice on purpose. A skin's dark-mode rules are
+   `[data-bs-theme=dark] .btn-…`, one specificity point above a bare class, so a
+   bare class here would lose exactly where it is needed most; the second form
+   ties on specificity and wins on order, this being the last stylesheet loaded. */
+.btn-outline-secondary,
+[data-bs-theme] .btn-outline-secondary {
+    --bs-btn-color: var(--bs-body-color);
+    --bs-btn-border-color: var(--bs-border-color);
+    --bs-btn-hover-color: var(--bs-body-bg);
+    --bs-btn-hover-bg: var(--bs-body-color);
+    --bs-btn-hover-border-color: var(--bs-body-color);
+    --bs-btn-active-color: var(--bs-body-bg);
+    --bs-btn-active-bg: var(--bs-body-color);
+    --bs-btn-active-border-color: var(--bs-body-color);
+    --bs-btn-disabled-color: var(--bs-secondary-color);
+    --bs-btn-disabled-border-color: var(--bs-border-color);
+    /* Materia does not stop at the variables: it repaints `color` outright a few
+       hundred rules later, so the variable alone would be a fix that changes
+       nothing. Ours is the last stylesheet on the page, and `:hover`/`:active`
+       are one specificity point above this, so the states still belong to the
+       skin. */
+    color: var(--bs-btn-color);
+    border-color: var(--bs-btn-border-color);
+}
+
+/* The same for the two that carry the skin's own colour: they may be branded,
+   they may not be invisible. */
+.btn-outline-primary,
+[data-bs-theme] .btn-outline-primary,
+.btn-link,
+[data-bs-theme] .btn-link {
+    --bs-btn-color: var(--bs-link-color);
+    color: var(--bs-btn-color);
+}
+
+/* tom-select measures its own box with `calc(1.5em + .75rem + var(--bs-border-width) * 2)`.
+   A skin is free to say `--bs-border-width: 0` — a *unitless* zero, which makes
+   that sum "length + number", which is invalid arithmetic, which throws the whole
+   declaration away and collapses the control to a 12px line. Lux does exactly
+   that. So the height is stated here without asking a variable what a border is. */
+.ts-wrapper {
+    min-height: calc(1.5em + 0.75rem + 2px);
+}

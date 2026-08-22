@@ -173,6 +173,43 @@ final class FormPageTest extends PantherTestCase
         self::assertFalse($this->browser->findElement(WebDriverBy::id('form-error'))->isDisplayed());
     }
 
+    public function testAReaderTurnsUpTheContrastWithPlainControlsAndThePageRemembers(): void
+    {
+        // GIVEN a form drawn for somebody who finds it hard to read
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+        // WHEN they tick the two boxes and pick the dark colours
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-comfort-toggle="contrast"]'))->click();
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-comfort-toggle="text"]'))->click();
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-comfort-theme][value="dark"]'))->click();
+
+        // THEN the page says so about itself — no framework involved, and no
+        // switch this kit had to invent: they are a browser's own controls
+        self::assertSame(
+            ['high', 'large', 'dark'],
+            $this->browser->executeScript(
+                'const root = document.documentElement;'
+                . ' return [root.dataset.contrast, root.dataset.text, root.dataset.theme];',
+            ),
+        );
+
+        // AND the next page is drawn that way from the start, with the boxes
+        // ticked to say so
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+        self::assertSame(
+            ['high', 'large', 'dark'],
+            $this->browser->executeScript(
+                'const root = document.documentElement;'
+                . ' return [root.dataset.contrast, root.dataset.text, root.dataset.theme];',
+            ),
+        );
+        self::assertTrue($this->browser->executeScript(
+            'return document.querySelector(\'[data-comfort-toggle="contrast"]\').checked;',
+        ));
+    }
+
     public function testConfirmingLocksTheFormAndTheNextViewSaysSo(): void
     {
         // GIVEN a form filled in completely

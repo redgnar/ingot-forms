@@ -196,8 +196,14 @@ Rules that follow from it, and that the tooling checks:
   the first paint by inline script and kept in that browser's `localStorage` — never on the
   server, which has no identity to hang them on. Contrast is **not** a skin but an overlay on top
   of whichever one the document chose: an accessibility preference outranks an aesthetic one.
-  `core-html` offers no switch (no machinery) and follows `prefers-color-scheme`,
-  `prefers-contrast` and `prefers-reduced-motion` instead.
+  Both kits offer all three: the richer one as a bar of buttons driven by a Stimulus
+  controller, the plain one as radios and checkboxes its own module reads — "no machinery"
+  always meant no framework, and that kit has had a hand-written module since it was born. With
+  nothing chosen both fall back to `prefers-color-scheme`, `prefers-contrast` and
+  `prefers-reduced-motion`. **Dark and high contrast are painted by us, not by the skin**:
+  Bootswatch themes support dark unevenly and repaint buttons with literal colours, so chasing
+  each theme's exceptions is endless — the skin keeps its shapes and fonts, the reader gets a
+  page they can read.
 - **A kit is two halves in two layers**: `PresentationEngine` in the domain says what can be
   drawn (that is what a presentation is judged against), `FormRenderer` in the web layer draws
   it. HTML never reaches the domain, and the vocabulary never leaves it. Two kits ship:
@@ -231,6 +237,14 @@ Rules that follow from it, and that the tooling checks:
   a person asked for it (`event.isTrusted`), because a document being put back asked for nothing.
   Cloning an entry rewrites every reference along with the ids and the radio group: a caption or
   a message is a name too.
+- **A skin's literal colours beat an indirection.** Overriding `--bs-*` is not enough on its
+  own: Bootswatch repaints `color` and `background-color` outright hundreds of rules later, and
+  its dark rules are `[data-bs-theme=dark] .btn-…` — one specificity point above a bare class.
+  So a legibility rule states the property as well as the variable, and is written twice (bare,
+  and prefixed with `[data-bs-theme]`) to tie on specificity and win on order, ours being the
+  last stylesheet on the page. And **check it in a browser**: a computed style read straight
+  after flipping an attribute can be stale, so a screenshot is the ground truth rather than
+  `getComputedStyle`.
 - **A message nobody can see is not a message.** An entry is answered in a form folded away
   under its row, so placing a refusal is not enough: both kits unfold every form on the way to
   it and mark each entry it is inside (`entry-invalid` in the plain kit, `table-danger` in the
@@ -375,7 +389,10 @@ Rules that follow from it, and that the tooling checks:
   yesterday's document. Change what a definition derives and `make cache-clear` is part of
   the change, not an afterthought; a deploy runs the same command. In dev both pools are
   in-memory (`when@dev` in `config/packages/framework.yaml`), because a clear that has to be
-  remembered while developing is a clear that will be forgotten.
+  remembered while developing is a clear that will be forgotten. **A changed constructor is a
+  changed mapper**: adding a member to `PresentationDocument` or to a field class leaves the
+  test suite mapping documents without it until the pool is cleared, because a class whose
+  constructor grew has exactly the name it had yesterday.
 - **A use case orchestrates, it does not decide.** State transitions run inside
   `Transactions::run()` + `FormRepository::getForUpdate()`, so the state the form checks
   cannot change between the check and the write — but what may happen is the aggregate's
@@ -412,6 +429,10 @@ Rules that follow from it, and that the tooling checks:
   dama/doctrine-test-bundle) and `browser` (tests/Browser — Panther driving headless Chromium
   against a server it starts). Infection runs the unit suite over `src/Domain/`, so a rule that
   belongs to the model has to be pinned there to count.
+- **Some assertions are only possible in a browser.** A server-side crawler sees `<template>`
+  content as ordinary nodes; a browser does not, which is what makes "every name this page
+  points at exists" a real test there and a tautology here. Cloning bugs — ids, radio groups,
+  `aria-*` references — belong in the browser battery for that reason.
 - **A browser test sets up through the API, never the database.** The browser talks to a
   separate server process, so a fixture written inside the test's transaction is invisible to
   it — and going through the API is what makes the test take the same path a person does.

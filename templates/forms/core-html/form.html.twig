@@ -21,8 +21,12 @@
             --notice-bg: #eef; --viewing-bg: #fff8e1;
             --depth-1: #fafafa; --depth-2: #f1f1f1; --depth-3: #e8e8e8;
         }
+        /* The dark palette twice, because it answers to two different things:
+           what the machine says when nobody chose, and what the reader chose.
+           CSS cannot say "either" across a media query, and duplicating ten
+           declarations is cheaper than a layer of indirection over them. */
         @media (prefers-color-scheme: dark) {
-            :root {
+            :root:not([data-theme="light"]) {
                 color-scheme: dark;
                 --ink: #e8e8e8; --page: #14161a; --quiet: #b2b7be; --line: #3a3f47; --frame: #4a5058; --link: #9db8ff;
                 --bad: #ff8a80; --bad-bg: #3a1f1f; --good: #a5d6a7; --good-bg: #1c2b1d;
@@ -30,17 +34,30 @@
                 --depth-1: #1a1d22; --depth-2: #20242a; --depth-3: #262b32;
             }
         }
-        /* Somebody whose system asks for more contrast is telling us the quiet
-           parts of this page do not work for them: the greys collapse onto the
-           text colour, and where the caret is stops being a hairline. */
+        :root[data-theme="dark"] {
+            color-scheme: dark;
+            --ink: #e8e8e8; --page: #14161a; --quiet: #b2b7be; --line: #3a3f47; --frame: #4a5058; --link: #9db8ff;
+            --bad: #ff8a80; --bad-bg: #3a1f1f; --good: #a5d6a7; --good-bg: #1c2b1d;
+            --notice-bg: #1c2230; --viewing-bg: #33280f;
+            --depth-1: #1a1d22; --depth-2: #20242a; --depth-3: #262b32;
+        }
+        /* Somebody asking for more contrast — with their system or with the
+           switch above — is telling us the quiet parts of this page do not work
+           for them: the greys collapse onto the text colour, and where the caret
+           is stops being a hairline. A reader who turns it off means that too,
+           which is why "off" is a value and not an absence. */
         @media (prefers-contrast: more) {
-            :root { --quiet: var(--ink); --line: var(--ink); --frame: var(--ink); --link: #00c; --bad: #900; }
-            :focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
+            :root:not([data-contrast="off"]) { --quiet: var(--ink); --line: var(--ink); --frame: var(--ink); }
         }
-        @media (prefers-contrast: more) and (prefers-color-scheme: dark) {
-            :root { --link: #9db8ff; --bad: #ff8a80; }
-        }
-        body { background: var(--page); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 42rem; padding: 2rem 1rem; }
+        :root[data-contrast="high"] { --quiet: var(--ink); --line: var(--ink); --frame: var(--ink); }
+        :root[data-contrast="high"] :focus-visible,
+        :root:not([data-contrast="off"]) :focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
+        /* Everything here is sized in rem, so one number moves the page. */
+        :root[data-text="large"] { font-size: 125%; }
+        body { background: var(--page); color: var(--ink); font: 1rem/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 42rem; padding: 2rem 1rem; }
+        .comfort { border: 1px solid var(--line); border-radius: .25rem; font-size: .875rem; margin: 0 0 1.5rem; padding: .25rem .75rem .5rem; }
+        .comfort legend { font-size: .875rem; font-weight: 400; }
+        .comfort label { display: inline-block; font-weight: 400; margin-right: .75rem; }
         fieldset { border: 1px solid var(--frame); border-radius: .25rem; margin: 0 0 1.5rem; padding: 1rem 1.25rem; }
         legend { font-weight: 600; padding: 0 .25rem; }
         .item { margin: 0 0 1rem; }
@@ -73,6 +90,33 @@
         .file-held { font-size: .875rem; margin: .25rem 0 0; }
         .file-progress { color: var(--quiet); font-size: .875rem; margin: .25rem 0 0; }
     </style>
+    {# Before the first paint, and therefore inline: a reader who asked for dark
+       or for high contrast must not be shown the other thing on the way in. The
+       kit's one script is a module at the end of the page, which is far too late
+       for this. Same keys as the other kit, so a choice made on one page holds on
+       the next whichever kit drew it. #}
+    <script>
+        (function () {
+            var root = document.documentElement;
+            var read = function (name) {
+                try {
+                    return localStorage.getItem('ingot-forms:' + name);
+                } catch (error) {
+                    return null;
+                }
+            };
+            root.dataset.theme = read('theme') || 'auto';
+            var contrast = read('contrast');
+
+            if (contrast !== null) {
+                root.dataset.contrast = contrast;
+            }
+
+            if (read('text') === 'large') {
+                root.dataset.text = 'large';
+            }
+        })();
+    </script>
 </head>
 <body data-form="{{ id }}" data-page="{{ path('web_form_view', {id: id}) }}"
       {%- if version is not null %} data-version="{{ version }}"{% endif %}
@@ -90,6 +134,20 @@
         <a href="{{ path('web_form_view', {id: id}) }}" data-history-back>{{ 'page.history.back'|trans }}</a>
     </div>
 {% endif %}
+
+{# What a reader can ask of this page, and the one thing on it no document has a
+   say in: how a form looks is the presentation's business, how it *reads* is the
+   reader's. Radios and boxes rather than buttons pretending to be switches —
+   this kit's answer to everything is the control the browser already has. Kept
+   outside the form, because nothing here is an answer to a question. #}
+<fieldset class="comfort" data-comfort>
+    <legend>{{ 'page.comfort.legend'|trans }}</legend>
+    {% for choice, code in {'auto': 'page.comfort.theme_auto', 'light': 'page.comfort.theme_light', 'dark': 'page.comfort.theme_dark'} %}
+        <label><input type="radio" name="comfort-theme" value="{{ choice }}" data-comfort-theme> {{ code|trans }}</label>
+    {% endfor %}
+    <label><input type="checkbox" data-comfort-toggle="contrast"> {{ 'page.comfort.contrast'|trans }}</label>
+    <label><input type="checkbox" data-comfort-toggle="text"> {{ 'page.comfort.text'|trans }}</label>
+</fieldset>
 
 {% if confirmed %}
     <p class="notice">{{ 'page.confirmed'|trans }}</p>

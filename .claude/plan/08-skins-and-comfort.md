@@ -233,3 +233,35 @@ guide already says this; this stage is one more instance of it.
 **Not done, and deliberately**: nothing announces a list's count after an entry is added (step 1
 left focus doing that job), and no automated accessibility audit runs in CI — the relationships
 that matter are asserted by name, which is cheaper and says why it failed.
+
+## What the owner found by looking at it
+
+Three reports after the stage shipped, and the first two were real:
+
+**Buttons unreadable in `material`.** Materia sets `--bs-secondary: #fff` and then repaints
+`.btn-outline-secondary` with a literal `color: #dee2e6` a few hundred rules later, so the
+comfort bar, "add entry", "remove" and the stepper were white on white — a contrast ratio of
+1.24. The fix is the kit's own stylesheet asserting that the buttons it leans on read like the
+page (`--bs-body-color`, `--bs-border-color`, `--bs-link-color`), stating the property as well
+as the variable, and written twice so it also outranks a theme's `[data-bs-theme=dark]` rules.
+**A skin may repaint anything; it may not make what we drew invisible** — that is the second
+half of the rule this stage is built on, and it was missing.
+
+**A collapsed autocomplete in `lux`.** tom-select measures its own box with
+`calc(1.5em + .75rem + var(--bs-border-width) * 2)`, and Lux defines `--bs-border-width: 0` — a
+*unitless* zero, which makes that sum "length + number", which is invalid arithmetic, which
+throws the whole declaration away. The control collapsed to a 12px line. Stated without asking
+a variable what a border is, it is 38px in every skin.
+
+**Dark had to become ours.** Chasing each theme's dark-mode literals rule by rule is a rabbit
+hole with no end, so the reader's dark palette is painted by `comfort.css` — the skin keeps its
+shapes, radii and fonts, and the page a reader needs belongs to the reader. Same principle as
+contrast, applied one step further than this plan first went.
+
+**And the third report was a question**: where are the switches in `core-html`? Decision 9 said
+that kit gets media queries and no switcher because it "promised no machinery" — and that
+reasoning was thinner than it looked, because the kit has shipped a hand-written module since
+it was born. "No machinery" always meant no framework. So it has the same three switches now,
+as radios and checkboxes in a `fieldset`: the plainest controls there are, twenty lines in a
+module that already existed, sharing the storage keys with the other kit so a reader's choice
+holds whichever kit drew the page.

@@ -11,6 +11,55 @@
    is built on custom properties, so raising the contrast is a matter of saying
    which colours, not of restyling anything. */
 
+/* Dark is ours, not the skin's.
+   Bootswatch themes carry a dark mode of wildly varying completeness — Materia
+   repaints some buttons with literal colours that were chosen for a white page —
+   and chasing each theme's exceptions is a rabbit hole with no end. So the
+   reader's dark is painted here, from the same place the reader's contrast is:
+   the skin keeps its shapes, its radii and its fonts, and the page it is drawn
+   on belongs to whoever is reading it. Every selector below is one specificity
+   point above a bare class, which is what a theme's own dark rules are, and this
+   is the last stylesheet on the page. */
+[data-bs-theme="dark"] {
+    --bs-body-bg: #14161a;
+    --bs-body-bg-rgb: 20, 22, 26;
+    --bs-body-color: #e6e8ea;
+    --bs-body-color-rgb: 230, 232, 234;
+    --bs-emphasis-color: #fff;
+    --bs-secondary-color: #b2b7be;
+    --bs-secondary-bg: #20242a;
+    --bs-tertiary-bg: #1a1d22;
+    --bs-border-color: #3a3f47;
+    --bs-border-color-translucent: rgba(255, 255, 255, 0.2);
+    --bs-link-color: #9db8ff;
+    --bs-link-hover-color: #c5d3ff;
+    --bs-danger-rgb: 255, 138, 128;
+    --bs-heading-color: inherit;
+}
+
+[data-bs-theme="dark"] body,
+[data-bs-theme="dark"] .bg-body-tertiary {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] .card,
+[data-bs-theme="dark"] .card-header,
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select,
+[data-bs-theme="dark"] .ts-control,
+[data-bs-theme="dark"] .ts-dropdown,
+[data-bs-theme="dark"] .table {
+    background-color: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] .text-body-secondary,
+[data-bs-theme="dark"] .form-text {
+    color: var(--bs-secondary-color);
+}
+
 /* Bootstrap's greys are chosen to be quiet. Quiet is exactly what somebody who
    asked for contrast is telling us does not work for them, so the whole scale
    collapses onto the body colour: a hint, a caption and an answer are all read
@@ -47,6 +96,53 @@
     --bs-danger-text-emphasis: #ff8a80;
     --bs-secondary-bg: #000;
     --bs-tertiary-bg: #000;
+}
+
+/* A skin's brand colour is its own business at normal contrast — Material's blue
+   on white is Material — but somebody who asked for contrast is not asking to
+   admire it. Buttons and links are the things you have to be able to read to use
+   the page at all, so they stop being brand-coloured and start being legible. */
+[data-contrast="high"] .btn-primary {
+    --bs-btn-bg: var(--bs-body-color);
+    --bs-btn-border-color: var(--bs-body-color);
+    --bs-btn-color: var(--bs-body-bg);
+    --bs-btn-hover-bg: var(--bs-body-color);
+    --bs-btn-hover-border-color: var(--bs-body-color);
+    --bs-btn-hover-color: var(--bs-body-bg);
+    --bs-btn-active-bg: var(--bs-body-color);
+    --bs-btn-active-color: var(--bs-body-bg);
+    /* Stated outright as well as through the variables: a skin is free to paint
+       `color` and `background-color` directly, and several do. */
+    background-color: var(--bs-btn-bg);
+    border-color: var(--bs-btn-border-color);
+    color: var(--bs-btn-color);
+}
+
+[data-contrast="high"] .btn-outline-primary,
+[data-contrast="high"] .btn-check + .btn,
+[data-contrast="high"] .btn-link {
+    --bs-btn-color: var(--bs-link-color);
+    --bs-btn-border-color: currentColor;
+    --bs-btn-hover-color: var(--bs-body-bg);
+    --bs-btn-hover-bg: var(--bs-link-color);
+    --bs-btn-active-color: var(--bs-body-bg);
+    --bs-btn-active-bg: var(--bs-link-color);
+    --bs-btn-active-border-color: var(--bs-link-color);
+    background-color: transparent;
+    border-color: var(--bs-link-color);
+    color: var(--bs-btn-color);
+}
+
+/* The one a choice group is checked with keeps saying which option is picked —
+   that is what the colour is for here, so it inverts rather than fading. */
+[data-contrast="high"] .btn-check:checked + .btn {
+    background-color: var(--bs-link-color);
+    border-color: var(--bs-link-color);
+    color: var(--bs-body-bg);
+}
+
+[data-contrast="high"] a {
+    color: var(--bs-link-color);
 }
 
 /* A border that is only just visible is a border that disappears at high

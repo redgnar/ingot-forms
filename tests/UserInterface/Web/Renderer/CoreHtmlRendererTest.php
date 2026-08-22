@@ -111,7 +111,9 @@ final class CoreHtmlRendererTest extends KernelTestCase
             $page->filter('[data-item]')->each(static fn(Crawler $node): string => (string) $node->attr('data-item')),
         );
         self::assertSame('Contact us', $page->filter('h2')->text());
-        self::assertSame('Personal details', $page->filter('fieldset legend')->text());
+        // Scoped to the form: the page also carries the reader's own switches,
+        // which are a group with a name and none of the form's business.
+        self::assertSame('Personal details', $page->filter('#form fieldset legend')->text());
         self::assertCount(3, $page->filter('fieldset [data-item]'));
     }
 
@@ -643,19 +645,37 @@ final class CoreHtmlRendererTest extends KernelTestCase
         self::assertSame('status', $page->filter('[data-file-progress]')->attr('role'));
     }
 
-    public function testThePlainKitFollowsTheMachineAndOffersNoSwitchOfItsOwn(): void
+    public function testThePlainKitOffersTheSameThreeChoicesWithPlainControls(): void
     {
         // GIVEN / WHEN
         $drawn = $this->renderer->render(new RenderedForm(self::form(), 'en'));
         $page = new Crawler($drawn);
+        $switches = $page->filter('[data-comfort]');
 
-        // THEN there is nothing to press: this kit promised no machinery, and a
-        // switch is a button, a store and a script
-        self::assertCount(0, $page->filter('[data-controller="comfort"]'));
-        self::assertStringNotContainsString('localStorage', $drawn);
+        // THEN the reader gets the same three things the richer kit offers,
+        // asked for with the controls a browser already has — this kit's answer
+        // to everything, and the reason it needs no framework to have them
+        self::assertSame(
+            ['auto', 'light', 'dark'],
+            $switches->filter('input[data-comfort-theme]')->each(static fn(Crawler $one): ?string => $one->attr('value')),
+        );
+        self::assertSame(
+            ['contrast', 'text'],
+            $switches->filter('input[data-comfort-toggle]')->each(static fn(Crawler $one): ?string => $one->attr('data-comfort-toggle')),
+        );
+        self::assertSame('fieldset', $switches->nodeName());
 
-        // AND it does what it can do with no machinery at all — listen to what
-        // the machine already says about how this reader needs to read
+        // AND they sit outside the form, because none of it is an answer to a
+        // question the form asked
+        self::assertCount(0, $page->filter('#form [data-comfort]'));
+
+        // AND what somebody chose is applied before the page is painted, and
+        // kept under the same names the other kit uses: a choice made on one
+        // page holds on the next, whichever kit drew it
+        self::assertStringContainsString("localStorage.getItem('ingot-forms:'", $page->filter('head script')->text());
+
+        // AND with no choice made it still does what needs no switch at all:
+        // listens to what the machine says about this reader
         self::assertStringContainsString('prefers-color-scheme: dark', $drawn);
         self::assertStringContainsString('prefers-contrast: more', $drawn);
     }
