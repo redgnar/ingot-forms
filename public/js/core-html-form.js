@@ -81,6 +81,10 @@ function clearMessages() {
         slot.textContent = '';
     }
 
+    for (const control of document.querySelectorAll('[aria-invalid]')) {
+        control.removeAttribute('aria-invalid');
+    }
+
     for (const entry of document.querySelectorAll('[data-entry].entry-invalid')) {
         entry.classList.remove('entry-invalid');
     }
@@ -132,6 +136,7 @@ function slotFor(pointer) {
 
 function showErrors(body) {
     const rest = [];
+    let refused = null;
 
     for (const error of body.errors ?? []) {
         const slot = slotFor(error.pointer ?? '');
@@ -140,16 +145,40 @@ function showErrors(body) {
             slot.textContent = error.message;
             slot.hidden = false;
             reveal(slot);
+            // The message stands under the control; this is what says the control
+            // is the one it is about, to anybody who cannot see where it stands.
+            slot.closest('.item')?.querySelector('[data-name][data-type]')?.setAttribute('aria-invalid', 'true');
+            refused ??= slot;
         } else {
             rest.push(error.message);
         }
     }
+
+    if (refused !== null) stand(refused);
 
     if (rest.length === 0 && (body.errors ?? []).length > 0) return;
 
     const notice = document.getElementById('form-error');
     notice.textContent = rest.join(' ') || body.detail || body.title || document.body.dataset.refused;
     notice.hidden = false;
+}
+
+// Marking the first refused answer is not the same as reaching it: a page can be
+// long, and its entries are answered in forms folded away. So the caret goes
+// there — to the control itself, or, when it is the list that holds too few
+// entries, to the button that adds one.
+function stand(slot) {
+    const item = slot.closest('.item');
+
+    if (item !== null) {
+        item.querySelector('input:not([type="hidden"]):not([disabled]), select, textarea')?.focus();
+
+        return;
+    }
+
+    const list = listOf(slot);
+
+    if (list !== null) ownPart(list, '[data-action="add-entry"]')?.focus();
 }
 
 async function send(path, method, body) {
@@ -251,11 +280,13 @@ function guard(list) {
 // A blank entry has no place in the list, so the server left a token where an
 // entry's own scope would be. Replacing it is what makes a cloned entry its own:
 // an id names one thing, and radios sharing a name are one group — two entries
-// with the same group would unpick each other. A list inside the entry keeps its
-// own token for later, because only the first one is replaced here.
+// with the same group would unpick each other. What points at a caption or a
+// message is the same kind of name, and pointing at another entry's is how a
+// question comes to be read out twice and answered once. A list inside the entry
+// keeps its own token for later, because only the first one is replaced here.
 function claim(entry, pending, mine) {
-    for (const element of entry.querySelectorAll('[id], [for], [name]')) {
-        for (const attribute of ['id', 'for', 'name']) {
+    for (const element of entry.querySelectorAll('[id], [for], [name], [aria-labelledby], [aria-describedby]')) {
+        for (const attribute of ['id', 'for', 'name', 'aria-labelledby', 'aria-describedby']) {
             const value = element.getAttribute(attribute);
 
             if (value !== null && value.includes(pending)) {
@@ -272,12 +303,13 @@ let claimed = 0;
 
 // One more entry, wherever it was asked for: by somebody pressing the button, or
 // by a document being put back onto the page.
-function addEntry(list) {
+function addEntry(list, answering = false) {
     const blank = ownPart(list, 'template[data-blank]');
 
     if (blank === null) return;
 
     const added = blank.content.cloneNode(true);
+    const entry = added.firstElementChild;
     claim(added, list.dataset.pending, `n${++claimed}`);
     // A new entry has nothing in its row yet, so the only thing to do with it is
     // answer it: it arrives unfolded.
@@ -291,8 +323,13 @@ function addEntry(list) {
         foot.before(added);
     }
 
-    for (const nested of added.querySelectorAll?.('[data-collection]') ?? []) guard(nested);
+    for (const nested of entry?.querySelectorAll('[data-collection]') ?? []) guard(nested);
     guard(list);
+
+    // Somebody who asked for one more entry is about to answer it, and the form
+    // they answer it in is below the row they pressed. A document being put back
+    // onto the page asked for nothing, and moves nobody.
+    if (answering) entry?.querySelector('input:not([type="hidden"]):not([disabled]), select, textarea')?.focus();
 }
 
 document.getElementById('form').addEventListener('click', (event) => {
@@ -303,7 +340,7 @@ document.getElementById('form').addEventListener('click', (event) => {
 
     if (trigger.dataset.action === 'add-entry') {
         event.preventDefault();
-        addEntry(list);
+        addEntry(list, true);
     }
 
     if (trigger.dataset.action === 'remove-entry') {
@@ -422,6 +459,15 @@ function say(control, text, kind = 'error') {
     if (slot && kind === 'error') {
         slot.textContent = text;
         slot.hidden = text === '';
+
+        // The picker is the control the label points at, so it is the one that
+        // has to say it was refused.
+        const picker = control.querySelector('[data-upload]');
+
+        if (picker !== null) {
+            if (text === '') picker.removeAttribute('aria-invalid');
+            else picker.setAttribute('aria-invalid', 'true');
+        }
     }
 }
 

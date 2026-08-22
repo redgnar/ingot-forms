@@ -134,12 +134,14 @@
        The browser draws the frame and cuts the name into it, which is what makes
        a list inside a list readable at a glance — a plain box leaves somebody
        counting indentation to work out where the inner one ends. #}
+    {% set id = 'list-' ~ (node.scope ? node.scope ~ '-' : '') ~ node.name %}
     <fieldset class="entries" data-collection="{{ node.name }}" data-pending="{{ node.pending }}"
+         aria-describedby="{{ node.hint ? id ~ '-hint ' : '' }}{{ id }}-error"
          data-ticked="{{ 'page.ticked'|trans }}" data-unticked="{{ 'page.unticked'|trans }}"
          {%- if node.min is not null %} data-min="{{ node.min }}"{% endif %}
          {%- if node.max is not null %} data-max="{{ node.max }}"{% endif %}>
         <legend>{{ node.label }}</legend>
-        {% if node.hint %}<p class="hint">{{ node.hint }}</p>{% endif %}
+        {% if node.hint %}<p class="hint" id="{{ id }}-hint">{{ node.hint }}</p>{% endif %}
 
         <table>
             <thead>
@@ -173,7 +175,7 @@
             </template>
         {% endif %}
 
-        <p class="error" data-error="{{ node.name }}" hidden></p>
+        <p class="error" id="{{ id }}-error" data-error="{{ node.name }}" hidden></p>
     </fieldset>
 {% endmacro %}
 
@@ -237,14 +239,19 @@
     {% set id = 'item-' ~ (node.scope ? node.scope ~ '-' : '') ~ node.name %}
     <div class="item" data-item="{{ node.name }}"{% if node.widget == 'hidden' %} hidden{% endif %}>
         {% if node.widget != 'hidden' %}
-            {# A group of radios is not one control, so its caption points at
-               nothing: each option's own label does the pointing. #}
-            <label{% if node.widget != 'radio' %} for="{{ id }}"{% endif %}>{{ node.label }}{% if node.required %} *{% endif %}</label>
-            {% if node.hint %}<p class="hint">{{ node.hint }}</p>{% endif %}
+            {# A group of radios is not one control, so its caption cannot point
+               at one: each option's own label does that. It still has to be read
+               as the question, so the group names it instead — a caption pointing
+               at nothing is a question a screen reader never asks. #}
+            <label id="{{ id }}-label"{% if node.widget != 'radio' %} for="{{ id }}"{% endif %}>{{ node.label }}{% if node.required %}<span aria-hidden="true"> *</span>{% endif %}</label>
+            {% if node.hint %}<p class="hint" id="{{ id }}-hint">{{ node.hint }}</p>{% endif %}
         {% endif %}
         {{ _self.control(node, readOnly, id) }}
 
-        <p class="error" data-error="{{ node.name }}" hidden></p>
+        {# Named while it is still empty, and pointed at by the control: a line
+           standing under a control says nothing to somebody who cannot see where
+           it stands. #}
+        <p class="error" id="{{ id }}-error" data-error="{{ node.name }}" hidden></p>
     </div>
 {% endmacro %}
 
@@ -255,12 +262,16 @@
        `name` groups radios, and a group belongs to one entry: without the scope,
        picking an option in one entry would unpick another's. #}
     {% set group = node.name ~ (node.scope ? '--' ~ node.scope : '') %}
+    {# The star in a label is for eyes only, and so are the two lines under a
+       control until something points at them. #}
     {% set common = {
         'id': id,
         'name': group,
         'data-name': node.name,
         'data-type': node.type,
         'disabled': readOnly,
+        'aria-required': node.required ? 'true' : null,
+        'aria-describedby': (node.hint ? id ~ '-hint ' : '') ~ id ~ '-error',
     } %}
         {% if node.widget == 'textarea' %}
             <textarea{{ html.attributes(common|merge({'rows': 4, 'maxlength': node.maxLength}))|raw }}>{{ node.value }}</textarea>
@@ -272,7 +283,15 @@
                 {% endfor %}
             </select>
         {% elseif node.widget == 'radio' %}
-            <div class="choice" data-name="{{ node.name }}" data-type="{{ node.type }}">
+            <div{{ html.attributes({
+                'class': 'choice',
+                'role': 'radiogroup',
+                'aria-labelledby': id ~ '-label',
+                'aria-describedby': (node.hint ? id ~ '-hint ' : '') ~ id ~ '-error',
+                'aria-required': node.required ? 'true' : null,
+                'data-name': node.name,
+                'data-type': node.type,
+            })|raw }}>
                 {% for choice in node.choices %}
                     <label>
                         <input{{ html.attributes({
@@ -321,8 +340,12 @@
                         'id': id,
                         'data-upload': true,
                         'accept': node.accept|join(','),
+                        'aria-required': node.required ? 'true' : null,
+                        'aria-describedby': (node.hint ? id ~ '-hint ' : '') ~ id ~ '-error',
                     })|raw }}>
-                    <p class="file-progress" data-file-progress hidden></p>
+                    {# How far the upload has got is news, and news nobody is told
+                       about is news for the sighted only. #}
+                    <p class="file-progress" role="status" data-file-progress hidden></p>
                 {% endif %}
                 <p class="file-held" data-file-held{{ node.value ? '' : ' hidden' }}>
                     <a data-file-download href="{{ node.download }}">{{ node.value.name ?? '' }}</a>

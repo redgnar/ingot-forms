@@ -299,6 +299,7 @@ export default class extends Controller {
 
         for (const control of this.controlTargets) {
             control.classList.remove('is-invalid');
+            control.removeAttribute('aria-invalid');
         }
 
         for (const row of this.element.querySelectorAll('tr.table-danger')) {
@@ -318,6 +319,27 @@ export default class extends Controller {
         for (let entry = slot.closest('[data-entry]'); entry !== null; entry = entry.parentElement?.closest('[data-entry]') ?? null) {
             entry.querySelector('tr')?.classList.add('table-danger');
         }
+    }
+
+    // Marking the first refused answer is not the same as reaching it: a page
+    // can be long, and its lists fold. So the caret goes there — to the control
+    // itself, or, when it is the list that holds too few entries, to the button
+    // that adds one.
+    #stand(slot) {
+        const item = slot.closest('[data-item]');
+
+        if (item !== null) {
+            item.querySelector('input:not([type="hidden"]):not([disabled]), select, textarea')?.focus();
+
+            return;
+        }
+
+        const list = slot.closest('[data-collection]');
+        const add = [...(list?.querySelectorAll('[data-entries-target="add"]') ?? [])].find(
+            (button) => button.closest('[data-collection]') === list && button.closest('template') === null,
+        );
+
+        add?.focus();
     }
 
     // A refusal points at the item it is about — `/email`, or `/lines/2/quantity`
@@ -353,6 +375,7 @@ export default class extends Controller {
 
     #showErrors(body) {
         const rest = [];
+        let refused = null;
 
         for (const error of body.errors ?? []) {
             const slot = this.#slotFor(error.pointer ?? '');
@@ -365,15 +388,21 @@ export default class extends Controller {
             slot.textContent = error.message;
             slot.classList.remove('d-none');
             this.#reveal(slot);
+            refused ??= slot;
 
             const entry = slot.closest('[data-entry]') ?? this.element;
 
             for (const control of this.controlTargets) {
                 if (control.dataset.name === slot.dataset.error && (control.closest('[data-entry]') ?? this.element) === entry) {
                     control.classList.add('is-invalid');
+                    // Red is one way of saying it, and it is the way that only
+                    // works for somebody looking at the control.
+                    control.setAttribute('aria-invalid', 'true');
                 }
             }
         }
+
+        if (refused !== null) this.#stand(refused);
 
         if (rest.length === 0 && (body.errors ?? []).length > 0) return;
 

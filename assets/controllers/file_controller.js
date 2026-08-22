@@ -159,6 +159,7 @@ export default class extends Controller {
 
         this.progressTarget.classList.toggle('d-none', !sending);
         this.barTarget.style.width = sending ? '0' : '100%';
+        this.barTarget.setAttribute('aria-valuenow', sending ? '0' : '100');
 
         if (sending) this.#say('');
     }
@@ -166,7 +167,12 @@ export default class extends Controller {
     #drawProgress(event) {
         if (!this.hasBarTarget || !event.lengthComputable) return;
 
-        this.barTarget.style.width = `${Math.round((event.loaded / event.total) * 100)}%`;
+        const done = Math.round((event.loaded / event.total) * 100);
+
+        // The bar is a picture of this number; the number is the part that can be
+        // read out loud.
+        this.barTarget.style.width = `${done}%`;
+        this.barTarget.setAttribute('aria-valuenow', String(done));
     }
 
     // The refusal goes where every refusal about this item goes, so a person
@@ -178,5 +184,15 @@ export default class extends Controller {
 
         slot.textContent = text;
         slot.classList.toggle('d-none', text === '');
+
+        // The picker is the control the label points at, so it is the one that
+        // has to say it was refused.
+        if (!this.hasPickerTarget) return;
+
+        if (text === '') {
+            this.pickerTarget.removeAttribute('aria-invalid');
+        } else {
+            this.pickerTarget.setAttribute('aria-invalid', 'true');
+        }
     }
 }

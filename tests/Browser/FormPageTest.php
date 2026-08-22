@@ -90,6 +90,12 @@ final class FormPageTest extends PantherTestCase
 
         self::assertNotSame('', $message);
         self::assertNull($this->values($id));
+
+        // AND the caret is standing on the answer that was refused: putting a
+        // message beside a control somebody still has to go and find is only
+        // half of saying which one it is about
+        self::assertSame('age', $this->browser->executeScript('return document.activeElement.dataset.name;'));
+        self::assertSame('true', $this->browser->executeScript('return document.activeElement.getAttribute("aria-invalid");'));
     }
 
     public function testWorkInProgressIsSavedWithoutTheConsent(): void

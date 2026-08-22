@@ -440,6 +440,92 @@ final class BootstrapRendererTest extends KernelTestCase
         return $this->renderer->render(new RenderedForm(self::form(), 'en'));
     }
 
+    public function testEveryQuestionIsAskedInAWayThatDoesNotNeedSeeingIt(): void
+    {
+        // GIVEN / WHEN
+        $page = new Crawler($this->render());
+
+        // THEN a question whose answer is owed says so where it can be heard —
+        // the star in the label is for eyes only
+        self::assertSame('true', $page->filter('[data-name="email"]')->attr('aria-required'));
+        self::assertNull($page->filter('[data-name="bio"]')->attr('aria-required'));
+
+        // AND the control points at what is written under it, so the hint and
+        // any refusal are read as part of the question rather than found by
+        // looking around it
+        self::assertSame('item-email-hint item-email-error', $page->filter('[data-name="email"]')->attr('aria-describedby'));
+        self::assertSame('We only use it to reply', trim($page->filter('#item-email-hint')->text()));
+        self::assertSame('email', $page->filter('#item-email-error')->attr('data-error'));
+
+        // AND a control with nothing said under it still points at where a
+        // refusal goes, so nothing has to be wired up the moment one arrives
+        self::assertSame('item-bio-error', $page->filter('[data-name="bio"]')->attr('aria-describedby'));
+    }
+
+    public function testBothWaysOfDrawingAChoiceAreAGroupNamedByItsQuestion(): void
+    {
+        // GIVEN a document asking one choice as radios and another as toggles
+        $page = new Crawler($this->render());
+
+        // THEN neither caption points at a control, because a group is not one —
+        // so each group points back at its caption instead. Without that, the
+        // options are read out and the question never is
+        foreach (['size' => 'item-size-label', 'plan' => 'item-plan-label'] as $name => $caption) {
+            $group = $page->filter(\sprintf('[data-name="%s"]', $name));
+
+            self::assertSame('radiogroup', $group->attr('role'));
+            self::assertSame($caption, $group->attr('aria-labelledby'));
+            self::assertCount(1, $page->filter('#' . $caption));
+            self::assertCount(0, $page->filter(\sprintf('label[for="item-%s"]', $name)));
+        }
+
+        // AND what a group is owed and what is said under it belong to it as a
+        // whole, exactly as they would to a single control
+        self::assertSame('true', $page->filter('[data-name="plan"]')->attr('aria-required'));
+        self::assertSame('item-plan-error', $page->filter('[data-name="plan"]')->attr('aria-describedby'));
+    }
+
+    public function testAnUploadSaysHowFarItHasGotAndNotOnlyDrawsIt(): void
+    {
+        // GIVEN a form asking for a file with a picker
+        $page = new Crawler($this->render());
+
+        // THEN the label points at the picker — the hidden control is the value
+        // and nobody picks anything with it — and the picker carries what is
+        // said about the question
+        self::assertSame('file', $page->filter('#item-invoice')->attr('type'));
+        self::assertSame('item-invoice-error', $page->filter('#item-invoice')->attr('aria-describedby'));
+
+        // AND the bar is a picture of a number, so the number is there to be
+        // read out while it moves
+        $bar = $page->filter('[data-item="invoice"] [data-file-target="bar"]');
+        self::assertSame('progressbar', $bar->attr('role'));
+        self::assertSame('0', $bar->attr('aria-valuenow'));
+        self::assertSame('100', $bar->attr('aria-valuemax'));
+    }
+
+    public function testEveryNameThePagePointsAtIsOnThePage(): void
+    {
+        // GIVEN a page with a list, whose entries are the same form drawn again
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::listForm(asToggles: true), 'en')));
+        $ids = $page->filter('[id]')->each(static fn(Crawler $node): ?string => $node->attr('id'));
+
+        // WHEN every reference to a caption or a message is followed
+        $named = [];
+
+        foreach (['aria-labelledby', 'aria-describedby'] as $attribute) {
+            foreach ($page->filter('[' . $attribute . ']')->each(static fn(Crawler $node): ?string => $node->attr($attribute)) as $value) {
+                $named = [...$named, ...array_filter(explode(' ', (string) $value), static fn(string $one): bool => $one !== '')];
+            }
+        }
+
+        // THEN each one lands on something. A reference to a name nobody carries
+        // is a question read out as nothing at all, and drawing the same form
+        // once per entry is exactly where that goes wrong
+        self::assertNotEmpty($named);
+        self::assertSame([], array_values(array_unique(array_diff($named, $ids))));
+    }
+
     public function testAFileIsAskedForByPickerAndByDropAndBothHoldTheSameValue(): void
     {
         // GIVEN a form asking for one file with a picker and another by dropping

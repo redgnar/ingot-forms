@@ -205,6 +205,17 @@ Rules that follow from it, and that the tooling checks:
   never a second name for a control the other kit already draws — and never a restyling of one
   (a floating label was tried and removed: it moved the same question's text, and it could not
   be applied to a choice group or a slider, so every page mixing them was labelled two ways).
+- **A page that cannot be looked at still has to work, and that is not an option a document
+  asks for.** Both kits do all of it: `aria-required` says an answer is owed (the star is marked
+  decoration — read out it is punctuation inside the question), `aria-describedby` ties the hint
+  and the refusal line to the control while both are still empty, a choice group is a
+  `radiogroup` named by its caption (a caption pointing at no control is a question nobody
+  hears), a refused control carries `aria-invalid`, and **the caret moves** to the first refused
+  answer — or to the button that adds an entry when it is the list that owes one. An upload's
+  progress is a number to read as well as a bar to see, and a new entry takes the caret only when
+  a person asked for it (`event.isTrusted`), because a document being put back asked for nothing.
+  Cloning an entry rewrites every reference along with the ids and the radio group: a caption or
+  a message is a name too.
 - **A message nobody can see is not a message.** An entry is answered in a form folded away
   under its row, so placing a refusal is not enough: both kits unfold every form on the way to
   it and mark each entry it is inside (`entry-invalid` in the plain kit, `table-danger` in the

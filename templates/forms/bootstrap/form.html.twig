@@ -150,14 +150,16 @@
    aside for adding another. The counts are Stimulus values, so the controller
    greys out its own buttons — the server is still what decides. #}
 {% macro entries(node, readOnly, chrome) %}
-    <div class="mb-4" data-collection="{{ node.name }}"
+    {% set id = 'list-' ~ (node.scope ? node.scope ~ '-' : '') ~ node.name %}
+    <div class="mb-4" data-collection="{{ node.name }}" role="group" aria-labelledby="{{ id }}-label"
+         aria-describedby="{{ node.hint ? id ~ '-hint ' : '' }}{{ id }}-error"
          {%- if not readOnly %} data-controller="entries" data-entries-pending-value="{{ node.pending }}"
          data-entries-ticked-value="{{ 'page.ticked'|trans }}" data-entries-unticked-value="{{ 'page.unticked'|trans }}"
          {%- if node.min is not null %} data-entries-min-value="{{ node.min }}"{% endif %}
          {%- if node.max is not null %} data-entries-max-value="{{ node.max }}"{% endif %}
          data-action="input->entries#touched"{% endif %}>
-        <label class="form-label">{{ node.label }}</label>
-        {% if node.hint %}<div class="form-text mb-2">{{ node.hint }}</div>{% endif %}
+        <label class="form-label" id="{{ id }}-label">{{ node.label }}</label>
+        {% if node.hint %}<div class="form-text mb-2" id="{{ id }}-hint">{{ node.hint }}</div>{% endif %}
 
         <table class="table table-sm align-middle"{% if not readOnly %} data-entries-target="table"{% endif %}>
             <thead>
@@ -193,7 +195,7 @@
             </template>
         {% endif %}
 
-        <div class="form-text text-danger d-none" data-form-target="error" data-error="{{ node.name }}"></div>
+        <div class="form-text text-danger d-none" id="{{ id }}-error" data-form-target="error" data-error="{{ node.name }}"></div>
     </div>
 {% endmacro %}
 
@@ -267,14 +269,20 @@
     {% set id = 'item-' ~ (node.scope ? node.scope ~ '-' : '') ~ node.name %}
     <div class="mb-3" data-item="{{ node.name }}"{% if node.widget == 'hidden' %} hidden{% endif %}>
         {% if node.widget != 'hidden' %}
-            {# A group of choices is not one control, so its caption points at
-               nothing: each option's own label does the pointing. #}
-            <label class="form-label"{% if node.widget not in ['radio', 'radio-buttons'] %} for="{{ id }}"{% endif %}>{{ node.label }}{% if node.required %} *{% endif %}</label>
+            {# A group of choices is not one control, so its caption cannot point
+               at one: each option's own label does that. It still has to be read
+               as the question, so the group names it instead — a caption pointing
+               at nothing is a question a screen reader never asks. #}
+            <label class="form-label" id="{{ id }}-label"{% if node.widget not in ['radio', 'radio-buttons'] %} for="{{ id }}"{% endif %}>{{ node.label }}{% if node.required %}<span aria-hidden="true"> *</span>{% endif %}</label>
         {% endif %}
         {{ _self.control(node, readOnly, id) }}
 
-        {% if node.hint %}<div class="form-text">{{ node.hint }}</div>{% endif %}
-        <div class="form-text text-danger d-none" data-form-target="error" data-error="{{ node.name }}"></div>
+        {# Both are named, and the control points at both: standing under a
+           control says nothing to somebody who cannot see where it stands. The
+           refusal is named while it is still empty, so nothing has to be wired up
+           at the moment one arrives. #}
+        {% if node.hint %}<div class="form-text" id="{{ id }}-hint">{{ node.hint }}</div>{% endif %}
+        <div class="form-text text-danger d-none" id="{{ id }}-error" data-form-target="error" data-error="{{ node.name }}"></div>
     </div>
 {% endmacro %}
 
@@ -286,6 +294,8 @@
        `name` groups radios, and a group belongs to one entry: without the scope,
        picking an option in one entry would unpick another's. #}
     {% set group = node.name ~ (node.scope ? '--' ~ node.scope : '') %}
+    {# The star in a label is for eyes only, and so are the two lines under a
+       control until something points at them. #}
     {% set common = {
         'id': id,
         'name': group,
@@ -293,6 +303,8 @@
         'data-type': node.type,
         'data-form-target': 'control',
         'disabled': readOnly,
+        'aria-required': node.required ? 'true' : null,
+        'aria-describedby': (node.hint ? id ~ '-hint ' : '') ~ id ~ '-error',
     } %}
 
         {% if node.widget == 'textarea' %}
@@ -308,7 +320,14 @@
                 {% endfor %}
             </select>
         {% elseif node.widget == 'radio' %}
-            <div{{ html.attributes(common|merge({'id': null, 'name': null, 'disabled': null, 'data-choice': true}))|raw }}>
+            <div{{ html.attributes(common|merge({
+                'id': null,
+                'name': null,
+                'disabled': null,
+                'role': 'radiogroup',
+                'aria-labelledby': id ~ '-label',
+                'data-choice': true,
+            }))|raw }}>
                 {% for choice in node.choices %}
                     <div class="form-check{{ node.options.columns|default(false) ? ' form-check-inline' : '' }}">
                         <input{{ html.attributes({
@@ -330,7 +349,8 @@
                 'name': null,
                 'disabled': null,
                 'class': 'btn-group d-block',
-                'role': 'group',
+                'role': 'radiogroup',
+                'aria-labelledby': id ~ '-label',
                 'data-choice': true,
             }))|raw }}>
                 {% for choice in node.choices %}
@@ -430,11 +450,18 @@
                         'class': 'form-control',
                         'id': id,
                         'accept': node.accept|join(','),
+                        'aria-required': node.required ? 'true' : null,
+                        'aria-describedby': (node.hint ? id ~ '-hint ' : '') ~ id ~ '-error',
                         'data-file-target': 'picker',
                         'data-action': 'file#picked',
                     })|raw }}>
+                    {# How far the upload has got, said as well as drawn: a bar is
+                       a picture of a number, and the number is what a screen
+                       reader can read out. #}
                     <div class="progress mt-2 d-none" data-file-target="progress">
-                        <div class="progress-bar" data-file-target="bar" style="width: 0"></div>
+                        <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+                             aria-valuenow="0" aria-label="{{ 'page.file.uploading'|trans }}"
+                             data-file-target="bar" style="width: 0"></div>
                     </div>
                 {% endif %}
                 <p class="small mt-2 mb-0 d-flex align-items-center justify-content-center gap-2{{ node.value ? '' : ' d-none' }}"

@@ -165,3 +165,29 @@ Independent steps; 1 is worth doing whatever we decide about the rest.
 - **Skinning `core-html`.** It is the kit with no machinery, and that is what it is for.
 - **An automated audit (axe-core) as a gate.** Worth discussing later; for now the relationships
   we care about are asserted by name, which is cheaper and says why it failed.
+
+## What building step 1 changed
+
+The list above was written by reading the templates, and building it found the same things plus
+three worth writing down.
+
+**A caption that points at nothing was the expensive one.** Both kits already knew that a group
+of choices is not one control, and both left the caption pointing nowhere as a result — so the
+options were read out and the question never was. `role="radiogroup"` plus `aria-labelledby` is
+the whole fix, and it is the same shape in both kits.
+
+**The star had to be marked as decoration.** Once a group is named by its caption, the caption is
+read out — and `Country *` is a question with punctuation in the middle of it. The star is now
+`aria-hidden`, which is what it always was in fact: `aria-required` is what says the answer is
+owed, and the star is what says it to somebody looking.
+
+**Cloning an entry had to learn two more attributes.** A page replaces the blank entry's token in
+`id`, `for` and `name`; `aria-labelledby` and `aria-describedby` carry the same token, and
+without rewriting them a cloned entry would point at the blank one's caption and at a message
+nobody can reach. The browser battery now follows every reference on the page after adding an
+entry and fails on any that lands nowhere — the one assertion that could only be made in a
+browser, because `<template>` content is inert there and visible to a server-side crawler.
+
+**What is not done here, and was in the list**: nothing announces how many entries a list holds
+after one is added or removed. Focus lands in the new entry instead, which is the stronger half;
+a live region for the count can come later if it turns out to be missed.

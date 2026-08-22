@@ -182,6 +182,15 @@ final class BootstrapFormPageTest extends PantherTestCase
             'is-invalid',
             $this->browser->findElement(WebDriverBy::id('item-terms'))->getAttribute('class') ?? '',
         );
+
+        // AND the caret is standing in an item that was refused: red is one way
+        // of saying which answer it is about, and it is the way that only works
+        // for somebody who can see the control
+        self::assertTrue($this->browser->executeScript(
+            'const item = document.activeElement.closest("[data-item]");'
+            . ' return item !== null && item.querySelector("[data-error]:not(.d-none)") !== null;',
+        ));
+
         self::assertSame('draft', $this->formStatus($id));
     }
 

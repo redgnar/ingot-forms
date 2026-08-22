@@ -550,7 +550,23 @@ sees. What *is* scoped by name is an id and a radio group: the same form
 is drawn once per entry, so both carry the entry they belong to (`item-lines-1-sku`,
 `unit--lines-1`) — without that, a label would point at another entry's control and radios of
 different entries would be one group, unpicking each other. A blank entry carries a token instead
-of a scope, and a page replaces it when it clones one.
+of a scope, and a page replaces it when it clones one — id, radio group **and** every reference
+to a caption or a message, because those are names too, and a clone keeping the blank one's would
+have two questions answering to one.
+
+**A page has to work without being looked at.** That is not an option a document asks for; it is
+whether the page is correct, so both kits do all of it. A question whose answer is owed says so
+where it can be heard (`aria-required`; the star in the label is marked as decoration, because
+read out it is punctuation in the middle of a question). A control points at the hint and at the
+line a refusal goes on (`aria-describedby`, named while still empty, so nothing has to be wired
+up the moment one arrives). A group of choices is a `radiogroup` named by its caption — a caption
+that points at no control is a question a screen reader never asks. A refused control says so
+(`aria-invalid`), and, because marking an answer somebody still has to go and find is only half
+of saying which one it is about, **the caret goes there**: to the first refused control, or to
+the button that adds one when it is the list that owes an entry. An upload's progress is a number
+to be read and not only a bar to be seen, and a new entry takes the caret into the form it just
+added — but only when a person asked for it, since a document being put back onto the page asked
+for nothing and moves nobody.
 
 ## Architecture
 

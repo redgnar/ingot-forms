@@ -76,6 +76,42 @@ abstract class CollectionPageTestCase extends PantherTestCase
         );
     }
 
+    public function testANewEntryIsOneSomebodyCanAnswerWithoutSeeingThePage(): void
+    {
+        // GIVEN a form asking one question repeatedly
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+        // WHEN somebody asks for one more entry
+        $this->click(static::addTrigger());
+
+        // THEN the caret is in the form they asked for, on its first question:
+        // the row arrives at the bottom of a page, and a person who cannot see
+        // it arriving would have nothing to tell them it did
+        self::assertSame('sku', $this->browser->executeScript('return document.activeElement.dataset.name;'));
+        self::assertSame(1, $this->browser->executeScript(
+            'return [...document.querySelectorAll(\'[data-collection="lines"] > table > tbody[data-entry]\')]'
+            . '.indexOf(document.activeElement.closest("[data-entry]"));',
+        ));
+
+        // AND every caption and message the new entry points at is its own. A
+        // clone keeping the blank entry's names would have two questions
+        // answering to one name — the same mistake ids and radio groups make,
+        // in the half nobody can see
+        self::assertSame([], $this->browser->executeScript(
+            'const named = new Set([...document.querySelectorAll("[id]")].map((node) => node.id));'
+            . ' const dangling = [];'
+            . ' for (const node of document.querySelectorAll("[aria-labelledby], [aria-describedby]")) {'
+            . '   for (const attribute of ["aria-labelledby", "aria-describedby"]) {'
+            . '     for (const name of (node.getAttribute(attribute) ?? "").split(" ").filter((one) => one !== "")) {'
+            . '       if (!named.has(name)) dangling.push(name);'
+            . '     }'
+            . '   }'
+            . ' }'
+            . ' return dangling;',
+        ));
+    }
+
     public function testTheListKeepsUpWithTheFormUnderItAndDropsWhatIsRemoved(): void
     {
         // GIVEN the same form

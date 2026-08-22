@@ -28,6 +28,7 @@ export default class extends Controller {
         event.preventDefault();
 
         const added = this.blankTarget.content.cloneNode(true);
+        const entry = added.firstElementChild;
 
         this.#claim(added, `n${++this.claimed}`);
 
@@ -43,15 +44,24 @@ export default class extends Controller {
         }
 
         this.#guard();
+
+        // Somebody who asked for one more entry is about to answer it, and the
+        // form they answer it in is below the row they pressed. A document being
+        // put back onto the page asked for nothing, and moves nobody.
+        if (event.isTrusted) {
+            entry?.querySelector('input:not([type="hidden"]):not([disabled]), select, textarea')?.focus();
+        }
     }
 
     // A blank entry has no place in the list, so the server left a token where
     // an entry's own scope would be. Replacing it is what makes a cloned entry
     // its own: an id names one thing, and radios sharing a name are one group —
-    // two entries with the same group would unpick each other.
+    // two entries with the same group would unpick each other. What points at a
+    // caption or a message is the same kind of name, and pointing at another
+    // entry's is how a question comes to be read out twice and answered once.
     #claim(entry, mine) {
-        for (const element of entry.querySelectorAll('[id], [for], [name]')) {
-            for (const attribute of ['id', 'for', 'name']) {
+        for (const element of entry.querySelectorAll('[id], [for], [name], [aria-labelledby], [aria-describedby]')) {
+            for (const attribute of ['id', 'for', 'name', 'aria-labelledby', 'aria-describedby']) {
                 const value = element.getAttribute(attribute);
 
                 if (value !== null && value.includes(this.pendingValue)) {

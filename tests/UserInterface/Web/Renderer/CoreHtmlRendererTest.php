@@ -580,6 +580,91 @@ final class CoreHtmlRendererTest extends KernelTestCase
         );
     }
 
+    public function testEveryQuestionIsAskedInAWayThatDoesNotNeedSeeingIt(): void
+    {
+        // GIVEN / WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::form(), 'en')));
+
+        // THEN a question whose answer is owed says so where it can be heard —
+        // the star in the label is for eyes only
+        self::assertSame('true', $page->filter('[data-name="email"]')->attr('aria-required'));
+        self::assertNull($page->filter('[data-name="age"]')->attr('aria-required'));
+
+        // AND the control points at what is written under it, so the hint and
+        // any refusal are read as part of the question rather than found by
+        // looking around it
+        self::assertSame('item-email-hint item-email-error', $page->filter('[data-name="email"]')->attr('aria-describedby'));
+        self::assertSame('We only use it to reply', trim($page->filter('#item-email-hint')->text()));
+        self::assertSame('email', $page->filter('#item-email-error')->attr('data-error'));
+
+        // AND a control with nothing said under it still points at where a
+        // refusal goes, so nothing has to be wired up the moment one arrives
+        self::assertSame('item-age-error', $page->filter('[data-name="age"]')->attr('aria-describedby'));
+    }
+
+    public function testAGroupOfChoicesIsAGroupWithTheQuestionAsItsName(): void
+    {
+        // GIVEN / WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::form(), 'en')));
+        $country = $page->filter('[data-name="country"]');
+
+        // THEN the caption points at no control, because a group is not one —
+        // so the group points back at the caption instead. Without that, the
+        // options are read out and the question never is
+        self::assertSame('radiogroup', $country->attr('role'));
+        self::assertSame('item-country-label', $country->attr('aria-labelledby'));
+        self::assertStringStartsWith('Country', trim($page->filter('#item-country-label')->text()));
+
+        // AND the star that says the answer is owed is for eyes only: read out,
+        // it is punctuation in the middle of a question
+        self::assertSame('true', $page->filter('#item-country-label span')->attr('aria-hidden'));
+        self::assertCount(0, $page->filter('label[for="item-country"]'));
+
+        // AND what is owed and what is written under it belong to the group as
+        // a whole, exactly as they would to a single control
+        self::assertSame('true', $country->attr('aria-required'));
+        self::assertSame('item-country-error', $country->attr('aria-describedby'));
+    }
+
+    public function testTheOneControlSomebodyPicksBytesWithIsTheOneTheQuestionNames(): void
+    {
+        // GIVEN a form asking for a file
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::form(), 'en')));
+
+        // THEN the label points at the picker — the hidden control is the value
+        // and nobody picks anything with it — and the picker carries what is
+        // said about the question
+        self::assertSame('item-invoice', $page->filter('label[for="item-invoice"]')->attr('for'));
+        self::assertSame('file', $page->filter('#item-invoice')->attr('type'));
+        self::assertSame('item-invoice-error', $page->filter('#item-invoice')->attr('aria-describedby'));
+
+        // AND how far an upload has got is news, so it is somewhere news is read
+        // from rather than only drawn
+        self::assertSame('status', $page->filter('[data-file-progress]')->attr('role'));
+    }
+
+    public function testEveryNameThePagePointsAtIsOnThePage(): void
+    {
+        // GIVEN a page with a list, whose entries are the same form drawn again
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::listForm(asRadios: true), 'en')));
+        $ids = $page->filter('[id]')->each(static fn(Crawler $node): ?string => $node->attr('id'));
+
+        // WHEN every reference to a caption or a message is followed
+        $named = [];
+
+        foreach (['aria-labelledby', 'aria-describedby'] as $attribute) {
+            foreach ($page->filter('[' . $attribute . ']')->each(static fn(Crawler $node): ?string => $node->attr($attribute)) as $value) {
+                $named = [...$named, ...array_filter(explode(' ', (string) $value), static fn(string $one): bool => $one !== '')];
+            }
+        }
+
+        // THEN each one lands on something. A reference to a name nobody carries
+        // is a question read out as nothing at all, and drawing the same form
+        // once per entry is exactly where that goes wrong
+        self::assertNotEmpty($named);
+        self::assertSame([], array_values(array_unique(array_diff($named, $ids))));
+    }
+
     /**
      * A form whose entries hold a list of their own.
      */
