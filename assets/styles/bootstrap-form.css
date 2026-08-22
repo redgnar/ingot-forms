@@ -29,8 +29,8 @@
    `[data-bs-theme=dark] .btn-…`, one specificity point above a bare class, so a
    bare class here would lose exactly where it is needed most; the second form
    ties on specificity and wins on order, this being the last stylesheet loaded. */
-.btn-outline-secondary,
-[data-bs-theme] .btn-outline-secondary {
+.btn-outline-secondary:not(.active),
+[data-bs-theme] .btn-outline-secondary:not(.active) {
     --bs-btn-color: var(--bs-body-color);
     --bs-btn-border-color: var(--bs-border-color);
     --bs-btn-hover-color: var(--bs-body-bg);
@@ -44,16 +44,19 @@
     /* Materia does not stop at the variables: it repaints `color` outright a few
        hundred rules later, so the variable alone would be a fix that changes
        nothing. Ours is the last stylesheet on the page, and `:hover`/`:active`
-       are one specificity point above this, so the states still belong to the
-       skin. */
+       are one specificity point above this, so those states still belong to the
+       skin. `.active` is not — it is a plain class, so it ties with this rule
+       and would lose on order, leaving a pressed switch painting the page's own
+       colour on the page's own colour. Hence `:not(.active)`: the pressed look
+       is Bootstrap's inversion, which reads in both themes. */
     color: var(--bs-btn-color);
     border-color: var(--bs-btn-border-color);
 }
 
 /* The same for the two that carry the skin's own colour: they may be branded,
    they may not be invisible. */
-.btn-outline-primary,
-[data-bs-theme] .btn-outline-primary,
+.btn-outline-primary:not(.active),
+[data-bs-theme] .btn-outline-primary:not(.active),
 .btn-link,
 [data-bs-theme] .btn-link {
     --bs-btn-color: var(--bs-link-color);
@@ -65,6 +68,37 @@
    a <details> before. */
 .comfort-summary {
     cursor: pointer;
+}
+
+/* The two things about the page rather than about the form sit at the right
+   edge, out of the way of the reading line — and side by side when a document
+   puts them in one `row`, because then each is a column of its own. */
+[data-controller="comfort"],
+nav.language {
+    margin-left: auto;
+    width: fit-content;
+}
+
+/* Opening the switches must not move the page under the hand that opened them:
+   the panel is laid over what is there rather than wedged into it. Anchored to
+   the right, because that is the edge the summary sits at. */
+[data-controller="comfort"] {
+    position: relative;
+}
+
+[data-controller="comfort"] > div {
+    align-items: stretch;
+    background-color: var(--bs-body-bg);
+    border: var(--bs-border-width, 1px) solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius, 0.375rem);
+    /* One under the other: three switches read as a short menu, and a wide bar
+       laid over the form would cover the first question on it. */
+    flex-direction: column;
+    padding: 0.5rem;
+    position: absolute;
+    right: 0;
+    white-space: nowrap;
+    z-index: 20;
 }
 
 /* An empty field has to look like a field. Some skins draw one as a box, others

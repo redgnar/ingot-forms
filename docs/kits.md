@@ -342,8 +342,13 @@ that the plain kit has no markup for.
 
 - **Draws:** [grid](https://getbootstrap.com/docs/5.3/layout/grid/) row; each child gets a
   column
+- **Options (on the row):** `align: "start" | "center" | "end" | "between" | "around"` — how the
+  columns are packed when they do not fill the row
+  ([justify-content](https://getbootstrap.com/docs/5.3/layout/columns/#horizontal-alignment))
 - **Options (on the child, not the row):** `width: 1–12` — how many of the twelve columns that
-  item takes. Children that ask for nothing share what is left.
+  item takes; `width: "auto"` — as wide as the item's own content
+  ([`col-auto`](https://getbootstrap.com/docs/5.3/layout/grid/#variable-width-content)).
+  Children that ask for nothing share what is left.
 - **Notes:** columns collapse to full width on a narrow screen, which is Bootstrap's own
   behaviour and not something a document can turn off.
 
@@ -405,7 +410,8 @@ two different questions. The second column is the first one's answer.
 
 | Option | Read on | Does | The component it belongs to |
 |---|---|---|---|
-| `width: 1–12` | any item that is a direct child of a `row` | how many of the twelve columns it takes | [Grid columns](https://getbootstrap.com/docs/5.3/layout/grid/#grid-options) — Bootstrap also has offsets, order, per-breakpoint widths and auto-layout; none of them are exposed |
+| `width: 1–12 \| "auto"` | any item that is a direct child of a `row` | how many of the twelve columns it takes, or as wide as its own content | [Grid columns](https://getbootstrap.com/docs/5.3/layout/grid/#grid-options) and [variable-width content](https://getbootstrap.com/docs/5.3/layout/grid/#variable-width-content) — Bootstrap also has offsets, order and per-breakpoint widths; none of those are exposed |
+| `align: "start" \| "center" \| "end" \| "between" \| "around"` | `row` | how the columns are packed when they do not fill it | [Horizontal alignment](https://getbootstrap.com/docs/5.3/layout/columns/#horizontal-alignment) |
 | `open: true` | `accordion`, `table` | starts unfolded | the browser's own [`<details>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/details), not [Bootstrap's accordion](https://getbootstrap.com/docs/5.3/components/accordion/) — so its "only one open at a time" behaviour is not available either |
 | `tone: "info" \| "warning" \| "danger" \| "success" \| …` | `alert` | which Bootstrap colour the alert takes | [Alerts](https://getbootstrap.com/docs/5.3/components/alerts/) — the colour is exposed; dismissible alerts, icons and links inside them are not |
 | `columns: true` | `radio` | lays the options out side by side | [Inline checks and radios](https://getbootstrap.com/docs/5.3/forms/checks-radios/#inline) — reversed layout and switch-style radios are not exposed |

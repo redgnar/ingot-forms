@@ -59,6 +59,15 @@
         .comfort legend { font-size: .875rem; font-weight: 400; }
         .comfort label { display: inline-block; font-weight: 400; margin-right: .75rem; }
         .comfort summary { cursor: pointer; }
+        /* The two things about the page rather than about the form keep to the
+           right edge, out of the way of the reading line. */
+        .comfort, .language { margin-left: auto; width: fit-content; }
+        /* Opening the switches lays them over the page rather than pushing it
+           down under the hand that opened them. */
+        .comfort { position: relative; }
+        .comfort-panel { background: var(--page); border: 1px solid var(--line); border-radius: .25rem;
+            padding: .5rem .75rem; position: absolute; right: 0; white-space: nowrap; z-index: 20; }
+        .comfort-panel label { display: block; margin: 0; }
         .language { font-size: .875rem; margin: 0 0 1.5rem; }
         .language a, .language strong { margin-right: .75rem; }
         fieldset { border: 1px solid var(--frame); border-radius: .25rem; margin: 0 0 1.5rem; padding: 1rem 1.25rem; }
@@ -194,9 +203,11 @@
        done on its own for years. #}
     <details class="comfort" data-comfort>
         <summary>{{ 'page.comfort.legend'|trans }}</summary>
-        {% for switch, code in {'dark': 'page.comfort.dark', 'contrast': 'page.comfort.contrast', 'text': 'page.comfort.text'} %}
-            <label><input type="checkbox" data-comfort-toggle="{{ switch }}"> {{ code|trans }}</label>
-        {% endfor %}
+        <div class="comfort-panel">
+            {% for switch, code in {'dark': 'page.comfort.dark', 'contrast': 'page.comfort.contrast', 'text': 'page.comfort.text'} %}
+                <label><input type="checkbox" data-comfort-toggle="{{ switch }}"> {{ code|trans }}</label>
+            {% endfor %}
+        </div>
     </details>
 {% endmacro %}
 

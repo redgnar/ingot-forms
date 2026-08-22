@@ -135,7 +135,7 @@
             {{ ux_icon('tabler:adjustments-horizontal', {class: 'icon'}) }}
             <span class="visually-hidden">{{ 'page.comfort.legend'|trans }}</span>
         </summary>
-        <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+        <div class="d-flex gap-2 mt-2">
             {% for switch, code in {'dark': 'page.comfort.dark', 'contrast': 'page.comfort.contrast', 'text': 'page.comfort.text'} %}
                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false"
                         data-comfort-target="{{ switch }}" data-action="comfort#{{ switch }}">{{ code|trans }}</button>
@@ -150,7 +150,7 @@
    with a single catalogue draws nothing here. #}
 {% macro language(node, chrome) %}
     {% if node.languages is not empty %}
-        <nav class="d-flex flex-wrap align-items-center gap-2 mb-4 small" aria-label="{{ 'page.language'|trans }}">
+        <nav class="language d-flex flex-wrap align-items-center gap-2 mb-4 small" aria-label="{{ 'page.language'|trans }}">
             {% for one in node.languages %}
                 {% if one.current %}
                     <span class="fw-semibold" aria-current="true">{{ one.text }}</span>
@@ -181,11 +181,15 @@
                 </div>
             </details>
         {% elseif node.widget == 'row' %}
-            {# Side by side: each item takes the width it asked for, and the
-               ones that asked for nothing share what is left. #}
-            <div class="row g-3 mb-4">
+            {# Side by side: each item takes the width it asked for, the ones that
+               asked for nothing share what is left, and `width: auto` is as wide
+               as the item's own content — Bootstrap's `col-auto`. Where the
+               columns sit when they do not fill the row is the row's own to say. #}
+            {% set packing = node.options.align|default('') %}
+            <div class="row g-3 mb-4{{ packing in ['start', 'center', 'end', 'between', 'around'] ? ' justify-content-' ~ packing : '' }}">
                 {% for child in node.children %}
-                    <div class="{{ child.options.width|default(false) ? 'col-md-' ~ child.options.width : 'col' }}">
+                    {% set width = child.options.width|default(false) %}
+                    <div class="{{ width == 'auto' ? 'col-auto' : (width ? 'col-md-' ~ width : 'col') }}">
                         {{ _self.node(child, readOnly, inEntry, chrome) }}
                     </div>
                 {% endfor %}

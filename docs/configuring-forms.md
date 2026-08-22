@@ -406,7 +406,8 @@ document that places no `comfort` still gets them, at the top.
 | `appearance: "link"` | any action | draws the trigger as a link instead of a button |
 | `choices: {locale: code}` | `language` | words each language, resolved in its own catalogue |
 | `open: true` | `accordion`, `table` | starts unfolded |
-| `width: 1–12` | any item inside a `row` | how many of the twelve columns it takes |
+| `width: 1–12` or `"auto"` | any item inside a `row` | how many of the twelve columns it takes, or as wide as its own content |
+| `align: "start" \| "center" \| "end" \| …` | `row` | how the columns are packed when they do not fill it |
 | `tone: "info" \| "warning" \| …` | `alert` | which Bootstrap tone to paint |
 | `columns: true` | `radio` | lays the options out side by side |
 
@@ -442,6 +443,15 @@ choice **in that browser only**. Where
 that bar sits is yours: place a `comfort` widget and it is drawn there instead of at the top.
 Leaving it out moves it back to the top rather than removing it, because the switches are the
 reader's and a document that could delete them would be deciding somebody else's contrast.
+
+A row is how the two sit side by side, which is what a page usually wants:
+
+```json
+{"widget": "row", "options": {"align": "end"}, "items": [
+  {"widget": "language", "choices": {"pl": "t.polish", "en": "t.english"}, "options": {"width": "auto"}},
+  {"widget": "comfort", "options": {"width": "auto"}}
+]}
+```
 
 Next to it, the `language` widget offers the same page in every language the document carries a
 catalogue for — the current one marked, the others as links that pin `_locale` in the URL. It is
