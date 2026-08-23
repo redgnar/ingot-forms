@@ -461,29 +461,57 @@ beside `skin`. There is no document member for contrast or text size and there w
 a document that could start somebody in low contrast would be deciding an accessibility need on
 their behalf.
 
-Both kits offer all three, folded away behind one summary until somebody wants them — the
-richer kit as toggle buttons behind an icon, the plain kit as checkboxes — and both remember the
-choice **in that browser only**. Where
-that bar sits is yours: place a `comfort` widget and it is drawn there instead of at the top.
-Leaving it out moves it back to the top rather than removing it, because the switches are the
-reader's and a document that could delete them would be deciding somebody else's contrast.
+### Setting it up
 
-A row is how the two sit side by side, which is what a page usually wants:
+Two places in the document, and both are optional. This is the whole of it:
 
 ```json
-{"widget": "row", "options": {"align": "end"}, "items": [
-  {"widget": "language", "choices": {"pl": "t.polish", "en": "t.english"}, "options": {"width": "auto"}},
-  {"widget": "comfort", "options": {"width": "auto"}}
-]}
+{
+  "engine": "bootstrap",
+  "skin": "flatly",
+  "theme": "dark",
+  "defaultLocale": "en",
+  "items": [
+    { "widget": "row", "options": { "align": "end" }, "items": [
+      { "widget": "language",
+        "choices": { "en": "t.english", "pl": "t.polish" },
+        "options": { "width": "auto" } },
+      { "widget": "comfort", "options": { "width": "auto" } }
+    ]},
+
+    { "name": "email", "widget": "text", "label": "t.email", "placeholder": "t.email.blank" },
+    { "widget": "confirm", "label": "t.send" }
+  ],
+  "translations": {
+    "en": { "t.english": "English", "t.polish": "Polski",
+            "t.email": "E-mail", "t.email.blank": "ada@example.com", "t.send": "Send it" },
+    "pl": { "t.english": "English", "t.polish": "Polski",
+            "t.email": "E-mail", "t.email.blank": "ada@example.com", "t.send": "Wyślij" }
+  }
+}
 ```
 
-Next to it, the `language` widget offers the same page in every language the document carries a
-catalogue for — the current one marked, the others as links that pin `_locale` in the URL. It is
-purely opt-in: a form with one catalogue has nothing to switch, and a document that asks for the
-widget anyway draws nothing rather than a list of one. Nothing
-is sent to the server: this service has no identity of any kind, so there is nowhere else it
-could live, and a reading preference is a fact about a screen and a pair of eyes rather than
-about a form.
+- **`"theme": "dark"`** — where the colours start for a reader who has never chosen and whose
+  machine does not ask for light. Leave it out and the machine decides alone.
+- **`{"widget": "comfort"}`** — where the switches are drawn. **Leave it out and they are drawn
+  at the top of the page anyway**: placing it moves them, it does not create them, and nothing
+  removes them.
+- **`{"widget": "language"}`** — one link per catalogue in `translations`, each named in its own
+  catalogue (which is why `t.polish` reads *Polski* in both). Two catalogues here, so two
+  entries; with one catalogue it draws nothing at all, so it is safe to place before you know
+  how many languages the form will end up carrying.
+- **the `row` around them** — how they end up side by side at the right edge: `align: "end"`
+  packs the columns to the right, and `width: "auto"` makes each as wide as its own content.
+  Drop the row and you get two right-aligned lines instead, one under the other.
+
+The same two widgets work in `core-html`, minus the row (that kit groups with `fieldset` only,
+so they stack).
+
+Both kits draw all three switches folded away behind one summary until somebody wants them — the
+richer kit as toggle buttons behind an icon, the plain kit as checkboxes — and both remember the
+choice **in that browser only**. Nothing is sent to the server: this service has no identity of
+any kind, so there is nowhere else it could live, and a reading preference is a fact about a
+screen and a pair of eyes rather than about a form.
 
 This matters when you pick a skin: **high contrast wins over it.** It is not one of the skins
 but an overlay on top of whichever one you chose, because an accessibility preference outranks
