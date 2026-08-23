@@ -330,7 +330,7 @@
    everything; nothing is fetched until somebody opens it; and every row is a clone
    of the template below. #}
 {% macro history(node, chrome) %}
-    <details class="border rounded mb-4 bg-body" data-history data-controller="history"
+    <details class="border rounded mb-4 bg-body"{{ chrome.version is not null ? ' open' : '' }} data-history data-controller="history"
              data-history-id-value="{{ chrome.id }}" data-history-page-value="{{ chrome.page }}"
              data-action="toggle->history#opened form:saved@window->history#load">
         <summary class="px-3 py-2 fw-semibold">{{ node.label }}</summary>

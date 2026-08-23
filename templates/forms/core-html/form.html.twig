@@ -361,7 +361,7 @@
    Nothing is fetched until somebody opens this, and every row is a clone of the
    template below: a kit does not write markup in JavaScript. #}
 {% macro history(node, chrome) %}
-    <details class="history" data-history>
+    <details class="history"{{ chrome.version is not null ? ' open' : '' }} data-history>
         <summary>{{ node.label }}</summary>
         <p class="hint" data-history-empty hidden>{{ 'page.history.empty'|trans }}</p>
         <p class="error" data-history-error hidden>{{ 'page.history.failed'|trans }}</p>

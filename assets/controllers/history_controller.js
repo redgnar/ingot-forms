@@ -16,6 +16,14 @@ export default class extends Controller {
     static values = { id: String, page: String };
     static targets = ['list', 'empty', 'failed', 'moment'];
 
+    connect() {
+        // A page drawn from an earlier save opens this panel itself: which moment
+        // you are looking at, and what else there is, is the context of that page
+        // rather than an aside to it. `toggle` never fires for a panel that
+        // arrived open, so the list is asked for here.
+        if (this.element.open) this.load();
+    }
+
     opened() {
         if (this.element.open) this.load();
     }

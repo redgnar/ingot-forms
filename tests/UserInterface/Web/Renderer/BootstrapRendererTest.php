@@ -693,6 +693,21 @@ final class BootstrapRendererTest extends KernelTestCase
         self::assertStringContainsString("'' === 'dark'", $this->render());
     }
 
+    public function testAPageDrawnFromAnEarlierSaveOpensTheListOfMomentsItself(): void
+    {
+        // GIVEN the same form drawn now, and drawn from an earlier save
+        $form = self::form();
+        $now = new Crawler($this->renderer->render(new RenderedForm($form, 'en')));
+        $earlier = new Crawler($this->renderer->render(new RenderedForm($form, 'en', 1, '{"email":"ada@example.com"}')));
+
+        // THEN the panel is folded away on the page that holds the form, and open
+        // on the page that holds one of its moments — where the controller asks
+        // for the list on connect, because `toggle` never fires for a panel that
+        // arrived open
+        self::assertNull($now->filter('[data-history]')->attr('open'));
+        self::assertNotNull($earlier->filter('[data-history]')->attr('open'));
+    }
+
     public function testEveryNameThePagePointsAtIsOnThePage(): void
     {
         // GIVEN a page with a list, whose entries are the same form drawn again

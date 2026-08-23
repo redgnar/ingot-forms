@@ -548,6 +548,11 @@ if (versions !== null) {
     versions.addEventListener('toggle', () => {
         if (versions.open) loadVersions();
     });
+
+    // A page drawn from an earlier save opens this panel itself: which moment you
+    // are looking at, and what else there is, is the context of that page rather
+    // than an aside to it. `toggle` never fires for a panel that arrived open.
+    if (versions.open) loadVersions();
 }
 
 async function loadVersions() {

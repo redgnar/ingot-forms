@@ -331,6 +331,20 @@ final class CoreHtmlRendererTest extends KernelTestCase
         self::assertCount(0, $page->filter('[data-action="reset"]'));
     }
 
+    public function testAPageDrawnFromAnEarlierSaveOpensTheListOfMomentsItself(): void
+    {
+        // GIVEN the same form drawn now, and drawn from an earlier save
+        $form = self::form();
+        $now = new Crawler($this->renderer->render(new RenderedForm($form, 'en')));
+        $earlier = new Crawler($this->renderer->render(new RenderedForm($form, 'en', 1, '{"email":"ada@example.com"}')));
+
+        // THEN the panel is folded away on the page that holds the form, and open
+        // on the page that holds one of its moments: there, which moment you are
+        // looking at and what else there is *is* the context of the page
+        self::assertNull($now->filter('[data-history]')->attr('open'));
+        self::assertNotNull($earlier->filter('[data-history]')->attr('open'));
+    }
+
     public function testAnEarlierVersionIsDrawnFromThatSaveAndCannotBeChanged(): void
     {
         // GIVEN a form holding one thing, and an earlier save that held another
