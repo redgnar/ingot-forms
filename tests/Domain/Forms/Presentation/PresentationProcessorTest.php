@@ -181,22 +181,28 @@ final class PresentationProcessorTest extends TestCase
         self::assertSame('material', $stored['skin'] ?? null);
     }
 
-    public function testADocumentMayPreferAStartingThemeAndNothingElse(): void
+    public function testADocumentMaySayHowThePageStarts(): void
     {
-        // GIVEN a document that would rather start dark
+        // GIVEN a document that would rather start dark, in high contrast, with
+        // larger text
         $processor = self::processor();
-        $stored = $processor->normalize($processor->parse([...self::document(), 'theme' => 'dark']));
+        $asked = ['theme' => 'dark', 'contrast' => 'high', 'text' => 'large'];
+        $stored = $processor->normalize($processor->parse([...self::document(), ...$asked]));
 
-        // THEN it travels and is stored with the rest of the document
-        self::assertSame('dark', $stored['theme'] ?? null);
+        // THEN all three travel and are stored with the rest of the document
+        foreach ($asked as $member => $value) {
+            self::assertSame($value, $stored[$member] ?? null, $member);
+        }
 
-        // AND there are two ways round for colours and no third: a document
-        // asking for something else is refused where it asked
-        try {
-            $processor->parse([...self::document(), 'theme' => 'sepia']);
-            self::fail('Expected the meta-schema to refuse it.');
-        } catch (PresentationNotValid $exception) {
-            self::assertSame('/theme', $exception->report->errors[0]->pointer->toString());
+        // AND each has its own two words and no third: a document asking for
+        // something else is refused where it asked
+        foreach (['theme' => 'sepia', 'contrast' => 'low', 'text' => 'tiny'] as $member => $nonsense) {
+            try {
+                $processor->parse([...self::document(), $member => $nonsense]);
+                self::fail('Expected the meta-schema to refuse ' . $member . '.');
+            } catch (PresentationNotValid $exception) {
+                self::assertSame('/' . $member, $exception->report->errors[0]->pointer->toString());
+            }
         }
     }
 

@@ -677,20 +677,33 @@ final class BootstrapRendererTest extends KernelTestCase
         self::assertCount(0, $page->filter('nav a[data-language]'));
     }
 
-    public function testADocumentMayPreferDarkAndIsAnsweredLast(): void
+    public function testADocumentMayPreferHowThePageStartsAndIsAnsweredLast(): void
     {
-        // GIVEN a document that would rather start dark
-        $page = $this->renderer->render(new RenderedForm(self::formFrom([...self::PRESENTATION, 'theme' => 'dark']), 'en'));
+        // GIVEN a document that would rather start dark, in high contrast, with
+        // larger text
+        $page = $this->renderer->render(new RenderedForm(self::formFrom([
+            ...self::PRESENTATION,
+            'theme' => 'dark',
+            'contrast' => 'high',
+            'text' => 'large',
+        ]), 'en'));
 
         // THEN the page starts that way — but only after asking the reader's own
         // choice and their machine, in that order, which is what the script in
         // the head does before anything is painted
         self::assertStringContainsString("'dark' === 'dark'", $page);
+        self::assertStringContainsString("'high' === 'high'", $page);
+        self::assertStringContainsString("'large' === 'large'", $page);
         self::assertStringContainsString("read('theme')", $page);
+        self::assertStringContainsString("read('contrast')", $page);
         self::assertStringContainsString('prefers-color-scheme: dark', $page);
+        self::assertStringContainsString('prefers-contrast: more', $page);
 
         // AND a document that prefers nothing says nothing
-        self::assertStringContainsString("'' === 'dark'", $this->render());
+        $plain = $this->render();
+        self::assertStringContainsString("'' === 'dark'", $plain);
+        self::assertStringContainsString("'' === 'high'", $plain);
+        self::assertStringContainsString("'' === 'large'", $plain);
     }
 
     public function testAPageDrawnFromAnEarlierSaveOpensTheListOfMomentsItself(): void

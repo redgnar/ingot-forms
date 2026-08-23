@@ -49,10 +49,11 @@ final class CoreHtmlRenderer implements FormRenderer
             // they are somewhere is not. A document that places none gets them at
             // the top rather than losing them.
             'comfortPlaced' => PresentedNodes::draws($nodes, 'comfort'),
-            // Which way round the colours start for a reader who has never said.
-            // The reader's own choice, and their machine's, are both answered
-            // before this one.
+            // How the page starts for a reader who has never said. Their own
+            // choice, and their machine's, are both answered before these.
             'theme' => $request->form->presentation()?->structure()->theme ?? '',
+            'contrast' => $request->form->presentation()?->structure()->contrast ?? '',
+            'text' => $request->form->presentation()?->structure()->text ?? '',
         ]);
     }
 }

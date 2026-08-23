@@ -39,6 +39,27 @@ export default class extends Controller {
                 this.#reflect(this[`${name}Target`], document.documentElement.dataset[how.attribute] === how.on);
             }
         }
+
+        // A panel laid over the page is closed the way anything laid over a page
+        // is closed: by looking somewhere else, or by pressing Escape. Making
+        // somebody find the button again to put it away is making them aim twice.
+        this.dismiss = (event) => {
+            if (this.element.open && !this.element.contains(event.target)) this.element.open = false;
+        };
+        this.escape = (event) => {
+            if (event.key !== 'Escape' || !this.element.open) return;
+
+            this.element.open = false;
+            this.element.querySelector('summary')?.focus();
+        };
+
+        document.addEventListener('click', this.dismiss);
+        document.addEventListener('keydown', this.escape);
+    }
+
+    disconnect() {
+        document.removeEventListener('click', this.dismiss);
+        document.removeEventListener('keydown', this.escape);
     }
 
     dark(event) {

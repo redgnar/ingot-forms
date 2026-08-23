@@ -41,11 +41,14 @@
 
             var contrast = read('contrast');
 
-            if (contrast === 'high' || (contrast === null && asks('(prefers-contrast: more)'))) {
+            if (contrast === 'high'
+                || (contrast === null && (asks('(prefers-contrast: more)') || '{{ contrast }}' === 'high'))) {
                 root.dataset.contrast = 'high';
             }
 
-            if (read('text') === 'large') {
+            var text = read('text');
+
+            if (text === 'large' || (text === null && '{{ text }}' === 'large')) {
                 root.dataset.text = 'large';
             }
         })();

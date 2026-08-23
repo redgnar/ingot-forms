@@ -135,9 +135,13 @@
 
             if (contrast !== null) {
                 root.dataset.contrast = contrast;
+            } else if ('{{ contrast }}' === 'high') {
+                root.dataset.contrast = 'high';
             }
 
-            if (read('text') === 'large') {
+            var text = read('text');
+
+            if (text === 'large' || (text === null && '{{ text }}' === 'large')) {
                 root.dataset.text = 'large';
             }
         })();

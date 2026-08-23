@@ -47,6 +47,13 @@ final readonly class PresentationDocument
         // A document may prefer dark; it cannot impose it — somebody who has
         // chosen, or whose machine asks for dark, is answered first.
         public ?string $theme = null,
+        // The same bargain for the other two: a document may start a page in
+        // high contrast or in larger text, and can only ever *add* them. A
+        // reader who has chosen is answered first, and so is a machine asking
+        // for more contrast — which is why there is no way to say "off" here.
+        // Turning an accessibility need down is not a document's to do.
+        public ?string $contrast = null,
+        public ?string $text = null,
     ) {}
 
     /**

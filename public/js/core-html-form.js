@@ -512,6 +512,20 @@ if (comfort !== null) {
         text: { attribute: 'text', on: 'large', off: 'off', stash: 'text' },
     };
 
+    // A panel laid over the page is closed the way anything laid over a page is
+    // closed: by looking somewhere else, or by pressing Escape. Making somebody
+    // find the summary again to put it away is making them aim twice.
+    document.addEventListener('click', (event) => {
+        if (comfort.open && !comfort.contains(event.target)) comfort.open = false;
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || !comfort.open) return;
+
+        comfort.open = false;
+        comfort.querySelector('summary')?.focus();
+    });
+
     for (const box of comfort.querySelectorAll('[data-comfort-toggle]')) {
         const how = switches[box.dataset.comfortToggle];
 

@@ -29,8 +29,8 @@
    `[data-bs-theme=dark] .btn-…`, one specificity point above a bare class, so a
    bare class here would lose exactly where it is needed most; the second form
    ties on specificity and wins on order, this being the last stylesheet loaded. */
-.btn-outline-secondary:not(.active),
-[data-bs-theme] .btn-outline-secondary:not(.active) {
+.btn-outline-secondary:not(.active):not(:hover),
+[data-bs-theme] .btn-outline-secondary:not(.active):not(:hover) {
     --bs-btn-color: var(--bs-body-color);
     --bs-btn-border-color: var(--bs-border-color);
     --bs-btn-hover-color: var(--bs-body-bg);
@@ -55,12 +55,42 @@
 
 /* The same for the two that carry the skin's own colour: they may be branded,
    they may not be invisible. */
-.btn-outline-primary:not(.active),
-[data-bs-theme] .btn-outline-primary:not(.active),
-.btn-link,
-[data-bs-theme] .btn-link {
+.btn-outline-primary:not(.active):not(:hover),
+[data-bs-theme] .btn-outline-primary:not(.active):not(:hover),
+.btn-link:not(:hover),
+[data-bs-theme] .btn-link:not(:hover) {
     --bs-btn-color: var(--bs-link-color);
     color: var(--bs-btn-color);
+}
+
+/* Hovering fills a button, and the fill and the text have to be decided
+   together — otherwise one of them comes from the skin and the other from the
+   rules above, which is how a button ends up dark on dark in a light page and
+   light on light in a dark one. Both are stated here, at a specificity a skin's
+   own `:hover` cannot tie. */
+.btn-outline-secondary:hover,
+[data-bs-theme] .btn-outline-secondary:hover {
+    background-color: var(--bs-body-color);
+    border-color: var(--bs-body-color);
+    color: var(--bs-body-bg);
+}
+
+.btn-outline-primary:hover,
+[data-bs-theme] .btn-outline-primary:hover {
+    background-color: var(--bs-link-color);
+    border-color: var(--bs-link-color);
+    color: var(--bs-body-bg);
+}
+
+/* A picked toggle is filled, and the rules above would leave its text the colour
+   it had while empty — the option somebody chose, unreadable on its own
+   highlight. Bootstrap already decides this pair together; this only says so
+   again, late enough to win. */
+.btn-check:checked + .btn,
+[data-bs-theme] .btn-check:checked + .btn {
+    background-color: var(--bs-btn-active-bg);
+    border-color: var(--bs-btn-active-border-color);
+    color: var(--bs-btn-active-color);
 }
 
 /* The reader's own switches, folded away: a pointer on the summary says it opens,

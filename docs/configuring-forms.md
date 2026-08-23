@@ -143,6 +143,64 @@ Five of those say something worth spelling out:
   itself, so a draft still holds a consent nobody has given yet; otherwise "save for later"
   would refuse the very state it exists for.
 
+### Setting it up
+
+Every item type at once, each with its own options, and a values document the form accepts.
+`presentation` is optional — leave it out and this is a form only an API client fills in:
+
+```json
+{
+  "items": [
+    { "type": "text",     "name": "customer", "required": true, "maxLength": 60, "pattern": "^[A-Z].*" },
+    { "type": "text",     "name": "notes",    "maxLength": 400 },
+    { "type": "select",   "name": "country",  "required": true, "options": ["pl", "de"] },
+    { "type": "number",   "name": "seats",    "min": 1, "max": 10, "decimals": 0 },
+    { "type": "number",   "name": "budget",   "min": 0, "decimals": 2 },
+    { "type": "date",     "name": "delivery", "min": "2026-01-01", "max": "2030-12-31" },
+    { "type": "checkbox", "name": "terms",    "required": true, "mustBeChecked": true },
+    { "type": "checkbox", "name": "news" },
+    { "type": "file",     "name": "invoice",  "accept": ["application/pdf"], "maxSize": 1048576 },
+    { "type": "collection", "name": "lines", "min": 1, "max": 20, "items": [
+      { "type": "text",   "name": "sku",      "required": true, "pattern": "^[A-Z]-[0-9]+$" },
+      { "type": "number", "name": "quantity", "required": true, "min": 1, "decimals": 0 }
+    ]}
+  ]
+}
+```
+
+An answer to it — the shape `PUT /api/forms/{id}/data` takes, and the shape
+`GET /api/forms/{id}/data` gives back:
+
+```json
+{
+  "customer": "Ada Lovelace",
+  "notes": "",
+  "country": "pl",
+  "seats": 4,
+  "budget": 1250.50,
+  "delivery": "2026-03-01",
+  "terms": true,
+  "news": false,
+  "lines": [
+    { "sku": "A-1", "quantity": 2 },
+    { "sku": "B-7", "quantity": 1 }
+  ]
+}
+```
+
+Three things to read off that pair:
+
+- **the names are the whole contract** — no ids, no order, no wrapper. A member the definition
+  does not declare is refused (`schema.additionalProperties`), and so is a value of the wrong
+  JSON type: `"seats": "4"` is a string, and a string is not a number.
+- **`decimals: 2` means the value must land on `0.01`**, which is why `1250.50` is fine and
+  `1250.505` is not. `decimals: 0` publishes the item as an integer.
+- **a list is an array of objects**, one per entry, each answering the collection's own items.
+  `min: 1` bites at confirmation; `max: 20` bites always.
+
+Ask the form what it will take, rather than guessing: `GET /api/forms/{id}/schema` is the
+derived JSON Schema, and `?mode=draft` is the lenient one used while filling in.
+
 ## Files
 
 **What an author does**: declare a `file` item with `accept` and `maxSize`, both required. What
@@ -153,6 +211,43 @@ a *client* does with it is three steps, and the middle one is the whole mechanis
 2. Put that object into the values, verbatim, where the item's name goes. It is the value; there
    are no bytes in the values document.
 3. Save as usual. From that moment the file is attached, and `GET …/files/{fileId}` serves it.
+
+### Setting it up
+
+The item, and then the three calls. A `file` item declares both of its own rules and cannot
+leave either out:
+
+```json
+{ "type": "file", "name": "invoice", "accept": ["application/pdf"], "maxSize": 1048576 }
+```
+
+```http
+POST /api/forms/{id}/files
+Content-Type: multipart/form-data; boundary=…
+(one part named "file")
+
+201 Created
+{ "id": "01a02f74-...", "name": "invoice.pdf", "size": 8124, "type": "application/pdf" }
+```
+
+That answer **is** the value. Put it back verbatim and save:
+
+```json
+{ "invoice": { "id": "01a02f74-...", "name": "invoice.pdf", "size": 8124, "type": "application/pdf" } }
+```
+
+Several files is a `collection` holding a `file`, and then the values hold an array of those
+same four-member objects:
+
+```json
+{ "type": "collection", "name": "attachments", "max": 5, "items": [
+  { "type": "file", "name": "scan", "accept": ["image/png", "image/jpeg"], "maxSize": 2097152 }
+]}
+```
+
+```json
+{ "attachments": [ { "scan": { "id": "…", "name": "front.png", "size": 41233, "type": "image/png" } } ] }
+```
 
 Everything else here follows from one decision: **the form's own documents are the only index
 of its files.**
@@ -255,6 +350,37 @@ Say nothing and every item of the entry is previewed.
            {"name": "quantity", "widget": "number", "label": "t.qty"}]}
 ```
 
+A list inside a list is the same shape again, as deep as the definition goes — the definition,
+the presentation and the values, side by side:
+
+```json
+{ "type": "collection", "name": "lines", "min": 1, "max": 10, "items": [
+  { "type": "text", "name": "sku", "required": true },
+  { "type": "collection", "name": "parts", "max": 5, "items": [
+    { "type": "text", "name": "code", "required": true }
+  ]}
+]}
+```
+
+```json
+{ "name": "lines", "widget": "table", "label": "t.lines", "columns": ["sku"],
+  "options": { "open": true },
+  "items": [
+    { "name": "sku", "widget": "text", "label": "t.sku" },
+    { "name": "parts", "widget": "table", "label": "t.parts", "columns": ["code"], "items": [
+      { "name": "code", "widget": "text", "label": "t.code" }
+    ]}
+  ]}
+```
+
+```json
+{ "lines": [ { "sku": "A-1", "parts": [ { "code": "X1" }, { "code": "X2" } ] } ] }
+```
+
+`columns` may only name items **that entry** has, and a column can only be something that reads
+as text — a list is not a column. `options.open` unfolds every entry's form; leave it out and a
+person opens the one they want.
+
 Everything a presentation is judged by is judged **per scope**, then: a name exists here, is
 shown once here, and everything here is shown. So an entry may present `sku` even where the
 form around it also presents `sku`, and a trigger inside an entry is refused — saving and
@@ -336,6 +462,33 @@ light themes on purpose — dark belongs to whoever is reading, and that half is
 [the reader's](#accessibility-what-the-reader-controls-and-what-you-can-default), not the
 document's — though a document may say which way the colours *start*.
 
+### Setting it up
+
+One word at the top of the presentation, beside `engine`:
+
+```json
+{
+  "engine": "bootstrap",
+  "skin": "material",
+  "defaultLocale": "en",
+  "items": [
+    { "name": "email", "widget": "text", "label": "t.email" },
+    { "widget": "confirm", "label": "t.send" }
+  ],
+  "translations": { "en": { "t.email": "E-mail", "t.send": "Send it" } }
+}
+```
+
+| What you write | What the page wears |
+|---|---|
+| `"skin": "material"` | Materia, whatever the deployment prefers |
+| nothing | whatever `FORMS_SKIN` says, and `default` when it says nothing |
+| `"skin": "chrome-yellow"` | nothing — the form is refused at creation, `presentation.skin.unknown` at `/skin` |
+| `"skin"` with `"engine": "core-html"` | nothing — refused, `presentation.skin.unsupported` |
+
+To re-dress every form that names no skin, set `FORMS_SKIN=flatly` in the deployment's
+environment. Documents that name one keep it: the document wins, always.
+
 The plain controls are deliberately the same names in both; everything the richer kit adds is a
 way of asking the other has no markup for. So a document written for one is *refused* by the
 other rather than half-drawn, which is what naming the engine at the top of the document buys.
@@ -410,16 +563,25 @@ document that places no `comfort` still gets them, at the top.
 
 **Options a widget understands** (`options` on the presented item):
 
-| Option | On | Does |
+| Option | On | Every value it takes |
 |---|---|---|
-| `rows: n` | `textarea` | how tall the box is (four otherwise) |
-| `appearance: "link"` | any action | draws the trigger as a link instead of a button |
-| `choices: {locale: code}` | `language` | words each language, resolved in its own catalogue |
-| `open: true` | `accordion`, `table` | starts unfolded |
-| `width: 1–12` or `"auto"` | any item inside a `row` | how many of the twelve columns it takes, or as wide as its own content |
-| `align: "start" \| "center" \| "end" \| …` | `row` | how the columns are packed when they do not fill it |
-| `tone: "info" \| "warning" \| …` | `alert` | which Bootstrap tone to paint |
-| `columns: true` | `radio` | lays the options out side by side |
+| `rows` | `textarea` | any whole number ≥ 1; **4** when omitted |
+| `appearance` | any action (`save`, `confirm`, `reset`, `history`) | `"link"` — the only value there is; omit it for a button |
+| `choices` | `language` | a map of locale → translation code, one per catalogue the document carries |
+| `open` | `accordion`, `table` | `true` or `false`; **false** when omitted |
+| `width` | any item that is a direct child of a `row` | `1`–`12`, or `"auto"` (as wide as its own content); omit it and the item shares what is left |
+| `align` | `row` | `"start"`, `"center"`, `"end"`, `"between"`, `"around"` — the five Bootstrap packs columns with; omit it for `start` |
+| `tone` | `alert` | `"primary"`, `"secondary"`, `"success"`, `"danger"`, `"warning"`, `"info"`, `"light"`, `"dark"` — Bootstrap's eight; **`info`** when omitted, and a word that is not one of them draws an alert with no colour at all |
+| `columns` | `radio` | `true` or `false`; **false** when omitted |
+
+And the four members that are not options, with their values:
+
+| Member | Where | Every value it takes |
+|---|---|---|
+| `skin` | top of the document | `"default"`, `"material"`, `"flatly"`, `"lux"` for `bootstrap`; `core-html` takes none |
+| `theme` | top of the document | `"light"`, `"dark"`; omit it and the reader's machine decides |
+| `contrast` | top of the document | `"normal"`, `"high"`; omit it and the reader's machine decides |
+| `text` | top of the document | `"normal"`, `"large"`; omit it for normal |
 
 That is the whole list: `options` is **read by the kit, never forwarded to Bootstrap**, so
 anything else a document puts there is carried and ignored.
@@ -444,22 +606,21 @@ Three things about a page belong to the person reading it. A document may say ho
 
 ### The defaults
 
-| Switch | Values | Default, when the reader has not chosen |
-|---|---|---|
-| dark colours | on / off | `prefers-color-scheme: dark` from their machine, then the document's `theme` |
-| high contrast | on / off | `prefers-contrast: more` from their machine |
-| larger text | on / off | off — no machine setting says this, so nothing can be inferred |
+| Switch | The document may start it with | Its machine says | Otherwise |
+|---|---|---|---|
+| dark colours | `"theme": "dark"` | `prefers-color-scheme: dark` | light |
+| high contrast | `"contrast": "high"` | `prefers-contrast: more` | off |
+| larger text | `"text": "large"` | nothing — no machine setting says this | off |
 
 **The order is always the same, and the reader is always first:** what they chose on this page
-before → what their machine asks for → what the document prefers (`theme`, and only for the
-colours) → off. A stored choice is kept in that browser and nowhere else, so "off" chosen by
-somebody whose machine asks for contrast stays off on the next page — turning a switch off is as
-much a decision as turning it on.
+before → what their machine asks for → what the document prefers → off. A stored choice is kept
+in that browser and nowhere else, so "off" chosen by somebody whose machine asks for contrast
+stays off on the next page — turning a switch off is as much a decision as turning it on.
 
-The only default you can set is `"theme": "light" | "dark"` at the top of the presentation,
-beside `skin`. There is no document member for contrast or text size and there will not be one:
-a document that could start somebody in low contrast would be deciding an accessibility need on
-their behalf.
+Which is why a document can only ever **add**. There is no way to write `"contrast": "off"`:
+`normal` is the word for "nothing to add", and it changes nothing for a reader whose machine
+asks for more. Turning somebody's accessibility need down is not a document's to do; starting a
+page in high contrast, for a form whose readers will want it, is.
 
 ### Setting it up
 
@@ -470,6 +631,8 @@ Two places in the document, and both are optional. This is the whole of it:
   "engine": "bootstrap",
   "skin": "flatly",
   "theme": "dark",
+  "contrast": "high",
+  "text": "large",
   "defaultLocale": "en",
   "items": [
     { "widget": "row", "options": { "align": "end" }, "items": [
@@ -491,8 +654,9 @@ Two places in the document, and both are optional. This is the whole of it:
 }
 ```
 
-- **`"theme": "dark"`** — where the colours start for a reader who has never chosen and whose
-  machine does not ask for light. Leave it out and the machine decides alone.
+- **`"theme": "dark"`, `"contrast": "high"`, `"text": "large"`** — how the page starts for a
+  reader who has never chosen. Each is optional and each only ever adds: leave one out and the
+  machine decides alone, write it and the machine still wins where it says more.
 - **`{"widget": "comfort"}`** — where the switches are drawn. **Leave it out and they are drawn
   at the top of the page anyway**: placing it moves them, it does not create them, and nothing
   removes them.
@@ -563,6 +727,43 @@ already on a no-op rather than a new revision.
 
 `confirmed` is derived and never stored: confirming writes no values, so it is no revision of its
 own — the last one is simply what got locked.
+
+### Setting it up
+
+Nothing to configure on the server: every accepted save is kept, always. What a *document* asks
+for is the panel — one widget, placed wherever it belongs on the page:
+
+```json
+{ "widget": "history", "label": "t.history" }
+```
+
+Leave it out and the form has no panel; a client reads the same two endpoints and shows what it
+likes. Beside it, `{"widget": "reset", "label": "t.reset"}` is the way back to what the form
+actually holds, for somebody who typed over it and changed their mind.
+
+The round trip, as a client makes it — three calls, no special endpoint anywhere:
+
+```http
+GET /api/forms/{id}/history
+200 { "revisions": [ { "seq": 3, "savedAt": "2026-08-22T14:31:07+00:00", "confirmed": false },
+                     { "seq": 2, "savedAt": "2026-08-22T14:12:55+00:00", "confirmed": false },
+                     { "seq": 1, "savedAt": "2026-08-22T13:58:01+00:00", "confirmed": false } ] }
+
+GET /api/forms/{id}/history/1
+200 { "customer": "Ada Lovelace", "seats": 2 }
+
+PUT /api/forms/{id}/data
+{ "customer": "Ada Lovelace", "seats": 2 }
+204
+```
+
+That third call is the restore: an ordinary draft save of a document the client happened to
+read. It meets the same three gates as any other save, and it becomes revision 4 — history is
+append-only, so putting something back is a change like any other rather than a rewind. Send it
+while the form already holds exactly that, and nothing is recorded at all.
+
+Putting **one answer** back needs no endpoint either: read the revision, take the member you
+want, merge it into what the form holds now, and save the result.
 
 **Restoring is not an operation.** There is no `POST …/restore`, and that is deliberate: a client
 reads a revision and sends it back through `PUT …/data`, where it meets the same three gates as

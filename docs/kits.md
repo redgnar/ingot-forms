@@ -58,7 +58,7 @@ for when a form is a form rather than a product.
 
 - **Draws:** `<textarea>`, four rows unless asked otherwise
 - **From the definition:** `maxlength`
-- **Options:** `rows` — how tall the box is
+- **Options:** `rows` — any whole number ≥ 1; four when omitted
 - **From the item:** `placeholder`
 
 ### `hidden`
@@ -129,7 +129,7 @@ for when a form is a form rather than a product.
   "Add" button in the table's footer and a "Remove" button per row
 - **From the definition:** `min` and `max`, carried onto the page so it can grey out its own
   buttons — the server is still what decides
-- **Options:** `open: true` — entries start unfolded
+- **Options:** `open` — `true` or `false` (false when omitted): entries start unfolded
 - **Notes:** which items the table previews is `columns` on the presented item; leave it out and
   every item of an entry is previewed. A list may hold a list, drawn exactly the same way, as
   deep as the definition goes. Nested lists are shaded a step darker so depth is visible without
@@ -251,7 +251,8 @@ that the plain kit has no markup for.
 - **Draws:** `role="radiogroup"` wrapper with `.form-check` rows —
   [Checks and radios](https://getbootstrap.com/docs/5.3/forms/checks-radios/)
 - **From the definition:** the declared options
-- **Options:** `columns: true` — the options sit side by side (`.form-check-inline`)
+- **Options:** `columns` — `true` or `false` (false when omitted): the options sit side by side
+  (`.form-check-inline`)
 
 ### `radio-buttons`
 
@@ -326,7 +327,7 @@ that the plain kit has no markup for.
   followed by that entry's form folded into a `<details>` styled as a card, "Add" in the table's
   footer, "Remove" per row — [Tables](https://getbootstrap.com/docs/5.3/content/tables/)
 - **From the definition:** `min`, `max` — the buttons grey themselves out
-- **Options:** `open: true` — entries start unfolded
+- **Options:** `open` — `true` or `false` (false when omitted): entries start unfolded
 - **Notes:** a refused entry's row is marked (`table-danger`) and stays marked once the form is
   folded back up. Adding an entry puts the caret in it.
 
@@ -343,7 +344,7 @@ that the plain kit has no markup for.
 ### `accordion`
 
 - **Draws:** `<details>` styled as a card, with the label as its `<summary>`
-- **Options:** `open: true` — starts unfolded
+- **Options:** `open` — `true` or `false` (false when omitted): starts unfolded
 - **Notes:** *not* Bootstrap's [accordion component](https://getbootstrap.com/docs/5.3/components/accordion/).
   A browser has known how to fold a `<details>` open and closed for years, without borrowing
   anybody's JavaScript, and it keeps working when the JavaScript does not.
@@ -369,7 +370,7 @@ that the plain kit has no markup for.
 |---|---|---|
 | `heading` | `<h2 class="h4">` | — |
 | `paragraph` | `<p class="text-body-secondary">` | — |
-| `alert` | [Alert](https://getbootstrap.com/docs/5.3/components/alerts/) | `tone` — any Bootstrap colour name (`info` by default, `warning`, `danger`, `success`, …) |
+| `alert` | [Alert](https://getbootstrap.com/docs/5.3/components/alerts/) | `tone` — one of `primary`, `secondary`, `success`, `danger`, `warning`, `info`, `light`, `dark`; `info` when omitted |
 | `divider` | `<hr>` | — |
 
 
@@ -420,13 +421,13 @@ two different questions. The second column is the first one's answer.
 
 | Option | Read on | Does | The component it belongs to |
 |---|---|---|---|
-| `width: 1–12 \| "auto"` | any item that is a direct child of a `row` | how many of the twelve columns it takes, or as wide as its own content | [Grid columns](https://getbootstrap.com/docs/5.3/layout/grid/#grid-options) and [variable-width content](https://getbootstrap.com/docs/5.3/layout/grid/#variable-width-content) — Bootstrap also has offsets, order and per-breakpoint widths; none of those are exposed |
-| `align: "start" \| "center" \| "end" \| "between" \| "around"` | `row` | how the columns are packed when they do not fill it | [Horizontal alignment](https://getbootstrap.com/docs/5.3/layout/columns/#horizontal-alignment) |
-| `open: true` | `accordion`, `table` | starts unfolded | the browser's own [`<details>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/details), not [Bootstrap's accordion](https://getbootstrap.com/docs/5.3/components/accordion/) — so its "only one open at a time" behaviour is not available either |
-| `tone: "info" \| "warning" \| "danger" \| "success" \| …` | `alert` | which Bootstrap colour the alert takes | [Alerts](https://getbootstrap.com/docs/5.3/components/alerts/) — the colour is exposed; dismissible alerts, icons and links inside them are not |
-| `columns: true` | `radio` | lays the options out side by side | [Inline checks and radios](https://getbootstrap.com/docs/5.3/forms/checks-radios/#inline) — reversed layout and switch-style radios are not exposed |
-| `appearance: "link"` | any action (`save`, `confirm`, `reset`, `history`) | draws the trigger as a link rather than a button | [Button variants](https://getbootstrap.com/docs/5.3/components/buttons/#variants) — the colour of a trigger is the kit's decision (`confirm` is primary, the rest are outline-secondary), not the document's |
-| `rows: n` | `textarea` | how tall the box is (four otherwise) | plain HTML; Bootstrap has nothing of its own to say about it |
+| `width` — `1`–`12` or `"auto"` (omit it to share what is left) | any item that is a direct child of a `row` | how many of the twelve columns it takes, or as wide as its own content | [Grid columns](https://getbootstrap.com/docs/5.3/layout/grid/#grid-options) and [variable-width content](https://getbootstrap.com/docs/5.3/layout/grid/#variable-width-content) — Bootstrap also has offsets, order and per-breakpoint widths; none of those are exposed |
+| `align` — `start`, `center`, `end`, `between`, `around` (omit it for `start`) | `row` | how the columns are packed when they do not fill it | [Horizontal alignment](https://getbootstrap.com/docs/5.3/layout/columns/#horizontal-alignment) |
+| `open` — `true` or `false` (omit it for folded) | `accordion`, `table` | starts unfolded | the browser's own [`<details>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/details), not [Bootstrap's accordion](https://getbootstrap.com/docs/5.3/components/accordion/) — so its "only one open at a time" behaviour is not available either |
+| `tone` — `primary`, `secondary`, `success`, `danger`, `warning`, `info`, `light`, `dark` (`info` when omitted) | `alert` | which Bootstrap colour the alert takes; the word goes straight into `alert-…`, so anything outside those eight is a class Bootstrap does not define and the alert comes out plain | [Alerts](https://getbootstrap.com/docs/5.3/components/alerts/) — the colour is exposed; dismissible alerts, icons and links inside them are not |
+| `columns` — `true` or `false` (omit it for one per line) | `radio` | lays the options out side by side | [Inline checks and radios](https://getbootstrap.com/docs/5.3/forms/checks-radios/#inline) — reversed layout and switch-style radios are not exposed |
+| `appearance` — `"link"`, the only value there is (omit it for a button) | any action (`save`, `confirm`, `reset`, `history`) | draws the trigger as a link rather than a button | [Button variants](https://getbootstrap.com/docs/5.3/components/buttons/#variants) — the colour of a trigger is the kit's decision (`confirm` is primary, the rest are outline-secondary), not the document's |
+| `rows` — any whole number ≥ 1 (`4` when omitted) | `textarea` | how tall the box is | plain HTML; Bootstrap has nothing of its own to say about it |
 
 Three more members that are not `options` but are worth listing beside them: `choices` on a
 `select`-ish item words its values, `choices` on `language` words the languages, and
