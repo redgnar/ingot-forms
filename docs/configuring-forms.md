@@ -29,7 +29,7 @@ answered is a form whose answers were given to the questions it had.
 - [Files](#files)
 - [The presentation: how it is shown](#the-presentation-how-it-is-shown)
 - [Widget reference](#widget-reference)
-- [What the reader controls, and you do not](#what-the-reader-controls-and-you-do-not)
+- [Accessibility: what the reader controls, and what you can default](#accessibility-what-the-reader-controls-and-what-you-can-default)
 - [History](#history)
 - [Talking to the API](#talking-to-the-api)
 - [When something is refused](#when-something-is-refused)
@@ -333,7 +333,8 @@ tested: **the same form under two skins renders byte-identical markup**, differi
 stylesheet the page loads. One that needed a class, an element or a control of its own would have
 stopped being a way of looking and become a second kit, and would have to be one. All four are
 light themes on purpose — dark belongs to whoever is reading, and that half is
-[the reader's](#what-the-reader-controls-and-you-do-not), not the document's.
+[the reader's](#accessibility-what-the-reader-controls-and-what-you-can-default), not the
+document's — though a document may say which way the colours *start*.
 
 The plain controls are deliberately the same names in both; everything the richer kit adds is a
 way of asking the other has no markup for. So a document written for one is *refused* by the
@@ -431,20 +432,34 @@ Two rules about the vocabulary that save time later:
 - **A widget is a way of *asking*, never a restyling.** The richer kit has `autocomplete`
   because searching a long list is a different act from scrolling one; it does not have a
   "floating label", because that is the same question with the text moved. If what you want is
-  a different *look*, that is a [skin](#skins).
+  a different *look*, that is a [skin](#skins-and-the-starting-colours).
 - **A document is written for one engine.** The plain controls carry the same names in both
   kits, but a document naming `bootstrap` widgets is refused by `core-html` rather than
   half-drawn — which is exactly what naming the engine at the top buys you.
 
-## What the reader controls, and you do not
+## Accessibility: what the reader controls, and what you can default
 
-Three things about a page belong to the person reading it, and no document can set them:
+Three things about a page belong to the person reading it. A document may say how one of them
+*starts*; none of them is a document's to decide.
 
-| Switch | Values | Where it comes from when nobody chose |
+### The defaults
+
+| Switch | Values | Default, when the reader has not chosen |
 |---|---|---|
-| dark colours | on / off | `prefers-color-scheme`, then the document's `theme` |
-| high contrast | on / off | `prefers-contrast` |
-| larger text | on / off | off |
+| dark colours | on / off | `prefers-color-scheme: dark` from their machine, then the document's `theme` |
+| high contrast | on / off | `prefers-contrast: more` from their machine |
+| larger text | on / off | off — no machine setting says this, so nothing can be inferred |
+
+**The order is always the same, and the reader is always first:** what they chose on this page
+before → what their machine asks for → what the document prefers (`theme`, and only for the
+colours) → off. A stored choice is kept in that browser and nowhere else, so "off" chosen by
+somebody whose machine asks for contrast stays off on the next page — turning a switch off is as
+much a decision as turning it on.
+
+The only default you can set is `"theme": "light" | "dark"` at the top of the presentation,
+beside `skin`. There is no document member for contrast or text size and there will not be one:
+a document that could start somebody in low contrast would be deciding an accessibility need on
+their behalf.
 
 Both kits offer all three, folded away behind one summary until somebody wants them — the
 richer kit as toggle buttons behind an icon, the plain kit as checkboxes — and both remember the
@@ -476,9 +491,26 @@ an aesthetic one — a document must not be able to spend somebody else's contra
 nice. The same goes for dark: the reader's dark palette is painted by the application, so a
 skin cannot leave somebody reading grey on grey.
 
-What you *can* count on, whatever the reader has chosen: every question is announced with its
-label, its hint, whether it is required and whether it was refused; a refusal moves the caret
-to the answer it is about; and a list unfolds its way to the entry that is wrong.
+### What every page does without being asked
+
+None of this is a setting, a default or a widget — it is what the kits draw, always, in both of
+them:
+
+- a question is announced with its label, its hint, and whether an answer is owed
+  (`aria-required`; the star beside the label is marked as decoration, because read out it is
+  punctuation in the middle of a question);
+- a group of choices is a `radiogroup` named by its question, so the options are never read out
+  without it;
+- a refused answer says so (`aria-invalid`), its message is tied to the control
+  (`aria-describedby`), **and the caret moves there** — or to the button that adds an entry,
+  when it is a list that owes one;
+- a refusal inside a folded entry unfolds every form on the way to it and marks the rows it is
+  inside, so the table still says "look here" once it is folded back up;
+- an upload's progress is a number to be read as well as a bar to be seen;
+- a new entry takes the caret into the form it just added — but only when a person asked for it,
+  since a document being put back onto the page asked for nothing.
+
+[kits.md](kits.md#what-both-kits-do-without-being-asked) says the same from the kit's side.
 
 ## History
 
