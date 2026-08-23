@@ -412,6 +412,8 @@
     {% set group = node.name ~ (node.scope ? '--' ~ node.scope : '') %}
     {# The star in a label is for eyes only, and so are the two lines under a
        control until something points at them. #}
+    {# A placeholder goes only to the controls that can actually show one; the
+       others carry nothing rather than an attribute a browser ignores. #}
     {% set common = {
         'id': id,
         'name': group,
@@ -420,12 +422,13 @@
         'disabled': readOnly,
         'aria-required': node.required ? 'true' : null,
         'aria-describedby': (node.hint ? id ~ '-hint ' : '') ~ id ~ '-error',
+        'placeholder': node.widget in ['text', 'textarea', 'number'] ? node.placeholder : null,
     } %}
         {% if node.widget == 'textarea' %}
-            <textarea{{ html.attributes(common|merge({'rows': 4, 'maxlength': node.maxLength}))|raw }}>{{ node.value }}</textarea>
+            <textarea{{ html.attributes(common|merge({'rows': node.options.rows|default(4), 'maxlength': node.maxLength}))|raw }}>{{ node.value }}</textarea>
         {% elseif node.widget == 'select' %}
             <select{{ html.attributes(common)|raw }}>
-                <option value=""></option>
+                <option value="">{{ node.placeholder }}</option>
                 {% for choice in node.choices %}
                     <option value="{{ choice.value }}"{% if node.value == choice.value %} selected{% endif %}>{{ choice.text }}</option>
                 {% endfor %}

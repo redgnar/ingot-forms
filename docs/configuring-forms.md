@@ -284,6 +284,14 @@ half in codes is exactly the drift a presentation exists to prevent. Naming a va
 not offer is `presentation.choice.unknown`, leaving one out is `presentation.choice.missing`, and
 wording the options of something that has none is `presentation.choice.not-allowed`.
 
+**An empty control may say what would go in it.** `placeholder` sits beside `label` and `hint`
+— not among the `options` — because it is text a person reads, so it is a translation code like
+the other two and the default catalogue is held to it. It reaches `text`, `textarea` and
+`number` as the attribute; a `select` has no such attribute, so it words the empty option
+instead. Anything that holds no answer (a heading, a group, a trigger) is refused
+(`presentation.placeholder.not-allowed`). It is never the label moved inside the box: a control
+whose only label is its placeholder has no label the moment somebody types.
+
 **Text is codes, never sentences.** What a code reads like, and in which language, is resolved
 from a catalogue — the one carried in the document, or the client's own. The server never
 resolves a locale and never reads `Accept-Language`: it serves the document whole, and picking
@@ -403,6 +411,7 @@ document that places no `comfort` still gets them, at the top.
 
 | Option | On | Does |
 |---|---|---|
+| `rows: n` | `textarea` | how tall the box is (four otherwise) |
 | `appearance: "link"` | any action | draws the trigger as a link instead of a button |
 | `choices: {locale: code}` | `language` | words each language, resolved in its own catalogue |
 | `open: true` | `accordion`, `table` | starts unfolded |
@@ -613,6 +622,7 @@ so a page can mark the control instead of announcing that the document is incomp
 | `presentation.choice.unknown` | `choices` words a value the item does not offer |
 | `presentation.choice.missing` | some options worded and others left as codes |
 | `presentation.choice.not-allowed` | `choices` on an item that offers no choice |
+| `presentation.placeholder.not-allowed` | `placeholder` on something that holds no answer |
 | `presentation.translation.missing` | the default catalogue is missing a code the document uses |
 | `presentation.locale.unknown` | `defaultLocale` names a catalogue that is not there |
 | `presentation.skin.unknown` | the engine has no skin by that name |

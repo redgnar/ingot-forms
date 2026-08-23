@@ -373,6 +373,17 @@ final class PresentationRules
 
     private static function judgeUnnamed(PresentedItem $shown, string $path, ?PresentationEngine $engine, string $named): ?MappingError
     {
+        // What an empty control says while it is empty, on something that holds
+        // no answer at all.
+        if ($shown->placeholder !== null) {
+            return self::error(
+                $path . '/placeholder',
+                'presentation.placeholder.not-allowed',
+                \sprintf('"%s" holds no answer, so nothing can stand in for one.', $shown->widget ?? 'This item'),
+                $shown->widget ?? '',
+            );
+        }
+
         // Words for something to pick, on something nobody picks from. The one
         // exception is the language switch, whose "options" are the catalogues
         // this document carries — everywhere else this is a member that would be

@@ -708,6 +708,35 @@ final class BootstrapRendererTest extends KernelTestCase
         self::assertNotNull($earlier->filter('[data-history]')->attr('open'));
     }
 
+    public function testAnEmptyControlMaySayWhatWouldGoInIt(): void
+    {
+        // GIVEN a document wording the empty state of a text box, a text area and
+        // a choice, and asking for a taller area
+        $presentation = self::PRESENTATION;
+        $presentation['items'][2]['items'][0]['items'][0]['placeholder'] = 't.email.blank';
+        $presentation['items'][2]['items'][1]['placeholder'] = 't.country.blank';
+        $presentation['items'][5]['items'][0]['placeholder'] = 't.bio.blank';
+        $presentation['items'][5]['items'][0]['options'] = ['rows' => 10];
+        $presentation['translations']['en'] += [
+            't.email.blank' => 'ada@example.com',
+            't.country.blank' => 'Pick a country',
+            't.bio.blank' => 'A sentence or two',
+        ];
+
+        // WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::formFrom($presentation), 'en')));
+
+        // THEN the controls that can show one do
+        self::assertSame('ada@example.com', $page->filter('[data-name="email"]')->attr('placeholder'));
+        self::assertSame('A sentence or two', $page->filter('textarea[data-name="bio"]')->attr('placeholder'));
+        self::assertSame('10', $page->filter('textarea[data-name="bio"]')->attr('rows'));
+
+        // AND a choice says it where "nothing chosen yet" already lives — its
+        // empty option — rather than in an attribute a select cannot show
+        self::assertNull($page->filter('select[data-name="country"]')->attr('placeholder'));
+        self::assertSame('Pick a country', trim($page->filter('select[data-name="country"] option')->first()->text()));
+    }
+
     public function testEveryNameThePagePointsAtIsOnThePage(): void
     {
         // GIVEN a page with a list, whose entries are the same form drawn again

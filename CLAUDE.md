@@ -360,6 +360,12 @@ Rules that follow from it, and that the tooling checks:
   draws, and at least one `confirm` trigger — where it goes is the document's business, leaving
   it out would only make the page unfinishable. An item a client fills in rather than a person is drawn `hidden`, which says so
   instead of leaving it out.
+- **Text a person reads is a code, and codes are members, not options.** `label`, `hint`,
+  `placeholder` and `choices` are translation codes held to the default catalogue by `codes()`;
+  `options` is where things nobody translates live (`rows`, `width`, `open`, `tone`, `align`,
+  `appearance`). A new piece of *text* goes beside the first four, never into `options`.
+  (Twig aside, learnt twice in one session: a `{# … #}` comment cannot sit **inside** a
+  `{% … %}` tag — it parses as code and the template dies with "Unexpected character".)
 - **How a choice reads is the presentation's, not the definition's.** An item's `options` are
   the values a client may send; `choices` on the presented item maps each of them to a
   translation code, so `pl` can read *Polska* without the definition ever carrying display

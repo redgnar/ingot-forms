@@ -51,14 +51,15 @@ for when a form is a form rather than a product.
 - **Draws:** `<input type="text">`
 - **From the definition:** `maxlength` (`maxLength`), `pattern`
 - **Options:** —
+- **From the item:** `placeholder` — a translation code for what the control says while it is
+  empty
 
 ### `textarea`
 
-- **Draws:** `<textarea rows="4">`
+- **Draws:** `<textarea>`, four rows unless asked otherwise
 - **From the definition:** `maxlength`
-- **Options:** —
-- **Notes:** four rows, always. A number of rows is a size, and sizes are not this kit's
-  business.
+- **Options:** `rows` — how tall the box is
+- **From the item:** `placeholder`
 
 ### `hidden`
 
@@ -72,6 +73,8 @@ for when a form is a form rather than a product.
 - **Draws:** `<select>` with an empty first option, then one per declared value
 - **From the definition:** the options, in the order the definition declares them
 - **Options:** —
+- **From the item:** `placeholder` — words the *empty option*, since a select has no
+  placeholder attribute to show
 - **Notes:** the empty option is what "nothing chosen yet" looks like. What each value *reads*
   like comes from `choices` on the presented item.
 
@@ -91,6 +94,7 @@ for when a form is a form rather than a product.
 - **From the definition:** `min`, `max`, and `step` derived from `decimals` (`0` → `1`, `2` →
   `0.01`)
 - **Options:** —
+- **From the item:** `placeholder`
 
 ### `date` — the natural control for a `date` item
 
@@ -212,10 +216,13 @@ that the plain kit has no markup for.
 
 ### `text`, `textarea`, `hidden`
 
-- **Draws:** `<input class="form-control">`, `<textarea class="form-control" rows="4">`, and a
-  hidden input in a hidden container — [Form control](https://getbootstrap.com/docs/5.3/forms/form-control/)
+- **Draws:** `<input class="form-control">`, `<textarea class="form-control">` (four rows unless
+  asked otherwise), and a hidden input in a hidden container —
+  [Form control](https://getbootstrap.com/docs/5.3/forms/form-control/)
 - **From the definition:** `maxlength`, `pattern`
-- **Options:** —
+- **Options:** `rows` on the `textarea`
+- **From the item:** `placeholder` — a translation code for what the control says while it is
+  empty
 - **Notes:** every item is labelled the same way, above its control. A
   [floating label](https://getbootstrap.com/docs/5.3/forms/floating-labels/) was tried and
   removed: it can only float over a text box or a select, so any form with a choice group or a
@@ -227,6 +234,8 @@ that the plain kit has no markup for.
   [Select](https://getbootstrap.com/docs/5.3/forms/select/)
 - **From the definition:** the declared options, in order
 - **Options:** —
+- **From the item:** `placeholder` — words the empty option, since a select has no placeholder
+  attribute to show
 
 ### `autocomplete`
 
@@ -259,6 +268,7 @@ that the plain kit has no markup for.
 - **Draws:** `<input type="number" class="form-control">`
 - **From the definition:** `min`, `max`, `step` (from `decimals`)
 - **Options:** —
+- **From the item:** `placeholder`
 
 ### `range`
 
@@ -416,10 +426,13 @@ two different questions. The second column is the first one's answer.
 | `tone: "info" \| "warning" \| "danger" \| "success" \| …` | `alert` | which Bootstrap colour the alert takes | [Alerts](https://getbootstrap.com/docs/5.3/components/alerts/) — the colour is exposed; dismissible alerts, icons and links inside them are not |
 | `columns: true` | `radio` | lays the options out side by side | [Inline checks and radios](https://getbootstrap.com/docs/5.3/forms/checks-radios/#inline) — reversed layout and switch-style radios are not exposed |
 | `appearance: "link"` | any action (`save`, `confirm`, `reset`, `history`) | draws the trigger as a link rather than a button | [Button variants](https://getbootstrap.com/docs/5.3/components/buttons/#variants) — the colour of a trigger is the kit's decision (`confirm` is primary, the rest are outline-secondary), not the document's |
+| `rows: n` | `textarea` | how tall the box is (four otherwise) | plain HTML; Bootstrap has nothing of its own to say about it |
 
-Two more members that are not `options` but are worth listing beside them: `choices` on a
-`select`-ish item words its values, and `choices` on `language` words the languages. Both are
-translation codes, resolved from the document's own catalogues.
+Three more members that are not `options` but are worth listing beside them: `choices` on a
+`select`-ish item words its values, `choices` on `language` words the languages, and
+`placeholder` words what a control says while it is empty. All three are translation codes,
+resolved from the document's own catalogues — which is exactly why `placeholder` is not an
+option: an option is a thing nobody has to translate.
 
 **If you need something this list does not have**, it is a change to the kit — a widget or an
 option, added deliberately, drawn by both templates if it belongs to both, and tested. That is a

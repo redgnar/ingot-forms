@@ -18,8 +18,10 @@ namespace App\Domain\Forms\Presentation;
  * fixed level of grouping: containers nest as deep as a form needs, which is why
  * this is one recursive shape rather than sections holding fields.
  *
- * `label` and `hint` are translation codes, never sentences — the convention the
- * whole document rests on. So is every value in `choices`, which is how an item
+ * `label`, `hint` and `placeholder` are translation codes, never sentences — the
+ * convention the whole document rests on. A placeholder sits beside the other two
+ * rather than among the `options` for exactly that reason: it is text a person
+ * reads, so it is text somebody translates. So is every value in `choices`, which is how an item
  * presenting a choice says what its options read like: the definition settles
  * that a value must be one of `pl`, `de`, `fr`, and this settles that `pl` reads
  * "Polska". Those are two different questions, and only the second one has a
@@ -40,6 +42,11 @@ final readonly class PresentedItem
         public ?string $widget = null,
         public ?string $label = null,
         public ?string $hint = null,
+        // What an empty control says while it is empty. A hint explains the
+        // question; this stands in for the answer, and it is never the label
+        // moved inside the box — a control whose only label is its placeholder
+        // is a control with no label the moment somebody types.
+        public ?string $placeholder = null,
         public array $items = [],
         public array $columns = [],
         public array $choices = [],

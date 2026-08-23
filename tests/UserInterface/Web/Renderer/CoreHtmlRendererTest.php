@@ -764,6 +764,49 @@ final class CoreHtmlRendererTest extends KernelTestCase
         self::assertCount(0, $page->filter('nav.language'));
     }
 
+    public function testAnEmptyControlMaySayWhatWouldGoInIt(): void
+    {
+        // GIVEN a document that words the empty state of three controls, and
+        // asks for a taller box to write in
+        $presentation = self::PRESENTATION;
+        $presentation['items'][1]['items'][0]['placeholder'] = 'contact.email.blank';
+        $presentation['items'][1]['items'][1]['placeholder'] = 'contact.note.blank';
+        $presentation['items'][1]['items'][1]['options'] = ['rows' => 8];
+        $presentation['items'][1]['items'][2]['placeholder'] = 'contact.country.blank';
+        $presentation['translations']['en'] += [
+            'contact.email.blank' => 'ada@example.com',
+            'contact.note.blank' => 'Anything we should know',
+            'contact.country.blank' => 'Pick a country',
+        ];
+
+        // WHEN
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::formPresentedAs($presentation), 'en')));
+
+        // THEN it stands in the control, in words from the catalogue like every
+        // other piece of text this document carries
+        self::assertSame('ada@example.com', $page->filter('[data-name="email"]')->attr('placeholder'));
+        self::assertSame('Anything we should know', $page->filter('textarea[data-name="note"]')->attr('placeholder'));
+
+        // AND a taller box is asked for where a box is drawn — four rows being
+        // what a document that says nothing gets
+        self::assertSame('8', $page->filter('textarea[data-name="note"]')->attr('rows'));
+        self::assertSame('4', new Crawler($this->renderer->render(new RenderedForm(self::form(), 'en')))
+            ->filter('textarea[data-name="note"]')->attr('rows'));
+    }
+
+    public function testAChoiceSaysItInTheEmptyOptionInstead(): void
+    {
+        // GIVEN a choice whose empty state is worded
+        $presentation = self::PRESENTATION;
+        $presentation['items'][3]['placeholder'] = 'contact.visit.blank';
+        $presentation['translations']['en']['contact.visit.blank'] = 'Not decided yet';
+
+        // WHEN / THEN a select has no placeholder attribute to carry, so the word
+        // goes where "nothing chosen yet" already lives: its empty option
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::formPresentedAs($presentation), 'en')));
+        self::assertNull($page->filter('[data-name="visit"]')->attr('placeholder'));
+    }
+
     public function testEveryNameThePagePointsAtIsOnThePage(): void
     {
         // GIVEN a page with a list, whose entries are the same form drawn again

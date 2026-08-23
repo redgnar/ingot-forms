@@ -153,6 +153,7 @@ final class PresentedNodes
                 'type' => self::wireType($field),
                 'label' => $label ?? $item->name,
                 'hint' => $hint,
+                'placeholder' => self::text($item->placeholder, $translations, $locale, $default),
                 'required' => $field->required,
                 'value' => $values[$item->name] ?? null,
                 'options' => $item->options,

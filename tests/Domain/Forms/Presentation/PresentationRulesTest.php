@@ -342,6 +342,25 @@ final class PresentationRulesTest extends TestCase
         self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
     }
 
+    public function testStandingInForAnAnswerOnSomethingThatHoldsNoneIsRefused(): void
+    {
+        // GIVEN a placeholder on a heading
+        $presentation = self::presentation([
+            ['name' => 'email'],
+            ['widget' => 'heading', 'label' => 't.h', 'placeholder' => 't.blank'],
+        ]);
+
+        // WHEN
+        $report = self::rules()->check(self::definition(), $presentation);
+
+        // THEN nothing on a heading is empty, so nothing can stand in for it —
+        // and the finding names the widget it was asked of
+        self::assertSame('presentation.placeholder.not-allowed', $report->errors[0]->code);
+        self::assertSame('/items/1/placeholder', $report->errors[0]->pointer->toString());
+        self::assertSame('heading', $report->errors[0]->input);
+        self::assertStringContainsString('"heading"', $report->errors[0]->message);
+    }
+
     public function testWordingSomethingThatOffersNothingToPickIsRefused(): void
     {
         // GIVEN words for options on a heading, which has none

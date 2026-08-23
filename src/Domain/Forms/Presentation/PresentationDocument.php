@@ -80,7 +80,7 @@ final readonly class PresentationDocument
         $codes = [];
 
         foreach ($items as $item) {
-            foreach ([$item->label, $item->hint] as $code) {
+            foreach ([$item->label, $item->hint, $item->placeholder] as $code) {
                 if ($code !== null) {
                     $codes[] = $code;
                 }
