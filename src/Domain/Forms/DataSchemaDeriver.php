@@ -166,12 +166,29 @@ final class DataSchemaDeriver
         }
 
         if ($field instanceof NumberField) {
-            // A whole number is its own JSON type; anything finer is said as
-            // the step the value must land on.
+            // A whole number is its own JSON type. Anything finer is *said* here
+            // and not stated as a rule, which is the one place this contract
+            // deliberately stops short — see the note below.
             $schema = $field->decimals === 0 ? ['type' => 'integer'] : ['type' => 'number'];
 
             if ($field->decimals !== null && $field->decimals > 0) {
-                $schema['multipleOf'] = 10 ** -$field->decimals;
+                // `multipleOf: 0.01` is the obvious spelling and it is unusable:
+                // the keyword is defined as division yielding an integer, and in
+                // binary floating point 1.15 / 0.01 is 114.99999999999999. Ajv
+                // (division === Math.floor(division)) and Python's jsonschema
+                // (instance % divisor == 0) both refuse 1.15, 0.07 and 0.29 —
+                // ordinary money — so publishing it would hand every client a
+                // rule that rejects correct answers. Opis, which validates here,
+                // rounds to a tolerance and accepts them, which is worse still: a
+                // contract meaning two different things on the two sides of it.
+                //
+                // So the precision is described rather than asserted, and a gate
+                // of our own enforces it exactly, in decimal.
+                $schema['description'] = \sprintf(
+                    'At most %d decimal place%s. Not stated as a rule: JSON Schema can only say this as multipleOf, which no validator computes in decimal.',
+                    $field->decimals,
+                    $field->decimals === 1 ? '' : 's',
+                );
             }
 
             if ($field->min !== null) {

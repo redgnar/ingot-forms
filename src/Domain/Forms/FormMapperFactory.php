@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Forms;
 
 use App\Domain\Forms\Definition\CollectionCountValidator;
+use App\Domain\Forms\Definition\CollectionDepthValidator;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateRangeValidator;
@@ -54,6 +55,9 @@ final class FormMapperFactory
             // declares items too.
             ->withValidator(CollectionField::class, new UniqueFieldNamesValidator())
             ->withValidator(CollectionField::class, new CollectionCountValidator())
+            // How deep a list may sit inside a list, asked of the whole document:
+            // the finding has to point at where the nesting went too far.
+            ->withValidator(FormDefinition::class, new CollectionDepthValidator())
             ->withValidator(NumberField::class, new NumberRangeValidator())
             ->withValidator(FileField::class, new FileAcceptValidator())
             ->withValidator(DateField::class, new DateRangeValidator())

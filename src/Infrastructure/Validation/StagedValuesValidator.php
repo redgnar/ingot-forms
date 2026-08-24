@@ -23,7 +23,9 @@ use Ingot\JsonPointer;
  *    and the same contract clients validate against,
  * 3. the Symfony form built from the definition ({@see SymfonyFormValues}),
  *    which carries everything a schema cannot say,
- * 4. the files a document names ({@see ReferencedFilesExist}), which is the only
+ * 4. how fine a number may be ({@see NumbersFitTheirPrecision}), which the schema
+ *    cannot state without meaning something different on either side of it,
+ * 5. the files a document names ({@see ReferencedFilesExist}), which is the only
  *    gate that has to ask another store anything.
  *
  * Values refused at one step never reach the next, so the expensive work is
@@ -41,6 +43,7 @@ final class StagedValuesValidator implements ValuesValidator
         private readonly DerivedSchemaValues $schema,
         private readonly SymfonyFormValues $form,
         private readonly UnknownFieldTypes $unknownFieldTypes,
+        private readonly NumbersFitTheirPrecision $precision,
         private readonly ReferencedFilesExist $files,
     ) {}
 
@@ -89,6 +92,14 @@ final class StagedValuesValidator implements ValuesValidator
 
         if (!$formReport->isEmpty()) {
             return $formReport;
+        }
+
+        // How fine an answer may be holds in both modes: it is a rule about the
+        // value, not an obligation to finish.
+        $precisionReport = $this->precision->validate($model, $values);
+
+        if (!$precisionReport->isEmpty()) {
+            return $precisionReport;
         }
 
         // Both contracts hold in both modes: a draft naming a file that is not

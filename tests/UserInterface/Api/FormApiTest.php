@@ -289,6 +289,30 @@ final class FormApiTest extends WebTestCase
         self::assertSame('presentation.item.unknown', $this->firstError()['code']);
     }
 
+    public function testAPresentationForAKitThisDeploymentDoesNotHaveIsRefused(): void
+    {
+        // GIVEN a presentation written for somebody else's kit
+        $payload = json_encode([
+            'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
+            'definition' => self::DEFINITION,
+            'presentation' => ['engine' => 'someones-vue-kit', 'items' => [['widget' => 'confirm']]],
+        ], \JSON_THROW_ON_ERROR);
+
+        // WHEN
+        $this->putJson('/api/forms', $payload, method: 'POST');
+
+        // THEN the form is never created. A presentation exists to be drawn, so
+        // one nothing here draws is a document with no remaining purpose — unlike
+        // an unknown item type, which still carries its value through. Refused
+        // where somebody can still fix it, rather than found by whoever opens the
+        // link and reads a 409.
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('urn:problem:ingot-forms:presentation-not-valid', $this->responseBody()['type']);
+        self::assertSame('/presentation/engine', $this->firstError()['pointer']);
+        self::assertSame('presentation.engine.unknown', $this->firstError()['code']);
+        self::assertSame('someones-vue-kit', $this->firstError()['input']);
+    }
+
     public function testADocumentThatIsNotAPresentationIsRefusedUnderItsOwnPointer(): void
     {
         // GIVEN a presentation whose item both presents a value and holds items

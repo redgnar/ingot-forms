@@ -186,8 +186,11 @@ final class ViewFormActionTest extends WebTestCase
 
     public function testAPresentationForAKitNobodyHereDrawsIsAConflictNotABlankPage(): void
     {
-        // GIVEN a document written for somebody else's kit — valid, and not ours
-        $id = $this->plant(engine: 'someones-vue-kit');
+        // GIVEN a stored form whose kit this deployment does not have. It cannot
+        // be created through the API any more — naming an unknown engine is
+        // refused now — but a row can still hold one: a kit removed from a
+        // deployment, or a database restored into a different one.
+        $id = $this->plantStored('someones-vue-kit');
 
         // WHEN
         $this->client->request('GET', \sprintf('/forms/%s', $id));
@@ -322,6 +325,36 @@ final class ViewFormActionTest extends WebTestCase
             $presentations->document($presentations->parse($document)),
             new PresentationRules(new Engines([new BootstrapEngine()])),
         ));
+
+        return (string) $id;
+    }
+
+    /**
+     * A row written straight through Doctrine, holding a presentation this
+     * deployment would refuse today — which is the only way such a form exists.
+     */
+    private function plantStored(string $engine): string
+    {
+        $id = FormId::next();
+        $container = self::getContainer();
+
+        $definitions = $container->get(FormDefinitionProcessor::class);
+        self::assertInstanceOf(FormDefinitionProcessor::class, $definitions);
+        $entityManager = $container->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+
+        $document = self::PRESENTATION;
+        $document['engine'] = $engine;
+
+        $record = new FormRecord();
+        $record->id = $id->toUuid();
+        $record->definition = (string) $definitions->document($definitions->parse(self::DEFINITION));
+        $record->expireDate = new \DateTimeImmutable('+1 day');
+        $record->createdAt = new \DateTimeImmutable();
+        $record->presentation = json_encode($document, \JSON_THROW_ON_ERROR);
+
+        $entityManager->persist($record);
+        $entityManager->flush();
 
         return (string) $id;
     }

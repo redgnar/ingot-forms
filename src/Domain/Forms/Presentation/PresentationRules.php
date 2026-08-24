@@ -46,6 +46,7 @@ final class PresentationRules
         $engine = $this->engines->find($presentation->engine);
 
         return ErrorReport::of(
+            ...self::judgeEngine($presentation, $engine),
             ...self::judgeSkin($presentation, $engine),
             ...self::scope(
                 $presentation->items,
@@ -55,6 +56,35 @@ final class PresentationRules
                 $presentation->engine,
             ),
         );
+    }
+
+    /**
+     * A presentation exists for one purpose — to be drawn — so naming a kit this
+     * deployment does not have is not an open-world bargain like an unknown item
+     * type. An unknown *item* still round-trips its value and can still be
+     * drafted, which is why it is tolerated; an unknown *engine* leaves a
+     * document nothing can ever do anything with, and a form whose page answers
+     * 409 for the rest of its life. Refused here, where somebody can still fix
+     * it, rather than discovered by whoever opens the link.
+     *
+     * The rest of the report is still gathered: what holds whatever draws a form
+     * — an item exists, is shown once, is shown at all — is worth saying in the
+     * same breath. Only the widgets go unjudged, because there is nobody to ask.
+     *
+     * @return list<MappingError>
+     */
+    private static function judgeEngine(PresentationDocument $presentation, ?PresentationEngine $engine): array
+    {
+        if ($engine !== null) {
+            return [];
+        }
+
+        return [self::error(
+            '/engine',
+            'presentation.engine.unknown',
+            \sprintf('Nothing here draws presentations written for "%s".', $presentation->engine),
+            $presentation->engine,
+        )];
     }
 
     /**
@@ -69,8 +99,9 @@ final class PresentationRules
      */
     private static function judgeSkin(PresentationDocument $presentation, ?PresentationEngine $engine): array
     {
-        // An engine nobody here has heard of gets the same bargain its widgets
-        // get: we do not judge the look of something we cannot see.
+        // An engine nobody here has heard of has already been refused by itself;
+        // saying its skin is unknown too would be a second complaint about one
+        // mistake.
         if ($presentation->skin === null || $engine === null) {
             return [];
         }

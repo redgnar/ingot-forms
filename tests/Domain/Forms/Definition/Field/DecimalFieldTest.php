@@ -44,11 +44,17 @@ final class DecimalFieldTest extends FieldDefinitionTestCase
     }
 
     /**
+     * Said rather than asserted: JSON Schema's only word for precision is
+     * `multipleOf`, and no validator computes it in decimal.
+     */
+    private const string PRECISION = 'At most 2 decimal places. Not stated as a rule: JSON Schema can only say this as multipleOf, which no validator computes in decimal.';
+
+    /**
      * @return array<string, mixed>
      */
     protected static function strictSchema(): array
     {
-        return ['type' => 'number', 'multipleOf' => 0.01, 'minimum' => 0, 'maximum' => 1000];
+        return ['type' => 'number', 'description' => self::PRECISION, 'minimum' => 0, 'maximum' => 1000];
     }
 
     /**
@@ -56,6 +62,6 @@ final class DecimalFieldTest extends FieldDefinitionTestCase
      */
     protected static function draftSchema(): array
     {
-        return ['type' => 'number', 'multipleOf' => 0.01, 'minimum' => 0, 'maximum' => 1000];
+        return ['type' => 'number', 'description' => self::PRECISION, 'minimum' => 0, 'maximum' => 1000];
     }
 }

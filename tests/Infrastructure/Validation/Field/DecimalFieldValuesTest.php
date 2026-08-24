@@ -28,13 +28,21 @@ final class DecimalFieldValuesTest extends FieldValuesTestCase
         yield 'two decimals' => [DeriveMode::Draft, '{"amount": 12.34}', null, null];
         yield 'one decimal' => [DeriveMode::Draft, '{"amount": 12.3}', null, null];
         yield 'none at all' => [DeriveMode::Draft, '{"amount": 12}', null, null];
-        yield 'a value binary floating point cannot hold exactly' => [DeriveMode::Draft, '{"amount": 0.07}', null, null];
-        yield 'another one of those' => [DeriveMode::Draft, '{"amount": 2.67}', null, null];
         yield 'a large amount with cents' => [DeriveMode::Draft, '{"amount": 999.99}', null, null];
         yield 'zero' => [DeriveMode::Draft, '{"amount": 0}', null, null];
 
-        yield 'a third decimal' => [DeriveMode::Draft, '{"amount": 12.345}', '/amount', 'schema.multipleOf'];
-        yield 'a third decimal that rounds nicely' => [DeriveMode::Draft, '{"amount": 2.675}', '/amount', 'schema.multipleOf'];
+        // The whole reason precision is not published as `multipleOf`: every one
+        // of these is an ordinary amount, and every one of them divides by 0.01
+        // into something that is not an integer in binary floating point. A
+        // client validating against the derived schema must accept them, and so
+        // must this.
+        yield 'a value binary floating point cannot hold exactly' => [DeriveMode::Draft, '{"amount": 0.07}', null, null];
+        yield 'another one of those' => [DeriveMode::Draft, '{"amount": 2.67}', null, null];
+        yield 'the one that made the old rule wrong' => [DeriveMode::Draft, '{"amount": 1.15}', null, null];
+        yield 'and another' => [DeriveMode::Draft, '{"amount": 0.29}', null, null];
+
+        yield 'a third decimal' => [DeriveMode::Draft, '{"amount": 12.345}', '/amount', 'form.value.decimals'];
+        yield 'a third decimal that rounds nicely' => [DeriveMode::Draft, '{"amount": 2.675}', '/amount', 'form.value.decimals'];
         yield 'below the floor' => [DeriveMode::Draft, '{"amount": -0.01}', '/amount', 'schema.minimum'];
         yield 'above the ceiling' => [DeriveMode::Draft, '{"amount": 1000.01}', '/amount', 'schema.maximum'];
 

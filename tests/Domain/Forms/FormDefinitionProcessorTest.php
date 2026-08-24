@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Domain\Forms;
 
+use App\Domain\Forms\Definition\CollectionDepthValidator;
 use App\Domain\Forms\Definition\GenericField;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\Exception\DefinitionNotValid;
@@ -63,6 +64,96 @@ final class FormDefinitionProcessorTest extends TestCase
             self::assertSame('form.field.duplicate-name', $error->code);
             self::assertSame('/items/1/name', $error->pointer->toString());
         }
+    }
+
+    public function testAcceptsListsNestedAsDeepAsTheRuleAllows(): void
+    {
+        // GIVEN lists inside lists, exactly as deep as a definition may go
+        $processor = new FormDefinitionProcessor(new FormMapperFactory()->create());
+
+        // WHEN / THEN the limit is a limit and not one less than one
+        $definition = $processor->parse(self::nested(CollectionDepthValidator::MAX));
+
+        self::assertCount(1, $definition->items);
+    }
+
+    public function testRejectsListsNestedDeeperThanThat(): void
+    {
+        // GIVEN one level more than that. It costs a few hundred bytes to write
+        // and recurses once per level in everything that reads it — deriving the
+        // schema, judging a presentation, resolving the tree a page draws.
+        $processor = new FormDefinitionProcessor(new FormMapperFactory()->create());
+
+        // WHEN
+        try {
+            $processor->parse(self::nested(CollectionDepthValidator::MAX + 1));
+            self::fail('A definition nested past the limit was accepted.');
+        } catch (DefinitionNotValid $refusal) {
+            $error = $refusal->report->errors[0];
+        }
+
+        // THEN it is refused, pointing at the level that went too far rather than
+        // at the document as a whole
+        self::assertSame('form.collection.too-deep', $error->code);
+        self::assertStringEndsWith('/items', $error->pointer->toString());
+    }
+
+    public function testEveryLevelThatWentTooFarSaysSoWhereItIs(): void
+    {
+        // GIVEN two lists sitting side by side one level too deep, reached past
+        // plain items that are not lists at all
+        $tooDeep = [
+            ['type' => 'collection', 'name' => 'first', 'items' => [['type' => 'text', 'name' => 'leaf']]],
+            ['type' => 'collection', 'name' => 'second', 'items' => [['type' => 'text', 'name' => 'leaf']]],
+        ];
+
+        for ($level = CollectionDepthValidator::MAX; $level > 2; --$level) {
+            $tooDeep = [['type' => 'collection', 'name' => \sprintf('level%d', $level), 'items' => $tooDeep]];
+        }
+
+        $document = ['items' => [
+            // A plain item before the list: walking has to step over it rather
+            // than stop at it.
+            ['type' => 'text', 'name' => 'note'],
+            ['type' => 'collection', 'name' => 'level1', 'items' => [
+                ['type' => 'text', 'name' => 'leaf'],
+                ['type' => 'collection', 'name' => 'level2', 'items' => $tooDeep],
+            ]],
+        ]];
+
+        // WHEN
+        try {
+            new FormDefinitionProcessor(new FormMapperFactory()->create())->parse($document);
+            self::fail('A definition nested past the limit was accepted.');
+        } catch (DefinitionNotValid $refusal) {
+            $pointers = array_map(
+                static fn(object $error): string => $error->pointer->toString(),
+                $refusal->report->errors,
+            );
+        }
+
+        // THEN each one is reported where it is, and neither hides the other:
+        // a finding points at the thing that is wrong, not at the document
+        self::assertSame([
+            '/items/1/items/1/items/0/items/0/items/0/items/0/items',
+            '/items/1/items/1/items/0/items/0/items/0/items/1/items',
+        ], $pointers);
+    }
+
+    /**
+     * A definition holding one list, holding one list, that many times over.
+     *
+     * @return array<string, mixed>
+     */
+    private static function nested(int $depth): array
+    {
+        $items = [['type' => 'text', 'name' => 'leaf']];
+
+        for ($level = $depth; $level > 0; --$level) {
+            $items = [['type' => 'collection', 'name' => \sprintf('level%d', $level), 'items' => $items]];
+        }
+
+        return ['items' => $items];
     }
 
     public function testRejectsDefinitionViolatingTheMetaSchema(): void

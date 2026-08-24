@@ -107,9 +107,16 @@ collected. That is what closed the old worry about a purge having to succeed in 
 
 Three exceptions this buys, each deliberate and each stated where it lives: the upload is the
 one endpoint whose body is not JSON, the download is the one that does not answer with a
-document, and `ReferencedFilesExist` is the one gate that is stricter than the published
+document, and `ReferencedFilesExist` is one of two gates stricter than the published
 contract — no schema can state "this id exists", any more than "this form has not expired",
-and a client echoing the upload's answer can never trip it.
+and a client echoing the upload's answer can never trip it. The second is
+`NumbersFitTheirPrecision`, and its reason is a different one: the schema *has* a word for
+`decimals` and the word is broken. `multipleOf` means division yielding an integer, and
+`1.15 / 0.01` is `114.99999999999999` — Ajv and Python's `jsonschema` both refuse ordinary money
+on `multipleOf: 0.01`, while Opis rounds to a tolerance and accepts it, so publishing it would
+mean one contract meaning two things on the two sides of it. The derived schema *describes* the
+precision instead, and the gate asks it in decimal (`round($v, $d) === $v`, exact for anything a
+JSON parser produced).
 
 ## Design principles
 
@@ -428,13 +435,28 @@ Rules that follow from it, and that the tooling checks:
   the per-form JSON Schema. When a rule cannot be expressed in that schema, the schema is
   where to fix it: a date range is published and enforced as `formatMinimum` /
   `formatMaximum` (ingot's own keywords, spelled the way ajv-formats spells them) rather than
-  enforced past the contract in the form stage. It receives decoded structures (`Source::array()`), never JSON
+  enforced past the contract in the form stage. The one rule that could not be fixed there is
+  `decimals`, whose only keyword every implementation computes differently — see
+  `NumbersFitTheirPrecision` above. It receives decoded structures (`Source::array()`), never JSON
   text. The definition mapper is a service (`FormMapperFactory` → `forms.definition_mapper`);
   never rebuild a mapper inside a class that uses it.
 - **Submitted values pass two gates, cheapest first**: the derived schema (cached per form and
   mode, ~10× cheaper) answers first, so the server can never be looser than its published
   contract; the Symfony form built from the definition then adds what a schema cannot say.
   Keep that order.
+- **A presentation naming an engine nobody has is refused, and an unknown item type is not.**
+  They look like the same open-world bargain and are not: an unknown item type still
+  round-trips its value and can still be drafted, so tolerating it costs a client nothing,
+  while a presentation nothing can draw is a document with no remaining purpose — its page
+  would answer 409 for the life of the form. Refused at creation, where somebody can still fix
+  it (`presentation.engine.unknown` at `/engine`). A **stored** one still reads back, because
+  reading is not the moment to judge again: a kit removed from a deployment leaves forms that
+  can still be read, filled in and deleted through the API.
+- **How deep a list may sit inside a list is capped** (`CollectionDepthValidator::MAX`), for
+  the same reason a scope may declare only so many items: so nothing absurd gets stored. Depth
+  is the one dimension that costs nothing to write and everything to read — a thousand items
+  have to be spelled out one by one, while a definition nested five hundred deep fits in a few
+  kilobytes and every walk over it recurses once per level.
 - **A cached artifact is only as current as the code that derived it.** `cache.data_schema`
   keys on the form's UUID and the mode, `cache.ingot_mapper` on class names — neither key
   says a word about the rules behind the entry, so a changed rule leaves both serving

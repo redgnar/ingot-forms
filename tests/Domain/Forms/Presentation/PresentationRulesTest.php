@@ -262,7 +262,7 @@ final class PresentationRulesTest extends TestCase
         self::assertSame('submit', $report->errors[0]->input);
     }
 
-    public function testAnEngineNobodyKnowsDrawsAnythingUnchecked(): void
+    public function testAnEngineNobodyKnowsIsRefusedWhereItWasNamed(): void
     {
         // GIVEN a document written for a kit this application has never heard of
         $presentation = self::presentation([
@@ -271,8 +271,33 @@ final class PresentationRulesTest extends TestCase
             ['widget' => 'divider'],
         ], engine: 'someones-vue-kit');
 
-        // WHEN / THEN its controls are its own business — and its mistakes, too
-        self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
+        // WHEN
+        $report = self::rules()->check(self::definition(), $presentation);
+
+        // THEN it is refused at creation, because a presentation exists to be
+        // drawn: unlike an unknown item type, which still carries its value
+        // through, this one would leave a form whose page answers 409 forever
+        self::assertSame('presentation.engine.unknown', $report->errors[0]->code);
+        self::assertSame('/engine', $report->errors[0]->pointer->toString());
+        self::assertSame('someones-vue-kit', $report->errors[0]->input);
+    }
+
+    public function testAnEngineNobodyKnowsTakesItsWidgetsWithItButNotTheRest(): void
+    {
+        // GIVEN a document for an unknown kit that also leaves out a declared item
+        $presentation = self::presentation([
+            ['name' => 'email', 'widget' => 'fancy-editor'],
+        ], engine: 'someones-vue-kit', complete: false);
+
+        // WHEN
+        $codes = array_map(static fn(object $error): string => $error->code, self::rules()->check(self::definition(), $presentation)->errors);
+
+        // THEN the widget goes unjudged — there is nobody to ask what a kit
+        // draws — while what holds whatever draws a form is still reported, in
+        // the same breath rather than one refusal at a time
+        self::assertContains('presentation.engine.unknown', $codes);
+        self::assertContains('presentation.item.missing', $codes);
+        self::assertNotContains('presentation.widget.unknown', $codes);
     }
 
     public function testASkinIsAskedOfTheKitThatWouldDrawIt(): void
@@ -317,14 +342,19 @@ final class PresentationRulesTest extends TestCase
         self::assertSame('/skin', $report->errors[0]->pointer->toString());
     }
 
-    public function testAnEngineNobodyKnowsIsNotJudgedOnItsLookEither(): void
+    public function testAnEngineNobodyKnowsIsNotComplainedAboutTwice(): void
     {
-        // GIVEN a document for a kit this application has never heard of
+        // GIVEN a document for a kit this application has never heard of, in a
+        // look it has never heard of either
         $presentation = self::presentation([['name' => 'email']], engine: 'someones-vue-kit', skin: 'brutalist');
 
-        // WHEN / THEN we do not judge the look of something we cannot see, which
-        // is the same bargain its widgets get
-        self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
+        // WHEN
+        $codes = array_map(static fn(object $error): string => $error->code, self::rules()->check(self::definition(), $presentation)->errors);
+
+        // THEN the kit is the mistake; saying its skin is unknown as well would
+        // be a second complaint about one thing, and about the only authority
+        // that could have answered
+        self::assertSame(['presentation.engine.unknown'], $codes);
     }
 
     public function testThePagesOwnWidgetsStandWhereTheDocumentPutsThem(): void

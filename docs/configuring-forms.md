@@ -109,8 +109,13 @@ widget to draw.
 Five of those say something worth spelling out:
 
 - **`decimals` bounds precision.** `0` means whole numbers and is published as JSON Schema's
-  `integer`; `2` is money, published as the step every value must land on (`multipleOf: 0.01`).
-  Without it, any number goes.
+  `integer`. Above zero it is the one rule this API enforces without publishing it as a rule:
+  the derived schema carries it as a `description`, and the server checks it exactly, in decimal.
+  The reason is that JSON Schema's only word for this is `multipleOf`, defined as division
+  yielding an integer — and `1.15 / 0.01` is `114.99999999999999`. Ajv and Python's `jsonschema`
+  both refuse `1.15`, `0.07` and `0.29` on `multipleOf: 0.01`, so publishing it would hand every
+  client a rule that rejects ordinary money. A value with too many places is refused at its own
+  pointer with `form.value.decimals`. Without `decimals`, any number goes.
 - **A date range is published, not just enforced.** `formatMinimum` / `formatMaximum` are the
   keywords ajv-formats uses, and ingot implements them, because standard JSON Schema cannot
   bound a string in time — so the range is checked against the same document a client
@@ -193,8 +198,10 @@ Three things to read off that pair:
 - **the names are the whole contract** — no ids, no order, no wrapper. A member the definition
   does not declare is refused (`schema.additionalProperties`), and so is a value of the wrong
   JSON type: `"seats": "4"` is a string, and a string is not a number.
-- **`decimals: 2` means the value must land on `0.01`**, which is why `1250.50` is fine and
-  `1250.505` is not. `decimals: 0` publishes the item as an integer.
+- **`decimals: 2` means at most two places**, which is why `1250.50` is fine and `1250.505` is
+  not (`form.value.decimals`). It is described in the schema rather than asserted there — see
+  the note above — so a client that only runs the schema will not catch it locally.
+  `decimals: 0` publishes the item as an integer, which validators do agree on.
 - **a list is an array of objects**, one per entry, each answering the collection's own items.
   `min: 1` bites at confirmation; `max: 20` bites always.
 
@@ -874,6 +881,7 @@ so a page can mark the control instead of announcing that the document is incomp
 | `form.field.impossible-range` | `min` is greater than `max` |
 | `form.field.not-a-date` | a `min`/`max` on a date is not a calendar day |
 | `form.collection.required-not-allowed` | `required` on a collection — use `min` instead |
+| `form.collection.too-deep` | lists nested inside lists more than five deep |
 | `form.file.not-a-media-type` | an `accept` entry is not a media type |
 | `form.data.unknown-field-type` | (at confirmation) the form holds a plugin item type |
 
@@ -899,6 +907,7 @@ so a page can mark the control instead of announcing that the document is incomp
 | `presentation.locale.unknown` | `defaultLocale` names a catalogue that is not there |
 | `presentation.skin.unknown` | the engine has no skin by that name |
 | `presentation.skin.unsupported` | that engine takes no skin at all (`core-html`) |
+| `presentation.engine.unknown` | `engine` names a kit this deployment does not have |
 
 **Refusals about values** (`422` on `PUT …/data` and `POST …/confirm`):
 
