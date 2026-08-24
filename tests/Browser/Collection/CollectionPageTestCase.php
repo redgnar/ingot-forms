@@ -68,12 +68,8 @@ abstract class CollectionPageTestCase extends PantherTestCase
 
         // THEN the API holds both entries, in the order they are on the page,
         // each a document of its own
-        $stored = $this->eventually(fn(): ?array => $this->values($id));
-        self::assertIsArray($stored);
-        self::assertSame(
-            [['sku' => 'A-1', 'quantity' => 2, 'unit' => 'pc'], ['sku' => 'B-2', 'quantity' => 5]],
-            $stored['lines'] ?? null,
-        );
+        $expected = [['sku' => 'A-1', 'quantity' => 2, 'unit' => 'pc'], ['sku' => 'B-2', 'quantity' => 5]];
+        self::assertSame($expected, $this->storedLines($id, $expected));
     }
 
     public function testANewEntryIsOneSomebodyCanAnswerWithoutSeeingThePage(): void
@@ -139,9 +135,8 @@ abstract class CollectionPageTestCase extends PantherTestCase
         $this->click('[data-action="save"], [data-action="click->form#save"]');
 
         // THEN what is stored is what is on the page
-        $stored = $this->eventually(fn(): ?array => $this->values($id));
-        self::assertIsArray($stored);
-        self::assertSame([['sku' => 'C-3', 'quantity' => 2, 'unit' => 'pc']], $stored['lines'] ?? null);
+        $expected = [['sku' => 'C-3', 'quantity' => 2, 'unit' => 'pc']];
+        self::assertSame($expected, $this->storedLines($id, $expected));
     }
 
     public function testAnEntryThatBreaksARuleIsMarkedInThatEntry(): void
@@ -196,12 +191,8 @@ abstract class CollectionPageTestCase extends PantherTestCase
 
         // AND both answers reach the API, each in its own entry
         $this->click('[data-action="save"], [data-action="click->form#save"]');
-        $stored = $this->eventually(fn(): ?array => $this->values($id));
-        self::assertIsArray($stored);
-        self::assertSame(
-            [['sku' => 'A-1', 'quantity' => 2, 'unit' => 'pc'], ['sku' => 'B-2', 'quantity' => 5, 'unit' => 'kg']],
-            $stored['lines'] ?? null,
-        );
+        $expected = [['sku' => 'A-1', 'quantity' => 2, 'unit' => 'pc'], ['sku' => 'B-2', 'quantity' => 5, 'unit' => 'kg']];
+        self::assertSame($expected, $this->storedLines($id, $expected));
     }
 
     public function testAnEntryCanHoldAListOfItsOwn(): void
@@ -220,12 +211,11 @@ abstract class CollectionPageTestCase extends PantherTestCase
 
         // THEN it lands inside the entry it belongs to, in the order it is on
         // the page — a list inside a list is a list, all the way down
-        $stored = $this->eventually(fn(): ?array => $this->values($id));
-        self::assertIsArray($stored);
-        self::assertSame([
+        $expected = [
             ['sku' => 'A-1', 'parts' => [['code' => 'X1'], ['code' => 'X2'], ['code' => 'X3', 'count' => 7]]],
             ['sku' => 'B-2', 'parts' => []],
-        ], $stored['lines'] ?? null);
+        ];
+        self::assertSame($expected, $this->storedLines($id, $expected));
     }
 
     public function testAChoiceInsideANestedEntryIsItsOwnGroupToo(): void
@@ -246,12 +236,11 @@ abstract class CollectionPageTestCase extends PantherTestCase
 
         // THEN both answers survive: a group belongs to the entry it is in, two
         // scopes down as much as one
-        $stored = $this->eventually(fn(): ?array => $this->values($id));
-        self::assertIsArray($stored);
-        self::assertSame([
+        $expected = [
             ['sku' => 'A-1', 'parts' => [['code' => 'X1', 'grade' => 'a'], ['code' => 'X2', 'grade' => 'b']]],
             ['sku' => 'B-2', 'parts' => []],
-        ], $stored['lines'] ?? null);
+        ];
+        self::assertSame($expected, $this->storedLines($id, $expected));
     }
 
     public function testRemovingAnEntryTakesItsOwnListWithIt(): void
@@ -266,9 +255,8 @@ abstract class CollectionPageTestCase extends PantherTestCase
 
         // THEN what it held goes with it: nothing is left behind at the top,
         // because an entry's answers are its own document
-        $stored = $this->eventually(fn(): ?array => $this->values($id));
-        self::assertIsArray($stored);
-        self::assertSame([['sku' => 'B-2', 'parts' => []]], $stored['lines'] ?? null);
+        $expected = [['sku' => 'B-2', 'parts' => []]];
+        self::assertSame($expected, $this->storedLines($id, $expected));
     }
 
     public function testAnAnswerAnEntryStillOwesIsMarkedInThatEntry(): void
@@ -499,9 +487,7 @@ abstract class CollectionPageTestCase extends PantherTestCase
 
     final protected function fillIn(string $selector, int $index, string $value): void
     {
-        $controls = $this->browser->findElements(WebDriverBy::cssSelector($selector));
-        self::assertArrayHasKey($index, $controls);
-        $controls[$index]->sendKeys($value);
+        $this->control($selector, $index)->sendKeys($value);
     }
 
     /**
@@ -574,7 +560,26 @@ abstract class CollectionPageTestCase extends PantherTestCase
 
     final protected function fill(string $name, int $entry, string $value): void
     {
-        $this->browser->findElements(WebDriverBy::cssSelector(\sprintf('[data-entry] [data-name="%s"]', $name)))[$entry]->sendKeys($value);
+        $this->control(\sprintf('[data-entry] [data-name="%s"]', $name), $entry)->sendKeys($value);
+    }
+
+    /**
+     * One control on the page, waited for rather than assumed.
+     *
+     * A cloned entry is markup the page adds after the click that asked for it,
+     * so looking for its controls the instant afterwards is the same race as
+     * reading the API before a save has landed. Asserting the element is already
+     * there turns that race into a failure with a misleading message; waiting
+     * for it turns it into no failure at all.
+     */
+    final protected function control(string $selector, int $index): WebDriverElement
+    {
+        $control = $this->eventually(
+            fn(): ?WebDriverElement => $this->browser->findElements(WebDriverBy::cssSelector($selector))[$index] ?? null,
+        );
+        self::assertInstanceOf(WebDriverElement::class, $control);
+
+        return $control;
     }
 
     /**
@@ -656,6 +661,40 @@ abstract class CollectionPageTestCase extends PantherTestCase
         self::assertIsString($body['status']);
 
         return $body['status'];
+    }
+
+    /**
+     * What the form stores, once it says what the page just sent.
+     *
+     * Waiting for *the* answer rather than for *an* answer is the whole point.
+     * These forms are born holding values, so `GET …/data` answers `200` from
+     * the moment they exist — which means waiting for a readable document is not
+     * waiting at all: the first read comes back with what the form started with,
+     * whether or not the browser's save has landed yet, and the assertion then
+     * passes or fails on timing rather than on behaviour.
+     *
+     * When the wait does run out this hands back what is *actually* stored, so
+     * the assertion that follows shows the difference. A bare timeout would say
+     * only that something did not happen, which is the least useful half of what
+     * a failing test knows.
+     *
+     * @param list<array<string, mixed>> $expected
+     */
+    final protected function storedLines(string $id, array $expected, float $seconds = 5.0): mixed
+    {
+        $deadline = microtime(true) + $seconds;
+
+        do {
+            $lines = ($this->values($id) ?? [])['lines'] ?? null;
+
+            if ($lines === $expected) {
+                return $lines;
+            }
+
+            usleep(100_000);
+        } while (microtime(true) < $deadline);
+
+        return $lines;
     }
 
     final protected function eventually(callable $ready, float $seconds = 5.0): mixed
