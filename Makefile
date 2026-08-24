@@ -72,25 +72,34 @@ db-test: ## Create the test database and bring its schema up to date
 	$(RUNDB) bin/console doctrine:database:create --env=test --if-not-exists
 	$(RUNDB) bin/console doctrine:migrations:migrate --env=test --no-interaction --allow-no-migration
 
+# PHPUnit without a coverage driver. PCOV is in the image for Infection, and it
+# is `enabled=1` by default — which instruments every file that is compiled,
+# whether or not anybody asks for coverage. Measured over the integration suite:
+# 7.6s with it, 6.0s without, run three times each. The unit suite is too short
+# for the difference to leave the noise, and the browser suite is waiting on a
+# browser rather than on PHP, so it does not care either. `coverage` and
+# `mutation` turn it back on, because those are the two that need it.
+PHPUNIT = php -d pcov.enabled=0 vendor/bin/phpunit
+
 test: db-test
-	$(RUNDB) vendor/bin/phpunit
+	$(RUNDB) $(PHPUNIT)
 
 test-unit: ## Fast loop: domain tests only, no database
-	$(RUN) vendor/bin/phpunit --testsuite unit
+	$(RUN) $(PHPUNIT) --testsuite unit
 
 test-integration: db-test ## Api + Web + Infrastructure tests against the compose postgres
-	$(RUNDB) vendor/bin/phpunit --testsuite integration
+	$(RUNDB) $(PHPUNIT) --testsuite integration
 
 test-browser: db-test ## Drive the pages in a real (headless) browser
-	$(RUNDB) vendor/bin/phpunit --testsuite browser
+	$(RUNDB) $(PHPUNIT) --testsuite browser
 
 test-filter: db-test ## One test or a group of them: make test-filter FILTER=FormApiTest::testSaveDraft
 	@[ -n "$(FILTER)" ] || { echo 'Set FILTER, e.g. make test-filter FILTER=FormApiTest'; exit 1; }
-	$(RUNDB) vendor/bin/phpunit --filter '$(FILTER)'
+	$(RUNDB) $(PHPUNIT) --filter '$(FILTER)'
 
 test-file: db-test ## One test file or directory: make test-file FILE=tests/Http/FormApiTest.php
 	@[ -n "$(FILE)" ] || { echo 'Set FILE, e.g. make test-file FILE=tests/Http/FormApiTest.php'; exit 1; }
-	$(RUNDB) vendor/bin/phpunit '$(FILE)'
+	$(RUNDB) $(PHPUNIT) '$(FILE)'
 
 coverage: db-test
 	$(RUNDB) vendor/bin/phpunit --coverage-text
