@@ -1,0 +1,32 @@
+/* This skin, worn a little lighter.
+ *
+ * Materia sizes a control the way Material Design does — 1rem of padding above
+ * and below a 1.5em line, and none at all at the sides, because it draws a
+ * control as an underline rather than as a box. Two things follow that are worth
+ * undoing: the fields are tall enough to push a form of any length past a
+ * screenful, and text sits hard against the left edge, which is where the
+ * browser's own file button ends up touching the frame around it.
+ *
+ * So: the same shape, three quarters of the height, and room at the sides. What
+ * is not touched is anything about colour, weight or the underline itself — this
+ * is the skin's own look, worn at a size a form can be filled in at.
+ */
+.form-control,
+.form-select {
+    padding: 0.75rem;
+}
+
+/* A button group asked to stand in for a control is padded as a control. Materia
+   pads a button by 0.8rem, which is two pixels more than the fields beside it —
+   invisible on its own, and a step in a row of three. */
+.btn-group[data-name] > .btn {
+    padding-block: 0.75rem;
+}
+
+/* What a control measures here, for the widgets that have to match one and
+   cannot ask: tom-select measures itself, and a button group is sized as a
+   button. Stated as the sum rather than as a number, so it still holds for a
+   reader who asked for larger text. */
+:root {
+    --kit-control-height: calc(1.5em + 1.5rem);
+}

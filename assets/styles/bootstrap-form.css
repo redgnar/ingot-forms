@@ -155,6 +155,15 @@ nav.language {
     padding-right: 0.75rem;
 }
 
+/* The other half of a skin's raised button, and the half a `box-shadow` rule
+   does not reach: Materia paints Material's ripple as a radial gradient on a
+   `::before` that covers the button and fades in when it is pressed. On a
+   standalone button that is the skin being itself; on the two this kit composed
+   out of a number and two arrows it reads as a smudge under the pointer. */
+[data-controller="stepper"] .btn::before {
+    display: none;
+}
+
 /* A skin's focus ring is usually a box-shadow, and the rule above has just said
    there is none — so the ring comes back as an outline, which is not a shadow
    and cannot be mistaken for the raised look we were removing. */
@@ -170,4 +179,110 @@ nav.language {
    that. So the height is stated here without asking a variable what a border is. */
 .ts-wrapper {
     min-height: calc(1.5em + 0.75rem + 2px);
+}
+
+/* A list is a table of answers, not a data grid. `table-sm` is what keeps it
+   from dominating the page, and at a skin's own font size it leaves too little
+   around a row to read one as a row. Said here rather than by dropping
+   `table-sm` from the markup, because the compactness is still wanted — just
+   not quite that much of it. */
+[data-collection] table > * > tr > th,
+[data-collection] table > * > tr > td {
+    padding: 0.6rem 0.75rem;
+}
+
+/* A file control is two pieces of text in one box: the browser's own button and
+   the name of what is chosen. Bootstrap separates them with the same measure it
+   pads a control by — which a skin drawing controls as underlines sets to zero,
+   so "Choose file" and "No file chosen" run together into one word. The gap is
+   between two labels, not inside a control, so it does not belong to whatever a
+   skin decided about padding. */
+.form-control[type="file"]::file-selector-button {
+    background-color: var(--bs-tertiary-bg);
+    /* A paperclip, and the one icon on these pages that is not a UX Icon in the
+       markup: `::file-selector-button` is the browser's own element, so nothing
+       can be put inside it and the picture has to arrive as a background. Which
+       also means `currentColor` is no use — a data URI is its own document and
+       knows nothing of the colour around it — so the two themes carry the two
+       colours, and this is the whole reason there is a second rule below. */
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%23495057%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22m15%207l-6.5%206.5a1.5%201.5%200%200%200%203%203L18%2010a3%203%200%200%200-6-6l-6.5%206.5a4.5%204.5%200%200%200%209%209L21%2013%22%2F%3E%3C%2Fsvg%3E");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 1rem 1rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    /* The clip says it, so the browser's own wording is not drawn. Nothing is
+       lost by it: the accessible name of a file control comes from the label the
+       document gave the item — a screen reader announces "Logo, button", never
+       "Choose file" — so this hides a word that was never the one being read
+       out. What stays beside the button is the name of what is chosen, which is
+       the part that says something. */
+    font-size: 0;
+    /* Zeroing the font took the line with it and left a flattened pill. The
+       button is now the size of what it holds — the icon — plus its padding, and
+       it is centred against the text beside it rather than left on the baseline,
+       which with no text of its own would drop it to the floor of the control. */
+    line-height: 1.5rem;
+    margin-inline-end: 0.75rem;
+    vertical-align: middle;
+    padding-block: 0.375rem;
+    padding-inline: 1.25rem;
+}
+
+/* Once a file is held, the browser's own "no file chosen" is not noise but a
+   contradiction: the line under the control names the file, links to the bytes
+   and offers to remove them, while the control beside it says there is none. The
+   control is the one that is wrong — the picker is deliberately emptied after
+   every upload so the same file can be chosen twice — so its text goes quiet and
+   the kit's line does the talking. Only the words are hidden: the button keeps
+   its icon, and a screen reader still reads the control it always did. */
+[data-item]:has([data-file-held]:not(.d-none)) .form-control[type="file"] {
+    color: transparent;
+}
+
+[data-bs-theme="dark"] .form-control[type="file"]::file-selector-button {
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%23dee2e6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22m15%207l-6.5%206.5a1.5%201.5%200%200%200%203%203L18%2010a3%203%200%200%200-6-6l-6.5%206.5a4.5%204.5%200%200%200%209%209L21%2013%22%2F%3E%3C%2Fsvg%3E");
+}
+
+/* The way into an entry's own form. Closed — which is how a list of eight of
+   them looks — a `card-header` on its own is a full-width strip of a colour a
+   skin barely tints, sitting flush against the row above it: a line, not
+   something to press. It keeps the card, because open it is the top of one, and
+   gains the two things it was missing: a gap from the row it belongs to, and a
+   fill somebody can see. The colour is still the skin's own — this picks a more
+   legible one out of its palette rather than inventing a colour of ours. */
+[data-entry] details.card {
+    margin-top: 0.35rem;
+}
+
+[data-entry] details.card > summary {
+    background-color: var(--bs-tertiary-bg);
+    cursor: pointer;
+}
+
+[data-entry] details.card > summary:hover {
+    background-color: var(--bs-secondary-bg);
+}
+
+/* Open, the strip is the lid of the box below it and needs the line that says
+   so — a skin that draws no border on a card header leaves the two touching. */
+[data-entry] details.card[open] > summary {
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+/* Controls of one page are one height, where a skin says what that height is.
+   Bootstrap publishes no variable for it — the measure is compiled into the
+   padding of `.form-control` — so a skin whose controls are not the stock size
+   declares it (`assets/styles/skins/`), and the ones that are say nothing and
+   are left alone. Without it a `select`, a group of buttons and an autocomplete
+   in the same row are three different heights, because each is sized by rules
+   that never met.
+
+   `min-height` and not `height`: this lifts what a skin left short and never
+   crops what it made tall, and a textarea keeps the size its `rows` asked for. */
+.form-control,
+.form-select,
+.ts-wrapper,
+.btn-group[data-name] > .btn {
+    min-height: var(--kit-control-height);
 }

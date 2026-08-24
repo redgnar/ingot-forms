@@ -1,0 +1,8 @@
+/* What a control measures under this skin.
+   Lux pads `.form-control` by 0.75rem and gives `.btn` a 2px border on top of the
+   same padding, so a button is the taller of the two — 52 against 48. The row is
+   levelled at the button's height, which is the one that cannot be lowered
+   without taking the border with it. */
+:root {
+    --kit-control-height: calc(1.5em + 1.5rem + 4px);
+}

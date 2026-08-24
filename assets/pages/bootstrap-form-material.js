@@ -3,4 +3,5 @@
 // needs a line of JavaScript or a class in the markup, it has stopped being a
 // skin and become a second kit.
 import 'bootswatch/dist/materia/bootstrap.min.css';
+import '../styles/skins/material.css';
 import './kit.js';
