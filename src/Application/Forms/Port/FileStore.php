@@ -61,13 +61,23 @@ interface FileStore
     public function delete(FormId $form, FileId $file): void;
 
     /**
-     * Every form the store holds files for. This and {@see writtenBefore} exist
-     * for one caller — the command that collects what nobody saved — and they
-     * are how a store without a lifecycle policy of its own gets one.
+     * Every form the store holds files for, **in a fixed order**, optionally
+     * starting after one. This and {@see writtenBefore} exist for one caller —
+     * the command that collects what nobody saved — and they are how a store
+     * without a lifecycle policy of its own gets one.
+     *
+     * The order is what makes `$after` a resumption point rather than a guess: a
+     * run that stopped at a form can be continued from it, so a store too large
+     * to walk in one go is walked in pieces that between them cover all of it.
+     * Without it, bounding a run would mean looking at the same beginning every
+     * time and never reaching the end.
+     *
+     * @param ?FormId $after the last form a previous run finished with; it and
+     *                       everything before it are skipped
      *
      * @return iterable<FormId>
      */
-    public function formsWithFiles(): iterable;
+    public function formsWithFiles(?FormId $after = null): iterable;
 
     /**
      * This form's files untouched since before the given moment, counted by

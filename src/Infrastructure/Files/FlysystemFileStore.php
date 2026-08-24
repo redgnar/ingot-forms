@@ -140,8 +140,10 @@ final class FlysystemFileStore implements FileStore
         $this->storage->delete(self::blob($form, $file));
     }
 
-    public function formsWithFiles(): iterable
+    public function formsWithFiles(?FormId $after = null): iterable
     {
+        $forms = [];
+
         foreach ($this->storage->listContents('', false) as $item) {
             if (!$item->isDir()) {
                 continue;
@@ -149,9 +151,20 @@ final class FlysystemFileStore implements FileStore
 
             $id = self::formId(basename($item->path()));
 
-            if ($id !== null) {
-                yield $id;
+            if ($id !== null && ($after === null || (string) $id > (string) $after)) {
+                $forms[] = (string) $id;
             }
+        }
+
+        // Collected and sorted rather than yielded as they arrive. A bucket
+        // lists lexicographically and a directory lists however the filesystem
+        // feels like, and the caller's resumption point is only a resumption
+        // point if the order is the same one twice. The cost is one string per
+        // form for the length of a run, which is what a run of this is worth.
+        sort($forms, \SORT_STRING);
+
+        foreach ($forms as $form) {
+            yield FormId::fromString($form);
         }
     }
 

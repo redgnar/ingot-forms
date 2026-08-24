@@ -43,6 +43,15 @@ The domain layer depends only on `Ingot\*`, `psr/cache` and `symfony/uid` (a val
 library, not the framework) — no ORM, no attributes, no configuration — so extracting it into
 a reusable package later is a namespace move, not a rewrite.
 
+**That list is checked, not just written down.** deptrac compares *layers*, and a class in no
+layer is reported as `Uncovered` rather than as a violation — so until the vendor layers went
+into `deptrac.yaml`, `Domain` could have imported an HTTP kernel and the build would have
+stayed green. `Ingot`, `Uid`, `MetadataCache` (`psr/cache`) and `Logging` (`psr/log`) are layers
+of their own now, everything else outside `App\` lands in `Framework`, and the ruleset says
+which inner layer may reach which. PHP's own classes are left out — a model that cannot name
+`\DateTimeImmutable` is not a model. `Uncovered` is `0`, which is the point: a fifth dependency
+in the model is a decision made in that file rather than by an import nobody noticed.
+
 ## Who may do what
 
 **Nobody is anybody here, and that is the one thing still missing.** This service has no
@@ -325,8 +334,13 @@ needs it.
 - **Cron:** `bin/console app:forms:purge-expired` — expired forms are already invisible
   to the API (410); this fulfils the promise that expired data leaves the system. Next to it,
   `bin/console app:files:purge-temporary` collects uploads no stored document names
-  (`--days`, `--limit`); what it prints is meant to stay near zero, so a number that keeps
-  growing is worth an alert rather than a log line.
+  (`--days`, `--limit`, `--after`); what it prints is meant to stay near zero, so a number that
+  keeps growing is worth an alert rather than a log line. **A big store is walked in pieces**:
+  `--limit` bounds the forms one run *looks at* — each is a listing of its own, which is the
+  real cost — and a run that stops at its limit prints where, so the next one continues with
+  `--after=<id>` instead of examining the same first forms again. A run that reaches the end
+  prints nothing extra, which is how "there is more" and "that was all" tell each other
+  apart.
 - **History:** `form_revisions` grows by one row per accepted save, each holding that save's
   whole values document. `FORMS_HISTORY_LIMIT` (100) is how many of them one form keeps: when a
   save pushes a form past it, that form's oldest save leaves in the same statement. Set it to `0`

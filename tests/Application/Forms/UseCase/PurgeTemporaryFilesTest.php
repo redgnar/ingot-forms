@@ -222,6 +222,75 @@ final class PurgeTemporaryFilesTest extends TestCase
         self::assertSame(1, $files->countFor($first) + $files->countFor($second));
     }
 
+    public function testABoundedRunSaysWhereItStoppedAndTheNextOneCarriesOn(): void
+    {
+        // GIVEN three forms, each holding something old and unnamed
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $planted = [self::plant($forms), self::plant($forms), self::plant($forms)];
+
+        foreach ($planted as $form) {
+            $files->hold($form, FileId::next(), 'a.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
+        }
+
+        // WHEN they are collected one run at a time
+        $seen = 0;
+        $after = null;
+        $runs = 0;
+
+        do {
+            $collected = $this->purge($forms, $files)(limit: 1, after: $after);
+            $seen += $collected->files;
+            $after = $collected->resumeFrom;
+            ++$runs;
+        } while ($after !== null);
+
+        // THEN between them the runs covered every form, which is the whole
+        // point of handing back where one stopped: without it each run would
+        // look at the same first form and the third would never be reached
+        self::assertSame(3, $seen);
+        // Three, not four: the run that handles the last form walks off the end
+        // of the listing rather than stopping at its limit, so it has nowhere to
+        // resume from and nobody schedules a pass that would find nothing.
+        self::assertSame(3, $runs);
+        self::assertSame(0, array_sum(array_map($files->countFor(...), $planted)));
+    }
+
+    public function testARunThatReachedTheEndHasNowhereToResumeFrom(): void
+    {
+        // GIVEN one form with one old file, and a limit it cannot reach
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $files->hold(self::plant($forms), FileId::next(), 'a.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
+
+        // WHEN
+        $collected = $this->purge($forms, $files)(limit: 10);
+
+        // THEN "there is more" and "that was all" are different answers
+        self::assertNull($collected->resumeFrom);
+    }
+
+    public function testLookingIsWhatCounts(): void
+    {
+        // GIVEN two forms, the first holding nothing old at all
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $first = self::plant($forms);
+        $second = self::plant($forms);
+        $files->hold($first, FileId::next(), 'fresh.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable());
+        $files->hold($second, FileId::next(), 'old.pdf', 'bytes', 'application/pdf', new \DateTimeImmutable('-30 days'));
+
+        // WHEN one form's worth of looking is asked for
+        $collected = $this->purge($forms, $files)(limit: 1);
+
+        // THEN the form with nothing to collect still spent the budget: examining
+        // one is a listing of its own, which is what the limit is bounding — and
+        // the run says where it stopped so the second is reached next time
+        self::assertSame(0, $collected->files);
+        self::assertNotNull($collected->resumeFrom);
+        self::assertSame(1, $files->countFor($second));
+    }
+
     public function testWhatWasCollectedIsSaidOutLoud(): void
     {
         // GIVEN something to collect

@@ -147,7 +147,13 @@ of that, not as a separate idea.
 
 The code is laid out in four layers, and the dependency arrows only ever point inwards:
 **UserInterface → Application → Domain**, with **Infrastructure → Domain, Application**.
-`deptrac.yaml` enforces exactly that; the UI may not name an adapter, ever.
+`deptrac.yaml` enforces exactly that; the UI may not name an adapter, ever. It also enforces
+**what the inner layers may lean on**, which is a short list and lives in that file: `Ingot`,
+`symfony/uid`, `psr/cache`, `psr/log`, with everything else outside `App\` collected into a
+`Framework` layer the model and the use cases may not touch. That is not decoration — deptrac
+only compares layers, so a dependency in no layer is *uncovered* rather than a violation, and
+"framework-free" was a sentence nothing checked until those layers existed. Adding a fifth is a
+decision about what the standalone package would drag with it, made in `deptrac.yaml`.
 
 ```
 src/Domain/Forms/          the model: Form (aggregate), FormStatus, DeriveMode, the definition

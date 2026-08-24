@@ -120,10 +120,17 @@ final class InMemoryFileStore implements FileStore
         $this->deleted[] = $form . '/' . $file;
     }
 
-    public function formsWithFiles(): iterable
+    public function formsWithFiles(?FormId $after = null): iterable
     {
-        foreach (array_keys($this->files) as $form) {
-            yield FormId::fromString($form);
+        $forms = array_map(strval(...), array_keys($this->files));
+        // Sorted, like the real store: a resumption point means nothing unless
+        // two runs walk the same order.
+        sort($forms, \SORT_STRING);
+
+        foreach ($forms as $form) {
+            if ($after === null || $form > (string) $after) {
+                yield FormId::fromString($form);
+            }
         }
     }
 

@@ -279,6 +279,34 @@ final class FlysystemFileStoreTest extends KernelTestCase
         $this->store->open($form, FileId::next());
     }
 
+    public function testTheFormsComeBackInOneFixedOrderAndCanBeResumedFrom(): void
+    {
+        // GIVEN three forms holding files, written in no particular order
+        $forms = [];
+
+        for ($i = 0; $i < 3; ++$i) {
+            $form = $this->aForm();
+            $this->store->put($form, FileId::next(), $this->upload('a.txt', 'bytes'));
+            $forms[] = (string) $form;
+        }
+
+        sort($forms, \SORT_STRING);
+
+        // WHEN the whole store is walked, and then walked again from the first.
+        // Only these three are looked at: the store keeps whatever earlier runs
+        // left in it, and this test is about order and not about tidiness.
+        $mine = fn(?FormId $after): array => array_values(array_intersect(
+            array_map(strval(...), iterator_to_array($this->store->formsWithFiles($after), false)),
+            $forms,
+        ));
+
+        // THEN the order is the same one twice, which is the only thing that
+        // makes a resumption point mean anything — and carrying on after a form
+        // means after it, not including it
+        self::assertSame($forms, $mine(null));
+        self::assertSame(\array_slice($forms, 1), $mine(FormId::fromString($forms[0])));
+    }
+
     public function testTheStoreCanSayWhichFormsItHoldsFilesFor(): void
     {
         // GIVEN a form with a file, and something in the store that is not a form

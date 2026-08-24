@@ -35,6 +35,12 @@ use Psr\Log\LoggerInterface;
  * files are all recent costs one listing and no database work at all; and the
  * decision is made on the locked row, which is ordering rather than atomicity —
  * nothing here writes a column.
+ *
+ * A big store is walked in pieces. `$limit` bounds the forms a run *looks at* —
+ * each of which costs a listing of its own, which is the real price here — and
+ * what it hands back is where it stopped, so the next run starts after that
+ * rather than at the beginning again. Without the pair, a bounded run would
+ * examine the same first forms every night and never reach the rest.
  */
 final class PurgeTemporaryFiles
 {
@@ -48,7 +54,7 @@ final class PurgeTemporaryFiles
         private readonly int $days,
     ) {}
 
-    public function __invoke(?int $limit = null, ?int $days = null, ?\DateTimeImmutable $now = null): CollectedFiles
+    public function __invoke(?int $limit = null, ?int $days = null, ?\DateTimeImmutable $now = null, ?FormId $after = null): CollectedFiles
     {
         $threshold = ($now ?? new \DateTimeImmutable())->modify(\sprintf('-%d days', $days ?? $this->days));
         $files = 0;
@@ -56,11 +62,23 @@ final class PurgeTemporaryFiles
         $forgotten = 0;
         $unreadable = 0;
         $visited = 0;
+        $resumeFrom = null;
+        $done = null;
 
-        foreach ($this->files->formsWithFiles() as $form) {
+        foreach ($this->files->formsWithFiles($after) as $form) {
             if ($limit !== null && $visited >= $limit) {
+                // Where to pick up: the last form this run finished with, not the
+                // one it declined to start.
+                $resumeFrom = $done;
+
                 break;
             }
+
+            // Counted here rather than further down, because looking is what
+            // costs: every form examined is a listing of its own, whether or not
+            // it turns out to hold anything old.
+            ++$visited;
+            $done = $form;
 
             // The listing first, and the row only if there is something old
             // enough to be worth asking about.
@@ -69,8 +87,6 @@ final class PurgeTemporaryFiles
             if ($stale === []) {
                 continue;
             }
-
-            ++$visited;
 
             try {
                 $taken = $this->collect($form, $stale);
@@ -93,7 +109,7 @@ final class PurgeTemporaryFiles
             $halves += $taken[1];
         }
 
-        $collected = new CollectedFiles($files, $halves, $forgotten, $unreadable);
+        $collected = new CollectedFiles($files, $halves, $forgotten, $unreadable, $resumeFrom);
 
         if (!$collected->isEmpty()) {
             $this->logger->info('Collected files no stored document names.', [

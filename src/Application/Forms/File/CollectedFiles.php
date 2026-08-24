@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Application\Forms\File;
 
+use App\Domain\Forms\ValueObject\FormId;
+
 /**
  * What one run of the collector took, by species.
  *
@@ -24,6 +26,12 @@ final readonly class CollectedFiles
         public int $forms = 0,
         /** Forms left alone because what they stored can no longer be read, and so cannot be judged. */
         public int $unreadable = 0,
+        /**
+         * Where a run that hit its limit stopped, for the next one to carry on
+         * from — null when the walk reached the end, which is the difference
+         * between "there is more" and "that was all".
+         */
+        public ?FormId $resumeFrom = null,
     ) {}
 
     public function isEmpty(): bool

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\UserInterface\Cli;
 
 use App\Application\Forms\UseCase\PurgeTemporaryFiles;
+use App\Domain\Forms\ValueObject\FormId;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -36,12 +37,17 @@ final class PurgeTemporaryFilesCommand extends Command
     {
         $this
             ->addOption('days', null, InputOption::VALUE_REQUIRED, 'How long an unreferenced file may sit before it is collected (default: FILES_TEMPORARY_DAYS)')
-            ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Look at no more than this many forms in one run');
+            ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Look at no more than this many forms in one run')
+            ->addOption('after', null, InputOption::VALUE_REQUIRED, 'Carry on after this form, as printed by the run that stopped');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $collected = ($this->purge)(self::number($input, 'limit'), self::number($input, 'days'));
+        $collected = ($this->purge)(
+            self::number($input, 'limit'),
+            self::number($input, 'days'),
+            after: self::form($input),
+        );
 
         $output->writeln(\sprintf(
             'Collected %d file(s) and %d half-written one(s); forgot %d form(s) whose row is gone; left %d unreadable form(s) alone.',
@@ -51,7 +57,23 @@ final class PurgeTemporaryFilesCommand extends Command
             $collected->unreadable,
         ));
 
+        // A run that stopped at its limit says where, so the next one is a
+        // continuation rather than the same beginning again.
+        if ($collected->resumeFrom !== null) {
+            $output->writeln(\sprintf('Stopped at the limit. Continue with --after=%s', $collected->resumeFrom));
+        }
+
         return Command::SUCCESS;
+    }
+
+    /**
+     * @throws \InvalidArgumentException when what was given is not a form id
+     */
+    private static function form(InputInterface $input): ?FormId
+    {
+        $value = $input->getOption('after');
+
+        return \is_string($value) && $value !== '' ? FormId::fromString($value) : null;
     }
 
     private static function number(InputInterface $input, string $option): ?int

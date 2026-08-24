@@ -2,8 +2,7 @@
 #
 # Domain         = the forms model, its exceptions and the ports it declares.
 #                  Framework-free and storage-free, so it can be extracted into a
-#                  standalone package later (vendor deps are invisible to deptrac;
-#                  the rules below keep App layers out).
+#                  standalone package later.
 # Application    = use cases: one class per thing the system does, orchestrating
 #                  the domain behind ports it declares for what it cannot do itself.
 # Infrastructure = the adapters filling those ports: Doctrine, cache, the Symfony
@@ -11,6 +10,25 @@
 # UserInterface  = what talks to the outside — HTTP controllers with their request
 #                  DTOs and problem mapping, and the console commands. It reaches
 #                  the application, never an adapter.
+#
+# **What the inner layers may lean on is a list, and the list is here.** "Framework-free"
+# used to be a sentence in a comment while nothing checked it: deptrac only ever
+# compares layers, and a class in no layer is *uncovered* rather than a violation —
+# so `Domain` importing an HTTP kernel would have passed in silence. The vendor
+# layers below close that: everything outside App\ that is not on the short list
+# lands in `Framework`, which the model and the use cases may not touch at all.
+#
+# The list is short on purpose, and each entry earns its place:
+#   Ingot           the mapping engine the model is built on — the definition is its
+#                   tree, and its findings are the vocabulary of every refusal.
+#   Symfony\Uid     a UUID implementation, and nothing more. FormId and FileId wrap
+#                   it so the rest of the model never handles a bare string.
+#   Psr\Cache       one constructor argument on FormMapperFactory: an interface, not
+#                   an implementation, and the standard one.
+#   Psr\Log         what a use case writes to when a run has something to say that
+#                   is not a return value.
+# Adding a fifth is a decision about what the standalone package would drag with
+# it, so it is made here rather than by an import somebody did not notice.
 deptrac:
   paths:
     - src
@@ -31,8 +49,55 @@ deptrac:
       collectors:
         - type: classLike
           value: ^App\\UserInterface\\
+
+    # The dependencies the inner layers are allowed to have, one layer each so a
+    # ruleset can say which layer may have which.
+    - name: Ingot
+      collectors:
+        - type: classLike
+          value: ^Ingot\\
+    - name: Uid
+      collectors:
+        - type: classLike
+          value: ^Symfony\\Component\\Uid\\
+    - name: MetadataCache
+      collectors:
+        - type: classLike
+          value: ^Psr\\Cache\\
+    - name: Logging
+      collectors:
+        - type: classLike
+          value: ^Psr\\Log\\
+
+    # Everything else that is not ours: the framework, the ORM, the filesystem
+    # abstraction, the annotation libraries. PHP's own classes are left out — a
+    # model that cannot name \DateTimeImmutable is not a model.
+    - name: Framework
+      collectors:
+        - type: bool
+          must:
+            - type: classLike
+              value: .+
+          must_not:
+            - type: classLike
+              value: ^App\\
+            - type: classLike
+              value: ^Ingot\\
+            - type: classLike
+              value: ^Symfony\\Component\\Uid\\
+            - type: classLike
+              value: ^Psr\\(Cache|Log)\\
+            # Global namespace: \DateTimeImmutable, \Throwable, \stdClass.
+            - type: classLike
+              value: ^[^\\]+$
   ruleset:
-    Domain: ~
-    Application: [Domain]
-    Infrastructure: [Domain, Application]
-    UserInterface: [Domain, Application]
+    Domain: [Ingot, Uid, MetadataCache]
+    Application: [Domain, Ingot, Uid, Logging]
+    Infrastructure: [Domain, Application, Framework, Ingot, Uid, MetadataCache, Logging]
+    UserInterface: [Domain, Application, Framework, Ingot, Uid, Logging]
+    # Nothing is analysed *out of* a vendor layer; they exist to be depended on.
+    Ingot: ~
+    Uid: ~
+    MetadataCache: ~
+    Logging: ~
+    Framework: ~

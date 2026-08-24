@@ -161,7 +161,20 @@ final class DoctrineFormRepository implements FormRepository
     {
         $record = $this->entityManager->find(FormRecord::class, $id->toUuid(), LockMode::PESSIMISTIC_WRITE);
 
-        return $record === null ? null : $this->toForm($record);
+        if ($record === null) {
+            return null;
+        }
+
+        $form = $this->toForm($record);
+        // The one read whose caller walks thousands of forms and keeps none of
+        // them. Nothing about a cleanup pass writes a column, so letting go of
+        // the row the moment it has become a form costs nothing and is what
+        // stops a long run growing until it runs out of memory. The row lock is
+        // the database's and is held until the transaction ends, whatever this
+        // does with its own copy.
+        $this->entityManager->clear();
+
+        return $form;
     }
 
     /**
