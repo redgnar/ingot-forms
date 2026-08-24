@@ -40,7 +40,7 @@ final readonly class CreateFormRequest
         )]
         public \DateTimeImmutable $expireDate,
         #[OA\Property(
-            description: 'The form definition: 1–1000 typed items with unique names, per the meta-schema in src/Domain/Forms/form-definition.schema.json. Immutable once created — changing it means deleting the form and creating a new one.',
+            description: 'The form definition: 1–1000 typed items with unique names, per the meta-schema this API serves at `GET /api/schemas/definition`. Immutable once created — changing it means deleting the form and creating a new one.',
             type: 'object',
             minProperties: 1,
             example: ['items' => [['type' => 'text', 'name' => 'email', 'required' => true]]],
@@ -48,7 +48,7 @@ final readonly class CreateFormRequest
         #[ValidFormDefinition]
         public \stdClass $definition,
         #[OA\Property(
-            description: 'How the form is shown, per the meta-schema in src/Domain/Forms/Presentation/presentation.schema.json. Optional — a client that draws forms its own way needs none. May name a "skin" the engine offers, which changes how the page looks and never what the document may say; a deployment default dresses whatever names none. Immutable with the definition: changing either means deleting the form and creating a new one.',
+            description: 'How the form is shown, per the meta-schema this API serves at `GET /api/schemas/presentation`. Optional — a client that draws forms its own way needs none. May name a "skin" the engine offers, which changes how the page looks and never what the document may say; a deployment default dresses whatever names none. Immutable with the definition: changing either means deleting the form and creating a new one.',
             type: 'object',
             nullable: true,
             example: ['engine' => 'core-html', 'items' => [['name' => 'email', 'widget' => 'text', 'label' => 'contact.email']]],

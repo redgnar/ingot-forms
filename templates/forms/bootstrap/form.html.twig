@@ -288,7 +288,7 @@
         {% if not readOnly %}
             {# The same form once more, holding nothing: what gets cloned. #}
             <template data-entries-target="blank">
-                {{ _self.entry(node, {'nodes': node.blank, 'cells': node.columns|map(column => {'name': column.name, 'text': null, 'ticked': null})}, false, chrome) }}
+                {{ _self.entry(node, node.blank, false, chrome) }}
             </template>
         {% endif %}
 

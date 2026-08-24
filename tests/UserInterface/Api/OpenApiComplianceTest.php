@@ -252,6 +252,14 @@ final class OpenApiComplianceTest extends WebTestCase
                 // "bogus" is outside the enum the DeriveMode enum published
                 $test->client->request('GET', \sprintf('/api/forms/%s/schema?mode=bogus', $test->createForm()));
             }],
+            ['GET', '/api/schemas/{document}', 200, true, '', static function (self $test): void {
+                $test->client->request('GET', '/api/schemas/definition');
+            }],
+            ['GET', '/api/schemas/{document}', 404, false, '', static function (self $test): void {
+                // "values" is outside the enum this path publishes: a form's own
+                // values schema is served from that form's address, not here.
+                $test->client->request('GET', '/api/schemas/values');
+            }],
             ['PUT', '/api/forms/{id}/data', 204, true, '', static function (self $test): void {
                 $test->putJson(\sprintf('/api/forms/%s/data', $test->createForm()), self::PARTIAL_DATA);
             }],

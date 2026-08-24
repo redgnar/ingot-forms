@@ -25,6 +25,7 @@ this reference cannot drift from the implementation.
 | [`GET /api/forms/{id}/history`](#get-apiformsidhistory) | `getFormHistory` | List every accepted save of this form | `200`, `404`, `410` |
 | [`GET /api/forms/{id}/presentation`](#get-apiformsidpresentation) | `getFormPresentation` | Read how the form is shown | `200`, `404`, `410` |
 | [`GET /api/forms/{id}/history/{seq}`](#get-apiformsidhistoryseq) | `getFormRevision` | Read one save of this form | `200`, `404`, `410` |
+| [`GET /api/schemas/{document}`](#get-apischemasdocument) | `getMetaSchema` | Read the meta-schema of a definition or a presentation | `200`, `404` |
 | [`GET /api/forms/{id}/schema`](#get-apiformsidschema) | `getFormDataSchema` | Read the values schema derived from the definition | `200`, `404`, `410`, `422` |
 | [`POST /api/forms/{id}/files`](#post-apiformsidfiles) | `uploadFormFile` | Upload a file for this form | `201`, `404`, `409`, `410`, `413`, `422` |
 
@@ -256,6 +257,25 @@ The values as that save stored them, byte for byte — exactly as `GET /api/form
 | `404` | `application/problem+json` | [`Problem`](#problem) | Unknown form, or a form with no such save. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 
+### GET /api/schemas/{document}
+
+`operationId: getMetaSchema` — Read the meta-schema of a definition or a presentation
+
+The JSON Schema 2020-12 document `POST /api/forms` judges that half of its body by — the authoritative contract for what a definition or a presentation may say, which is stated here rather than duplicated into this document. Fixed for a deployment: it changes when the service does, never because of anything a client did.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `document` | path | yes | `string` (`definition` \| `presentation`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | `application/schema+json` | `object` | The meta-schema, as the server holds it. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | This API publishes no such meta-schema. |
+
 ### GET /api/forms/{id}/schema
 
 `operationId: getFormDataSchema` — Read the values schema derived from the definition
@@ -313,7 +333,7 @@ Type: `string` (`empty` \| `draft` \| `confirmed`)
 
 ### FormDefinition
 
-A form definition document. Its authoritative contract is the meta-schema at `src/Domain/Forms/form-definition.schema.json` (1–1000 typed items with unique names) — the constraints are deliberately not duplicated here.
+A form definition document. Its authoritative contract is the meta-schema served at `GET /api/schemas/definition` (1–1000 typed items with unique names) — the constraints are deliberately not duplicated here, which is why that endpoint exists.
 
 Type: `object`
 
@@ -325,7 +345,7 @@ Type: `object`
 
 ### FormPresentation
 
-How a form is shown. Its authoritative contract is the meta-schema at `src/Domain/Forms/Presentation/presentation.schema.json`: an engine, a tree of items — each either presenting a declared item of the form, or holding other items, or standing on its own — and an optional catalogue of translations. Text travels as codes, never as sentences, and the rules that need the form itself (an item exists, a widget is one the engine draws) are reported as `presentation.*` findings.
+How a form is shown. Its authoritative contract is the meta-schema served at `GET /api/schemas/presentation`: an engine, a tree of items — each either presenting a declared item of the form, or holding other items, or standing on its own — and an optional catalogue of translations. Text travels as codes, never as sentences, and the rules that need the form itself (an item exists, a widget is one the engine draws) are reported as `presentation.*` findings.
 
 Type: `object`
 
@@ -429,8 +449,8 @@ No other properties are allowed.
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `expireDate` | `string` (`date-time`) | yes | When the form stops being fillable, as an RFC 3339 date-time. Must lie in the future; past it the form answers 410 everywhere and the purge command deletes it. |
-| `definition` | `object` | yes | The form definition: 1–1000 typed items with unique names, per the meta-schema in src/Domain/Forms/form-definition.schema.json. Immutable once created — changing it means deleting the form and creating a new one. |
-| `presentation` | `object \| null` | no | How the form is shown, per the meta-schema in src/Domain/Forms/Presentation/presentation.schema.json. Optional — a client that draws forms its own way needs none. May name a "skin" the engine offers, which changes how the page looks and never what the document may say; a deployment default dresses whatever names none. Immutable with the definition: changing either means deleting the form and creating a new one. |
+| `definition` | `object` | yes | The form definition: 1–1000 typed items with unique names, per the meta-schema this API serves at `GET /api/schemas/definition`. Immutable once created — changing it means deleting the form and creating a new one. |
+| `presentation` | `object \| null` | no | How the form is shown, per the meta-schema this API serves at `GET /api/schemas/presentation`. Optional — a client that draws forms its own way needs none. May name a "skin" the engine offers, which changes how the page looks and never what the document may say; a deployment default dresses whatever names none. Immutable with the definition: changing either means deleting the form and creating a new one. |
 | `data` | `object \| null` | no | What the form already holds, keyed by item name — for values a client knows before anybody opens the form. Optional. Judged against this form's own definition under the *draft* contract, so an incomplete document is fine and `required` items may be left out; a value that breaks its item's rules is reported at `/data/<item>`. A form created with this is born a draft: it can be filled in further, and confirmed when it is complete. |
 
 No other properties are allowed.

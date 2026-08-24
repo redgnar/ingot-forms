@@ -74,6 +74,7 @@ PUT    /api/forms/{id}/data            save a draft
 POST   /api/forms/{id}/confirm         lock it
 GET    /api/forms/{id}/history[/{seq}] what it held, and when
 POST   /api/forms/{id}/files           upload bytes; the answer goes into the values
+GET    /api/schemas/{document}         the meta-schema of a definition or a presentation
 ```
 
 Every body is JSON, every error is RFC 9457 `application/problem+json`, and a validation

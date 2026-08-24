@@ -827,6 +827,7 @@ message beside a control needs to know which control.
 | `GET /api/forms/{id}` | Full envelope: definition, status, data, timestamps. |
 | `DELETE /api/forms/{id}` | `204`. The "definition changed" path is delete + recreate. |
 | `GET /api/forms/{id}/schema` | Derived JSON Schema of the form's *values* (`application/schema+json`). `?mode=draft` returns the relaxed variant. |
+| `GET /api/schemas/definition` · `GET /api/schemas/presentation` | The meta-schema each of those documents is judged by (`application/schema+json`) — the authoritative contract for what you may write, which is why it is served rather than described. Fixed for a deployment. |
 | `GET /api/forms/{id}/presentation` | How the form is shown, as it was given at creation (`404 presentation-not-set` when none). |
 | `PUT /api/forms/{id}/data` | Save a draft (repeatable). `204`, `409 form-locked` once confirmed. |
 | `POST /api/forms/{id}/confirm` | Strictly validate the stored data and lock the form. `204`; `409` when already confirmed or empty, `422` with the report when invalid. |

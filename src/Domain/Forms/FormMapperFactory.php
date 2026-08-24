@@ -48,7 +48,7 @@ final class FormMapperFactory
     public function create(): TreeMapper
     {
         $builder = MapperBuilder::create()
-            ->withSchema(FormDefinition::class, Schema::fromFile(__DIR__ . '/form-definition.schema.json'))
+            ->withSchema(FormDefinition::class, Schema::fromFile(MetaSchema::Definition->file()))
             ->withValidator(FormDefinition::class, new UniqueFieldNamesValidator())
             // The same rule for the same reason, one scope down: a collection
             // declares items too.
@@ -57,7 +57,7 @@ final class FormMapperFactory
             ->withValidator(NumberField::class, new NumberRangeValidator())
             ->withValidator(FileField::class, new FileAcceptValidator())
             ->withValidator(DateField::class, new DateRangeValidator())
-            ->withSchema(PresentationDocument::class, Schema::fromFile(__DIR__ . '/Presentation/presentation.schema.json'))
+            ->withSchema(PresentationDocument::class, Schema::fromFile(MetaSchema::Presentation->file()))
             ->withValidator(PresentationDocument::class, new UniqueItemNamesValidator())
             ->withValidator(PresentationDocument::class, new TriggersBelongToTheFormValidator())
             ->withValidator(PresentationDocument::class, new TranslationsValidator())

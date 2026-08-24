@@ -14,11 +14,20 @@ use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\Presentation\PresentationActions;
 use App\Domain\Forms\Presentation\PresentedItem;
+use App\UserInterface\Web\Renderer\Node\BranchNode;
+use App\UserInterface\Web\Renderer\Node\CollectionNode;
+use App\UserInterface\Web\Renderer\Node\PresentedEntry;
+use App\UserInterface\Web\Renderer\Node\PresentedNode;
+use App\UserInterface\Web\Renderer\Node\ValueNode;
 
 /**
- * The presentation and the definition, read together into the flat tree a
- * template draws: what to draw, with what text, holding which value, under
- * which limits.
+ * The presentation and the definition, read together into the tree a template
+ * draws: what to draw, with what text, holding which value, under which limits.
+ *
+ * The tree is typed — {@see \App\UserInterface\Web\Renderer\Node\PresentedNode}
+ * and its three variants — so what a node has is what its type says it has, and
+ * the walks below (which items a list previews, what each entry shows, whether a
+ * widget was placed anywhere) ask the type rather than guarding every read.
  *
  * This is the half of rendering that is the same whatever the kit — resolving a
  * code in the language asked for, finding the value, carrying the definition's
@@ -39,7 +48,7 @@ final class PresentedNodes
     public const string PENDING = 'NEW';
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<PresentedNode>
      */
     public function of(RenderedForm $request, string $container, string $decoration): array
     {
@@ -79,7 +88,7 @@ final class PresentedNodes
      * @param array<string, mixed>                 $values
      * @param array<string, array<string, string>> $translations
      *
-     * @return list<array<string, mixed>>
+     * @return list<PresentedNode>
      */
     private function nodes(
         string $form,
@@ -103,29 +112,29 @@ final class PresentedNodes
                 $widget = $item->widget ?? ($item->isContainer() ? $container : $decoration);
                 $isAction = \in_array($widget, PresentationActions::all(), true);
 
-                $nodes[] = [
-                    'kind' => match (true) {
+                $nodes[] = new BranchNode(
+                    match (true) {
                         $item->isContainer() => 'container',
                         $isAction => 'action',
                         default => 'decoration',
                     },
-                    'widget' => $widget,
+                    $widget,
                     // A kit's own wording, for a document that did not bring its
                     // own: an action still has to say what it does.
-                    'label' => $label ?? ($isAction ? ucfirst($widget) : null),
-                    'hint' => $hint,
-                    'options' => $item->options,
+                    $label ?? ($isAction ? ucfirst($widget) : null),
+                    $hint,
+                    $item->options,
                     // How it looks is the document's to ask for and a kit's to
                     // honour; anything it does not know draws as a button.
-                    'appearance' => ($item->options['appearance'] ?? null) === 'link' ? 'link' : 'button',
+                    ($item->options['appearance'] ?? null) === 'link' ? 'link' : 'button',
                     // What this page can be read in: the catalogues the document
                     // carries, each named in its own language, because a person
                     // looking for their language is not reading this one.
-                    'languages' => $widget === 'language'
+                    $widget === 'language'
                         ? self::languages($item, $translations, $locale, $default)
                         : [],
-                    'children' => $this->nodes($form, $item->items, $declared, $values, $translations, $locale, $default, $container, $decoration, $scope),
-                ];
+                    $this->nodes($form, $item->items, $declared, $values, $translations, $locale, $default, $container, $decoration, $scope),
+                );
 
                 continue;
             }
@@ -142,25 +151,24 @@ final class PresentedNodes
                 continue;
             }
 
-            $nodes[] = [
-                'kind' => 'value',
-                'name' => $item->name,
+            $nodes[] = new ValueNode(
+                $item->widget ?? self::naturalWidget($field),
+                $label ?? $item->name,
+                $hint,
+                $item->options,
+                $item->name,
                 // Which entry this belongs to, if any: what makes an id unique
                 // when the same form is drawn once per entry, and what keeps one
                 // entry's radios from being the same group as another's.
-                'scope' => $scope,
-                'widget' => $item->widget ?? self::naturalWidget($field),
-                'type' => self::wireType($field),
-                'label' => $label ?? $item->name,
-                'hint' => $hint,
-                'placeholder' => self::text($item->placeholder, $translations, $locale, $default),
-                'required' => $field->required,
-                'value' => $values[$item->name] ?? null,
-                'options' => $item->options,
+                $scope,
+                self::wireType($field),
+                self::text($item->placeholder, $translations, $locale, $default),
+                $field->required,
+                $values[$item->name] ?? null,
                 // Each option as the person picking it sees it: the value it
                 // sends, and the words this document gave it — falling back to
                 // the value, which is at least honest about what will be sent.
-                'choices' => $field instanceof SelectField
+                $field instanceof SelectField
                     ? array_map(
                         static fn(string $value): array => [
                             'value' => $value,
@@ -169,19 +177,19 @@ final class PresentedNodes
                         $field->options,
                     )
                     : [],
-                'min' => $field instanceof NumberField ? $field->min : ($field instanceof DateField ? $field->min : null),
-                'max' => $field instanceof NumberField ? $field->max : ($field instanceof DateField ? $field->max : null),
-                'step' => $field instanceof NumberField && $field->decimals !== null ? 10 ** -$field->decimals : null,
-                'maxLength' => $field instanceof TextField ? $field->maxLength : null,
-                'pattern' => $field instanceof TextField ? $field->pattern : null,
+                $field instanceof NumberField ? $field->min : ($field instanceof DateField ? $field->min : null),
+                $field instanceof NumberField ? $field->max : ($field instanceof DateField ? $field->max : null),
+                $field instanceof NumberField && $field->decimals !== null ? 10 ** -$field->decimals : null,
+                $field instanceof TextField ? $field->maxLength : null,
+                $field instanceof TextField ? $field->pattern : null,
                 // What a file item wants, so the page can refuse a file that
                 // could never be stored before it uploads one — and where the
                 // bytes it already holds can be fetched from.
-                'accept' => $field instanceof FileField ? $field->accept : [],
-                'maxSize' => $field instanceof FileField ? $field->maxSize : null,
-                'download' => $field instanceof FileField ? self::downloadOf($form, $values[$item->name] ?? null) : null,
-                'upload' => $field instanceof FileField ? \sprintf('/api/forms/%s/files', $form) : null,
-            ];
+                $field instanceof FileField ? $field->accept : [],
+                $field instanceof FileField ? $field->maxSize : null,
+                $field instanceof FileField ? self::downloadOf($form, $values[$item->name] ?? null) : null,
+                $field instanceof FileField ? \sprintf('/api/forms/%s/files', $form) : null,
+            );
         }
 
         return $nodes;
@@ -199,8 +207,6 @@ final class PresentedNodes
      *
      * @param array<string, mixed>                 $values
      * @param array<string, array<string, string>> $translations
-     *
-     * @return array<string, mixed>
      */
     private function collection(
         string $form,
@@ -215,72 +221,89 @@ final class PresentedNodes
         string $container,
         string $decoration,
         ?string $scope,
-    ): array {
+    ): CollectionNode {
+        // Only an item presenting a declared one gets here, and that is what
+        // having a name means — said once, so the rest of this reads plainly.
+        $name = $item->name ?? throw new \LogicException('A collection presents a declared item, so it has a name.');
         $declared = [];
 
         foreach ($field->items as $declaredItem) {
             $declared[$declaredItem->name] = $declaredItem;
         }
 
-        $of = static fn(string|int $entry): string => ($scope === null ? '' : $scope . '-') . $item->name . '-' . $entry;
+        $of = static fn(string|int $entry): string => ($scope === null ? '' : $scope . '-') . $name . '-' . $entry;
 
         $blank = $this->nodes($form, $item->items, $declared, [], $translations, $locale, $default, $container, $decoration, $of(self::PENDING));
         $entries = [];
 
         /** @var list<mixed> $stored */
-        $stored = \is_array($values[$item->name] ?? null) ? array_values($values[$item->name]) : [];
+        $stored = \is_array($values[$name] ?? null) ? array_values($values[$name]) : [];
 
         foreach ($stored as $index => $entry) {
             /** @var array<string, mixed> $answers */
             $answers = \is_array($entry) ? $entry : [];
             $nodes = $this->nodes($form, $item->items, $declared, $answers, $translations, $locale, $default, $container, $decoration, $of($index));
 
-            $entries[] = ['nodes' => $nodes, 'cells' => self::cells($nodes, $item->columns)];
+            $entries[] = new PresentedEntry($nodes, self::cells($nodes, $item->columns));
         }
 
-        return [
-            'kind' => 'collection',
-            'name' => $item->name,
-            'scope' => $scope,
-            'widget' => $item->widget ?? 'table',
-            'label' => $label ?? $item->name,
-            'hint' => $hint,
-            'options' => $item->options,
-            'min' => $field->min,
-            'max' => $field->max,
-            'columns' => self::columns($blank, $item->columns),
+        $columns = self::columns($blank, $item->columns);
+
+        return new CollectionNode(
+            $item->widget ?? 'table',
+            $label ?? $name,
+            $hint,
+            $item->options,
+            $name,
+            $scope,
+            $field->min,
+            $field->max,
+            $columns,
             // What a page replaces in a cloned entry, so ids and radio groups
             // stay its own: the token is the server's, not something two kits
             // agreed on separately.
-            'pending' => self::PENDING,
-            'entries' => $entries,
+            self::PENDING,
+            $entries,
             // The same form again, holding nothing: what a page clones when
-            // somebody asks for one more entry.
-            'blank' => $blank,
-        ];
+            // somebody asks for one more entry. Its cells are the list's columns
+            // holding nothing — assembled here, because a template that builds
+            // an entry is a second place deciding what one is made of.
+            new PresentedEntry($blank, self::blankCells($columns)),
+        );
+    }
+
+    /**
+     * @param list<array{name: string, text: ?string}> $columns
+     *
+     * @return list<array{name: string, ticked: ?bool, text: ?string}>
+     */
+    private static function blankCells(array $columns): array
+    {
+        return array_map(
+            static fn(array $column): array => ['name' => $column['name'], 'ticked' => null, 'text' => null],
+            $columns,
+        );
     }
 
     /**
      * Which of an entry's items the list previews, and under what heading —
      * saying nothing means all of them, in the order the entry form draws them.
      *
-     * @param list<array<string, mixed>> $entryForm
-     * @param list<string>               $columns
+     * @param list<PresentedNode> $entryForm
+     * @param list<string>        $columns
      *
-     * @return list<array<string, mixed>>
+     * @return list<array{name: string, text: ?string}>
      */
     private static function columns(array $entryForm, array $columns): array
     {
         $headings = [];
 
         foreach (self::valueNodes($entryForm) as $node) {
-            $name = $node['name'];
-
-            if ($columns !== [] && !\in_array($name, $columns, true)) {
+            if ($columns !== [] && !\in_array($node->name, $columns, true)) {
                 continue;
             }
 
-            $headings[] = ['name' => $name, 'text' => $node['label']];
+            $headings[] = ['name' => $node->name, 'text' => $node->label];
         }
 
         return $headings;
@@ -291,27 +314,25 @@ final class PresentedNodes
      * box that is ticked or not — the tick, because "true" is not something to
      * put in front of a person.
      *
-     * @param list<array<string, mixed>> $entryForm
-     * @param list<string>               $columns
+     * @param list<PresentedNode> $entryForm
+     * @param list<string>        $columns
      *
-     * @return list<array<string, mixed>>
+     * @return list<array{name: string, ticked: ?bool, text: ?string}>
      */
     private static function cells(array $entryForm, array $columns): array
     {
         $cells = [];
 
         foreach (self::valueNodes($entryForm) as $node) {
-            $name = $node['name'];
-
-            if ($columns !== [] && !\in_array($name, $columns, true)) {
+            if ($columns !== [] && !\in_array($node->name, $columns, true)) {
                 continue;
             }
 
-            $value = $node['value'];
-            $ticked = $node['type'] === 'boolean' ? (bool) $value : null;
+            $value = $node->value;
+            $ticked = $node->type === 'boolean' ? (bool) $value : null;
 
             $cells[] = [
-                'name' => $name,
+                'name' => $node->name,
                 'ticked' => $ticked,
                 'text' => match (true) {
                     $ticked !== null => null,
@@ -319,7 +340,7 @@ final class PresentedNodes
                     \is_scalar($value) => self::wordFor($node, $value),
                     // A file reads as what it is called: the only part of a
                     // description that means anything to a person.
-                    $node['type'] === 'json' => self::fileName($value),
+                    $node->type === 'json' => self::fileName($value),
                     default => null,
                 },
             ];
@@ -370,19 +391,16 @@ final class PresentedNodes
     /**
      * Whether the document placed this widget itself, anywhere in the tree.
      *
-     * @param list<array<string, mixed>> $nodes
+     * @param list<PresentedNode> $nodes
      */
     public static function draws(array $nodes, string $widget): bool
     {
         foreach ($nodes as $node) {
-            if (($node['widget'] ?? null) === $widget) {
+            if ($node->widget === $widget) {
                 return true;
             }
 
-            /** @var list<array<string, mixed>> $children */
-            $children = $node['children'] ?? [];
-
-            if (self::draws($children, $widget)) {
+            if ($node instanceof BranchNode && self::draws($node->children, $widget)) {
                 return true;
             }
         }
@@ -404,13 +422,11 @@ final class PresentedNodes
         return \is_string($name) ? $name : null;
     }
 
-    private static function wordFor(mixed $node, string|int|float|bool $value): string
+    private static function wordFor(ValueNode $node, string|int|float|bool $value): string
     {
-        if (\is_array($node) && \is_array($node['choices'] ?? null)) {
-            foreach ($node['choices'] as $choice) {
-                if (\is_array($choice) && ($choice['value'] ?? null) === $value) {
-                    return \is_string($choice['text'] ?? null) ? $choice['text'] : (string) $value;
-                }
+        foreach ($node->choices as $choice) {
+            if ($choice['value'] === $value) {
+                return $choice['text'];
             }
         }
 
@@ -421,25 +437,23 @@ final class PresentedNodes
      * The items of an entry form that hold a value, in the order they are drawn
      * — a group is walked into, a list inside an entry is not (nothing draws it).
      *
-     * @param list<array<string, mixed>> $nodes
+     * @param list<PresentedNode> $nodes
      *
-     * @return list<array<string, mixed>>
+     * @return list<ValueNode>
      */
     private static function valueNodes(array $nodes): array
     {
         $found = [];
 
         foreach ($nodes as $node) {
-            if ($node['kind'] === 'value') {
+            if ($node instanceof ValueNode) {
                 $found[] = $node;
 
                 continue;
             }
 
-            if ($node['kind'] === 'container') {
-                /** @var list<array<string, mixed>> $children */
-                $children = $node['children'];
-                $found = [...$found, ...self::valueNodes($children)];
+            if ($node instanceof BranchNode && $node->kind === 'container') {
+                $found = [...$found, ...self::valueNodes($node->children)];
             }
         }
 
@@ -504,6 +518,8 @@ final class PresentedNodes
     /**
      * What the API expects this value to be on the wire — the page sends JSON,
      * so a control's string has to become a number or a boolean before it goes.
+     *
+     * @return 'string'|'number'|'boolean'|'json'
      */
     private static function wireType(Field $field): string
     {

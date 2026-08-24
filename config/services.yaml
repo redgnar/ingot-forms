@@ -61,6 +61,8 @@ services:
             - '../src/Application/Forms/History/'
             - '../src/Application/Forms/Exception/'
             - '../src/UserInterface/Web/Renderer/RenderedForm.php'
+            # the resolved tree a template draws: value objects, not services
+            - '../src/UserInterface/Web/Renderer/Node/'
             # request DTOs and the attributes/constraints describing them
             - '../src/UserInterface/Api/Request/{CreateFormRequest,DataSchemaQuery,SaveFormDataRequest}.php'
             - '../src/UserInterface/Api/Request/Constraint/{ValidFormDefinition,ViolationPointer}.php'

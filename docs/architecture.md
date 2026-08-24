@@ -193,6 +193,13 @@ come from a route — the document's identity and the shapes shared across opera
 | `docs/openapi.yaml` | the contract, dumped by `bin/console nelmio:apidoc:dump` |
 | `docs/api.md` | browsable Markdown reference rendered from the same document |
 
+Two of the contracts are **not** in that document, and are served instead. What a definition and
+a presentation may say is stated once, in the meta-schema each is mapped through
+(`MetaSchema`) — duplicating either into the OpenAPI document would be a second truth, and
+naming a path inside this repository would be an address only its authors can reach. So
+`GET /api/schemas/definition` and `GET /api/schemas/presentation` hand over the very files the
+mapper enforces, and the OpenAPI descriptions point at them.
+
 `tests/UserInterface/Api/OpenApiComplianceTest.php` validates **both halves of every exchange** against
 `docs/openapi.yaml`: each request must match the operation it targets (or, when a scenario
 deliberately breaks the contract, must be refused by it), each response must match the
@@ -228,7 +235,14 @@ fit together.
 HTML never reaches the domain and the widget vocabulary never leaves it, which is what makes
 adding a kit a class plus a template rather than a second understanding of what a form is.
 
-What the two kits share is the **resolved tree** (`PresentedNodes`) and a markup convention:
+What the two kits share is the **resolved tree** and a markup convention. The tree is typed:
+`PresentedNodes::of()` answers with `list<PresentedNode>`, and there are three of those because
+there are three genuinely different things to draw — a `ValueNode` (an item and the answer it
+holds), a `CollectionNode` (a list, its entries and one blank one), and a `BranchNode`
+(everything that presents no value: a container, an action, a decoration). Code walking the tree
+asks the type, so a caption can never be asked for its value and nothing has to check whether it
+may; `kind` is carried beside it for the templates, which cannot ask `instanceof`. The markup
+convention:
 
 | Attribute | Means |
 |---|---|

@@ -410,6 +410,35 @@ paths:
                   value: { type: 'urn:problem:ingot-forms:revision-not-found', title: 'The form has no such save.', status: 404 }
         '410':
           $ref: '#/components/responses/FormGone'
+  '/api/schemas/{document}':
+    get:
+      summary: 'Read the meta-schema of a definition or a presentation'
+      description: 'The JSON Schema 2020-12 document `POST /api/forms` judges that half of its body by — the authoritative contract for what a definition or a presentation may say, which is stated here rather than duplicated into this document. Fixed for a deployment: it changes when the service does, never because of anything a client did.'
+      operationId: getMetaSchema
+      parameters:
+        -
+          name: document
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: definition|presentation
+            enum:
+              - definition
+              - presentation
+      responses:
+        '200':
+          description: 'The meta-schema, as the server holds it.'
+          content:
+            application/schema+json:
+              schema:
+                type: object
+        '404':
+          description: 'This API publishes no such meta-schema.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   '/api/forms/{id}/schema':
     get:
       summary: 'Read the values schema derived from the definition'
@@ -528,13 +557,13 @@ components:
         - draft
         - confirmed
     FormDefinition:
-      description: 'A form definition document. Its authoritative contract is the meta-schema at `src/Domain/Forms/form-definition.schema.json` (1–1000 typed items with unique names) — the constraints are deliberately not duplicated here.'
+      description: 'A form definition document. Its authoritative contract is the meta-schema served at `GET /api/schemas/definition` (1–1000 typed items with unique names) — the constraints are deliberately not duplicated here, which is why that endpoint exists.'
       type: object
     FormValues:
       description: "Submitted values keyed by field name. This is the one payload no DTO can declare — its members come from the form's own definition — so the only rule stated here is that it must be a JSON object. The real contract is the schema derived from that form's definition, enforced on every save and served live by `GET /api/forms/{id}/schema`."
       type: object
     FormPresentation:
-      description: 'How a form is shown. Its authoritative contract is the meta-schema at `src/Domain/Forms/Presentation/presentation.schema.json`: an engine, a tree of items — each either presenting a declared item of the form, or holding other items, or standing on its own — and an optional catalogue of translations. Text travels as codes, never as sentences, and the rules that need the form itself (an item exists, a widget is one the engine draws) are reported as `presentation.*` findings.'
+      description: 'How a form is shown. Its authoritative contract is the meta-schema served at `GET /api/schemas/presentation`: an engine, a tree of items — each either presenting a declared item of the form, or holding other items, or standing on its own — and an optional catalogue of translations. Text travels as codes, never as sentences, and the rules that need the form itself (an item exists, a widget is one the engine draws) are reported as `presentation.*` findings.'
       type: object
     DataSchema:
       description: "A JSON Schema 2020-12 document describing one form's values."
@@ -701,7 +730,7 @@ components:
           format: date-time
           example: '2030-01-31T23:59:59+00:00'
         definition:
-          description: 'The form definition: 1–1000 typed items with unique names, per the meta-schema in src/Domain/Forms/form-definition.schema.json. Immutable once created — changing it means deleting the form and creating a new one.'
+          description: 'The form definition: 1–1000 typed items with unique names, per the meta-schema this API serves at `GET /api/schemas/definition`. Immutable once created — changing it means deleting the form and creating a new one.'
           minProperties: 1
           type: object
           example:
@@ -711,7 +740,7 @@ components:
                 name: email
                 required: true
         presentation:
-          description: 'How the form is shown, per the meta-schema in src/Domain/Forms/Presentation/presentation.schema.json. Optional — a client that draws forms its own way needs none. May name a "skin" the engine offers, which changes how the page looks and never what the document may say; a deployment default dresses whatever names none. Immutable with the definition: changing either means deleting the form and creating a new one.'
+          description: 'How the form is shown, per the meta-schema this API serves at `GET /api/schemas/presentation`. Optional — a client that draws forms its own way needs none. May name a "skin" the engine offers, which changes how the page looks and never what the document may say; a deployment default dresses whatever names none. Immutable with the definition: changing either means deleting the form and creating a new one.'
           type:
             - object
             - 'null'

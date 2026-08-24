@@ -38,9 +38,9 @@ nelmio_api_doc:
                     type: object
                     description: >-
                         A form definition document. Its authoritative contract is the
-                        meta-schema at `src/Domain/Forms/form-definition.schema.json`
-                        (1–1000 typed items with unique names) — the constraints
-                        are deliberately not duplicated here.
+                        meta-schema served at `GET /api/schemas/definition` (1–1000 typed
+                        items with unique names) — the constraints are deliberately not
+                        duplicated here, which is why that endpoint exists.
                 FormValues:
                     type: object
                     description: >-
@@ -52,8 +52,8 @@ nelmio_api_doc:
                 FormPresentation:
                     type: object
                     description: >-
-                        How a form is shown. Its authoritative contract is the meta-schema at
-                        `src/Domain/Forms/Presentation/presentation.schema.json`: an engine, a
+                        How a form is shown. Its authoritative contract is the meta-schema
+                        served at `GET /api/schemas/presentation`: an engine, a
                         tree of items — each either presenting a declared item of the form, or
                         holding other items, or standing on its own — and an optional catalogue
                         of translations. Text travels as codes, never as sentences, and the
