@@ -511,6 +511,9 @@
                         aria-label="{{ 'page.stepper.more'|trans }}">{{ ux_icon('tabler:plus', {class: 'icon'}) }}</button>
             </div>
         {% elseif node.widget == 'file' or node.widget == 'dropzone' %}
+            {# `data-file-dropzone` says which of the two this is, for the
+               stylesheet: one is a strip with everything in a line, the other a
+               target with its parts stacked in the middle. #}
             {# Two controls and a line of text. The hidden one is the value — the
                description the upload answered with, carried as the JSON it is
                (`data-type="json"`) — and the visible one is only how somebody
@@ -524,6 +527,7 @@
             <div{{ html.attributes({
                 'class': node.widget == 'dropzone' ? 'border border-2 border-secondary-subtle rounded-3 p-4 text-center' : null,
                 'data-controller': 'file',
+                'data-file-dropzone': node.widget == 'dropzone' ? true : null,
                 'data-action': node.widget == 'dropzone' and not readOnly
                     ? 'dragover->file#over dragleave->file#leave drop->file#dropped file:place->file#place'
                     : 'file:place->file#place',

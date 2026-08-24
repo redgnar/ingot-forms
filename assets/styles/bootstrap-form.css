@@ -229,6 +229,44 @@ nav.language {
     padding-inline: 1.25rem;
 }
 
+/* A file control is a line, so it reads as one. The browser draws a button and,
+   beside it, the name of what is chosen — and the kit's own line, which carries
+   that name as a link along with the way to remove it, was stacked underneath,
+   leaving the room beside the button empty and saying the same thing twice over.
+   Put side by side, the two halves are what a file control looks like anyway:
+   the button, and then either what is held or the browser's "no file chosen".
+
+   Not the dropzone, which is a target rather than a strip and stacks its parts
+   in the middle of itself on purpose. */
+[data-controller="file"]:not([data-file-dropzone]) {
+    align-items: center;
+    column-gap: 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+[data-controller="file"]:not([data-file-dropzone]) > .form-control[type="file"] {
+    /* As wide as it has to be: full width would push everything else onto a line
+       of its own, which is the layout being undone. */
+    width: auto;
+}
+
+[data-controller="file"]:not([data-file-dropzone]) > [data-file-held] {
+    margin-top: 0;
+}
+
+/* One clip is enough. The line carries its own, for when it is stacked under a
+   dropzone and has to say what it is; standing beside a button that is already a
+   paperclip, it is the same picture twice. */
+[data-controller="file"]:not([data-file-dropzone]) > [data-file-held] > .icon {
+    display: none;
+}
+
+/* The bar belongs under both of them rather than beside either. */
+[data-controller="file"]:not([data-file-dropzone]) > .progress {
+    flex-basis: 100%;
+}
+
 /* Once a file is held, the browser's own "no file chosen" is not noise but a
    contradiction: the line under the control names the file, links to the bytes
    and offers to remove them, while the control beside it says there is none. The
@@ -237,7 +275,11 @@ nav.language {
    the kit's line does the talking. Only the words are hidden: the button keeps
    its icon, and a screen reader still reads the control it always did. */
 [data-item]:has([data-file-held]:not(.d-none)) .form-control[type="file"] {
-    color: transparent;
+    /* Not `color: transparent`: an invisible sentence still takes the width of
+       one, and that width is the empty room beside the button this was meant to
+       reclaim. At nothing, the control is the button and the line moves up
+       beside it. */
+    font-size: 0;
 }
 
 [data-bs-theme="dark"] .form-control[type="file"]::file-selector-button {
