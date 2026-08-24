@@ -52,6 +52,8 @@ final class ReadFormAction
     #[OA\Response(response: 410, ref: '#/components/responses/FormGone')]
     public function __invoke(Uuid $id): JsonResponse
     {
-        return new JsonResponse($this->envelope->build(($this->readForm)(FormId::of($id))));
+        // Text rather than a structure: the two documents inside travel byte for
+        // byte, which is what keeps `{}` an object all the way out.
+        return JsonResponse::fromJsonString($this->envelope->json(($this->readForm)(FormId::of($id))));
     }
 }

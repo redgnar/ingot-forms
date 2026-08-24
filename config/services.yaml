@@ -16,6 +16,12 @@ parameters:
     # filling a form in.
     files.temporary_days: '%env(int:default:files.default_temporary_days:FILES_TEMPORARY_DAYS)%'
     files.default_temporary_days: 7
+    # How many saves of one form the history keeps. Every draft is a whole values
+    # document, and everything that asks what a form has *ever* named reads all of
+    # them, so an unbounded history is an unbounded cost. When a save pushes a form
+    # past this, its oldest one leaves. 0 keeps every save there has ever been.
+    forms.default_history_limit: 100
+    forms.history_limit: '%env(int:default:forms.default_history_limit:FORMS_HISTORY_LIMIT)%'
     # What a form is dressed in when its own presentation names no skin. The
     # document wins where it says something; this is what re-dresses every form
     # that says nothing, without touching a single stored document. It must be a
@@ -99,6 +105,10 @@ services:
     App\Application\Forms\Port\DataSchemas: '@App\Infrastructure\Cache\CachedDataSchemaProvider'
     App\Application\Forms\Port\FileStore: '@App\Infrastructure\Files\FlysystemFileStore'
     App\Application\Forms\Port\FormHistory: '@App\Infrastructure\Persistence\DoctrineFormHistory'
+
+    App\Infrastructure\Persistence\DoctrineFormRepository:
+        arguments:
+            $historyLimit: '%forms.history_limit%'
 
     App\Infrastructure\Files\FlysystemFileStore:
         arguments:

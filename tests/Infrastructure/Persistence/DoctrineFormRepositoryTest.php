@@ -297,6 +297,65 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         self::assertSame([1 => '{"email":"ada@example.com"}'], self::revisionsOf($other));
     }
 
+    public function testAFormsHistoryIsTiedToItByTheDatabaseAndNotByTwoDeletes(): void
+    {
+        // GIVEN a form that has saved twice
+        $id = self::uuid();
+        $this->saveTwice($id, $this->repository);
+        self::assertCount(2, self::revisionsOf($id));
+
+        // WHEN the row goes without this repository's help at all — which is what
+        // a crash between "delete the revisions" and "delete the row" used to
+        // leave behind, and what any hand written DELETE would do
+        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+        $record = $entityManager->find(FormRecord::class, $id->toUuid());
+        self::assertInstanceOf(FormRecord::class, $record);
+        $entityManager->remove($record);
+        $entityManager->flush();
+
+        // THEN the history went with it: the foreign key is what says a revision
+        // leaves with its form, so there is no order of statements to get wrong
+        self::assertSame([], self::revisionsOf($id));
+    }
+
+    public function testAFormKeepsNoMoreSavesThanTheDeploymentAllows(): void
+    {
+        // GIVEN a deployment that keeps two saves per form, and a form that makes four
+        $repository = $this->repositoryKeeping(2);
+        $id = self::uuid();
+        $repository->add(new Form($id, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+
+        foreach (['ada', 'eve', 'ida', 'mae'] as $who) {
+            $this->save($id, $who, $repository);
+        }
+
+        // THEN only the newest two are left, still numbered as they were
+        // allocated: a number that fell off the end is not handed to another save
+        self::assertSame(
+            [3 => '{"email":"ida@example.com"}', 4 => '{"email":"mae@example.com"}'],
+            self::revisionsOf($id),
+        );
+        // and the form itself holds what it always held
+        self::assertSame('{"email":"mae@example.com"}', $repository->get($id)->valuesJson());
+    }
+
+    public function testADeploymentThatSetsNoLimitKeepsEverySave(): void
+    {
+        // GIVEN a deployment that says nothing about how much history to keep
+        $repository = $this->repositoryKeeping(0);
+        $id = self::uuid();
+        $repository->add(new Form($id, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+
+        // WHEN a form saves more times than any limit would allow
+        foreach (['ada', 'eve', 'ida', 'mae'] as $who) {
+            $this->save($id, $who, $repository);
+        }
+
+        // THEN every one of them is still there
+        self::assertCount(4, self::revisionsOf($id));
+    }
+
     public function testAnExpiredFormsHistoryGoesWithTheRowAndALiveOnesStays(): void
     {
         // GIVEN one expired form and one live one, each having saved once
@@ -491,6 +550,43 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         }
 
         return $history;
+    }
+
+    /**
+     * The same adapter the container builds, told how many saves to keep — the
+     * limit is a deployment's number, so a test that is about it has to say one.
+     */
+    private function repositoryKeeping(int $saves): DoctrineFormRepository
+    {
+        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+        $mapper = new FormMapperFactory()->create();
+
+        return new DoctrineFormRepository(
+            $entityManager,
+            new FormDefinitionProcessor($mapper),
+            new PresentationProcessor($mapper),
+            $saves,
+        );
+    }
+
+    private function saveTwice(FormId $id, FormRepository $repository): void
+    {
+        $repository->add(new Form($id, self::definition(), ExpireDate::future(new \DateTimeImmutable('+1 day'))));
+        $this->save($id, 'ada', $repository);
+        $this->save($id, 'eve', $repository);
+    }
+
+    private function save(FormId $id, string $who, FormRepository $repository): void
+    {
+        $this->transactions->run(function () use ($id, $who, $repository): void {
+            $form = $repository->getForUpdate($id);
+            $form->saveDraft(
+                json_decode(\sprintf('{"email": "%s@example.com"}', $who), false, flags: \JSON_THROW_ON_ERROR),
+                new StubValues(),
+            );
+            $repository->save($form);
+        });
     }
 
     private static function definition(): Definition

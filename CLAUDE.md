@@ -43,7 +43,13 @@ somebody is already on is a no-op rather than a second identical moment. Otherwi
 carrying the whole `Values`, so a revision is that event persisted rather than a second record of
 anything — the row and the `form_revisions` row are written from the same event, and neither can
 happen without the other. Append-only, `(form_id, seq)` is the whole key, `seq` is allocated under
-the row lock the save already holds, and the history leaves with its form (rows before bytes).
+the row lock the save already holds, and the history leaves with its form (rows before bytes) —
+**by foreign key**, `ON DELETE CASCADE`, so a form can never outlive what it used to hold, not
+even for the width of a crash between two statements. A history has an end:
+`FORMS_HISTORY_LIMIT` says how many saves one form keeps and the oldest leaves as the newest
+arrives, in the same statement, because `seq` only grows and "at or below newest minus the
+limit" *is* the surplus. That is a deployment's number and not a document's: unbounded history
+is unbounded cost on every question about what a form has **ever** named.
 **Restoring is not an operation**: a client reads a revision (`GET …/history/{seq}`) and sends it
 back through `PUT …/data`, where it meets the same three gates and is recorded as a *new* revision.
 No `POST …/restore` — a privileged path would be a second way in, and an old document is not more
@@ -63,7 +69,17 @@ version back) is an ordinary `PUT …/data` like every other write from a page. 
 page drawn again with nothing sent. **"Who" is a stated non-goal**: this service has
 no identity at all, so a revision answers *when* and *what* and nothing else; an actor column now
 would be a member nobody can fill. When identity arrives it lands on that table without moving
-anything else.
+anything else. Not learning who anybody is stays a non-goal; being
+open does not. Today the form's UUID is the whole credential and **it opens everything** —
+whoever can fill a form in can delete it, confirm it and download its files — which is the one
+thing standing between this service and a deployment, and is written down where a deployer will
+read it (`docs/architecture.md`, "Who may do what"). The shape of the fix is settled in
+`.claude/plan/09-access.md`: split the addresses (`/api/manage/**` against
+`/api/forms/{id}/**`), then one port, `Access::allows(Scope, ?FormId, Request)`, carrying the
+scope *and* the form — because nobody has rights over this service, only over some forms — with
+the deployment choosing the adapter. Whatever lands, it authorises **an object, not a person**:
+a user provider or a role model here would be the second identity this service has always
+refused.
 
 **How a file works.** A `file` item's value is not bytes but the **description** of them —
 `{id, name, size, type}`, all four measured by the server when the upload landed and echoed

@@ -37,7 +37,8 @@ versioning and multi-submission forms are deliberately out of scope.
   what it held and when ([History](docs/configuring-forms.md#history)) — but sending what the form already holds records
   nothing at all, whatever order the members arrived in. Restoring is not an operation: a client
   reads a revision and sends it back through `PUT …/data`, where it meets the same gates as any
-  other draft.
+  other draft. A history is bounded: `FORMS_HISTORY_LIMIT` (100) is how many saves one form
+  keeps, and past it the oldest leaves as the newest arrives — `0` keeps every one of them.
 - **`expire_date` is required.** Past it, the form answers `410 Gone` everywhere, and
   `bin/console app:forms:purge-expired` (run it from cron) physically deletes the row.
 - **The definition has no name of its own.** It belongs to exactly one form, and that form
@@ -52,6 +53,13 @@ versioning and multi-submission forms are deliberately out of scope.
 - **A form can draw itself.** An optional presentation document says how, in one of two kits;
   a skin says what it looks like; and what a *reader* needs — contrast, colours, text size — is
   theirs to set and no document's to decide ([the pages](docs/architecture.md#the-pages)).
+- **There is no "who" — and today there is no gate either.** This service never learns who
+  anybody is, deliberately; what is *not* deliberate is that a form's UUID is the only
+  credential and that it opens everything, so whoever can fill a form in can also delete it,
+  confirm it and download its files. Nothing here should be exposed as it stands: the
+  management endpoints need a gate in front of them, and the shape of the real answer is
+  worked out in [`.claude/plan/09-access.md`](.claude/plan/09-access.md). Read
+  [Who may do what](docs/architecture.md#who-may-do-what) first.
 - Definitions may contain **unknown (plugin) item types** — they round-trip losslessly
   (`GenericField` + `#[Extras]`), can be drafted, but a form containing one can never be
   confirmed: the server refuses to vouch for a value contract it does not know.

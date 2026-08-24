@@ -637,6 +637,51 @@ final class FormApiTest extends WebTestCase
     }
 
     /** What a form planted straight into storage is made of. */
+    public function testAnEmptyValuesDocumentIsStillAnObjectWhenTheWholeFormIsRead(): void
+    {
+        // GIVEN a form holding a document that answers nothing
+        $id = $this->createForm();
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), '{}');
+        self::assertResponseStatusCodeSame(204);
+
+        // WHEN the whole form is read
+        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+
+        // THEN the envelope carries the document that was stored, and not a list
+        // that looks like it: two endpoints may never disagree about one document
+        self::assertStringContainsString('"data":{}', $this->body());
+
+        $this->client->request('GET', \sprintf('/api/forms/%s/data', $id));
+        self::assertSame('{}', $this->body());
+    }
+
+    public function testAnEmptyEntryInsideAListSurvivesTheEnvelopeToo(): void
+    {
+        // GIVEN a form whose list holds an entry nobody has answered yet
+        $id = $this->postForm([
+            'items' => [
+                ['type' => 'collection', 'name' => 'lines', 'items' => [
+                    ['type' => 'text', 'name' => 'sku'],
+                ]],
+            ],
+        ], new \DateTimeImmutable('+1 day'));
+        self::assertResponseStatusCodeSame(201);
+        $this->putJson(\sprintf('/api/forms/%s/data', $id), '{"lines":[{}]}');
+        self::assertResponseStatusCodeSame(204);
+
+        // WHEN the whole form is read
+        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+
+        // THEN the empty entry is still an entry: decoding the document to put it
+        // in the envelope is exactly what used to turn it into a list
+        self::assertStringContainsString('"data":{"lines":[{}]}', $this->body());
+    }
+
+    private function body(): string
+    {
+        return (string) $this->client->getResponse()->getContent();
+    }
+
     private static function definition(): Definition
     {
         return Definition::stored(

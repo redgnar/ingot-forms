@@ -7,6 +7,7 @@ service, [configuring-forms.md](configuring-forms.md) is the document you want.
 ## Contents
 
 - [Layers](#layers)
+- [Who may do what](#who-may-do-what)
 - [The model, and what it refuses](#the-model-and-what-it-refuses)
 - [Storage](#storage)
 - [How values are judged](#how-values-are-judged)
@@ -42,6 +43,49 @@ The domain layer depends only on `Ingot\*`, `psr/cache` and `symfony/uid` (a val
 library, not the framework) — no ORM, no attributes, no configuration — so extracting it into
 a reusable package later is a namespace move, not a rewrite.
 
+## Who may do what
+
+**Nobody is anybody here, and that is the one thing still missing.** This service has no
+authentication, no authorization and no concept of an actor — no user, no tenant, no API key,
+no rate limit. A form's UUID is the whole capability: whoever has it may act, and whoever has
+not is expected not to guess it (UUIDv7, 74 random bits).
+
+Two halves of that are deliberate and two are not, so it is worth keeping them apart.
+
+**Deliberate, and staying that way:** this service does not learn who anybody is. No accounts,
+no sessions, no user store, and no actor column in the history — a revision answers *when* and
+*what*. Whoever created a form already knows who may touch it, and that answer is theirs to
+keep. Anything added here authorises **an object, not a person**.
+
+**Not deliberate:** that a form's id is the only credential, that it never expires while the
+form lives, and above all that **the one secret opens everything**. There is no separate
+credential for administering a form and for filling it in, so whoever holds the link to fill a
+form in can also `DELETE` it, confirm it on the author's behalf, overwrite the draft and
+download every file attached to it. That is the actual hole, and it is why nothing here should
+be exposed as it stands.
+
+The shape of the answer is worked out in [`.claude/plan/09-access.md`](../.claude/plan/09-access.md)
+and comes to two steps: **split the addresses** so a guard can tell the two audiences apart by
+looking at the request (`/api/manage/**` for the owning application — creating, reading the
+envelope, deleting — against `/api/forms/{id}/**` and `/forms/**` for whoever holds a link to
+that one form), and **add one port**, `Access::allows(Scope, ?FormId, Request)`, answered by an
+adapter a deployment chooses: what a gateway asserts, a signed per-form token, or an open door
+for dev and the test suites. One question carrying the scope *and* the form, because nobody has
+rights over this service — they have rights over some forms.
+
+Until that lands, it is all the deployment's:
+
+- **The management endpoints need a gate.** `POST /api/forms`, `GET /api/forms/{id}` (it hands
+  over the definition and the values together) and `DELETE /api/forms/{id}` have to be
+  unreachable from wherever the people filling forms in are. Nothing here will do that for you,
+  and nothing here will notice if you forget.
+- **A form link is a password.** It travels in a URL, so it lands in browser history, in
+  `Referer` headers, in proxy and access logs, and in whatever a person pastes it into. Treat
+  the expire date as part of the security model rather than as housekeeping: a short one bounds
+  how long a leaked link is worth anything, and the purge is what makes that true.
+- **`POST /api/forms` is an unauthenticated write.** Whatever fronts it is where a rate limit
+  goes.
+
 ## The model, and what it refuses
 
 **A form judges what it is asked to hold.** `Form::saveDraft()` and `Form::confirm()` run
@@ -65,14 +109,25 @@ and the structure parsed from it.
 
 ## Storage
 
-Storage is a single `forms` table, mapped with portable types only (`uuid`, `text`,
-`datetime_immutable` in UTC) so the service installs on PostgreSQL, MySQL/MariaDB or SQLite
-alike — point `DATABASE_URL` at it and run the migration, which is built through Doctrine's
+Storage is two tables, `forms` and `form_revisions`, mapped with portable types only (`uuid`,
+`text`, `datetime_immutable` in UTC) so the service installs on PostgreSQL, MySQL/MariaDB or
+SQLite alike — point `DATABASE_URL` at it and run the migration, which is built through Doctrine's
 schema API rather than raw SQL. The definition is stored **normalized**
 (`TreeMapper::normalize()` output) as the exact JSON text that passed validation, and so are
 the values: PHP arrays cannot tell an empty object from an empty list, and those bytes are
 handed back to clients verbatim. Status is derived from the row (`data IS NULL` /
 `confirmed_at`), never stored; state transitions run under `LockMode::PESSIMISTIC_WRITE`.
+
+`form_revisions` is one row per accepted save, holding that save's whole values document as the
+same exact text. It is append-only, `(form_id, seq)` is the whole key — a revision is one save of
+one form, and nothing points at it from anywhere — and `seq` is allocated under the row lock the
+save already holds, because a sequence of the database's own would number across forms. Two
+things bound it, and both are the database's rather than a caller's: `form_id` references
+`forms.id` **ON DELETE CASCADE**, so a form can never outlive the history it used to have; and
+`FORMS_HISTORY_LIMIT` is how many saves one form keeps, the oldest leaving in the same statement
+that appends the newest. Neither the row nor the revision can be written without the other —
+both come from one `DraftSaved` — which is what makes "the current values are also the newest
+revision" true, and everything that asks what a form has **ever** named leans on it.
 
 ## How values are judged
 
@@ -259,9 +314,16 @@ needs it.
   (`--days`, `--limit`); what it prints is meant to stay near zero, so a number that keeps
   growing is worth an alert rather than a log line.
 - **History:** `form_revisions` grows by one row per accepted save, each holding that save's
-  whole values document. Bounded by the form's expire date and by nothing else — there is no cap,
-  deliberately, because a cap cuts history off for exactly the forms that were edited most. Size
-  it from how often forms are saved rather than from how many exist.
+  whole values document. `FORMS_HISTORY_LIMIT` (100) is how many of them one form keeps: when a
+  save pushes a form past it, that form's oldest save leaves in the same statement. Set it to `0`
+  to keep every save there has ever been, and size the database from how often forms are saved
+  rather than from how many exist. A limit is not only about disk — everything that asks what a
+  form has **ever** named reads every one of its saves, so an unbounded history is an unbounded
+  read on every file download and every purge run. It has one consequence worth knowing: a file
+  that only an evicted save named stops being a file this form names, so it becomes temporary
+  again and `app:files:purge-temporary` will collect it. That is the same rule as everywhere —
+  a document nobody can restore is a document whose files stopped mattering — but it is the one
+  place where lowering a number throws bytes away.
 - **Files:** `FILES_DIR` (default `var/storage/files`) is where the bytes go, so it has to
   survive a deploy — a volume, not a container layer. A directory is **one node**: more than
   one instance needs a shared volume, or `composer require league/flysystem-async-aws-s3` and

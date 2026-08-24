@@ -42,6 +42,8 @@ final class DoctrineFormRepository implements FormRepository
         private readonly EntityManagerInterface $entityManager,
         private readonly DefinitionParser $definitions,
         private readonly PresentationParser $presentations,
+        /** How many saves of one form are kept; 0 keeps every one of them. */
+        private readonly int $historyLimit = 0,
     ) {}
 
     public function add(Form $form): void
@@ -100,11 +102,10 @@ final class DoctrineFormRepository implements FormRepository
     public function remove(FormId $id): void
     {
         $record = $this->liveRow($id, null);
-        // The revisions first: a crash between the two leaves a form whose
-        // history is shorter than it was, which the next attempt finishes — the
-        // other way round leaves rows belonging to nothing that nobody will ever
-        // look for again.
-        $this->forgetRevisions($id);
+        // The history leaves with it, and the database is what says so
+        // (`fk_form_revisions_form`, ON DELETE CASCADE). One statement rather
+        // than two: there is no window in which a form that still exists has
+        // already lost what it used to hold.
         $this->entityManager->remove($record);
         $this->entityManager->flush();
     }
@@ -148,7 +149,6 @@ final class DoctrineFormRepository implements FormRepository
             return;
         }
 
-        $this->forgetRevisions($id);
         $this->entityManager->remove($record);
         $this->entityManager->flush();
 
@@ -258,7 +258,35 @@ final class DoctrineFormRepository implements FormRepository
         // The row keeps what the form holds now; the history keeps what it held
         // then. Both come from the same event, so neither can be written without
         // the other.
-        $this->entityManager->persist($this->revision($event));
+        $revision = $this->revision($event);
+        $this->entityManager->persist($revision);
+        $this->forgetBeyondTheLimit($event->formId, $revision->seq);
+    }
+
+    /**
+     * Drops the saves that fell off the end.
+     *
+     * A history nobody bounds is a history a client can grow without limit —
+     * every draft is a whole values document, and everything that asks what a
+     * form has *ever* named reads all of them. So a deployment says how many
+     * moments it keeps, and the oldest leaves as the newest arrives.
+     *
+     * Said as one statement rather than a count and a delete: `seq` is allocated
+     * under the row lock this save already holds and only ever grows, so
+     * "everything at or below newest minus the limit" *is* the surplus. The save
+     * being appended is never in it, whatever the limit.
+     */
+    private function forgetBeyondTheLimit(FormId $id, int $newest): void
+    {
+        if ($this->historyLimit <= 0) {
+            return;
+        }
+
+        $this->entityManager
+            ->createQuery(\sprintf('DELETE FROM %s r WHERE r.formId = :form AND r.seq <= :oldest', FormRevisionRecord::class))
+            ->setParameter('form', $id->toUuid())
+            ->setParameter('oldest', $newest - $this->historyLimit)
+            ->execute();
     }
 
     /**
@@ -286,13 +314,5 @@ final class DoctrineFormRepository implements FormRepository
             ->getSingleScalarResult();
 
         return is_numeric($last) ? (int) $last : 0;
-    }
-
-    private function forgetRevisions(FormId $id): void
-    {
-        $this->entityManager
-            ->createQuery(\sprintf('DELETE FROM %s r WHERE r.formId = :form', FormRevisionRecord::class))
-            ->setParameter('form', $id->toUuid())
-            ->execute();
     }
 }

@@ -728,10 +728,20 @@ already on a no-op rather than a new revision.
 `confirmed` is derived and never stored: confirming writes no values, so it is no revision of its
 own — the last one is simply what got locked.
 
+**A history has an end.** A deployment says how many saves one form keeps
+(`FORMS_HISTORY_LIMIT`, 100 by default; `0` keeps them all), and when a save pushes a form past
+it, that form's oldest save leaves in the same statement. Nothing about `seq` changes — it is
+allocated once and never reused, so a number that has fallen off the end answers `404` rather
+than naming a different save. Worth knowing when a form holds files: a file that only an evicted
+save named is no longer a file this form names, so it becomes temporary again and the collector
+takes it. That is the same rule as everywhere — a document nobody can restore is a document whose
+files stopped mattering — and it is why the limit is a deployment's decision rather than a
+document's.
+
 ### Setting it up
 
-Nothing to configure on the server: every accepted save is kept, always. What a *document* asks
-for is the panel — one widget, placed wherever it belongs on the page:
+Nothing to configure in the document: every accepted save is kept, up to the deployment's limit.
+What a *document* asks for is the panel — one widget, placed wherever it belongs on the page:
 
 ```json
 { "widget": "history", "label": "t.history" }
