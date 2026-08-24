@@ -50,7 +50,7 @@ services:
             - '../src/Kernel.php'
             # the model itself: an aggregate, its data objects and its exceptions
             - '../src/Domain/Forms/{Definition,Event,Exception,ValueObject}/'
-            - '../src/Domain/Forms/Presentation/{PresentationDocument,Section,PresentedItem}.php'
+            - '../src/Domain/Forms/Presentation/{PresentationDocument,PresentedItem}.php'
             - '../src/Domain/Forms/Presentation/Rule/'
             - '../src/Domain/Forms/{Form,FormStatus,DeriveMode}.php'
             - '../src/Infrastructure/Persistence/{FormRecord,FormRevisionRecord}.php'

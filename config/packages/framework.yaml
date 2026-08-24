@@ -9,11 +9,13 @@ framework:
     http_method_override: false
     handle_all_throwables: true
     # Request envelopes are mapped and validated by Symfony (#[MapRequestPayload],
-    # #[MapQueryString] + Assert attributes on the DTOs in src/Http/Request/).
+    # #[MapQueryString] + Assert attributes on the DTOs in
+    # src/UserInterface/Api/Request/).
     validation:
         enable_attributes: true
     # Values are validated by a Symfony form built from the form's own definition
-    # (src/Http/Form/). No sessions and no browser here, so no CSRF token.
+    # (src/Infrastructure/Validation/). No sessions and no browser here, so no
+    # CSRF token.
     form:
         csrf_protection:
             enabled: false

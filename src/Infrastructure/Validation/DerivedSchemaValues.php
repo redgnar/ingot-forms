@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Validation;
 
+use App\Application\Forms\Port\DataSchemas;
 use App\Domain\Forms\DataSchemaDeriver;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\ValueObject\FormId;
-use App\Infrastructure\Cache\CachedDataSchemaProvider;
 use Ingot\Error\ErrorReport;
 use Ingot\Schema\OpisSchemaValidator;
 use Ingot\Schema\SchemaValidator;
@@ -31,7 +31,7 @@ use Ingot\Schema\SchemaValidator;
 final class DerivedSchemaValues
 {
     public function __construct(
-        private readonly CachedDataSchemaProvider $schemas,
+        private readonly DataSchemas $schemas,
         private readonly DataSchemaDeriver $deriver = new DataSchemaDeriver(),
         private readonly SchemaValidator $schemaValidator = new OpisSchemaValidator(),
     ) {}

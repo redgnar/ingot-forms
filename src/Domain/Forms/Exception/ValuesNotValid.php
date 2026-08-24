@@ -10,7 +10,7 @@ use Ingot\Error\ErrorReport;
  * Submitted values the form they belong to refuses. Mapped to problem+json by
  * {@see \App\UserInterface\Api\Problem\ProblemExceptionListener}, like every other report.
  */
-final class ValuesNotValid extends \RuntimeException
+final class ValuesNotValid extends \RuntimeException implements CarriesFindings
 {
     public function __construct(
         public readonly ErrorReport $report,

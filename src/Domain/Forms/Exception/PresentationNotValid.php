@@ -6,7 +6,7 @@ namespace App\Domain\Forms\Exception;
 
 use Ingot\Error\ErrorReport;
 
-final class PresentationNotValid extends \RuntimeException
+final class PresentationNotValid extends \RuntimeException implements CarriesFindings
 {
     public function __construct(
         public readonly ErrorReport $report,

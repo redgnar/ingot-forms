@@ -166,8 +166,11 @@ src/Application/Forms/
                            in, an open file on its way out, and what a collector took —
                            plus FormFiles: which files a form has ever named
     History/               FormRevision — one accepted save, as something to choose by
-    Port/                  Transactions, DataSchemas, FileStore, FormHistory — what a use
-                           case needs and cannot do itself
+    Port/                  Transactions, DataSchemas (two shapes of one schema:
+                           the document an endpoint serves, and the compiled thing
+                           a gate holding the definition validates against),
+                           FileStore, FormHistory — what a use case needs and
+                           cannot do itself
 src/Infrastructure/        the adapters filling those ports
     Persistence/           FormRecord and FormRevisionRecord (the rows, mapped with ORM
                            attributes), DoctrineFormRepository, DoctrineFormHistory,
@@ -338,7 +341,13 @@ Rules that follow from it, and that the tooling checks:
   no data is 404 on a read, 409 on a confirm).
 - **One error format**: every error response is RFC 9457 `application/problem+json`; validation
   problems carry `errors: [{pointer, code, message, input?}]` mapped 1:1 from ingot's
-  `ErrorReport` (`ProblemExceptionListener` is the single mapping point).
+  `ErrorReport` (`ProblemExceptionListener` is the single mapping point). Inside it, a refusal
+  the model has a word for is **a line in a table** and not a branch: `REFUSALS` for the ones
+  that only say no, `REPORTED` for the ones that point at what is wrong — which they announce by
+  implementing `CarriesFindings`, so the mapping asks whether a refusal has findings instead of
+  listing the ones that do. A new exception with no line in either table stops the mapping
+  loudly rather than becoming a 500 nobody traced. The branches that remain are the ones that
+  really are different: the framework's own refusals, which arrive in shapes of their own.
 - **A finding points at the thing that is wrong**, never at what surrounds it: a missing answer
   is `/email` and not `''`, `/lines/1/sku` and not `/lines/1` — one finding per missing member,
   so a page can mark the control instead of saying the document is incomplete. Anything that

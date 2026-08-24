@@ -13,6 +13,17 @@ monolog:
             # with the record — a 500 nobody can explain is worse than a noisy log.
             include_stacktraces: true
 
+# Debug is what a developer wants and not what a deployment can afford: a
+# production process would ship every internal record and every deprecation
+# alongside the ones that mean something. `info` is the floor because the records
+# this service writes on purpose live there — what a purge collected, and the
+# pages' own answers — while `error` is where a broken invariant shows up.
+when@prod:
+    monolog:
+        handlers:
+            stderr:
+                level: info
+
 when@test:
     monolog:
         handlers:

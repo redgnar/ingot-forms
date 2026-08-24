@@ -19,7 +19,7 @@ use Ingot\Error\ErrorReport;
  * needs to migrate it or to decide the form is not worth keeping. Deleting it
  * still works, since removing a row never has to understand it.
  */
-final class FormUnreadable extends \RuntimeException
+final class FormUnreadable extends \RuntimeException implements CarriesFindings
 {
     public function __construct(
         FormId $id,

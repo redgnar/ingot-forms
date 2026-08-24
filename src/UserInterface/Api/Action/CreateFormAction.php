@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\UserInterface\Api\Action;
 
 use App\Application\Forms\UseCase\CreateForm;
+use App\Domain\Forms\Exception\DefinitionNotValid;
 use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\ExpireDate;
+use App\UserInterface\Api\Problem\ProblemException;
 use App\UserInterface\Api\Request\CreateFormRequest;
 use Ingot\Error\ErrorReport;
 use Ingot\Error\MappingError;
@@ -142,13 +144,25 @@ final class CreateFormAction
     ): JsonResponse {
         try {
             $id = ($this->createForm)(
+                // Judged twice on purpose, and it must stay that way: the
+                // constraint on the DTO parses it so its findings arrive in the
+                // same report as the rest of the envelope's — a client should not
+                // have to fix `expireDate` before being told about its
+                // definition — and the aggregate parses what it is actually
+                // built from, because nothing may reach it unproved. Making
+                // either side trust the other's work would cost one of those two.
                 $request->definition,
-                ExpireDate::future($request->expireDate),
+                self::expiring($request->expireDate),
                 $request->presentation === null
                     ? null
                     : $this->presentations->document($this->presentations->parse($request->presentation)),
                 $request->data,
             );
+        } catch (DefinitionNotValid $exception) {
+            // Only reachable if the constraint and the aggregate ever disagree
+            // about the same document. Rooted where the client put it, like the
+            // other two, rather than answering about a document nobody sent.
+            throw new DefinitionNotValid(self::rootedAt('/definition', $exception->report));
         } catch (PresentationNotValid $exception) {
             throw new PresentationNotValid(self::rootedAt('/presentation', $exception->report));
         } catch (ValuesNotValid $exception) {
@@ -165,5 +179,30 @@ final class CreateFormAction
             201,
             ['Location' => \sprintf('/api/forms/%s', $id)],
         );
+    }
+
+    /**
+     * The expire date as the model insists on having it: in the future.
+     *
+     * The DTO's own constraint has already said so, and this is not that check
+     * again — it is the same check a moment later, which is a moment in which a
+     * date one microsecond ahead stops being ahead. Left to itself the model's
+     * refusal would be a 500; answered here it is the finding the constraint
+     * would have produced, so a client reads one contract either way.
+     */
+    private static function expiring(\DateTimeImmutable $moment): ExpireDate
+    {
+        try {
+            return ExpireDate::future($moment);
+        } catch (\InvalidArgumentException) {
+            throw new ProblemException(422, 'request-not-valid', 'Request is not valid.', report: ErrorReport::of(
+                new MappingError(
+                    JsonPointer::fromString('/expireDate'),
+                    'form.expire_date.past',
+                    'expireDate must be in the future.',
+                    $moment->format(\DateTimeInterface::ATOM),
+                ),
+            ));
+        }
     }
 }

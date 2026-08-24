@@ -10,6 +10,7 @@ use App\Application\Forms\Exception\FileEmpty;
 use App\Application\Forms\Exception\FileMissing;
 use App\Application\Forms\Exception\FileTooLarge;
 use App\Application\Forms\Exception\RevisionNotFound;
+use App\Domain\Forms\Exception\CarriesFindings;
 use App\Domain\Forms\Exception\DefinitionNotValid;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormGone;
@@ -48,6 +49,53 @@ final class ProblemExceptionListener
         private readonly bool $debug,
     ) {}
 
+    /**
+     * What each refusal the model has a word for becomes: a status, the suffix
+     * of the problem URN, and the sentence that titles it. A table rather than a
+     * chain of branches, so a new refusal is a line here and cannot be added to
+     * the model without somebody noticing it is missing.
+     *
+     * @var array<class-string, array{int, string, string}>
+     */
+    private const array REFUSALS = [
+        // Nobody has said how to show this form, which is a document that is not
+        // there — not a conflict, and not a form that is missing.
+        PresentationNotSet::class => [404, 'presentation-not-set', 'The form has no presentation.'],
+        FormNotFound::class => [404, 'form-not-found', 'Form not found.'],
+        // The store holds no such file for this form — the same answer whether it
+        // never existed or was thrown away, deliberately: a caller learns nothing
+        // about another form's ids either way.
+        FileMissing::class => [404, 'file-not-found', 'This form holds no such file.'],
+        // A save that never happened, for a form that did. The same answer as for
+        // somebody else's revision number, deliberately.
+        RevisionNotFound::class => [404, 'revision-not-found', 'The form has no such save.'],
+        FormLocked::class => [409, 'form-locked', 'Form data is confirmed and can no longer be edited.'],
+        FileAttached::class => [409, 'file-attached', 'A file the stored values name cannot be thrown away.'],
+        FileBudgetSpent::class => [409, 'file-budget-spent', 'This form holds as many files as it may.'],
+        FormAlreadyConfirmed::class => [409, 'form-already-confirmed', 'Form data is already confirmed.'],
+        // Nothing to confirm. The read endpoint answers 404 for the same state and
+        // translates it itself — a missing document, not a conflict.
+        FormHasNoData::class => [409, 'form-data-empty', 'There is no data to confirm.'],
+        FormGone::class => [410, 'form-gone', 'Form has expired.'],
+        FileTooLarge::class => [413, 'upload-too-large', 'The upload is larger than this deployment accepts.'],
+        FileEmpty::class => [422, 'upload-empty', 'An empty file is not an upload.'],
+    ];
+
+    /**
+     * The same, for the refusals that point at what is wrong rather than only
+     * saying that something is: their findings travel into the response.
+     *
+     * @var array<class-string, array{int, string, string}>
+     */
+    private const array REPORTED = [
+        ValuesNotValid::class => [422, 'request-not-valid', 'Request is not valid.'],
+        PresentationNotValid::class => [422, 'presentation-not-valid', 'Form presentation is not valid.'],
+        DefinitionNotValid::class => [422, 'definition-not-valid', 'Form definition is not valid.'],
+        // The row is intact and today's rules cannot read it: a conflict between
+        // what was stored and what is now required, not a server that broke.
+        FormUnreadable::class => [409, 'form-unreadable', 'The stored form no longer satisfies the rules it is read with.'],
+    ];
+
     public function __invoke(ExceptionEvent $event): void
     {
         // A page for a person is not part of this contract: RFC 9457 documents
@@ -56,191 +104,103 @@ final class ProblemExceptionListener
             return;
         }
 
-        $throwable = $event->getThrowable();
+        $response = $this->responseFor($event->getThrowable());
 
+        if ($response !== null) {
+            $event->setResponse($response);
+        }
+    }
+
+    /**
+     * Null means "leave it alone", which happens for exactly one case: an
+     * unrecognised failure in debug, where Symfony's own page with the stack
+     * trace is worth more than an opaque document.
+     */
+    private function responseFor(\Throwable $throwable): ?Response
+    {
         if ($throwable instanceof ValidationFailedException) {
-            $event->setResponse($this->violationResponse(422, $throwable));
-
-            return;
+            return $this->violationResponse(422, $throwable);
         }
 
         // A member the request DTO does not declare: the serializer refuses it
         // before any constraint runs, so it arrives on its own.
         if ($throwable instanceof ExtraAttributesException) {
-            $errors = [];
-
-            foreach ($throwable->getExtraAttributes() as $attribute) {
-                $name = \is_string($attribute) ? $attribute : (string) json_encode($attribute);
-                $errors[] = new MappingError(
-                    JsonPointer::fromString('/' . $name),
-                    'request.unexpected_key',
-                    \sprintf('Unexpected member "%s".', $name),
-                );
-            }
-
-            $event->setResponse($this->factory->fromReport(422, 'request-not-valid', 'Request is not valid.', ErrorReport::of(...$errors)));
-
-            return;
+            return $this->factory->fromReport(422, 'request-not-valid', 'Request is not valid.', self::unexpectedKeys($throwable));
         }
 
-        if ($throwable instanceof ValuesNotValid) {
-            $event->setResponse($this->validationResponse($throwable->report, 'request-not-valid', 'Request is not valid.'));
+        if ($throwable instanceof CarriesFindings) {
+            [$status, $type, $title] = self::REPORTED[$throwable::class]
+                ?? throw new \LogicException(\sprintf('There is no problem document for %s.', $throwable::class));
 
-            return;
+            return $this->validationResponse($throwable->report, $type, $title, $status);
         }
 
-        if ($throwable instanceof PresentationNotValid) {
-            $event->setResponse($this->validationResponse($throwable->report, 'presentation-not-valid', 'Form presentation is not valid.'));
+        $refusal = self::REFUSALS[$throwable::class] ?? null;
 
-            return;
-        }
+        if ($refusal !== null) {
+            [$status, $type, $title] = $refusal;
 
-        // Nobody has said how to show this form, which is a document that is
-        // not there — not a conflict, and not a form that is missing.
-        if ($throwable instanceof PresentationNotSet) {
-            $event->setResponse($this->factory->simple(404, 'presentation-not-set', 'The form has no presentation.', $throwable->getMessage()));
-
-            return;
-        }
-
-        if ($throwable instanceof DefinitionNotValid) {
-            $event->setResponse($this->validationResponse($throwable->report, 'definition-not-valid', 'Form definition is not valid.'));
-
-            return;
-        }
-
-        if ($throwable instanceof FormNotFound) {
-            $event->setResponse($this->factory->simple(404, 'form-not-found', 'Form not found.', $throwable->getMessage()));
-
-            return;
-        }
-
-        if ($throwable instanceof FormLocked) {
-            $event->setResponse($this->factory->simple(409, 'form-locked', 'Form data is confirmed and can no longer be edited.', $throwable->getMessage()));
-
-            return;
-        }
-
-        // The store holds no such file for this form — the same answer whether
-        // it never existed or was thrown away, deliberately: a caller learns
-        // nothing about another form's ids either way.
-        if ($throwable instanceof FileMissing) {
-            $event->setResponse($this->factory->simple(404, 'file-not-found', 'This form holds no such file.', $throwable->getMessage()));
-
-            return;
-        }
-
-        // A save that never happened, for a form that did. The same answer as for
-        // somebody else's revision number, deliberately.
-        if ($throwable instanceof RevisionNotFound) {
-            $event->setResponse($this->factory->simple(404, 'revision-not-found', 'The form has no such save.', $throwable->getMessage()));
-
-            return;
-        }
-
-        if ($throwable instanceof FileAttached) {
-            $event->setResponse($this->factory->simple(409, 'file-attached', 'A file the stored values name cannot be thrown away.', $throwable->getMessage()));
-
-            return;
-        }
-
-        if ($throwable instanceof FileBudgetSpent) {
-            $event->setResponse($this->factory->simple(409, 'file-budget-spent', 'This form holds as many files as it may.', $throwable->getMessage()));
-
-            return;
-        }
-
-        if ($throwable instanceof FileTooLarge) {
-            $event->setResponse($this->factory->simple(413, 'upload-too-large', 'The upload is larger than this deployment accepts.', $throwable->getMessage()));
-
-            return;
-        }
-
-        if ($throwable instanceof FileEmpty) {
-            $event->setResponse($this->factory->simple(422, 'upload-empty', 'An empty file is not an upload.', $throwable->getMessage()));
-
-            return;
-        }
-
-        if ($throwable instanceof FormAlreadyConfirmed) {
-            $event->setResponse($this->factory->simple(409, 'form-already-confirmed', 'Form data is already confirmed.', $throwable->getMessage()));
-
-            return;
-        }
-
-        // Nothing to confirm. The read endpoint answers 404 for the same state,
-        // and translates it itself — a missing document, not a conflict.
-        if ($throwable instanceof FormHasNoData) {
-            $event->setResponse($this->factory->simple(409, 'form-data-empty', 'There is no data to confirm.', $throwable->getMessage()));
-
-            return;
-        }
-
-        // The row is intact and today's rules cannot read it: a conflict between
-        // what was stored and what is now required, not a server that broke.
-        if ($throwable instanceof FormUnreadable) {
-            $event->setResponse($this->validationResponse($throwable->report, 'form-unreadable', 'The stored form no longer satisfies the rules it is read with.', 409));
-
-            return;
-        }
-
-        if ($throwable instanceof FormGone) {
-            $event->setResponse($this->factory->simple(410, 'form-gone', 'Form has expired.', $throwable->getMessage()));
-
-            return;
+            return $this->factory->simple($status, $type, $title, $throwable->getMessage());
         }
 
         if ($throwable instanceof ProblemException) {
-            $event->setResponse(
-                $throwable->report !== null
-                    ? $this->factory->fromReport($throwable->status, $throwable->type, $throwable->title, $throwable->report, $throwable->detail)
-                    : $this->factory->simple($throwable->status, $throwable->type, $throwable->title, $throwable->detail),
-            );
-
-            return;
+            return $throwable->report !== null
+                ? $this->factory->fromReport($throwable->status, $throwable->type, $throwable->title, $throwable->report, $throwable->detail)
+                : $this->factory->simple($throwable->status, $throwable->type, $throwable->title, $throwable->detail);
         }
 
         if ($throwable instanceof UnsupportedMediaTypeHttpException) {
-            $event->setResponse($this->factory->simple(
+            return $this->factory->simple(
                 415,
                 'unsupported-media-type',
                 'Only application/json request bodies are accepted.',
                 $throwable->getMessage(),
-            ));
-
-            return;
+            );
         }
 
         if ($throwable instanceof HttpExceptionInterface) {
-            $previous = $throwable->getPrevious();
-            $status = $throwable->getStatusCode();
-
-            // Symfony's payload mapper wraps what it refused: a violation list
-            // when the envelope did not match the DTO, a decoding failure when
-            // the body was not JSON at all.
-            if ($previous instanceof ValidationFailedException) {
-                $event->setResponse($this->violationResponse($status, $previous));
-
-                return;
-            }
-
-            if ($previous instanceof \JsonException || $previous instanceof NotEncodableValueException) {
-                $event->setResponse($this->factory->fromReport(400, 'malformed-json', 'Request body is not valid JSON.', ErrorReport::of(
-                    new MappingError(JsonPointer::root(), 'source.malformed_json', $previous->getMessage()),
-                )));
-
-                return;
-            }
-
-            $event->setResponse($this->factory->simple($status, 'http-error', Response::$statusTexts[$status] ?? 'HTTP error'));
-
-            return;
+            return $this->httpResponse($throwable);
         }
 
         // In debug mode keep Symfony's error page with the stack trace.
-        if (!$this->debug) {
-            $event->setResponse($this->factory->simple(500, 'internal-error', 'An unexpected error occurred.'));
+        return $this->debug ? null : $this->factory->simple(500, 'internal-error', 'An unexpected error occurred.');
+    }
+
+    private function httpResponse(HttpExceptionInterface $throwable): Response
+    {
+        $previous = $throwable->getPrevious();
+        $status = $throwable->getStatusCode();
+
+        // Symfony's payload mapper wraps what it refused: a violation list when
+        // the envelope did not match the DTO, a decoding failure when the body
+        // was not JSON at all.
+        if ($previous instanceof ValidationFailedException) {
+            return $this->violationResponse($status, $previous);
         }
+
+        if ($previous instanceof \JsonException || $previous instanceof NotEncodableValueException) {
+            return $this->factory->fromReport(400, 'malformed-json', 'Request body is not valid JSON.', ErrorReport::of(
+                new MappingError(JsonPointer::root(), 'source.malformed_json', $previous->getMessage()),
+            ));
+        }
+
+        return $this->factory->simple($status, 'http-error', Response::$statusTexts[$status] ?? 'HTTP error');
+    }
+
+    private static function unexpectedKeys(ExtraAttributesException $exception): ErrorReport
+    {
+        $errors = [];
+
+        foreach ($exception->getExtraAttributes() as $attribute) {
+            $name = \is_string($attribute) ? $attribute : (string) json_encode($attribute);
+            $errors[] = new MappingError(
+                JsonPointer::fromString('/' . $name),
+                'request.unexpected_key',
+                \sprintf('Unexpected member "%s".', $name),
+            );
+        }
+
+        return ErrorReport::of(...$errors);
     }
 
     private function violationResponse(int $status, ValidationFailedException $exception): Response

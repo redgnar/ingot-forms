@@ -84,11 +84,14 @@ final class ReadFormFileAction
     /**
      * The name for a client that cannot read the encoded one. A stored name may
      * be any text a person's filesystem allowed, and this header's plain half
-     * takes nothing but printable ASCII.
+     * takes nothing but printable ASCII — with `%`, `/` and `\` out, because
+     * {@see HeaderUtils::makeDisposition()} refuses all three outright. The store
+     * already strips separators when it records a name; doing it again here is
+     * what keeps a change over there from turning into a 500 over here.
      */
     private static function plainly(FileDescriptor $descriptor): string
     {
-        $fallback = preg_replace('#[^\x20-\x24\x26-\x7e]#', '_', $descriptor->name);
+        $fallback = preg_replace('#[^\x20-\x24\x26-\x2e\x30-\x5b\x5d-\x7e]#', '_', $descriptor->name);
 
         return $fallback === null || $fallback === '' ? 'file' : $fallback;
     }

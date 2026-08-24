@@ -6,7 +6,7 @@ namespace App\Domain\Forms\Exception;
 
 use Ingot\Error\ErrorReport;
 
-final class DefinitionNotValid extends \RuntimeException
+final class DefinitionNotValid extends \RuntimeException implements CarriesFindings
 {
     public function __construct(
         public readonly ErrorReport $report,
