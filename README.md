@@ -93,7 +93,14 @@ make ci         # validate + cs + openapi + docs + stan + deptrac + test + mutat
 
 `make setup` is the whole bootstrap for a fresh checkout; it refuses early with an explanation
 if the `ingot` library is not checked out next to this project, which is the one thing it cannot
-do for you. Afterwards `make up` and `make down` start and stop the stack — the database volume
+do for you. Among other things it writes you a `.env`.
+
+**`.env` is yours and is not in the repository; `.env.dist` is the committed one.** Everything
+this service reads is documented there with a value a development machine can use, and nothing
+in it is a secret — `make setup` (or `make env` on its own) copies it to `.env` and puts a random
+`APP_SECRET` in the copy. A clone with no `.env` still runs: Symfony falls back to `.env.dist`
+when `.env` is missing. A deployment sets what it needs in the real environment, which outranks
+both. Afterwards `make up` and `make down` start and stop the stack — the database volume
 survives a `down`, so the data is still there next time.
 
 The `php` service runs PHP's built-in dev server; `docker compose run` invocations from the

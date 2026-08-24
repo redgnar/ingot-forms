@@ -10,6 +10,7 @@ RUNDB := docker compose run --rm php
 
 setup: ## Bring a fresh checkout all the way up: image, dependencies, an empty database, serving
 	@[ -d ../ingot ] || { echo 'The ingot library must sit next to this project: git clone https://github.com/redgnar/ingot.git ../ingot'; exit 1; }
+	$(MAKE) env
 	$(MAKE) install
 	$(MAKE) down
 	$(MAKE) cache-clear
@@ -26,6 +27,14 @@ up: ## Serve the app on http://localhost:8000 (API under /api, pages under /form
 
 down: ## Stop the stack (the database volume survives; `docker compose down -v` drops it)
 	docker compose down
+
+env: ## Write a local .env from .env.dist, with an APP_SECRET of its own (keeps an existing one)
+	@if [ -f .env ]; then \
+		echo '.env is already there — leaving it alone.'; \
+	else \
+		sed "s|^APP_SECRET=.*|APP_SECRET=$$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')|" .env.dist > .env; \
+		echo 'Wrote .env from .env.dist, with an APP_SECRET of its own. It is yours: not in the repository.'; \
+	fi
 
 install: image
 	$(RUN) composer install

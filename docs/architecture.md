@@ -235,6 +235,14 @@ socket rather than a request's worth of memory.
 
 ## Operations
 
+**Configuration.** `.env.dist` is committed and documents every variable this service reads;
+`.env` is the local copy (`make env`) and is not in the repository, which is why nothing in
+`.env.dist` may be a real secret. Symfony reads `.env` when it is there and `.env.dist` when it
+is not, so a fresh clone runs before anybody configures anything. Precedence, highest first: the
+real environment a container or unit exports → `.env.local` → `.env` → `.env.dist`. `.env.test`
+holds the test database and a fixed `APP_SECRET` that is not one, and is committed because CI
+needs it.
+
 - **Deploy:** clear the pools that hold what this code derived — `bin/console
   cache:pool:clear --all`, which is what `make cache-clear` runs. Neither pool's key says
   anything about the rules behind the entry: `cache.ingot_mapper` keys on class names, and
@@ -274,6 +282,7 @@ when sizing a database, not a new promise.
 
 | Command | What it does |
 |---|---|
+| `make env` | write a local `.env` from `.env.dist`, with an `APP_SECRET` of its own |
 | `make install` / `make update` | composer install from the committed lock / move it deliberately (Docker, PHP 8.4) |
 | `make migrate` / `make db-test` | migrations for the dev / test database |
 | `make cache-clear` | throw away what this code derived (data schemas, mapper metadata) |

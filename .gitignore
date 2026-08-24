@@ -1,6 +1,9 @@
 /vendor/
 /.cache/
 /var/
+# Yours, and never committed: `.env.dist` is the documented one, and Symfony
+# falls back to it when this is missing.
+/.env
 /.env.local
 /.env.*.local
 /.phpunit.cache/

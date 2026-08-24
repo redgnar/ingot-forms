@@ -538,3 +538,9 @@ thing is one of the first five facts about the project.
   lock change — the symlink already points at the checkout.
 - Do not commit `vendor/`, `var/`, caches, `config/reference.php`, `.idea/`
   (see `.gitignore`).
+- **`.env` is not in the repository; `.env.dist` is.** Every variable is documented there with a
+  value a development machine can use, and **nothing in it may be a real secret** — Symfony falls
+  back to `.env.dist` when `.env` is missing, so a clone runs either way, and `make env` writes
+  the local copy with an `APP_SECRET` of its own. A new variable is added to `.env.dist` (and to
+  `docs/architecture.md`, which is where operations reads); adding it only to your own `.env` is
+  how the next person finds out it exists by reading a stack trace.
