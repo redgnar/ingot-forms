@@ -196,117 +196,17 @@ nav.language {
    pads a control by — which a skin drawing controls as underlines sets to zero,
    so "Choose file" and "No file chosen" run together into one word. The gap is
    between two labels, not inside a control, so it does not belong to whatever a
-   skin decided about padding. */
+   skin decided about padding.
+
+   And that is the whole of what this kit says about a file control. Everything
+   else it was saying — an icon in place of the browser's wording, the control
+   narrowed to its contents, the held file moved up beside the button — was
+   taken back: each rule was reasonable on its own and together they made a
+   control nobody had designed, whose button ended up taller than the box around
+   it. The browser draws a usable file control; the one thing it does not do is
+   leave a gap between its two halves when a skin has none. */
 .form-control[type="file"]::file-selector-button {
-    background-color: var(--bs-tertiary-bg);
-    /* A paperclip, and the one icon on these pages that is not a UX Icon in the
-       markup: `::file-selector-button` is the browser's own element, so nothing
-       can be put inside it and the picture has to arrive as a background. Which
-       also means `currentColor` is no use — a data URI is its own document and
-       knows nothing of the colour around it — so the two themes carry the two
-       colours, and this is the whole reason there is a second rule below. */
-    background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%23495057%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22m15%207l-6.5%206.5a1.5%201.5%200%200%200%203%203L18%2010a3%203%200%200%200-6-6l-6.5%206.5a4.5%204.5%200%200%200%209%209L21%2013%22%2F%3E%3C%2Fsvg%3E");
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: 1rem 1rem;
-    border: 1px solid var(--bs-border-color);
-    border-radius: var(--bs-border-radius);
-    /* The clip says it, so the browser's own wording is not drawn. Nothing is
-       lost by it: the accessible name of a file control comes from the label the
-       document gave the item — a screen reader announces "Logo, button", never
-       "Choose file" — so this hides a word that was never the one being read
-       out. What stays beside the button is the name of what is chosen, which is
-       the part that says something. */
-    font-size: 0;
-    /* Zeroing the font took the line with it and left a flattened pill. The
-       button is now the size of what it holds — the icon — plus its padding, and
-       it is centred against the text beside it rather than left on the baseline,
-       which with no text of its own would drop it to the floor of the control. */
-    line-height: 1.5rem;
     margin-inline-end: 0.75rem;
-    vertical-align: middle;
-    padding-block: 0.375rem;
-    padding-inline: 1.25rem;
-}
-
-/* A file control is a line, so it reads as one. The browser draws a button and,
-   beside it, the name of what is chosen — and the kit's own line, which carries
-   that name as a link along with the way to remove it, was stacked underneath,
-   leaving the room beside the button empty and saying the same thing twice over.
-   Put side by side, the two halves are what a file control looks like anyway:
-   the button, and then either what is held or the browser's "no file chosen".
-
-   Not the dropzone, which is a target rather than a strip and stacks its parts
-   in the middle of itself on purpose. */
-[data-controller="file"]:not([data-file-dropzone]) {
-    align-items: center;
-    column-gap: 0.75rem;
-    display: flex;
-    flex-wrap: wrap;
-}
-
-/* A file control is not a field, and painting it as one is what made it look
-   broken: a skin that draws `.form-control` as an underline runs that line the
-   width of the element, which after the line above ends nowhere in particular —
-   past the button, past the name, and stopping in mid-air. There is nothing to
-   underline here. What a person presses is the button, which has a frame of its
-   own, and beside it is a label. So the control keeps its size and gives up
-   everything a skin drew on it. */
-.form-control[type="file"] {
-    background: none;
-    border: 0;
-    box-shadow: none;
-    min-height: 0;
-    padding: 0;
-}
-
-[data-controller="file"]:not([data-file-dropzone]) > .form-control[type="file"] {
-    /* As wide as it has to be: full width would push everything else onto a line
-       of its own, which is the layout being undone. */
-    width: auto;
-}
-
-/* In a dropzone the parts are stacked and centred, so the button is too rather
-   than sitting against the left edge of a box it is in the middle of. */
-[data-file-dropzone] > .form-control[type="file"] {
-    display: block;
-    margin-inline: auto;
-    width: auto;
-}
-
-[data-controller="file"]:not([data-file-dropzone]) > [data-file-held] {
-    margin-top: 0;
-}
-
-/* One clip is enough. The line carries its own, for when it is stacked under a
-   dropzone and has to say what it is; standing beside a button that is already a
-   paperclip, it is the same picture twice. */
-[data-controller="file"]:not([data-file-dropzone]) > [data-file-held] > .icon {
-    display: none;
-}
-
-/* The bar belongs under both of them rather than beside either. */
-[data-controller="file"]:not([data-file-dropzone]) > .progress {
-    flex-basis: 100%;
-}
-
-/* Once a file is held, the browser's own "no file chosen" is not noise but a
-   contradiction: the line under the control names the file, links to the bytes
-   and offers to remove them, while the control beside it says there is none. The
-   control is the one that is wrong — the picker is deliberately emptied after
-   every upload so the same file can be chosen twice — so its text goes quiet and
-   the kit's line does the talking. Only the words are hidden: the button keeps
-   its icon, and a screen reader still reads the control it always did. */
-[data-item]:has([data-file-held]:not(.d-none)) .form-control[type="file"] {
-    /* Not `color: transparent`: an invisible sentence still takes the width of
-       one, and that width is the empty room beside the button this was meant to
-       reclaim. At nothing, the control is the button and the line moves up
-       beside it. */
-    font-size: 0;
-}
-
-[data-bs-theme="dark"] .form-control[type="file"]::file-selector-button {
-    background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%23dee2e6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22m15%207l-6.5%206.5a1.5%201.5%200%200%200%203%203L18%2010a3%203%200%200%200-6-6l-6.5%206.5a4.5%204.5%200%200%200%209%209L21%2013%22%2F%3E%3C%2Fsvg%3E");
 }
 
 /* The way into an entry's own form. Closed — which is how a list of eight of
