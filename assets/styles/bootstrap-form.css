@@ -218,7 +218,16 @@ nav.language {
     flex-wrap: wrap;
 }
 
-.form-control[type="file"] {
+/* Written with the element and the states, not just the class: Materia
+   underlines `input.form-control` and thickens the line to two blue pixels on
+   `:focus`, and that selector outweighs a bare class with an attribute. In rest
+   the plain rule was enough, which is why the line only ever appeared after the
+   button had been pressed — the one state nobody thinks to look at. */
+input.form-control[type="file"],
+input.form-control[type="file"]:hover,
+input.form-control[type="file"]:focus,
+input.form-control[type="file"]:focus-visible,
+input.form-control[type="file"]:active {
     background: none;
     border: 0;
     box-shadow: none;
