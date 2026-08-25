@@ -334,6 +334,13 @@ that the plain kit has no markup for.
   the file that is held with a download link and a "remove" button
 - **From the definition:** `accept`, `maxSize`
 - **Options:** —
+- **Notes:** the browser's own half of the control is hidden — the wording beside its button, and
+  the name it would put there — and the kit's line stands to the right of the button rather than
+  beneath it: the file's name as a link to the bytes, with the way to remove them. One fact in
+  one place, on one line. Only what is *drawn* is hidden: the accessible name of a file control
+  comes from the label the document gave the item, so a screen reader announces "Contract,
+  button" and never read that wording anyway. A `dropzone` keeps its parts stacked and centred,
+  because there the target is the point.
 
 ### `dropzone`
 

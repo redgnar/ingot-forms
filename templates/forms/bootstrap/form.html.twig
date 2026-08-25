@@ -524,6 +524,7 @@
             <div{{ html.attributes({
                 'class': node.widget == 'dropzone' ? 'border border-2 border-secondary-subtle rounded-3 p-4 text-center' : null,
                 'data-controller': 'file',
+                'data-file-dropzone': node.widget == 'dropzone' ? true : null,
                 'data-action': node.widget == 'dropzone' and not readOnly
                     ? 'dragover->file#over dragleave->file#leave drop->file#dropped file:place->file#place'
                     : 'file:place->file#place',
@@ -606,6 +607,7 @@
                 'class': 'form-control',
                 'step': node.options.seconds|default(false) ? 1 : null,
                 'data-controller': 'moment',
+                'data-action': 'pointerdown->moment#pointer keydown->moment#typed change->moment#chosen',
                 'data-moment': node.value,
                 'data-moment-min': node.min,
                 'data-moment-max': node.max,

@@ -191,22 +191,84 @@ nav.language {
     padding: 0.6rem 0.75rem;
 }
 
-/* A file control is two pieces of text in one box: the browser's own button and
-   the name of what is chosen. Bootstrap separates them with the same measure it
-   pads a control by — which a skin drawing controls as underlines sets to zero,
-   so "Choose file" and "No file chosen" run together into one word. The gap is
-   between two labels, not inside a control, so it does not belong to whatever a
-   skin decided about padding.
+/* A file control is a button and what it holds.
+ *
+ * The browser draws it as two things in one box: a button, and beside it the
+ * name of what is chosen — "no file chosen" while there is nothing. The kit
+ * draws a third, underneath: the name as a link to the bytes, with the way to
+ * remove them. So the same fact was stated twice, in two places, one of them
+ * always out of date, and the box around them was painted like a text field
+ * although nothing in it is typed.
+ *
+ * One line now: the button, and to the right of it whatever the kit has to say.
+ * The browser's own half is hidden rather than restyled — `font-size: 0` takes
+ * the wording away *and* the width it occupied, which is the room the line moves
+ * into; the button gets its size back and is the only thing left of the control.
+ * Nothing is asked of the box, so the skin's underline goes with it.
+ *
+ * Only the button is hidden from sight, never from anybody: the accessible name
+ * of a file control comes from the label the document gave the item — a screen
+ * reader announces "Contract, button" — so what is dropped here was never what
+ * it read out.
+ */
+[data-controller="file"]:not([data-file-dropzone]) {
+    align-items: center;
+    column-gap: 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
+}
 
-   And that is the whole of what this kit says about a file control. Everything
-   else it was saying — an icon in place of the browser's wording, the control
-   narrowed to its contents, the held file moved up beside the button — was
-   taken back: each rule was reasonable on its own and together they made a
-   control nobody had designed, whose button ended up taller than the box around
-   it. The browser draws a usable file control; the one thing it does not do is
-   leave a gap between its two halves when a skin has none. */
+.form-control[type="file"] {
+    background: none;
+    border: 0;
+    box-shadow: none;
+    /* Hides the browser's own wording and the width it took. The padding stays:
+       it is what gives the control its height, and taking it away once left a
+       button standing taller than the box it sits in. */
+    font-size: 0;
+    padding-inline: 0;
+    width: auto;
+}
+
 .form-control[type="file"]::file-selector-button {
-    margin-inline-end: 0.75rem;
+    /* Size back, and a clip in front of the wording — the one icon on these
+       pages that is not a UX Icon in the markup, because `::file-selector-button`
+       is the browser's own element and nothing can be put inside it. A data URI
+       is its own document and knows nothing of `currentColor`, which is why the
+       dark theme carries the second copy below. */
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%23495057%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22m15%207l-6.5%206.5a1.5%201.5%200%200%200%203%203L18%2010a3%203%200%200%200-6-6l-6.5%206.5a4.5%204.5%200%200%200%209%209L21%2013%22%2F%3E%3C%2Fsvg%3E");
+    background-position: 0.75rem center;
+    background-repeat: no-repeat;
+    background-size: 1rem 1rem;
+    font-size: 1rem;
+    margin-inline-end: 0;
+    padding-inline: 2.25rem 1rem;
+}
+
+[data-bs-theme="dark"] .form-control[type="file"]::file-selector-button {
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%23dee2e6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22m15%207l-6.5%206.5a1.5%201.5%200%200%200%203%203L18%2010a3%203%200%200%200-6-6l-6.5%206.5a4.5%204.5%200%200%200%209%209L21%2013%22%2F%3E%3C%2Fsvg%3E");
+}
+
+/* Beside the button rather than beneath it, and no clip of its own: the button
+   in front of it already is one. */
+[data-controller="file"]:not([data-file-dropzone]) > [data-file-held] {
+    margin-top: 0;
+}
+
+[data-controller="file"]:not([data-file-dropzone]) > [data-file-held] > .icon {
+    display: none;
+}
+
+/* The bar belongs under both of them rather than beside either. */
+[data-controller="file"]:not([data-file-dropzone]) > .progress {
+    flex-basis: 100%;
+}
+
+/* A dropzone stacks its parts in the middle of a target on purpose, so the
+   button is centred there instead of standing against the left edge. */
+[data-file-dropzone] > .form-control[type="file"] {
+    display: block;
+    margin-inline: auto;
 }
 
 /* The way into an entry's own form. Closed — which is how a list of eight of

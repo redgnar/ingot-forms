@@ -569,6 +569,28 @@ if (comfort !== null) {
     // find the summary again to put it away is making them aim twice.
     showMoments(document);
 
+// A browser's date-time picker cannot be closed from here — there is
+// `showPicker()` and nothing to answer it — so the field is let go of once
+// something has been chosen with a pointer, which closes it. Only with a
+// pointer: on the keyboard a value becomes complete half way through typing one,
+// and taking the focus away there would throw somebody out of the field.
+let pickedWithPointer = false;
+
+document.addEventListener('pointerdown', (event) => {
+    if (event.target.matches?.('input[type="datetime-local"]')) pickedWithPointer = true;
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.target.matches?.('input[type="datetime-local"]')) pickedWithPointer = false;
+});
+
+document.addEventListener('change', (event) => {
+    if (!pickedWithPointer || !event.target.matches?.('input[type="datetime-local"]')) return;
+
+    pickedWithPointer = false;
+    event.target.blur();
+});
+
 document.addEventListener('click', (event) => {
         if (comfort.open && !comfort.contains(event.target)) comfort.open = false;
     });
