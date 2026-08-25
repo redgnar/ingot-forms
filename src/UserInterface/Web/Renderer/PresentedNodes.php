@@ -7,6 +7,7 @@ namespace App\UserInterface\Web\Renderer;
 use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
+use App\Domain\Forms\Definition\DateTimeField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\NumberField;
@@ -177,8 +178,8 @@ final class PresentedNodes
                         $field->options,
                     )
                     : [],
-                $field instanceof NumberField ? $field->min : ($field instanceof DateField ? $field->min : null),
-                $field instanceof NumberField ? $field->max : ($field instanceof DateField ? $field->max : null),
+                self::lowerBound($field),
+                self::upperBound($field),
                 $field instanceof NumberField && $field->decimals !== null ? 10 ** -$field->decimals : null,
                 $field instanceof TextField ? $field->maxLength : null,
                 $field instanceof TextField ? $field->pattern : null,
@@ -507,11 +508,32 @@ final class PresentedNodes
     {
         return match (true) {
             $field instanceof SelectField => 'select',
+            $field instanceof DateTimeField => 'datetime',
             $field instanceof NumberField => 'number',
             $field instanceof DateField => 'date',
             $field instanceof CheckboxField => 'checkbox',
             $field instanceof FileField => 'file',
             default => 'text',
+        };
+    }
+
+    /** The earliest answer the definition allows, in whatever a control reads it as. */
+    private static function lowerBound(Field $field): float|string|null
+    {
+        return match (true) {
+            $field instanceof NumberField => $field->min,
+            $field instanceof DateField, $field instanceof DateTimeField => $field->min,
+            default => null,
+        };
+    }
+
+    /** And the latest. */
+    private static function upperBound(Field $field): float|string|null
+    {
+        return match (true) {
+            $field instanceof NumberField => $field->max,
+            $field instanceof DateField, $field instanceof DateTimeField => $field->max,
+            default => null,
         };
     }
 

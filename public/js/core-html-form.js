@@ -9,6 +9,52 @@ const formId = document.body.dataset.form;
 const problem = (response) => response.json().catch(() => ({}));
 const saved = document.getElementById('form-saved');
 
+// Between a moment and a reading on a wall.
+//
+// The API speaks RFC 3339: a day, a time, and the offset that makes the two mean
+// one instant. A `datetime-local` control speaks the wall it is standing next
+// to, and the browser is the only party that knows which wall that is — the
+// server has no idea which room the page is open in. So the moment travels in
+// `data-moment*` and these two do the turning.
+function localReading(moment) {
+    if (!moment) return '';
+
+    const at = new Date(moment);
+    if (Number.isNaN(at.getTime())) return '';
+
+    const pad = (n) => String(n).padStart(2, '0');
+
+    return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`
+        + `T${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
+}
+
+// The offset is worked out for that day and not for today: an hour in March and
+// an hour in July are not the same distance from UTC where summer time is kept.
+function withOffset(reading) {
+    if (!reading) return '';
+
+    const at = new Date(reading);
+    if (Number.isNaN(at.getTime())) return reading;
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const seconds = reading.length === 16 ? `${reading}:00` : reading;
+    const minutesEast = -at.getTimezoneOffset();
+    const sign = minutesEast < 0 ? '-' : '+';
+    const size = Math.abs(minutesEast);
+
+    return `${seconds}${sign}${pad(Math.floor(size / 60))}:${pad(size % 60)}`;
+}
+
+// Every date-time on the page, or in a part of it just cloned, shown on this
+// reader's wall.
+function showMoments(scope) {
+    for (const control of scope.querySelectorAll('input[type="datetime-local"]')) {
+        control.min = localReading(control.dataset.momentMin);
+        control.max = localReading(control.dataset.momentMax);
+        control.value = localReading(control.dataset.moment);
+    }
+}
+
 // Structure carries identity: what a control answers is read from where it
 // sits, so a list's entries are collected in the order they appear and nothing
 // has to be renumbered when one is added or removed.
@@ -32,6 +78,11 @@ function collect(scope = document.getElementById('form')) {
 
         const raw = control.value;
         if (raw === '') continue;
+
+        if (control.type === 'datetime-local') {
+            values[name] = withOffset(raw);
+            continue;
+        }
 
         // A file's value is a whole document — the description the upload
         // answered with — carried in a hidden control as the JSON it is.
@@ -325,6 +376,7 @@ function addEntry(list, answering = false) {
 
     for (const nested of entry?.querySelectorAll('[data-collection]') ?? []) guard(nested);
     guard(list);
+    if (entry !== null && entry !== undefined) showMoments(entry);
 
     // Somebody who asked for one more entry is about to answer it, and the form
     // they answer it in is below the row they pressed. A document being put back
@@ -515,7 +567,9 @@ if (comfort !== null) {
     // A panel laid over the page is closed the way anything laid over a page is
     // closed: by looking somewhere else, or by pressing Escape. Making somebody
     // find the summary again to put it away is making them aim twice.
-    document.addEventListener('click', (event) => {
+    showMoments(document);
+
+document.addEventListener('click', (event) => {
         if (comfort.open && !comfort.contains(event.target)) comfort.open = false;
     });
 

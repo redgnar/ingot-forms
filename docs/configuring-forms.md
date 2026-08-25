@@ -101,6 +101,7 @@ widget to draw.
 | `select` | one of the declared options | `options` — at least one, no repeats |
 | `number` | JSON number | `min`, `max`, `decimals` |
 | `date` | `YYYY-MM-DD`, a day that exists | `min`, `max` — calendar dates, `min` no later than `max` |
+| `datetime` | RFC 3339 with an offset: `2026-03-01T14:30:00+01:00` | `min`, `max` — moments, `min` no later than `max` |
 | `checkbox` | JSON boolean | `mustBeChecked` |
 | `collection` | JSON array of objects, one per entry | `items` (a definition of its own, 1–1000), `min`, `max` |
 | `file` | the description of an uploaded file: `{id, name, size, type}` | `accept` (media types, at least one, no repeats), `maxSize` — both required |
@@ -116,6 +117,16 @@ Five of those say something worth spelling out:
   both refuse `1.15`, `0.07` and `0.29` on `multipleOf: 0.01`, so publishing it would hand every
   client a rule that rejects ordinary money. A value with too many places is refused at its own
   pointer with `form.value.decimals`. Without `decimals`, any number goes.
+- **A `datetime` carries an offset, and that is what it is for.** A `date` is a square on a
+  calendar and means the same thing to everybody; a time of day without an offset is a reading
+  on somebody's wall, and two people answering one form would mean two different instants by it.
+  So `2026-03-01T14:30:00+01:00` is the shape, `Z` counts as an offset, and `2026-03-01T14:30:00`
+  is refused. Both are said in the published contract, because they have to be said twice:
+  `format: date-time` names the shape, and a `pattern` beside it insists on the offset — every
+  implementation reads `date-time` a little differently and the common ones let a string with no
+  offset through. A period is judged by the **instants**, never by the text, so
+  `2026-01-01T00:30:00+01:00` is *before* `2026-01-01T00:00:00Z` however the two sort as
+  strings. A bound that is not a moment is `form.field.not-a-moment` where it was written.
 - **A date range is published, not just enforced.** `formatMinimum` / `formatMaximum` are the
   keywords ajv-formats uses, and ingot implements them, because standard JSON Schema cannot
   bound a string in time — so the range is checked against the same document a client
@@ -880,6 +891,7 @@ so a page can mark the control instead of announcing that the document is incomp
 | `form.field.duplicate-name` | two items in the same scope share a `name` |
 | `form.field.impossible-range` | `min` is greater than `max` |
 | `form.field.not-a-date` | a `min`/`max` on a date is not a calendar day |
+| `form.field.not-a-moment` | a `min`/`max` on a datetime is not an RFC 3339 moment with an offset |
 | `form.collection.required-not-allowed` | `required` on a collection — use `min` instead |
 | `form.collection.too-deep` | lists nested inside lists more than five deep |
 | `form.file.not-a-media-type` | an `accept` entry is not a media type |

@@ -1,4 +1,5 @@
 import { Controller } from '@hotwired/stimulus';
+import { withOffset } from '../moments.js';
 
 /**
  * The page's side of the form: collect what the controls hold, send it to the
@@ -136,6 +137,13 @@ export default class extends Controller {
 
             const raw = control.value;
             if (raw === '') continue;
+
+            // A wall clock on the way back to being a moment: the control has no
+            // offset in it, and the API takes nothing else.
+            if (control.type === 'datetime-local') {
+                values[name] = withOffset(raw);
+                continue;
+            }
 
             // A file's value is a whole document — the description the upload
             // answered with — carried in a hidden control as the JSON it is.

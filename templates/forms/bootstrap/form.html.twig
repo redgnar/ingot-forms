@@ -599,6 +599,21 @@
                 'max': node.max,
                 'value': node.value,
             }))|raw }}>
+        {% elseif node.widget == 'datetime' %}
+            {# A `datetime-local` control reads and writes a wall clock with no
+               offset, while the value it carries is a moment. Only the browser
+               knows which wall it is on, so the moment travels in `data-moment*`
+               and the controller fills the control in from it — which also picks
+               up a cloned entry, because Stimulus connects one. #}
+            <input{{ html.attributes(common|merge({
+                'type': 'datetime-local',
+                'class': 'form-control',
+                'step': 1,
+                'data-controller': 'moment',
+                'data-moment': node.value,
+                'data-moment-min': node.min,
+                'data-moment-max': node.max,
+            }))|raw }}>
         {% else %}
             <input{{ html.attributes(common|merge({
                 'type': node.widget == 'hidden' ? 'hidden' : 'text',

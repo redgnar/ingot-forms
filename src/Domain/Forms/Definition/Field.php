@@ -16,6 +16,9 @@ use Ingot\Attribute\Discriminator;
     'select' => SelectField::class,
     'number' => NumberField::class,
     'date' => DateField::class,
+    // A moment rather than a square on a calendar: the offset is what makes it
+    // mean the same thing to two people reading the same form.
+    'datetime' => DateTimeField::class,
     'checkbox' => CheckboxField::class,
     // Bytes kept beside the form; what the values document holds is the
     // description of them.

@@ -315,6 +315,92 @@ final class BootstrapFormPageTest extends PantherTestCase
     /**
      * Creates a form through the API, exactly as anything else would.
      */
+    public function testAWallClockIsShownAsOneAndGoesOutAsTheMomentItNames(): void
+    {
+        // GIVEN a form already holding a moment, drawn for a person
+        $id = $this->plantMoment('2026-06-15T12:00:00Z');
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+        // THEN the control shows a reading on this reader's own wall — no offset
+        // in it, because a `datetime-local` has nowhere to put one — and the
+        // reading is the moment as this machine's clock tells it
+        $control = $this->browser->findElement(WebDriverBy::id('item-starts'));
+        $shown = $control->getAttribute('value');
+        self::assertIsString($shown);
+        // A browser hands the value back without the seconds when they are zero,
+        // so the two are compared in the same shape.
+        self::assertSame(
+            new \DateTimeImmutable('2026-06-15T12:00:00Z')->setTimezone(new \DateTimeZone(date_default_timezone_get()))->format('Y-m-d\TH:i:s'),
+            \strlen($shown) === 16 ? $shown . ':00' : $shown,
+        );
+
+        // WHEN another reading is put in its place and the form is saved. Typed
+        // rather than set, a `datetime-local` is filled field by field in the
+        // browser's own locale order — which is a test of a browser's keyboard
+        // handling, and the conversion is what is under test here.
+        $this->browser->executeScript(\sprintf(
+            'document.getElementById(%s).value = %s',
+            json_encode('item-starts', \JSON_THROW_ON_ERROR),
+            json_encode('2026-07-01T09:30:00', \JSON_THROW_ON_ERROR),
+        ));
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="click->form#save"]'))->click();
+
+        // THEN what reaches the API is a moment: the same reading, with the
+        // offset this machine was standing in on that day added to it
+        $sent = $this->eventually(function () use ($id): ?string {
+            $starts = $this->values($id)['starts'] ?? null;
+
+            return \is_string($starts) && $starts !== '2026-06-15T12:00:00Z' ? $starts : null;
+        });
+
+        self::assertIsString($sent);
+        self::assertMatchesRegularExpression(
+            '/^2026-07-01T09:30:00([Zz]|[+-]\d{2}:\d{2})$/',
+            $sent,
+            'The page must send a moment, not the wall clock it was typed on.',
+        );
+        self::assertSame(
+            new \DateTimeImmutable('2026-07-01T09:30:00', new \DateTimeZone(date_default_timezone_get()))->getTimestamp(),
+            new \DateTimeImmutable($sent)->getTimestamp(),
+            'The moment sent must be the one the reading names here.',
+        );
+    }
+
+    private function plantMoment(string $held): string
+    {
+        $response = $this->api->request('POST', '/api/forms', [
+            'json' => [
+                'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
+                'definition' => ['items' => [
+                    ['type' => 'datetime', 'name' => 'starts', 'required' => true,
+                        'min' => '2026-01-01T00:00:00Z', 'max' => '2026-12-31T23:59:59Z'],
+                ]],
+                'presentation' => [
+                    'engine' => 'bootstrap',
+                    'defaultLocale' => 'en',
+                    'items' => [
+                        ['name' => 'starts', 'widget' => 'datetime', 'label' => 'when.starts'],
+                        ['widget' => 'save', 'label' => 'when.save'],
+                        ['widget' => 'confirm', 'label' => 'when.send'],
+                    ],
+                    'translations' => ['en' => [
+                        'when.starts' => 'Starts on',
+                        'when.save' => 'Save for later',
+                        'when.send' => 'Send',
+                    ]],
+                ],
+                'data' => ['starts' => $held],
+            ],
+        ]);
+
+        self::assertSame(201, $response->getStatusCode());
+        $body = json_decode($response->getContent(), true, flags: \JSON_THROW_ON_ERROR);
+        self::assertIsArray($body);
+        self::assertIsString($body['id']);
+
+        return $body['id'];
+    }
+
     private function plant(?string $skin = null): string
     {
         $response = $this->api->request('POST', '/api/forms', [

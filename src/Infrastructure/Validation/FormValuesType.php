@@ -7,6 +7,7 @@ namespace App\Infrastructure\Validation;
 use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
+use App\Domain\Forms\Definition\DateTimeField;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
@@ -50,6 +51,10 @@ final class FormValuesType extends AbstractType
                 // published schema, and enforced there; here it is the text it
                 // travels as, so this stage cannot end up stricter.
                 $field instanceof DateField => [TextType::class, self::dateOptions($field, $strict)],
+                // A moment travels as the text it is written in, and every rule
+                // about that text — the shape, the offset, the period — is said
+                // in the published schema and enforced there.
+                $field instanceof DateTimeField => [TextType::class, self::momentOptions($field, $strict)],
                 // Whether a box may be left undecided, and whether it has to be
                 // ticked, are both said in the published schema and enforced
                 // there; this stage only takes the boolean as it came.
@@ -114,6 +119,20 @@ final class FormValuesType extends AbstractType
      * @return array<string, mixed>
      */
     private static function dateOptions(DateField $field, bool $strict): array
+    {
+        $constraints = [];
+
+        if ($strict && $field->required) {
+            $constraints[] = new Assert\NotBlank(message: 'This field is required.', payload: ['code' => 'form.value.required']);
+        }
+
+        return ['required' => false, 'constraints' => $constraints];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function momentOptions(DateTimeField $field, bool $strict): array
     {
         $constraints = [];
 

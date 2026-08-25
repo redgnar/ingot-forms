@@ -9,6 +9,8 @@ use App\Domain\Forms\Definition\CollectionDepthValidator;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateRangeValidator;
+use App\Domain\Forms\Definition\DateTimeField;
+use App\Domain\Forms\Definition\DateTimeRangeValidator;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileAcceptValidator;
 use App\Domain\Forms\Definition\FileField;
@@ -61,6 +63,7 @@ final class FormMapperFactory
             ->withValidator(NumberField::class, new NumberRangeValidator())
             ->withValidator(FileField::class, new FileAcceptValidator())
             ->withValidator(DateField::class, new DateRangeValidator())
+            ->withValidator(DateTimeField::class, new DateTimeRangeValidator())
             ->withSchema(PresentationDocument::class, Schema::fromFile(MetaSchema::Presentation->file()))
             ->withValidator(PresentationDocument::class, new UniqueItemNamesValidator())
             ->withValidator(PresentationDocument::class, new TriggersBelongToTheFormValidator())

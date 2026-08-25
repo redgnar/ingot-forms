@@ -472,6 +472,18 @@
             }))|raw }}>
         {% elseif node.widget == 'date' %}
             <input{{ html.attributes(common|merge({'type': 'date', 'min': node.min, 'max': node.max, 'value': node.value}))|raw }}>
+        {% elseif node.widget == 'datetime' %}
+            {# A `datetime-local` control reads and writes a wall clock with no
+               offset, while the value it carries is a moment. Only the browser
+               knows which wall it is on, so the moment travels in `data-moment*`
+               and the page fills in the control from it. #}
+            <input{{ html.attributes(common|merge({
+                'type': 'datetime-local',
+                'step': 1,
+                'data-moment': node.value,
+                'data-moment-min': node.min,
+                'data-moment-max': node.max,
+            }))|raw }}>
         {% elseif node.widget == 'file' %}
             {# Two controls and a line of text. The hidden one is the value —
                the description the upload answered with, carried as the JSON it

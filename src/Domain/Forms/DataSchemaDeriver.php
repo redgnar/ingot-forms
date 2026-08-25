@@ -7,6 +7,7 @@ namespace App\Domain\Forms;
 use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
+use App\Domain\Forms\Definition\DateTimeField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\FormDefinition;
@@ -122,6 +123,30 @@ final class DataSchemaDeriver
             // ten characters, and the two bounds are how a period is said —
             // standard JSON Schema has no way to bound a string in time.
             $schema = ['type' => 'string', 'format' => 'date'];
+
+            if ($field->min !== null) {
+                $schema['formatMinimum'] = $field->min;
+            }
+
+            if ($field->max !== null) {
+                $schema['formatMaximum'] = $field->max;
+            }
+
+            return $schema;
+        }
+
+        if ($field instanceof DateTimeField) {
+            // `format` says what this is; the pattern says the part of RFC 3339
+            // that `format` does not enforce. Every implementation reads
+            // `date-time` a little differently and the common ones admit a
+            // string with no offset — which is not a moment, only a reading on
+            // a wall, and two readers would mean two different instants by it.
+            // Stated here so the published contract refuses it as well.
+            $schema = [
+                'type' => 'string',
+                'format' => 'date-time',
+                'pattern' => '^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})$',
+            ];
 
             if ($field->min !== null) {
                 $schema['formatMinimum'] = $field->min;

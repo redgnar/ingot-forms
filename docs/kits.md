@@ -103,6 +103,19 @@ for when a form is a form rather than a product.
 - **Options:** —
 - **Notes:** the browser draws its own calendar; the range it offers is the definition's.
 
+### `datetime` — the natural control for a `datetime` item
+
+- **Draws:** `<input type="datetime-local" step="1">`
+- **From the definition:** `min`, `max`
+- **Notes:** the control reads and writes a wall clock with no offset in it, while the value is
+  a moment — so the moment travels in `data-moment`, `data-moment-min` and `data-moment-max`, and
+  the page fills the control in from it. Only the browser knows which wall it is standing next
+  to; the server has no idea which room the page is open in. On the way back the reading becomes
+  a moment again, with the offset worked out **for that day** rather than for today, so an hour
+  in March and an hour in July are not forced to the same distance from UTC where summer time is
+  kept. Without JavaScript the control stays empty, which is true of everything on these pages:
+  they are clients of the API.
+
 ### `checkbox` / `switch` — for a `checkbox` item
 
 - **Draws:** `<input type="checkbox">`
@@ -294,6 +307,14 @@ that the plain kit has no markup for.
 
 - **Draws:** `<input type="date" class="form-control">`
 - **From the definition:** `min`, `max`
+
+### `datetime`
+
+- **Draws:** `<input type="datetime-local" step="1" class="form-control" data-controller="moment">`
+- **From the definition:** `min`, `max`
+- **Notes:** as in the plain kit — the moment travels in `data-moment*` and the page turns it
+  into a reading on the reader's own wall, and back again on the way out. Here that is a Stimulus
+  controller, which means a cloned entry's control is filled in without anybody arranging it.
 
 ### `checkbox` / `switch`
 

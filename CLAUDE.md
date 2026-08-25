@@ -425,6 +425,18 @@ Rules that follow from it, and that the tooling checks:
   Findings point where the mistake is — `/items/1/items/0/name` in a definition,
   `/lines/2/quantity` in values. Adding a rule means asking where its scope is before asking
   anything else.
+- **A `datetime` is a moment and a `date` is a square on a calendar**, which is why they are
+  two item types rather than one with an option. The offset is the whole difference: without it
+  a time of day is a reading on somebody's wall and two people answering one form mean two
+  different instants by it. It is stated twice in the derived schema — `format: date-time` for
+  the shape, a `pattern` beside it for the offset — because every implementation reads
+  `date-time` differently and the common ones admit a string without one; and a period is
+  compared as **instants**, so `2026-01-01T00:30:00+01:00` is before `2026-01-01T00:00:00Z`
+  however the two sort as text. `formatMinimum`/`formatMaximum` learnt `date-time` in ingot for
+  this, which is why that change went there first. On a page the control is a wall clock
+  (`datetime-local` has no offset in it), so the moment travels in `data-moment*` and each kit
+  turns it into the reader's own reading and back — the browser being the only party that knows
+  which wall it is standing next to.
 - **A definition says what is asked, never how it looks.** There is no presentation in it:
   `textarea` is one way to show a text item, `radio` one way to show a select, and both are
   the client's business. So an item type is added when it brings **rules of its own** — a date

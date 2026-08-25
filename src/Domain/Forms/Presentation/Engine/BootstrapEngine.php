@@ -7,6 +7,7 @@ namespace App\Domain\Forms\Presentation\Engine;
 use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
+use App\Domain\Forms\Definition\DateTimeField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\NumberField;
@@ -54,6 +55,7 @@ final class BootstrapEngine implements PresentationEngine
         SelectField::class => ['select', 'radio', 'radio-buttons', 'autocomplete'],
         NumberField::class => ['number', 'range', 'stepper'],
         DateField::class => ['date'],
+        DateTimeField::class => ['datetime'],
         CheckboxField::class => ['checkbox', 'switch'],
         CollectionField::class => ['table'],
         FileField::class => ['file', 'dropzone'],
