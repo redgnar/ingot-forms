@@ -479,7 +479,7 @@
                and the page fills in the control from it. #}
             <input{{ html.attributes(common|merge({
                 'type': 'datetime-local',
-                'step': 1,
+                'step': node.options.seconds|default(false) ? 1 : null,
                 'data-moment': node.value,
                 'data-moment-min': node.min,
                 'data-moment-max': node.max,

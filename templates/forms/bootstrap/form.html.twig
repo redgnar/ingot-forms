@@ -608,7 +608,7 @@
             <input{{ html.attributes(common|merge({
                 'type': 'datetime-local',
                 'class': 'form-control',
-                'step': 1,
+                'step': node.options.seconds|default(false) ? 1 : null,
                 'data-controller': 'moment',
                 'data-moment': node.value,
                 'data-moment-min': node.min,

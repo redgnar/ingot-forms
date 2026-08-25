@@ -334,14 +334,16 @@ final class BootstrapFormPageTest extends PantherTestCase
             \strlen($shown) === 16 ? $shown . ':00' : $shown,
         );
 
-        // WHEN another reading is put in its place and the form is saved. Typed
+        // WHEN another reading is put in its place and the form is saved —
+        // without seconds, which is the shape the control hands over unless the
+        // document asked for them, and which has to come back as `:00`. Typed
         // rather than set, a `datetime-local` is filled field by field in the
-        // browser's own locale order — which is a test of a browser's keyboard
-        // handling, and the conversion is what is under test here.
+        // browser's own locale order — a test of the browser's keyboard
+        // handling, where the conversion is what is under test here.
         $this->browser->executeScript(\sprintf(
             'document.getElementById(%s).value = %s',
             json_encode('item-starts', \JSON_THROW_ON_ERROR),
-            json_encode('2026-07-01T09:30:00', \JSON_THROW_ON_ERROR),
+            json_encode('2026-07-01T09:30', \JSON_THROW_ON_ERROR),
         ));
         $this->browser->findElement(WebDriverBy::cssSelector('[data-action="click->form#save"]'))->click();
 

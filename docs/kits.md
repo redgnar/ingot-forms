@@ -105,8 +105,11 @@ for when a form is a form rather than a product.
 
 ### `datetime` — the natural control for a `datetime` item
 
-- **Draws:** `<input type="datetime-local" step="1">`
+- **Draws:** `<input type="datetime-local">`
 - **From the definition:** `min`, `max`
+- **Options:** `seconds: true` — ask for seconds as well, which adds `step="1"`. Left out, the
+  control asks for a day and a time of day and the seconds are zero; a form asking when a
+  meeting starts does not want a spinner for them.
 - **Notes:** the control reads and writes a wall clock with no offset in it, while the value is
   a moment — so the moment travels in `data-moment`, `data-moment-min` and `data-moment-max`, and
   the page fills the control in from it. Only the browser knows which wall it is standing next
@@ -310,8 +313,9 @@ that the plain kit has no markup for.
 
 ### `datetime`
 
-- **Draws:** `<input type="datetime-local" step="1" class="form-control" data-controller="moment">`
+- **Draws:** `<input type="datetime-local" class="form-control" data-controller="moment">`
 - **From the definition:** `min`, `max`
+- **Options:** `seconds: true` — as in the plain kit.
 - **Notes:** as in the plain kit — the moment travels in `data-moment*` and the page turns it
   into a reading on the reader's own wall, and back again on the way out. Here that is a Stimulus
   controller, which means a cloned entry's control is filled in without anybody arranging it.

@@ -245,9 +245,32 @@ nav.language {
     flex-wrap: wrap;
 }
 
+/* A file control is not a field, and painting it as one is what made it look
+   broken: a skin that draws `.form-control` as an underline runs that line the
+   width of the element, which after the line above ends nowhere in particular —
+   past the button, past the name, and stopping in mid-air. There is nothing to
+   underline here. What a person presses is the button, which has a frame of its
+   own, and beside it is a label. So the control keeps its size and gives up
+   everything a skin drew on it. */
+.form-control[type="file"] {
+    background: none;
+    border: 0;
+    box-shadow: none;
+    min-height: 0;
+    padding: 0;
+}
+
 [data-controller="file"]:not([data-file-dropzone]) > .form-control[type="file"] {
     /* As wide as it has to be: full width would push everything else onto a line
        of its own, which is the layout being undone. */
+    width: auto;
+}
+
+/* In a dropzone the parts are stacked and centred, so the button is too rather
+   than sitting against the left edge of a box it is in the middle of. */
+[data-file-dropzone] > .form-control[type="file"] {
+    display: block;
+    margin-inline: auto;
     width: auto;
 }
 
