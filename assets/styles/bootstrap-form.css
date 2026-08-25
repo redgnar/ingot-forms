@@ -246,12 +246,27 @@ input.form-control[type="file"]:active {
        is its own document and knows nothing of `currentColor`, which is why the
        dark theme carries the second copy below. */
     background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%23495057%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22m15%207l-6.5%206.5a1.5%201.5%200%200%200%203%203L18%2010a3%203%200%200%200-6-6l-6.5%206.5a4.5%204.5%200%200%200%209%209L21%2013%22%2F%3E%3C%2Fsvg%3E");
-    background-position: 0.75rem center;
+    background-position: 0.875rem center;
     background-repeat: no-repeat;
     background-size: 1rem 1rem;
+    /* Bootstrap draws one edge on this button — the right one — to part it from
+       the rest of the field. There is no rest of the field any more, so the edge
+       was a black bar hanging off the button in the skins that colour it. The
+       button says what it is with its own fill and corners instead. */
+    border-radius: var(--bs-border-radius);
+    border-width: 0;
     font-size: 1rem;
-    margin-inline-end: 0;
-    padding-inline: 2.25rem 1rem;
+    /* Bootstrap sits the button flush in the field by pulling it out of the
+       field's own side padding — a negative margin the width of that padding.
+       The padding is gone here, so what is left is a button hanging past the
+       left edge of its field, taking the clip with it: a skin that pads a
+       control generously (lux pads it by 24px) drew the clip outside the field
+       altogether. Both sides at nought, so the button begins where the field
+       does. */
+    margin-inline: 0;
+    /* Room for the clip with a little to spare: at 0.875rem in, a 1rem icon ends
+       at 1.875rem, and the wording starts after it. */
+    padding-inline: 2.5rem 1rem;
 }
 
 [data-bs-theme="dark"] .form-control[type="file"]::file-selector-button {
