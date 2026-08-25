@@ -259,6 +259,19 @@ nav.language {
     display: none;
 }
 
+/* The name of the file is a link, and a link's underline standing on its own
+   beside a button reads as a stray rule rather than as a word you can press.
+   The colour says it is a link; the underline comes back when it is pointed at
+   or focused, which is where it is telling somebody something. */
+[data-file-held] [data-file-download] {
+    text-decoration: none;
+}
+
+[data-file-held] [data-file-download]:hover,
+[data-file-held] [data-file-download]:focus-visible {
+    text-decoration: underline;
+}
+
 /* The bar belongs under both of them rather than beside either. */
 [data-controller="file"]:not([data-file-dropzone]) > .progress {
     flex-basis: 100%;

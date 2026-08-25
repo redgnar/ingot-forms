@@ -607,7 +607,7 @@
                 'class': 'form-control',
                 'step': node.options.seconds|default(false) ? 1 : null,
                 'data-controller': 'moment',
-                'data-action': 'pointerdown->moment#pointer keydown->moment#typed change->moment#chosen',
+                'data-action': 'pointerdown->moment#pointer keydown->moment#typed input->moment#chosen',
                 'data-moment': node.value,
                 'data-moment-min': node.min,
                 'data-moment-max': node.max,

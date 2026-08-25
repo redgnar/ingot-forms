@@ -584,8 +584,12 @@ document.addEventListener('keydown', (event) => {
     if (event.target.matches?.('input[type="datetime-local"]')) pickedWithPointer = false;
 });
 
-document.addEventListener('change', (event) => {
+// On `input` rather than `change`: `change` waits for a date-time to be whole,
+// and picking a day while the time is still empty is not a change yet — which is
+// exactly when the picker was staying open.
+document.addEventListener('input', (event) => {
     if (!pickedWithPointer || !event.target.matches?.('input[type="datetime-local"]')) return;
+    if (event.target.value === '') return;
 
     pickedWithPointer = false;
     event.target.blur();

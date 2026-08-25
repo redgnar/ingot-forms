@@ -25,6 +25,10 @@ export default class extends Controller {
     // let go of instead, which closes it. Only after a pointer opened it: on the
     // keyboard a value becomes complete half way through typing one, and taking
     // the focus away there would throw somebody out of the field mid-edit.
+    //
+    // On `input` rather than `change`, because `change` waits for a date-time to
+    // be whole: picking a day in the picker while the time is still empty is not
+    // a change yet, and that is exactly the moment the picker was staying open.
     pointer() {
         this.byPointer = true;
     }
@@ -34,7 +38,9 @@ export default class extends Controller {
     }
 
     chosen() {
-        if (!this.byPointer) return;
+        // Nothing to close until there is something to have chosen: a picker set
+        // half way is still being used.
+        if (!this.byPointer || this.element.value === '') return;
 
         this.byPointer = false;
         this.element.blur();
