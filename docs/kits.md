@@ -278,7 +278,10 @@ that the plain kit has no markup for.
 - **From the definition:** the declared options
 - **Options:** —
 - **Notes:** for two or three options that deserve to be seen at once. Still a radio group to a
-  screen reader, named by the question.
+  screen reader, named by the question. The toggles are drawn as separate buttons rather than
+  joined into one segmented bar: how wide a button is belongs to the skin, so a set that fits on
+  one line under one skin wraps under another, and a joined bar wraps into square corners and
+  stubs. Separate buttons wrap onto another line and look the same either way.
 
 ### `number`
 
