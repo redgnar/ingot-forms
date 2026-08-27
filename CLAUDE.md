@@ -66,20 +66,42 @@ held: a value outside the form it belongs to says nothing, so looking at one is 
 complete without a line of client code — every control, list and attached file is drawn by the
 code that already draws the current version — and it is why the way out of it (putting that
 version back) is an ordinary `PUT …/data` like every other write from a page. `reset` is the same
-page drawn again with nothing sent. **"Who" is a stated non-goal**: this service has
-no identity at all, so a revision answers *when* and *what* and nothing else; an actor column now
-would be a member nobody can fill. When identity arrives it lands on that table without moving
-anything else. Not learning who anybody is stays a non-goal; being
-open does not. Today the form's UUID is the whole credential and **it opens everything** —
+page drawn again with nothing sent. **"Who" has been decided, and it is recording rather than
+learning** — decided, and **not built yet**, so nothing below is in the code: a form will have an
+**author** and a **confirmer**, every accepted save will record **who entered it**, and a form may
+instead be declared **anonymous** and record nobody — one more
+immutable top-level property (`identity: required | anonymous`, given at creation, no default),
+where `required` refuses a save that names nobody and `anonymous` *discards* an assertion rather
+than refusing it, so a gateway asserting identity on every request cannot build a record by
+accident. Three slots and no fourth: the confirmer needs its own because confirming writes no
+values and is no revision of its own, while "who last changed this form" is the newest revision
+and a second copy is a second truth. An opaque subject with an optional issuer, equal as a pair,
+never parsed, trimmed or normalized, **never displayed on any page**, and served on the manage
+side only. Asserted **inside the credential**, never claimed in a body — which the closed-envelope
+rule already enforces for free. The validation that matters is at the boundary, not in the
+model: no control characters (a newline read out of a header is header injection), a single-valued
+header, and a token verified before it is read, with its algorithm taken from the key rather than
+from the token and its `exp` capped by the verifier. That supersedes
+[07](.claude/plan/07-history.md)'s refusal of an actor column, exactly as 07 predicted it would —
+the table grows and nothing else moves. What stays a non-goal is *resolving* an identity: no
+accounts, no user store, no directory, and the actor is recorded, never consulted by `allows()`.
+Being open does not stay one. Today the form's UUID is the whole credential and **it opens everything** —
 whoever can fill a form in can delete it, confirm it and download its files — which is the one
 thing standing between this service and a deployment, and is written down where a deployer will
 read it (`docs/architecture.md`, "Who may do what"). The shape of the fix is settled in
-`.claude/plan/09-access.md`: split the addresses (`/api/manage/**` against
-`/api/forms/{id}/**`), then one port, `Access::allows(Scope, ?FormId, Request)`, carrying the
-scope *and* the form — because nobody has rights over this service, only over some forms — with
-the deployment choosing the adapter. Whatever lands, it authorises **an object, not a person**:
-a user provider or a role model here would be the second identity this service has always
-refused.
+`.claude/plan/09-access.md`: **group the addresses** — `/api/manage/**` against
+`/api/forms/{id}/**` and `/forms/**`, with the meta-schemas staying open to anybody because a
+contract stated once has to be reachable — and let each **route** declare its group (`_scope`
+beside `_errors: html`, a compiler pass refusing to build a container in which any route
+declares none) rather than a path pattern guess it, because the pages sit at `/forms/{id}` *and*
+at `/{_locale}/forms/{id}` and a pattern missing the second leaves a page open rather than
+broken. Then one port, `Access::allows(Scope, ?FormId, Credential)`, carrying the scope *and*
+the form — because nobody has rights over this service, only over some forms — with the
+deployment choosing the adapter and no default to fall back on. It takes a `Credential` and not
+a `Request`: an application port may not name the `Framework` layer, so the listener does the
+HTTP half. Whatever lands, it authorises **an object, not a person** — a user provider or a role
+model here would be the second identity this service has always refused — and it **verifies
+without ever minting**, which asymmetric signing makes a property rather than a promise.
 
 **How a file works.** A `file` item's value is not bytes but the **description** of them —
 `{id, name, size, type}`, all four measured by the server when the upload landed and echoed

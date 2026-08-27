@@ -61,10 +61,17 @@ not is expected not to guess it (UUIDv7, 74 random bits).
 
 Two halves of that are deliberate and two are not, so it is worth keeping them apart.
 
-**Deliberate, and staying that way:** this service does not learn who anybody is. No accounts,
-no sessions, no user store, and no actor column in the history — a revision answers *when* and
-*what*. Whoever created a form already knows who may touch it, and that answer is theirs to
+**Deliberate, and staying that way:** this service never *resolves* who anybody is. No accounts,
+no sessions, no user store, no directory, and no operation anywhere that turns an identifier into
+a person. Whoever created a form already knows who may touch it, and that answer is theirs to
 keep. Anything added here authorises **an object, not a person**.
+
+**One part of that list has been narrowed on purpose.** It used to end "and no actor column in the
+history — a revision answers *when* and *what*". It no longer does: the decision has been taken
+that a form will have an **author**, that every accepted save will record **who entered it**, and
+that a form may instead be declared **anonymous** and record nobody. That is recording an
+assertion, not learning an identity, and the difference between those two is the whole design —
+see "What identity will be" below. None of it is built yet.
 
 **Not deliberate:** that a form's id is the only credential, that it never expires while the
 form lives, and above all that **the one secret opens everything**. There is no separate
@@ -73,14 +80,105 @@ form in can also `DELETE` it, confirm it on the author's behalf, overwrite the d
 download every file attached to it. That is the actual hole, and it is why nothing here should
 be exposed as it stands.
 
-The shape of the answer is worked out in [`.claude/plan/09-access.md`](../.claude/plan/09-access.md)
-and comes to two steps: **split the addresses** so a guard can tell the two audiences apart by
-looking at the request (`/api/manage/**` for the owning application — creating, reading the
-envelope, deleting — against `/api/forms/{id}/**` and `/forms/**` for whoever holds a link to
-that one form), and **add one port**, `Access::allows(Scope, ?FormId, Request)`, answered by an
-adapter a deployment chooses: what a gateway asserts, a signed per-form token, or an open door
-for dev and the test suites. One question carrying the scope *and* the form, because nobody has
-rights over this service — they have rights over some forms.
+The shape of the answer is worked out in
+[`.claude/plan/09-access.md`](../.claude/plan/09-access.md), which is where the arguments live.
+What it comes to is three decisions and one operational rule.
+
+**Group the addresses — and there are four groups, not two.** `/api/manage/**` for the owning
+application (creating, reading the envelope, deleting), `/api/forms/{id}/**` and `/forms/**` for
+whoever holds a link to that one form, `GET /api/schemas/{definition|presentation}` for anybody,
+deliberately — a contract stated once has to be reachable by the client that has been given
+nothing yet, which is exactly what "everything under `/api` needs a credential" would take away.
+Creating is a group of its own: it is the one call with no form to name.
+
+**A route declares which group it is in; a path pattern does not.** `_scope` as a route default
+beside `_errors: html`, strict wherever nothing says otherwise, and checked for completeness by
+a compiler pass over the route collection — because the pages live at `/forms/{id}` *and* at
+`/{_locale}/forms/{id}`, and a rule that matches the first and misses the second fails by
+leaving a page **open** rather than by breaking one. A route with no scope stops the build,
+which is the only moment anything can see the whole collection at once.
+
+**One port, and it may not name a `Request`.** `Access::allows(Scope, ?FormId, Credential)`:
+the listener does the HTTP half — the scope off the route, the id out of its attributes, and
+whatever the request carries reduced to a value object — so the port stays in
+`Application/Forms/Port/` with the others and its adapters in `Infrastructure/` with theirs.
+That is not a preference: `Request` is in deptrac's `Framework` layer, which the application may
+not touch. One question carrying the scope *and* the form, because nobody has rights over this
+service — they have rights over some forms. And the permissions are five rather than three
+(`create`, `manage`, `read`, `fill`, `confirm`), deliberately **not** nested: making `manage` a
+superset of `fill` would rebuild the "one secret opens everything" hole in a new coat.
+
+**Which adapter answers is the deployment's, and not choosing is not an option.** What a gateway
+asserts, a signed per-form capability, or an open door for dev and the test suites — named by
+`FORMS_ACCESS` with **no fallback value**, so a container that says nothing does not start, and
+refusing to boot with the open door under `APP_ENV=prod` unless the deployment says so out loud.
+Whatever lands, this service **verifies and never mints**: signing the capabilities
+asymmetrically, with the private key at whatever creates the forms, makes that a property rather
+than a discipline somebody can reverse in an afternoon.
+
+Three of today's answers change when it lands, and all three are improvements to expect rather
+than regressions to chase: a caller with no credential meets `401` before a form's `410`, and
+`403` where an unknown id answers `404` today — which closes the "does this id exist" oracle,
+since a guard reads no storage and cannot tell the two apart. Both need a `WWW-Authenticate`
+header, lines in the `REFUSALS` table, and a refusal of this service's own rather than the
+framework's: `ErrorPageListener` passes an `HttpExceptionInterface`'s message through verbatim,
+and what a person is told comes out of `translations/`, not out of a problem document.
+
+**What identity will be, and it is stage two rather than a parallel change.** An actor can only
+come out of a credential, so none of this can be built before the guard above exists.
+
+- **Three slots, and no fourth.** The **author** on the form, asserted at creation; the
+  **confirmer** on the form, which needs a slot of its own because confirming writes no values and
+  is therefore no revision of its own; and the **filler** on every revision. "Who last changed
+  this form" is *not* stored — the newest revision already answers it, and a second copy is a
+  second truth.
+- **`identity: required | anonymous`**, a third top-level property of a form beside its
+  definition, its values and its `expire_date`: given at creation, immutable, and with no default.
+  `required` refuses a save that names nobody (`403` — nothing is wrong with the document, so
+  there is no pointer to give); `anonymous` **discards** an assertion rather than refusing it, so
+  a gateway that asserts identity on every request cannot build a record of who filled an
+  anonymous form by accident. There is deliberately no third `optional` mode: it would make one
+  column mean "nobody was there" and "somebody was and did not say" at the same time.
+- **Asserted, never claimed.** Identity travels *inside* the credential — covered by the signature
+  for a token adapter, as good as the network for a gateway one, absent for the open door. There
+  is no `actor` member in any request body, and nothing new is needed to enforce that: bodies are
+  already closed, so a client sending one gets `request.unexpected_key` today.
+- **An opaque subject and an optional issuer, and no display label.** Equality is on the pair, an
+  absent issuer is a bucket of its own (`(null, "42")` is not `("https://sso", "42")`), and
+  nothing is parsed, trimmed or normalized — a subject is compared with `===` and nothing else.
+  The issuer is stored per row rather than read from configuration, so changing identity provider
+  cannot retroactively rewrite what old rows mean.
+- **Nothing about an actor is ever displayed.** No page draws one, no catalogue holds a word for
+  one, and both kits and every skin come out of this untouched. It is served on the **manage side
+  only**: the envelope grows `identity`, the author and the confirmer, and a new
+  `GET /api/manage/forms/{id}/history` carries the actor per save. The fill-side history stays
+  exactly as it is, which is what keeps one holder of a link from learning who else filled the
+  form in.
+- **`forms` grows five columns and `form_revisions` two**, all written from the events that
+  already record what happened (`FormCreated`, `DraftSaved`, `FormConfirmed`) — a column changes
+  because something happened. The migration matters more than the columns: nothing can backfill
+  who filled a form in last year, so the actor columns arrive nullable and `identity_mode` arrives
+  **NOT NULL, backfilled `anonymous`**. That is truthful, since nobody was recorded, and it is
+  what makes a `NULL` actor mean one thing instead of three.
+- **The validation that matters is at the boundary, not in the model.** The model's own rules are
+  short — 1–255 characters, no control characters (a newline in a value read out of a header is
+  header injection), no trimming, no normalization, and a stored actor is never judged again, the
+  way a stored definition is not. The adapters carry the rest: a proxy-address check and a
+  single-valued header on the gateway side (PHP folds repeated headers with commas, so `a, b`
+  would otherwise *be* the subject), and on the token side — verify before reading, take the
+  algorithm from the key rather than from the token, require `exp` and **cap it at the verifier**,
+  compare the form claim to the path, and refuse a token whose permission set comes out empty.
+- **Recorded, never consulted.** `allows()` decides on a permission and a form, never on who is
+  asking, and "which forms did this person fill in" stays as refused as the form-list endpoint.
+  The columns this adds are exactly what would make both of those cheap, which is why the fence
+  is written down here rather than left to be remembered.
+
+Two operational consequences worth knowing before the columns exist. A **subject can be personal
+data** — a deployment whose subjects are email addresses has put personal data in every revision
+row; opaque identifiers are the cheaper answer, and the history leaving with its form by foreign
+key does the rest. And `FORMS_HISTORY_LIMIT` **evicts old saves**, which means the record of who
+filled a form in can be evicted while the form still lives: correct for a history limit, wrong
+for an audit trail, so a deployment that wants the second sets the limit to `0` and pays for it.
 
 Until that lands, it is all the deployment's:
 
@@ -88,12 +186,21 @@ Until that lands, it is all the deployment's:
   over the definition and the values together) and `DELETE /api/forms/{id}` have to be
   unreachable from wherever the people filling forms in are. Nothing here will do that for you,
   and nothing here will notice if you forget.
+- **Gate those three, not everything under `/api`.** `GET /api/schemas/definition` and
+  `GET /api/schemas/presentation` are meant to be readable by anybody — they are the contract a
+  client writes its definitions against, and putting them behind the same gate as the management
+  endpoints makes that contract unreadable to whoever needs it first.
 - **A form link is a password.** It travels in a URL, so it lands in browser history, in
   `Referer` headers, in proxy and access logs, and in whatever a person pastes it into. Treat
   the expire date as part of the security model rather than as housekeeping: a short one bounds
   how long a leaked link is worth anything, and the purge is what makes that true.
-- **`POST /api/forms` is an unauthenticated write.** Whatever fronts it is where a rate limit
-  goes.
+- **A form link also hands over the history.** `GET /api/forms/{id}/history/{seq}` serves every
+  save the form has ever accepted, so sending the link to a second person shows them the first
+  person's answers. That is inherent — putting an old document back is an ordinary
+  `PUT …/data`, which is what makes it possible at all — and it is worth knowing before a link
+  is forwarded.
+- **`POST /api/forms` is an unauthenticated write**, and the only one: whatever fronts it is
+  where a rate limit goes today, and it is the hole the `create` group closes tomorrow.
 
 ## The model, and what it refuses
 

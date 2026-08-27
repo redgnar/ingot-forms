@@ -820,11 +820,14 @@ belongs to says nothing. Each one offers **View** and **Restore**:
 holds, for somebody who typed over it and changed their mind. A save refreshes the panel, because
 a save makes a new moment and a list that does not show it is lying.
 
-What history does **not** answer is **who**. This service has no identity of any kind, so a
-revision can honestly say *when* and *what* and nothing else; an actor column now would be a
-member nobody can fill, and a changelog with an empty actor reads like an audit log while being a
-diary. When identity arrives it is a service-wide change, not a column, and it lands on this
-table without moving anything else.
+What history does **not** answer *today* is **who**. A revision says *when* and *what*, because
+this service has no identity of any kind yet — and that is the part that is changing. It has been
+decided that a form will carry an author and a confirmer, that every accepted save will record who
+entered it, and that a form may instead be declared **anonymous** and record nobody. None of it is
+built; when it is, none of it will be **drawn on a page**, and none of it changes anything about
+how a form is described — who answers is not an item and not a widget. The shape is worked out in
+[`.claude/plan/09-access.md`](../.claude/plan/09-access.md), and this document grows a section
+about it when there is something here to configure.
 
 ## Talking to the API
 
