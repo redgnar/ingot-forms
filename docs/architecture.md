@@ -283,7 +283,11 @@ same exact text. It is append-only, `(form_id, seq)` is the whole key — a revi
 one form, and nothing points at it from anywhere — and `seq` is allocated under the row lock the
 save already holds, because a sequence of the database's own would number across forms. Two
 things bound it, and both are the database's rather than a caller's: `form_id` references
-`forms.id` **ON DELETE CASCADE**, so a form can never outlive the history it used to have; and
+`forms.id` **ON DELETE CASCADE**, so a form can never outlive the history it used to have — a
+constraint the ORM cannot declare, because a foreign key comes with an *association* and a
+revision deliberately has none, so `RevisionsLeaveWithTheirForm` states it on
+`postGenerateSchema` instead and `SchemaInSyncTest` keeps the mapping and the migrated database
+agreeing about it; and
 `FORMS_HISTORY_LIMIT` is how many saves one form keeps, the oldest leaving in the same statement
 that appends the newest. Neither the row nor the revision can be written without the other —
 both come from one `DraftSaved` — which is what makes "the current values are also the newest
