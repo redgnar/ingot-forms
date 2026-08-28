@@ -241,7 +241,12 @@ async function send(path, method, body) {
         body: body === undefined ? undefined : JSON.stringify(body),
     });
 
-    if (response.ok) return true;
+    // A save answers 204 and nothing else does, so nothing else is a save.
+    // Something in front of this service can answer instead of it — a proxy
+    // refusing, or an expired session redirecting to a login page, which `fetch`
+    // follows and hands back as 200 with HTML — and `ok` would read every one of
+    // those as answers that were stored.
+    if (response.status === 204) return true;
 
     showErrors(await problem(response));
 

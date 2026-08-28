@@ -144,6 +144,35 @@ final class FormPageTest extends PantherTestCase
         self::assertFalse($this->browser->findElement(WebDriverBy::id('form-saved'))->isDisplayed());
     }
 
+    public function testAnAnswerThePageDoesNotUnderstandIsNotASave(): void
+    {
+        // GIVEN a form somebody has filled in
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->browser->findElement(WebDriverBy::id('item-email'))->sendKeys('ada@example.com');
+
+        // AND something in front of the service answering instead of it: an
+        // expired session redirects to a login page, `fetch` follows the
+        // redirect, and what comes back is 200 with HTML
+        $this->browser->executeScript('window.fetch = () => Promise.resolve(new Response("<html><body>Sign in</body></html>", {status: 200, headers: {"Content-Type": "text/html"}}));');
+
+        // WHEN they save
+        $this->browser->findElement(WebDriverBy::cssSelector('[data-action="save"]'))->click();
+
+        // THEN they are told it went wrong rather than that it was kept, and
+        // the form really does hold nothing — a page that reports success on an
+        // answer it did not understand loses somebody's work in silence
+        $notice = $this->eventually(function (): ?string {
+            $flash = $this->browser->findElement(WebDriverBy::id('form-error'));
+
+            return $flash->isDisplayed() ? $flash->getText() : null;
+        });
+
+        self::assertNotSame('', $notice);
+        self::assertFalse($this->browser->findElement(WebDriverBy::id('form-saved'))->isDisplayed());
+        self::assertNull($this->values($id));
+    }
+
     public function testAnUntickedConsentMarksTheBoxAndNothingElse(): void
     {
         // GIVEN a form filled in except for the consent
