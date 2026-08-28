@@ -146,9 +146,15 @@ give is the moment to reconsider, and there is no such route today.
 
 **And the gateway configuration should be derivable rather than transcribed.** The failure this
 whole section exists to prevent is a gateway holding a stale copy of the route table, so
-`bin/console app:routes:groups` printing prefix, methods and group — as a table or as a snippet —
-is worth the twenty lines. It is the difference between a deployment reading the routes and a
-deployment remembering them.
+`bin/console app:routes:groups` is worth the twenty lines. It is the difference between a
+deployment reading the routes and a deployment remembering them.
+
+**It prints a table**, not a snippet for one proxy: prefix, group, methods, and whether a form id
+follows. A snippet would be pasteable and immediately specific to whichever gateway was guessed at,
+and wrong for every other one. The table's job is different — it is the authority a deployment
+checks its own rules against — so the one property it owes is **stable ordering**, sorted by
+prefix, so that a deployment can diff this output in its own CI and see a route group appear or
+move. A table nobody can diff is a table nobody reads twice.
 
 ## What a gateway can express, and the one thing it cannot
 
@@ -172,11 +178,19 @@ which person a given form belongs to. That is not deferred, it is **delegated**:
 (ForwardAuth to OPA, Cerbos, or five lines the superordinate system already has) receives the form
 id from the path and answers per request.
 
-Two consequences of that living outside, and both are the deployment's to own. It is **a hop on
-every request**, and the fill side is interactive — a save now waits on two. And **what happens
-when the decision point is down is a decision**: fail closed and its outage is an outage here,
-fail open and the guard is advisory. Both answers are bad, which is why the answer should be
-written down rather than arrived at by a timeout.
+Two consequences of that living outside. It is **a hop on every request**, and the fill side is
+interactive — a save now waits on two. And when the decision point is down, **it fails closed**:
+requests are refused rather than let through. That is decided, and it is the right way round — a
+guard that opens under load is not a guard, and the one thing worse than an outage is an outage
+nobody can see — but it has to be paid for honestly:
+
+- **The decision point is now a hard dependency of the fill side.** Its availability is the
+  availability of every form page and every save, so it belongs *close* — a sidecar rather than a
+  service across a network — because a per-request hop that fails closed sits on the critical path.
+- **Positive decisions may be cached briefly, negative ones not at all.** Seconds of positive cache
+  take most of the latency and most of the blast radius out; caching a refusal only delays somebody
+  regaining access they have just been granted. A revocation then takes effect one cache lifetime
+  late, which is the ordinary bargain and worth stating so nobody discovers it as a bug.
 
 ## How the pages are reached
 
@@ -202,6 +216,27 @@ an origin the browser reaches, and strip client-supplied copies of the identity 
 pages on the superordinate system's own origin through a reverse proxy is the ordinary shape; an
 iframe on another origin would drag `frame-ancestors`, cookie policy and `SameSite` back in, and is
 worth avoiding for exactly that reason.
+
+**And one thing the pages have to learn, which falls straight out of fail-closed plus SSO.** From
+now on something in front can answer instead of the service, and what it answers is not
+`problem+json`. Half of that is already handled and was checked rather than assumed: both kits parse
+a refusal as `response.json().catch(() => ({}))` (`public/js/core-html-form.js:9`,
+`assets/controllers/form_controller.js:196`) and fall through to their own generic wording, so an
+HTML error page from a proxy already reads as "something went wrong" in the reader's language rather
+than as a crash.
+
+The other half is a real gap, and it is the *common* case rather than the exotic one: **an expired
+SSO session redirects, `fetch` follows redirects, and a login page arrives as `200` with HTML.**
+`response.ok` is then true, `send()` returns true, and the page tells somebody their answers were
+saved when they were not. Two things fix it, and both are wanted:
+
+1. **The proxy answers `401` rather than redirecting** when the request is not a navigation —
+   oauth2-proxy and every ForwardAuth setup can distinguish one, and this is the correct place for
+   the fix. It goes in the deployment notes.
+2. **A page requires the status it expects instead of merely `ok`.** `PUT …/data` and
+   `POST …/confirm` answer `204`; anything else, however cheerful, is not a save. One line in each
+   kit, and it is the difference between a page that trusts its transport and a page that checks.
+   A page should never report success on a response it did not understand.
 
 ## Identity: what is recorded
 
@@ -401,6 +436,8 @@ Worth listing, because three drafts of this plan changed all of it and this one 
   action, which passes it to the use case as an argument — no ambient state, no holder service;
 - `Actor`, the mode, `IdentityRequired`, three columns plus one, three events, one migration;
 - two manage-side reads (the envelope, the history) growing members, and one new manage-side route;
+- one line in each kit: a save requires the `204` it expects rather than any `ok`, so a login page
+  arriving as `200` cannot read as success;
 - `FORMS_IDENTITY_FALLBACK` and trusted-proxy configuration, in `.env.dist` and
   `docs/architecture.md`;
 - `make docs`, because the moved routes and the new members are the published contract, and
@@ -444,16 +481,6 @@ Worth listing, because three drafts of this plan changed all of it and this one 
   gateway itself.
 - **Rate limiting is not authentication and is still missing.** Uploads are capped per form and per
   file; nothing else is. Whatever fronts this is where that goes.
-
-## What is genuinely still open
-
-1. **`recorded` or another word** for the mode's first value. `recorded` says what happens;
-   `identified` reads better beside `anonymous`. Cosmetic, and cheapest to settle before the member
-   is published.
-2. **Whether `app:routes:groups` prints a table or a gateway snippet**, and for which gateway. A
-   table is honest and useless to paste; a snippet is useful and immediately specific to one proxy.
-3. **What the deployment does when the decision point is down.** Not this service's code, and it
-   still needs an answer written down somewhere.
 
 ## Non-goals
 

@@ -104,9 +104,10 @@ become `/forms/{id}` and `/forms/{id}/versions/{seq}`, with the language as `?la
 
 **The prefixes are checked at build time**: a compiler pass over the route collection refuses to
 build a container holding a route whose path starts with none of the four, which is the only moment
-anything sees the whole table at once. And `bin/console app:routes:groups` prints it, so a
-deployment reads the routes instead of remembering them — a gateway holding a stale copy of the
-route table is the failure this whole section exists to prevent.
+anything sees the whole table at once. And `bin/console app:routes:groups` prints it — prefix,
+group, methods, whether a form id follows — as a table sorted by prefix, so a deployment can diff
+it in its own CI and see a group appear or move. A gateway holding a stale copy of the route table
+is the failure this whole section exists to prevent.
 
 **Four of the five permissions are then gateway rules**, with no code here at all:
 
@@ -120,9 +121,11 @@ route table is the failure this whole section exists to prevent.
 
 The fifth — "this caller, for *this* form" — is the one a gateway cannot express on its own, and it
 is delegated rather than deferred: the decision point receives the form id from the path and asks
-the system that created the form. Two consequences the deployment owns: it is a hop on every
-request, and what happens when it is down is a decision (fail closed and its outage is an outage
-here; fail open and the guard is advisory).
+the system that created the form. It is a hop on every request, and when it is down it **fails
+closed** — a guard that opens under load is not a guard. Which makes it a hard dependency of the
+fill side, so it belongs close (a sidecar rather than a service across a network), and positive
+decisions may be cached for seconds while refusals are not cached at all: a revocation then takes
+effect one cache lifetime late, which is the ordinary bargain.
 
 **What identity will be.** Three slots and no fourth: the **author** on the form, asserted at
 creation; the **confirmer** on the form, which needs a slot of its own because confirming writes no
@@ -203,6 +206,11 @@ Until that lands, it is all the deployment's:
   is forwarded.
 - **`POST /api/forms` is an unauthenticated write**, and the only one: whatever fronts it is
   where a rate limit goes, and moving it under `/api/manage/` is what lets a gateway close it.
+- **When SSO lands in front, the proxy must answer `401` rather than redirect** for anything that
+  is not a navigation. A page saves with `fetch`, `fetch` follows redirects, and a login page
+  arriving as `200` with HTML would tell somebody their answers were stored when they were not.
+  Both kits already degrade an unparseable refusal to their own wording, so a `401` reads correctly
+  with no change here — a redirect does not.
 
 ## The model, and what it refuses
 
