@@ -67,41 +67,51 @@ complete without a line of client code — every control, list and attached file
 code that already draws the current version — and it is why the way out of it (putting that
 version back) is an ordinary `PUT …/data` like every other write from a page. `reset` is the same
 page drawn again with nothing sent. **"Who" has been decided, and it is recording rather than
-learning** — decided, and **not built yet**, so nothing below is in the code: a form will have an
-**author** and a **confirmer**, every accepted save will record **who entered it**, and a form may
-instead be declared **anonymous** and record nobody — one more
-immutable top-level property (`identity: required | anonymous`, given at creation, no default),
-where `required` refuses a save that names nobody and `anonymous` *discards* an assertion rather
-than refusing it, so a gateway asserting identity on every request cannot build a record by
-accident. Three slots and no fourth: the confirmer needs its own because confirming writes no
-values and is no revision of its own, while "who last changed this form" is the newest revision
-and a second copy is a second truth. An opaque subject with an optional issuer, equal as a pair,
-never parsed, trimmed or normalized, **never displayed on any page**, and served on the manage
-side only. Asserted **inside the credential**, never claimed in a body — which the closed-envelope
-rule already enforces for free. The validation that matters is at the boundary, not in the
-model: no control characters (a newline read out of a header is header injection), a single-valued
-header, and a token verified before it is read, with its algorithm taken from the key rather than
-from the token and its `exp` capped by the verifier. That supersedes
+learning** — decided, and **not built yet**, so nothing here is in the code. A form will have an
+**author** and a **confirmer**, every
+accepted save will record **who entered it**, and a form may instead be declared **anonymous** and
+record nobody: one more immutable top-level property, `identity: recorded | anonymous`, given at
+creation, **defaulting to `recorded`** because the two options fail differently — `anonymous` by
+default fails silently and unrecoverably, `recorded` by default fails loudly at the first save.
+`anonymous` *discards* an assertion rather than refusing it, so a proxy asserting identity on every
+request cannot build a record by accident, and that discard is the one half of this that cannot be
+delegated. Three slots and no fourth: the confirmer needs its own because confirming writes no
+values and is no revision of its own, while "who last changed this form" is the newest revision and
+a second copy is a second truth. One opaque subject, never parsed, trimmed or normalized, **never
+displayed on any page** and served on the manage side only. Asserted in a header and never claimed
+in a body — which the closed-envelope rule already enforces for free. That supersedes
 [07](.claude/plan/07-history.md)'s refusal of an actor column, exactly as 07 predicted it would —
 the table grows and nothing else moves. What stays a non-goal is *resolving* an identity: no
-accounts, no user store, no directory, and the actor is recorded, never consulted by `allows()`.
-Being open does not stay one. Today the form's UUID is the whole credential and **it opens everything** —
-whoever can fill a form in can delete it, confirm it and download its files — which is the one
-thing standing between this service and a deployment, and is written down where a deployer will
-read it (`docs/architecture.md`, "Who may do what"). The shape of the fix is settled in
-`.claude/plan/09-access.md`: **group the addresses** — `/api/manage/**` against
-`/api/forms/{id}/**` and `/forms/**`, with the meta-schemas staying open to anybody because a
-contract stated once has to be reachable — and let each **route** declare its group (`_scope`
-beside `_errors: html`, a compiler pass refusing to build a container in which any route
-declares none) rather than a path pattern guess it, because the pages sit at `/forms/{id}` *and*
-at `/{_locale}/forms/{id}` and a pattern missing the second leaves a page open rather than
-broken. Then one port, `Access::allows(Scope, ?FormId, Credential)`, carrying the scope *and*
-the form — because nobody has rights over this service, only over some forms — with the
-deployment choosing the adapter and no default to fall back on. It takes a `Credential` and not
-a `Request`: an application port may not name the `Framework` layer, so the listener does the
-HTTP half. Whatever lands, it authorises **an object, not a person** — a user provider or a role
-model here would be the second identity this service has always refused — and it **verifies
-without ever minting**, which asymmetric signing makes a property rather than a promise.
+accounts, no user store, no directory, and the actor is **recorded, never consulted**.
+
+Being open does not stay one. Today the form's UUID is the whole credential and **it opens
+everything** — whoever can fill a form in can delete it, confirm it and download its files — which
+is the one thing standing between this service and a deployment, and is written down where a
+deployer will read it (`docs/architecture.md`, "Who may do what"). The shape of the fix is settled
+in `.claude/plan/09-access.md`, and it is **not a guard here: this service will authorise nothing.**
+A gateway decides what may reach it, per prefix and per method; a decision point outside — owned by
+the system that created the form — answers "may this caller touch *this* form", because whoever
+created a form already knows who may touch it and that answer is theirs to keep; and the form id is
+not a public credential, because a person reaches a form through the object of the superordinate
+system that uses it, with the pages behind the same SSO. What lands here is one header,
+`X-Forms-Identity`, **read only from a configured trusted proxy** — the one irreversible detail in
+the whole plan, since rows written under a forgeable header can never be repaired or even
+identified.
+
+So the deliverable is **the routing split**: four prefixes, one per group (`/api/manage/`,
+`/api/forms/`, `/forms/`, `/api/schemas/` staying open to anybody because a contract stated once has
+to be reachable), with **the form id always the first segment after the prefix**, so a gateway rule
+is one line and a decision point extracts the id with one pattern. Two things move to make that
+true: the envelope becomes `/api/manage/forms/{id}`, and **the locale leaves the page paths**
+(`/{_locale}/forms/{id}` breaks the split twice — a rule on `^/forms/` misses it silently, and the
+id shifts position — so pages become `/forms/{id}` with `?lang=xx`). A compiler pass over the route
+collection refuses to build a container holding a route outside the four prefixes, and
+`app:routes:groups` prints the table so a gateway reads the routes instead of remembering them. Four
+of the five permissions are then gateway rules on a path and a method — read is GET-only, confirm is
+its own address — and the fifth, "this caller for this form", is delegated rather than deferred. The
+only thing this service itself checks is that a `recorded` form is not saved with nobody: an absent
+header falls back to `FORMS_IDENTITY_FALLBACK`, and with that unset the save is refused
+(`IdentityRequired`), which is what makes a proxy that quietly stopped asserting visible.
 
 **How a file works.** A `file` item's value is not bytes but the **description** of them —
 `{id, name, size, type}`, all four measured by the server when the upload landed and echoed

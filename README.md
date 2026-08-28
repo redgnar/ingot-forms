@@ -54,14 +54,16 @@ versioning and multi-submission forms are deliberately out of scope.
   a skin says what it looks like; and what a *reader* needs — contrast, colours, text size — is
   theirs to set and no document's to decide ([the pages](docs/architecture.md#the-pages)).
 - **There is no "who" yet, and today there is no gate either.** Two things are settled and
-  unbuilt. A **gate**, because a form's UUID is currently the only credential and it opens
-  everything — whoever can fill a form in can also delete it, confirm it and download its files.
-  And **identity as a record**: a form will have an author and a confirmer, every save will record
-  who entered it, and a form may instead be declared anonymous and record nobody. Recording an
-  assertion, never resolving one — no accounts, no user store, and nothing about it drawn on a
-  page. Nothing here should be exposed as it stands: the management endpoints need a gate in front
-  of them, and the shape of both answers is worked out in
-  [`.claude/plan/09-access.md`](.claude/plan/09-access.md). Read
+  unbuilt. **Identity as a record**: a form will have an author and a confirmer, every save will
+  record who entered it, and a form may instead be declared anonymous and record nobody —
+  recording an assertion, never resolving one, and nothing about it ever drawn on a page. And
+  **the addresses split into four prefixes**, one per audience, because this service will
+  authorise nothing itself: a gateway decides what may reach it, and a decision point outside
+  decides who may touch which form, since whoever created a form already knows who may touch it.
+  Until that lands nothing here should be exposed — a form's UUID is the only credential and it
+  opens everything, so whoever can fill a form in can also delete it, confirm it and download its
+  files. Both answers are worked out in
+  [`.claude/plan/09-access.md`](.claude/plan/09-access.md); read
   [Who may do what](docs/architecture.md#who-may-do-what) first.
 - Definitions may contain **unknown (plugin) item types** — they round-trip losslessly
   (`GenericField` + `#[Extras]`), can be drafted, but a form containing one can never be

@@ -825,7 +825,10 @@ this service has no identity of any kind yet — and that is the part that is ch
 decided that a form will carry an author and a confirmer, that every accepted save will record who
 entered it, and that a form may instead be declared **anonymous** and record nobody. None of it is
 built; when it is, none of it will be **drawn on a page**, and none of it changes anything about
-how a form is described — who answers is not an item and not a widget. The shape is worked out in
+how a form is described — who answers is not an item and not a widget. The one member it will add
+to a creation request is `identity`, which is `recorded` unless a document says `anonymous`, and
+`anonymous` means nobody is stored even when the deployment asserted somebody. The shape is worked
+out in
 [`.claude/plan/09-access.md`](../.claude/plan/09-access.md), and this document grows a section
 about it when there is something here to configure.
 

@@ -1,1296 +1,518 @@
-# 09 — who may do what, without this service learning who anybody is
+# 09 — who may do what, and who filled this in
 
 The service has no authentication at all: every endpoint is open, and a form's UUID is the only
 thing standing between a stranger and somebody's answers. That has been fine for a service
 nobody exposed, and it is the last thing missing before one can be.
 
-The owner's framing, which this plan takes as the constraint rather than the question:
-**flexible, and with as little of it here as possible.** This service handles forms. Deciding
-who somebody is belongs to whatever already knows — an identity provider, a gateway, the
-application that created the form.
+**And after working through it, the answer is not a guard here.** This service authorises nothing.
+A gateway decides what may reach it, a decision point outside — owned by the system that created
+the form — decides whether this caller may touch this form, and the only thing that lands here is
+one header saying who is calling, recorded beside every save. The routing split is the deliverable,
+because it is what makes those rules one line each.
 
-And one thing has changed since the first draft of this plan, which changes what the rest of it
-is choosing between: **identity arrives.** A form has an author, every save records who entered
-it, and a form may instead be declared anonymous and record nobody. That is settled rather than
-weighed; the next section is what it costs, and the variants further down are filtered by whether
-they can carry it at all.
+That is a much smaller change than the first three drafts of this plan proposed, and this document
+is mostly the reasoning that got it there. What was weighed and dropped is at the end, so nobody
+re-derives it.
 
-This is a design document, not a specification. Nothing below is written yet; the point of it
-is that the arguments are on the table before any of it is, because the cheap-looking option
-here is not the cheap one, the expensive-looking one is not a fifth variant, and one of the five
-is now impossible.
+## What was decided, and the rest is consequence
 
-## What is already true
+Four decisions by the owner, in the order they were taken:
 
-Worth knowing before adding anything, because some of it is load-bearing and some of it
-quietly rules options out:
+1. **Identity arrives** — a form has an author, every save records who entered it, a form may
+   instead be declared anonymous and record nobody. Recording an assertion, never resolving one.
+2. **Nothing about an actor is ever displayed.** It is present in the API, on the manage side, and
+   no page draws it.
+3. **The decision is at the gateway, architecturally.** One header, `X-Forms-Identity`, and no
+   further checks here — this service is a tool, not the place that judges who may act. The
+   superordinate system fills in whatever binds a form id to an identity, and a decision point in
+   front resolves it per request.
+4. **The form id is not a public credential.** These paths are not called from the open internet;
+   a person reaches a form through the object of the superordinate system that uses it, after that
+   system's own authorization. The pages sit behind the same SSO.
 
-- **Two audiences, and they are not the same kind of thing.** The application that creates and
-  deletes forms is a *machine*, known and few. The person filling one in is a *stranger with a
-  link*, unknown by design — this service has no identity, no accounts, no sessions, and
-  [07](07-history.md) went as far as refusing an actor column in the history table. That last
-  part is what the next section overturns, and the audiences survive it: the stranger becomes
-  *either* a stranger or a named person, depending on one property of the form.
+Everything below follows from those, plus two settled details: an absent header falls back to a
+configured value, and a deployment that configures none gets a refusal rather than a silence; and
+the locale leaves the page URLs.
+
+## What is already true, and still matters
+
+- **Two audiences.** The application that creates and deletes forms is a *machine*, known and few.
+  The person filling one in reaches the form through that application. Nobody is emailed a bare
+  `/forms/{uuid}`.
 - **Bytes are already fenced.** No presigned URLs, nothing under `public/`, every download
   `attachment` + `nosniff`, and a file is unreachable unless some save of *that form* names it.
-- **Expiry is already a hard stop**: past `expire_date` every endpoint answers `410`, and the
-  purge deletes rows then bytes.
-- **A form's UUID is, today, the whole capability.** UUIDv7 is not guessable in practice, but it
-  travels in URLs, browser history, referrers and logs — and it never expires while the form
-  lives. That is the actual hole.
-- **There is no security bundle, no firewall and no session.** `config/bundles.php` has seven
-  bundles and none of them is `SecurityBundle`; `framework.yaml` turns form CSRF protection
-  *off* and says why — "No sessions and no browser here, so no CSRF token". Anything that
-  introduces a cookie makes that comment false, which is the cheapest possible early warning
-  that a cookie is not a small decision.
-- **`framework.trusted_proxies` is not configured.** Nothing here distinguishes a header the
-  client sent from a header a proxy added. Any variant that trusts an asserted header has to
-  fix that first, and Symfony's own machinery only sanitises `X-Forwarded-*` — a custom header
-  needs its own check.
-- **The pages navigate, not just `fetch`.** Three places in the two kits are ordinary browser
-  navigations, and none of them can carry an `Authorization` header: the page itself
-  (`GET /forms/{id}`), every internal link built with `path()` (the language switch, "back to
-  the form", a version page — `templates/forms/*/form.html.twig`), and the file download, which
-  is a plain `<a href>` in both kits (`public/js/core-html-form.js:480`,
-  `assets/controllers/file_controller.js:139`, `templates/forms/bootstrap/form.html.twig:575`).
-  This single fact reorders the whole "how does a browser get a credential" section below.
-- **The page shows the API's own words when it has no better ones.** `showErrors` falls back to
-  `body.detail || body.title` (`public/js/core-html-form.js:213`), so a `401` document would
-  put an untranslated English sentence in front of a reader — against the house rule that what
-  a person is told about their own doing is the page's text, out of
-  `translations/messages.*.yaml`.
-- **Nelmio's UI is not routed.** `config/routes.yaml` imports two attribute resources and
-  nothing else, so there is no `/api/doc` endpoint to guard; the contract is generated by
-  `make docs` into `docs/openapi.yaml` and served as files, not by this application.
-- **Everything is checked by a suite that talks HTTP.** `tests/UserInterface/**` drives the real
-  kernel, `tests/Browser/**` drives Panther against a separate server process and sets its
-  fixtures up *through the API*, and `OpenApiComplianceTest` validates real traffic against
-  `docs/openapi.yaml`. A guard is therefore not something that can be added quietly: every one
-  of those becomes a client of it.
-- **The CLI is untouched by any of this.** `app:forms:purge-expired` and
-  `app:files:purge-temporary` are console commands; whatever guards HTTP says nothing about
-  them, and that is correct — a scheduler is not a caller.
+- **Expiry is already a hard stop**: past `expire_date` every endpoint answers `410`, and the purge
+  deletes rows then bytes. With the id no longer a credential, that is housekeeping again rather
+  than part of the security model — the sentence in `docs/architecture.md` saying otherwise was
+  written for a world where a link was mailed to strangers.
+- **`POST /api/forms` and `PUT /api/forms/{id}/data` share a prefix**, so nothing in front can tell
+  the two audiences apart by looking at a request. That is the whole problem this plan solves.
+- **`framework.trusted_proxies` is not configured.** Nothing here distinguishes a header the client
+  sent from a header a proxy added, and Symfony's own machinery only sanitises `X-Forwarded-*` — a
+  custom header needs its own check.
+- **The pages navigate, not just `fetch`.** The page itself, every internal link built with
+  `path()`, and the file download — a plain `<a href>` in both kits
+  (`public/js/core-html-form.js:480`, `assets/controllers/file_controller.js:139`,
+  `templates/forms/bootstrap/form.html.twig:575`). None of them can carry an `Authorization`
+  header. Under decision 4 that stops mattering, and it is worth knowing *why* it stopped
+  mattering rather than assuming it never did.
+- **The pages have four routes, two of them localized.** `/forms/{id}`,
+  `/forms/{id}/versions/{seq}`, and `/{_locale}/…` variants of both
+  (`src/UserInterface/Web/Action/ViewFormAction.php:46-59`).
+- **Nelmio's UI is not routed.** `config/routes.yaml` imports two attribute resources and nothing
+  else, so there is no `/api/doc` endpoint to think about.
+- **Everything is checked by suites that talk HTTP.** `tests/UserInterface/**` drives the real
+  kernel, `tests/Browser/**` drives Panther against a separate server and sets its fixtures up
+  through the API, and `OpenApiComplianceTest` validates real traffic against `docs/openapi.yaml`.
+- **The CLI is untouched.** `app:forms:purge-expired` and `app:files:purge-temporary` are console
+  commands; a scheduler is not a caller.
 
-## Identity arrives, and it is a requirement rather than a variant
+## The service authorises nothing
 
-**A form has an author, and every save names who entered it.** A form may instead be declared
-**anonymous**, and then nothing about a person is asked for or stored. That is the owner's
-decision; this section is what it costs.
+The division of labour, stated once so nobody looks for the missing half in here:
 
-It supersedes [07](07-history.md)'s refusal of an actor column — which said, in as many words,
-that when identity arrived it would land on that table without moving anything else. This is that
-arrival, and the prediction holds: two tables grow columns, three events grow a member, and
-nothing about how a form works moves at all.
+| Question | Answered by |
+|---|---|
+| may this request reach the service at all | the gateway, per prefix and method |
+| may this caller touch **this form** | a decision point outside, asking the superordinate system that created it |
+| who is calling | the gateway, asserting `X-Forms-Identity` |
+| what is recorded about who called | **this service** |
+| may this form be saved without an identity | **this service**, from the form's own mode |
 
-What does **not** change is the framing at the top — as little of it here as possible. The
-service still learns nothing: it **records an assertion and never resolves one.** No user, no
-account, no directory, no lookup, and no question this service can answer about a subject beyond
-"this is the string that was asserted when that save happened".
+The second row is the one that used to drive a port, three adapters and a capability scheme here.
+It leaves for a good reason rather than a convenient one: **whoever created a form already knows
+who may touch it, and that answer is theirs to keep.** That sentence was in this plan from the
+first draft as a principle; taking it seriously means the binding of a form to a person lives
+where the form was created, not here. A decision point gets the form id out of the path, and the
+superordinate system tells it what it knows.
 
-### Three slots, and conflating them is the obvious mistake
+What this service must not do is *rely* on any of it. "Not reachable from the internet" is a
+property of a deployment, not of a service, and it is true until somebody puts a public ingress in
+front of it for a demo. So the two cheap things that stay valuable when that assumption breaks
+stay in: the routing split, so a gateway can close the manage side at all, and the trusted-proxy
+check on the header, so what is recorded is worth reading.
 
-- **The author** — who created the form. One, asserted at creation, immutable like everything
-  else about a form.
+## Four prefixes, and the form id right after each
+
+This is the deliverable. Two properties, and the second only became necessary once the decision
+point moved outside.
+
+**Prefix-clean:** exactly one prefix per group, so a gateway rule is one line with no alternation.
+
+| Prefix | Group | Who |
+|---|---|---|
+| `/api/manage/` | management | the superordinate system: create, read the envelope, delete, read history with actors |
+| `/api/forms/` | filling, API | whoever that system let through to this form |
+| `/forms/` | filling, pages | the same person, in a browser |
+| `/api/schemas/` | public | anybody, deliberately |
+
+**The form id is always the first segment after the prefix**, so a decision point extracts it with
+one pattern per prefix and no guessing. That holds for every route today — including
+`/api/forms/{id}/files/{fileId}` and `/api/forms/{id}/history/{seq}` — once two things move.
+
+**Move one: the envelope becomes management.** `GET /api/forms/{id}` hands over the definition and
+the values together, so under `/api/forms/` it would give everything to anybody the gateway let
+near the form. It goes to `/api/manage/forms/{id}` with `DELETE`, and the pages do not care: they
+read `…/presentation` and `…/data`.
+
+**Move two: the locale leaves the path.** `/{_locale}/forms/{id}` breaks both properties at once —
+a gateway rule on `^/forms/` misses it entirely (silently: an open page, not a broken one), and the
+form id sits at position 2 or 3 depending on whether a language is in the URL. An earlier draft
+proposed `/forms/{_locale}/{id}`, which fixes the prefix and keeps the id moving; that is
+withdrawn. The locale leaves the path altogether:
+
+```
+/forms/{id}
+/forms/{id}/versions/{seq}
+```
+
+and the language travels as `?lang=xx`, negotiated from `Accept-Language` when absent
+(`set_locale_from_accept_language` is already on). Under decision 4 a page link is *generated by
+the superordinate system*, not typed by a person, so a query parameter costs nobody anything.
+
+What that touches, precisely: two `#[Route]` attributes on `ViewFormAction`, four `path()` calls in
+the two kits' language switches (`templates/forms/*/form.html.twig`), one listener setting the
+locale from the parameter, one assertion in `CoreHtmlRendererTest` and four request URLs in
+`ViewFormActionTest`. Contained, and it deletes two routes rather than adding any.
+
+**A `Deprecation` and `Sunset` window** (RFC 8594) on the three old management addresses for one
+release, `deprecated: true` in the generated document, and the fill prefix unchanged throughout.
+
+**The prefixes are checked at build time.** A compiler pass walks the route collection and refuses
+to build a container holding a route whose path does not start with one of the four. Not an
+attribute on each action — the path *is* the declaration, and the pass is what stops the next
+endpoint from landing outside every gateway rule. A route that needs a group its prefix does not
+give is the moment to reconsider, and there is no such route today.
+
+**And the gateway configuration should be derivable rather than transcribed.** The failure this
+whole section exists to prevent is a gateway holding a stale copy of the route table, so
+`bin/console app:routes:groups` printing prefix, methods and group — as a table or as a snippet —
+is worth the twenty lines. It is the difference between a deployment reading the routes and a
+deployment remembering them.
+
+## What a gateway can express, and the one thing it cannot
+
+Four of the five permissions this plan once wanted a port for are path-and-method rules:
+
+| Permission | Rule at the gateway |
+|---|---|
+| create | `POST /api/manage/forms` — exact path |
+| manage | `/api/manage/**` — prefix |
+| read | `GET` only, under `/api/forms/` and `/forms/` — method |
+| confirm | `POST /api/forms/{id}/confirm` — its own path |
+| fill | mutating methods under `/api/forms/` |
+
+"Send somebody a view-only link" is a GET-only rule. "Do not let the filler close the form" is a
+blocked `POST …/confirm`. Neither needs a line of code here, and that is the strongest argument
+for this shape: the permission vocabulary a port would have carried is already expressed by the
+addresses, once the addresses are right.
+
+The one thing a gateway cannot say on its own is **"this caller, for this form"** — it has no idea
+which person a given form belongs to. That is not deferred, it is **delegated**: a decision point
+(ForwardAuth to OPA, Cerbos, or five lines the superordinate system already has) receives the form
+id from the path and answers per request.
+
+Two consequences of that living outside, and both are the deployment's to own. It is **a hop on
+every request**, and the fill side is interactive — a save now waits on two. And **what happens
+when the decision point is down is a decision**: fail closed and its outage is an outage here,
+fail open and the guard is advisory. Both answers are bad, which is why the answer should be
+written down rather than arrived at by a timeout.
+
+## How the pages are reached
+
+Behind the same SSO as the superordinate system. The browser follows a link or a redirect from that
+system, the proxy in front of both has already authenticated the person, and it asserts
+`X-Forms-Identity` on the way in.
+
+What that buys is the largest single simplification in this plan, and it is worth listing because
+three earlier drafts spent most of their length on it:
+
+- **No credential in a URL**, so nothing to leak into history, `Referer` or logs, and no link that
+  can be forwarded into an impersonation.
+- **No cookie exchange**, so `framework.yaml`'s "no sessions and no browser here, so no CSRF token"
+  stays true and CSRF stays out of scope.
+- **The three navigations that cannot carry a header keep working untouched** — the page, every
+  `path()` link, the `<a href>` download — because the session lives at the proxy and travels with
+  the browser by itself.
+- **Nothing changes in either kit** beyond the language switch, and that only because the locale
+  moved.
+
+What the deployment must do: terminate SSO in front of `/forms/**` and `/api/forms/**`, put both on
+an origin the browser reaches, and strip client-supplied copies of the identity header. Serving the
+pages on the superordinate system's own origin through a reverse proxy is the ordinary shape; an
+iframe on another origin would drag `frame-ancestors`, cookie policy and `SameSite` back in, and is
+worth avoiding for exactly that reason.
+
+## Identity: what is recorded
+
+**Three slots, and no fourth.**
+
+- **The author** — who created the form. Asserted at creation, immutable.
+- **The confirmer** — who locked it forever. Its own slot, because confirming writes no values and
+  is therefore no revision of its own ([07](07-history.md)); without it, the most consequential act
+  on a form would be the one nobody attributed.
 - **The filler** — who entered a particular save. One per revision.
-- **The confirmer** — who locked the form forever. One, and it needs a slot of its own precisely
-  because confirming writes no values and is therefore no revision of its own ([07](07-history.md)
-  again): without a column on the form, the most consequential act anybody performs on it would
-  be the one act nobody attributed.
 
-Note what is *not* among them: "who last changed this form" is not stored, because the newest
-revision already answers it and a second copy is a second truth.
+"Who last changed this form" is *not* stored: the newest revision already answers it, and a second
+copy is a second truth.
 
-And the author and the fill side are **orthogonal**, which is the part to get right at the start:
-an anonymous form still has an author, because somebody created it; and a form whose author is
-unknown can still name every filler. The mode below governs the fill side only.
+The author and the fill side are **orthogonal**. An anonymous form still has an author, because
+somebody created it — and management sits behind the gateway, so an author is always resolvable.
+The mode governs the filler only.
 
-### Asserted, never claimed
+**The mode, and what it means now.** `identity: recorded | anonymous`, a third top-level property
+of a form beside its definition, its values and its `expire_date`: given at creation, immutable,
+**defaulting to `recorded`**.
 
-Identity travels **inside the credential**, and it is trustworthy exactly as far as that
-credential is. There is no `actor` member in `PUT …/data` and none in `POST …/forms`, and the
-reason is one sentence: an audit trail the audited party can write is not an audit trail.
+- `recorded` — the filler is stored with every save.
+- `anonymous` — the filler is **not** stored, *even when the gateway asserted one*. That is the one
+  half of this that cannot be delegated: the proxy asserts identity on every request, so only this
+  service can decide not to keep it. The aggregate discards it, whatever the use case handed in.
 
-The objection worth answering: under `TrustsTheGateway` the assertion is a header, and a header
-is as forgeable as a body. True — and what survives the objection is a sharper rule than
-header-versus-body: **inside the signature, or outside it.** With `SignedToken` the subject is
-covered by the signature, so the person filling the form cannot rewrite who they are; with
-`TrustsTheGateway` it is as good as the network. That is a stronger argument for signed
-capabilities than anything in the access half of this plan, and it is identity that makes it.
+It defaults to `recorded` because the two options are not symmetric. `anonymous` by default fails
+**silently** — six months later nothing was recorded and nothing can be recovered — while
+`recorded` by default fails **loudly**, at the first save, in a deployment that has neither a
+header nor a fallback. When one default fails loudly and the other silently, "no default, the
+request must say" is ceremony; an earlier draft of this plan recommended it, and that
+recommendation is withdrawn.
 
-### It follows that identity cannot land before the guard
+The name changed with the meaning: `required` promised an enforcement that has moved to the
+deployment, so it would have been a word that lies. `recorded` says what happens.
 
-There is nowhere else for an actor to come from. `OpenDoor` asserts nothing, so `OpenDoor` plus
-`identity: required` refuses every save — correctly, and inconveniently, because that is what
-dev, test and the browser suite run on. So the work is ordered rather than parallel: **stage one
-is the guard, stage two is identity**, and `OpenDoor` grows one option — a configured subject it
-asserts for everybody — so the suites have somebody to be.
+**The fallback, and the one check that stays here.** An absent header falls back to
+`FORMS_IDENTITY_FALLBACK`. If that is not configured, a save on a `recorded` form is refused
+(`IdentityRequired`, `403`) — one comparison, no per-form logic, and the deployment chooses its own
+policy with one line in `.env`. An `anonymous` form is unaffected, because it stores nobody either
+way.
 
-### The mode, and why there are two of it rather than three
+That is deliberately the *only* thing this service checks, and it earns its place: it is what makes
+a misconfigured gateway visible. Without it, a proxy that quietly stops sending the header records
+`unattributed` forever and nobody finds out. A deployment that genuinely does not care sets the
+fallback and never sees the refusal.
 
-`identity: required | anonymous`, a third top-level property of a form beside its definition, its
-values and its `expire_date`: given at creation, immutable, and refused afterwards like
-everything else about a form. Not in the definition (which says what is asked of the *answers*,
-and who answers is not an item) and not in the presentation (which says how it looks).
+The fallback value should be **reserved and obviously not a person** — `unattributed`, not `system`
+and not `admin` — so a row saying "nobody told us" is a fact rather than something mistakable for a
+subject.
 
-- **`required`** — every save must name a filler, and a save that cannot is refused.
-- **`anonymous`** — no filler is asked for, and one that arrives anyway **is discarded rather
-  than stored**. That is a promise, so it lives where a promise about a form can live: the
-  aggregate drops it, whatever the use case handed in. A deployment whose gateway asserts a
-  subject on every request cannot accidentally build a record of who filled an anonymous form.
+**Asserted, never claimed.** Identity arrives in the header and nowhere else. There is no `actor`
+member in `PUT …/data`, none in `POST /api/manage/forms`, and **nothing new is needed to enforce
+that**: request bodies are already closed (`ALLOW_EXTRA_ATTRIBUTES => false`), so a client sending
+`actor`, `author` or `filler` gets `request.unexpected_key` today. The promise has a mechanism
+behind it rather than a paragraph.
 
-An `optional` third mode is the tempting one, and it should be refused. It makes one column mean
-two things — nobody was there, or somebody was and did not say — which is exactly the "member
-nobody can fill" that [07](07-history.md) refused a column over. A deployment that wants both
-behaviours has two forms.
+**Nothing is ever displayed.** No page draws an actor, no catalogue holds a word for one, no
+`codes()` entry, and both kits and every skin come out of this untouched. It is served on the
+**manage side only**:
 
-**A word rather than a boolean** (`anonymous: true`), because both states deserve a name, and
-because a boolean is the shape that later grows a second boolean beside it.
+- `GET /api/manage/forms/{id}` — the envelope grows `identity`, the author and the confirmer.
+- `GET /api/manage/forms/{id}/history` — a manage-side list carrying the actor per save.
 
-### What the aggregate refuses
+The fill-side `GET /api/forms/{id}/history` stays exactly as it is, which is what keeps one person
+who reached a form from learning who else filled it in. Two routes rather than one response that
+varies by caller: a response that changes shape with who asks is a second truth at one address, and
+`OpenApiComplianceTest` validates one shape per route.
 
-The aggregate already picks its own contract and refuses what breaks its transitions. These are
-more of its invariants, not courtesies a use case performs:
+**And no display label.** With nothing rendering it, a label's only reader is the superordinate
+system — which is precisely the party that already knows how to turn a subject into a person. So:
+subject only. No name to go stale when somebody changes theirs, and no personal data stored for a
+reader that does not exist. If a deployment wants one later it is a nullable column and a paragraph
+about personal data.
 
-- **a save on a `required` form with no actor.** A new refusal — `IdentityRequired` — and `403`
-  rather than `422`, because nothing is wrong with the document: there is no pointer to give, and
-  the caller may not do this on account of who they are not.
-- **creating a `required` form under a credential that asserts nobody.** A form nobody could ever
-  save is not a form, so it is refused where somebody can still fix it, the way an unknown
-  presentation engine is.
-- **an actor on an `anonymous` form is not a refusal**, it is a discard. Refusing would break
-  every legitimate caller behind a gateway that asserts identity on every request, which is most
-  of them.
+## What identity has to satisfy
 
-### What is stored, and the migration that decides whether it is trustworthy
+An opaque string this service will never interpret is easy to *under*-validate: there is no format
+to check, so the temptation is to check nothing. But an unvalidated opaque string is how a newline
+gets into a header and how an audit trail becomes self-written.
 
-`forms` grows `identity_mode` (not null), `author_subject`, `author_issuer`,
-`confirmed_by_subject`, `confirmed_by_issuer`. `form_revisions` grows `actor_subject`,
-`actor_issuer`. All portable types, like everything else in there, and all nullable except the
-mode.
+**The header, and this is where it matters most.**
 
-**The issuer is stored per row rather than taken from configuration**, even though most
-deployments have exactly one and will leave it `NULL`. A deployment-level constant would be
-cheaper and wrong: changing identity provider would retroactively rewrite what every past row
-means, and a row is supposed to say what was true when it was written.
+- **Read only from a configured trusted proxy.** If anybody can set `X-Forms-Identity`, the trail
+  is written by the party being audited. This is the one irreversible thing in the whole plan: data
+  recorded under a forgeable header is *permanently* untrustworthy, because there is no way to go
+  back and re-verify old rows, and no way to tell them from the good ones. Symfony's
+  `trusted_proxies` does not extend to custom headers, so this is the intake's own check.
+- **Single-valued, or refused.** PHP folds repeated headers with commas, so `a, b` would otherwise
+  *become* the subject. A repeat is either an injection attempt or a misconfigured proxy chain.
+- **Length checked first**, because headers arrive large and cheap.
+- **A malformed header is a refusal, not a fallback.** Falling back would let a save through as
+  `unattributed` and hide the misconfiguration for months, which is the failure this design is
+  arranged to make loud.
+- **ASCII only.** RFC 9110 field values are octets with no stated encoding and every proxy in a
+  chain treats non-ASCII differently. A deployment whose subjects are not ASCII namespaces or
+  encodes them itself.
 
-The **events carry it**, because here the write follows the record: `FormCreated` carries the
-author, `DraftSaved` carries the actor beside the `Values` it already carries, `FormConfirmed`
-carries the confirmer. A column changes because something happened, and a transition no adapter
-knows how to store stops the write rather than vanishing from it.
+**`Actor`, a domain value object** — `subject` and nothing else, since there is no label and no
+second header:
 
-`Actor` is a domain value object: `subject` (opaque, required, bounded) and an optional `issuer`,
-which is what keeps two identity sources from colliding on one subject string. It lives in
-`Domain/Forms/ValueObject/` with the others, framework-free, and it is **never interpreted** —
-not parsed, not resolved, not compared against anything but itself. What it refuses to be built
-from is the next section.
-
-**The migration is where an audit trail becomes trustworthy or does not.** Nothing can backfill
-who filled a form in last year, so both actor columns arrive nullable — and a nullable column
-with no further rule makes `NULL` mean three things at once: anonymous by design, unrecorded
-because this predates the feature, or a bug. The fix is one default: `identity_mode` is **not
-null, backfilled `anonymous`**, so every form that exists today becomes an anonymous form —
-which is truthful, since nobody was recorded — and from then on a `NULL` actor on a `required`
-form is impossible by the aggregate's own rule. One column's default is what makes the other
-column's silence mean exactly one thing.
-
-### Where it is served, and where it is not
-
-**Nothing about an actor is ever drawn on a page.** Not in the history panel, not beside a
-version, not anywhere. So there is no template change, no new `page.*` key, no `codes()` entry,
-and no question about what one holder of a link learns about another — the pages come out of this
-whole section untouched, which is the cheapest available answer and worth taking deliberately
-rather than by omission.
-
-It is present in the API, and once nothing displays it the audiences sort themselves out:
-
-- **`GET /api/manage/forms/{id}`** — the envelope grows `identity`, the author and the confirmer.
-- **`GET /api/manage/forms/{id}/history`** — a manage-side list of saves carrying the actor of
-  each. The fill-side `GET /api/forms/{id}/history` stays exactly as it is, because that is the
-  one the page reads and the page shows nobody.
-
-Three shapes were on the table and the middle one is a trap. *One route carrying the actor*: a
-link holder can then read who else filled the form in — no page shows it, but the API is the
-foundation and a client is entitled to everything the route serves. *One route whose response
-varies by permission*: a second truth at one address, and `OpenApiComplianceTest` validates one
-shape per route, so the contract could not describe it honestly. *Two routes, one per audience*:
-duplicates a read and nothing else, and it matches the split that already exists — the manage
-side gets the whole picture, the fill side gets what a page needs.
-
-**And once nothing is displayed, a display label has no reader.** The first draft of this section
-stored `author_label` and `actor_label` beside each subject; with nothing rendering them, the only
-consumer is the owning application — which is precisely the party that already knows how to turn a
-subject into a person. So the recommendation is **subject only, no label**, and it is a
-simplification worth the sentence it costs: no name to go stale when somebody changes theirs, no
-personal data in an append-only table, and one fewer column that means something this service
-cannot check. If a deployment wants a label anyway it is one nullable column — and it is personal
-data, which is the whole difference.
-
-### The rules identity has to satisfy
-
-An opaque string this service will never interpret is easy to *under*-validate: there is no
-format to check, so the temptation is to check nothing. But an unvalidated opaque string is how a
-newline gets into a header, how an eternal token gets honoured and how two people become one. The
-rules below are therefore about **transport and trust** rather than about shape, and where each
-one lives is part of it.
-
-#### What an `Actor` refuses to be built from — the domain
-
-- **`subject` is required, 1–255 characters.** 255 because it is what an OIDC `sub` is expected
-  to fit in, what an email address fits in, and what the `name` cap on a file descriptor already
-  is here — a number this codebase has already chosen once.
-- **No control characters.** No `\r`, no `\n`, nothing in C0 or C1. This is the one character
-  rule that is not taste: a newline in a value an adapter read out of a header is header
-  injection, and the same value reaching a log line is log injection.
-- **Refuse leading and trailing whitespace; never trim it.** Trimming silently changes an
-  identifier, and `" 42"` and `"42"` really are two subjects. Refusing says so out loud; trimming
-  lies about it.
-- **Valid UTF-8, and no normalization.** `Actor` does not NFC-normalize, because normalizing is
-  interpreting — with the consequence, worth stating rather than discovering, that two Unicode
-  spellings of one name are two people here. Which is one more argument for a subject being a
-  machine identifier and not a human name.
-- **No format is imposed and none is parsed.** Not a UUID, not an email, not a URI. The only
-  operation this service ever performs on a subject is `===`.
-- **Identity is the pair `(issuer, subject)`**, and equality is on the pair. `issuer` is optional,
-  bounded and character-checked identically; a deployment should put its OIDC issuer URL there by
-  convention, and this service will not check that it is a URL. **An absent issuer is a bucket of
-  its own** — `(null, "42")` is not `("https://sso.example", "42")` — because assuming otherwise
-  is exactly how two identity sources silently become one person.
+- **Required, 1–255 characters.** 255 because it is what an OIDC `sub` is expected to fit in, what
+  an email address fits in, and what the `name` cap on a file descriptor already is here.
+- **No control characters** — no CR, no LF, nothing in C0 or C1. The one character rule that is not
+  taste: a newline in a value read out of a header is header injection, and the same value reaching
+  a log line is log injection.
+- **Refuse leading and trailing whitespace; never trim.** Trimming silently changes an identifier,
+  and `" 42"` and `"42"` really are two subjects. Refusing says so; trimming lies about it.
+- **Valid UTF-8, no normalization.** Normalizing is interpreting — with the consequence, worth
+  stating rather than discovering, that two Unicode spellings of one name are two people here.
+  Which is one more argument for a subject being a machine identifier.
+- **No format imposed, none parsed.** Not a UUID, not an email, not a URI. The only operation this
+  service performs on a subject is `===`.
+- **Stored verbatim, and namespaced by the deployment if it ever has two identity sources**
+  (`sso:12345`). No `issuer` member and no second header: zero cost today, the option preserved,
+  and no migration if it is ever needed.
 - **A stored actor is never judged again.** `Actor::stored()` builds without validating, the way
-  `Definition::stored()` does, so tightening a rule later cannot make old rows unreadable.
-  Reading is not the moment to judge.
+  `Definition::stored()` does, so tightening a rule later cannot make old rows unreadable. Reading
+  is not the moment to judge.
 
-#### What the aggregate refuses — the domain
+**The mode, at the API boundary.** `identity` is a member of the creation request with a default,
+held to the two words by `symfony/validator` and reported the way every envelope violation is
+(`request.choice` at `/identity`). A member with a default value is still non-nullable, so the
+house rule that an instance means a complete request holds.
+
+**And one thing that is not a rule.** A definition may declare an item called `filler`, and
+somebody may answer it with their name. That is an *answer*: it lives in the values document, it is
+judged by the derived schema like any other text, and this service draws no line between the two.
+Worth writing once, because the first person to see both will ask.
+
+## What the aggregate refuses
 
 | Situation | Answer |
 |---|---|
-| a save on a `required` form asserting nobody | `IdentityRequired`, `403` — nothing is wrong with the document, so there is no pointer to give |
-| creating a `required` form when nothing is asserted | refused at `/identity`, `422` — a form nobody could ever save is not a form |
-| an actor arriving at an `anonymous` form | **discarded, not refused** — refusing would break every caller behind a gateway that asserts on every request |
-| anything trying to change the author, the confirmer or the mode | no transition accepts one; they are immutable like the definition |
+| a save on a `recorded` form with no actor and no fallback configured | `IdentityRequired`, `403` — nothing is wrong with the document, so there is no pointer to give |
+| an actor arriving at an `anonymous` form | **discarded, not refused** — the proxy asserts on every request; refusing would break every legitimate caller |
+| anything trying to change the author, the confirmer or the mode | no transition accepts one; immutable like the definition |
 
-Three rules that are deliberately **absent**, because each is the obvious thing to ask for and
-each belongs somewhere else:
+Three rules deliberately **absent**, each because it belongs elsewhere:
 
 - **No rule that the same person fills every save.** Several people answering one form in turn is
-  the workflow the `confirm` permission was separated for. If a link should be usable by exactly
-  one person, that is what the *credential* says, and the minter says it — not the aggregate.
-- **No rule that the confirmer is the author, or a filler.** Somebody closing what another person
-  answered is the point of having a `confirm` permission at all.
-- **No rule tying the actor to a form's previous actors.** The model compares an actor to nothing.
-
-And one real conflict, which has to be decided rather than glossed: **a save that stores what is
-already stored records nothing** ([07](07-history.md)), and that rule now swallows a fact an audit
-trail might want — person B re-submitting person A's answers unchanged writes no revision, so the
-newest revision still names A. The no-op rule wins, and the reason is that it is the honest one:
-the history records *changes*, nothing changed, and "B looked at this and agreed" is an access-log
-fact rather than a version of a document. A deployment that needs the second thing needs a
-different record, not a duplicate revision.
-
-#### What an adapter refuses — where most of the validation actually is
-
-This is the boundary the assertion crosses, so this is where a bad one has to stop.
-
-**`TrustsTheGateway`**
-
-- **No credential at all unless the request came from a configured proxy address.** Not "no
-  actor" — no credential: a request from somewhere else is not a request whose headers mean
-  anything.
-- **A single-valued header, or a refusal.** PHP folds repeated headers with commas, so
-  `X-Forms-Subject: a, b` would otherwise be stored as the subject `"a, b"`. A repeat is either an
-  injection attempt or a misconfigured proxy chain, and both deserve a `401` rather than a
-  plausible-looking string.
-- **Length checked before anything else**, because headers arrive large and cheap.
-- **A malformed assertion is a refusal, not a silent drop.** If the header is there and fails the
-  `Actor` rules, something upstream is wrong; answering "no actor" would let an anonymous save
-  through on a form that requires one and hide the misconfiguration for months.
-- **ASCII only in the header form.** RFC 9110 field values are octets with no stated encoding, and
-  every proxy in the chain treats non-ASCII differently. A deployment whose subjects are not ASCII
-  uses `SignedToken`, where the subject travels in JSON and Unicode is defined. The transport
-  constrains what it can carry, and it says so instead of mangling it.
-- The gateway must also be configured to **strip client copies** of these headers. The adapter
-  cannot verify that; the proxy-address check is the backstop, and the rest is documented as the
-  deployment fact it is.
-
-**`SignedToken`**
-
-- **Verify, then read.** Never take a claim out of a token whose signature has not been checked —
-  the classic mistake, and worth a line because it is classic.
-- **The algorithm comes from the key, not from the token.** Look the key up by `kid` and use *that
-  key's* configured algorithm; treat the token's own `alg` as decoration. This is what closes
-  `alg: none` and the HMAC-verified-with-a-public-key confusion in one rule.
-- **`exp` is mandatory.** A capability with no expiry is today's UUID with extra steps.
-- **And `exp` is capped by the verifier**: refuse a token whose expiry is further out than
-  `FORMS_ACCESS_MAX_TTL`. A verifier that bounds what a minter can hand out is the only defence
-  against a minting bug nobody noticed, and it costs one comparison.
-- **`nbf` honoured if present, `iat` ignored**, with a leeway of at most a minute, from
-  configuration.
-- **The form claim must be a well-formed UUID and must equal the form in the path.** Two checks,
-  not one: a malformed claim is a broken minter, a mismatched one is an attempt.
-- **`sub` must satisfy the `Actor` rules, or the token is refused** — again a `401`, not an
-  accepted-token-without-an-actor.
-- **Unknown claims are ignored; unknown permissions are ignored; an empty resulting permission set
-  is a refusal.** Ignoring lets a newer minter talk to an older service without granting anything
-  it does not understand, and the emptiness check is what stops that from silently becoming a
-  free pass.
-- **`iss` is checked when configured** and ignored otherwise.
-
-**`OpenDoor`**
-
-- Its configured subject, if it has one, is validated **at boot**. A bad value in configuration
-  should fail the container build, not the first save of the day.
-
-#### What the API boundary refuses — the request DTOs
-
-- **`identity` is a member of the creation request**, held to the two words by
-  `symfony/validator`, reported the way every other envelope violation is (`request.choice` at
-  `/identity`). Not in the definition, not in the presentation, not in the derived values schema —
-  it is an envelope fact like `expireDate`.
-- **"Asserted, never claimed" is already enforced, and by a rule that exists.** Request bodies are
-  closed (`ALLOW_EXTRA_ATTRIBUTES => false`), so a client sending `actor`, `author` or `filler` in
-  a body gets `request.unexpected_key` today, with no new code. The promise has a mechanism
-  behind it rather than a paragraph.
-- **A definition may still declare an item called `filler`**, and somebody may still answer it
-  with their name. That is an *answer*, not an identity: it lives in the values document, it is
-  validated by the derived schema like any other text, and this service draws no connection
-  between the two. Worth saying once, because the first person to see both will ask.
-
-## Four groups of addresses, not two
-
-Whatever guards them, the guard needs to tell the audiences apart by looking at the request.
-Today it cannot: `POST /api/forms` and `PUT /api/forms/{id}/data` share a prefix. And there are
-four groups, not the two the first draft of this plan named — the two that were missing are the
-two that a default-deny rule would silently break.
-
-| Group | Routes today | Who | After the split |
-|---|---|---|---|
-| **create** | `POST /api/forms` | the owning application, with no form to name yet | `POST /api/manage/forms` |
-| **manage** | `GET /api/forms/{id}`, `DELETE /api/forms/{id}` | the owning application | `GET` + `DELETE /api/manage/forms/{id}` |
-| **fill** | `GET` and `PUT …/data`, `POST …/confirm`, `GET …/schema`, `GET …/presentation`, `GET …/history`, `GET …/history/{seq}`, `POST …/files`, `GET` and `DELETE …/files/{fileId}` | whoever holds a link to *that one form* | unchanged, under `/api/forms/{id}/` |
-| **fill (pages)** | `/forms/{id}`, `/forms/{id}/versions/{seq}` and both `/{_locale}/…` variants | the same person, in a browser | unchanged |
-| **public** | `GET /api/schemas/{definition\|presentation}` | anybody, deliberately | unchanged |
-
-**The public group is the one worth stating out loud.** "Everything under `/api` needs a
-credential" would lock away the two meta-schemas — and those endpoints exist precisely because
-a contract stated once has to be reachable ([02](02-presentation.md) put them there instead of
-duplicating the rules into OpenAPI). A guard that swallows them turns a documented address into
-a 401 and makes the published contract unreadable to the client that needs it most: the one
-that has not been given anything yet.
-
-**The create group is worth separating from manage** for a smaller reason and a bigger one. The
-small one is mechanical: there is no form id, so the port's form argument is null exactly there
-and nowhere else. The bigger one is that `POST /api/forms` is today's only unauthenticated
-*write* — the one that costs storage without anybody naming a form — and gating it is what
-closes that hole. It is currently listed further down as an unsolved risk; it is not, once the
-groups exist.
-
-Note what the split says about one route in particular: **`GET /api/forms/{id}` (the envelope)
-is management**, because it hands over the definition and the values together. The pages do not
-use it — they read `…/presentation` and `…/data` — so moving it costs the browser side nothing.
-
-**Moving three routes is the whole change**, and it is what makes every variant below a
-two-line rule instead of a regular expression over methods. It is a breaking change to the
-published contract; the honest way is to serve both prefixes for one release, with the old
-three answering a `Deprecation` and a `Sunset` header (RFC 8594) and carrying
-`deprecated: true` in the generated document. Which means, note, that for that release the
-scope cannot be read off the prefix at all: `POST /api/forms` and `POST /api/manage/forms` are
-the same permission at two addresses. That is the first argument for the next section.
-
-## How a route says which group it is in
-
-There are two mechanisms, and the difference between them is the difference between a rule that
-is checked and a rule that is hoped for.
-
-**Path prefixes are the wrong mechanism, and there is a live counter-example.** The pages are at
-`/forms/{id}` *and* `/{_locale}/forms/{id}` — the localized variants exist because
-`set_locale_from_accept_language` is on and a reader may pick a language. A guard matching
-`^/forms/` matches the first and misses the second, and the failure is an open page rather than
-a broken one: nothing turns red, and the only way to find out is to look. Every firewall
-configuration keyed by path pattern — `security.yaml` included — inherits this.
-
-**Routing already knows, and it is already used this way.** `config/routes.yaml` marks a whole
-resource with `defaults: {_errors: html}`, which is exactly this problem solved once for error
-shape. A scope is the same kind of fact:
-
-```yaml
-api:
-    resource: ../src/UserInterface/Api/Action/
-    type: attribute
-    defaults:
-        _scope: manage      # the safe default: an action must opt *down* to fill or public
-
-web:
-    resource: ../src/UserInterface/Web/Action/
-    type: attribute
-    defaults:
-        _errors: html
-        _scope: fill
-```
-
-with each action that differs saying so on its own `#[Route(defaults: [...])]`, next to the
-method and the path, where somebody adding an endpoint will see it. Two properties follow, and
-both are the point:
-
-1. **The default is the strict one.** A new endpoint that says nothing is management — the
-   audience that is few, known and gated — rather than open to a stranger. Forgetting the
-   annotation costs a machine a 403 in staging, not a leak.
-2. **Completeness is checkable at build time.** A compiler pass walking the route collection can
-   refuse to build a container in which any route lacks `_scope` — the pass has the whole
-   collection, which no request-time check ever does. That turns "every route is guarded" from a
-   claim in a document into a condition on the build, and it is perhaps fifteen lines.
-
-And it survives the deprecation window from the previous section without a special case: two
-paths, one scope each, declared where each route is.
-
-## Where the port lives, and what it may name
-
-The first draft wrote the port as
-
-```
-Access::allows(Scope $scope, ?FormId $form, Request $request): bool
-```
-
-and that signature **cannot be built as an application port**, which is worth catching here
-rather than in CI. `deptrac.yaml` collects everything outside `App\`, `Ingot\`,
-`Symfony\Component\Uid\`, `Psr\Cache\` and `Psr\Log\` into a `Framework` layer, and the ruleset
-is `Application: [Domain, Ingot, Uid, Logging]`. `Symfony\Component\HttpFoundation\Request` is
-`Framework`. So an application port naming a `Request` is a red `make deptrac`, and a domain
-port naming one is worse.
-
-Two ways out, and they are not equivalent.
-
-**(a) Declare it in `src/UserInterface/`.** Reading a header, a cookie or a bearer token is
-HTTP's own business, and the UI layer may name `Framework`. The catch is where the adapters
-live: the ruleset has `Infrastructure: [Domain, Application, Framework, …]` and *no* edge from
-Infrastructure to UserInterface, so adapters could not sit in `src/Infrastructure/` where every
-other adapter sits. They would live beside the port under `src/UserInterface/Api/Access/`,
-which is coherent (they are HTTP adapters) but breaks the habit that `Infrastructure/` is where
-adapters are — and habits that hold everywhere except in one place are how the next person
-learns the wrong rule.
-
-**(b) Keep HTTP out of the port.** The listener does the HTTP part — it knows the scope from
-the route, the form id from the route attributes, and it extracts whatever the request carries
-into a value object:
-
-```
-Access::allows(Scope $scope, ?FormId $form, Credential $credential): bool
-```
-
-where `Credential` is a small immutable thing: a bearer string, or a map of asserted header
-values, or nothing at all. Then the port is framework-free, sits in
-`src/Application/Forms/Port/` with the others, its adapters sit in `src/Infrastructure/Access/`
-with the others, and `services.yaml` binds one — exactly the shape every other port in this
-codebase has. It also matches two habits already written down: *requests arrive as DTOs* (never
-read `Request` directly) and *the domain speaks in value objects, not primitives*.
-
-**(b) is the shape to build.** The cost is one extra class and the discipline of deciding what a
-`Credential` may hold — and that decision is itself a benefit, because "what may an access
-adapter look at" is a question worth answering once instead of per adapter. An adapter that
-wants the client's IP address has to say so by growing `Credential`, in a diff somebody reviews,
-rather than by reaching into a `Request` nobody bounded.
-
-One consequence to accept: an adapter that needs something genuinely HTTP-shaped — mutual TLS
-subject, `X-Forwarded-*` chains — reads it through the listener, which means the listener grows
-a little for each. That is the right place for it to grow; it is the layer that is allowed to
-know what a proxy is.
-
-## The scope vocabulary
-
-The first draft had three: `Create`, `Manage`, `Fill`. Working through today's real routes says
-five, and says something about how they relate.
-
-| Permission | What it admits | Why it is not folded into another |
-|---|---|---|
-| `create` | `POST …/forms` | no form to name; the only scope whose form is null |
-| `manage` | the envelope, `DELETE` | hands over definition *and* values; destroys |
-| `read` | `GET …/data`, `…/presentation`, `…/schema`, `…/history`, `…/history/{seq}`, `GET …/files/{id}`, and the pages | somebody who may check the answers but not change them |
-| `fill` | `PUT …/data`, `POST …/files`, `DELETE …/files/{id}` | changes answers; spends the form's file budget |
-| `confirm` | `POST …/confirm` | locks the form **forever**; irreversible in a way filling is not |
-
-**Do the scopes nest?** The tempting answer is `read ⊂ fill ⊂ confirm ⊂ manage`, and it is
-wrong twice. `manage` is not a superset of `fill` in any useful sense — management is the
-machine that created the form, filling is a person who was sent a link — and making it one
-recreates the exact hole this plan exists to close, "one secret opens everything", in a new
-coat. And the nesting that *is* natural (`read ⊂ fill`) is a fact about how a deployment issues
-credentials, not about what a route needs.
-
-So: **a route declares the one permission it needs; a credential carries a set; the adapter
-decides membership.** Whether a `manage` credential also satisfies `fill` is then the adapter's
-business and can differ per deployment, and the enum can grow — a sixth permission is a new
-member and a new line in that table, with no route and no port signature changing shape.
-
-Two calls in that table are decisions rather than deductions, and both are cheap to reverse:
-
-- **`confirm` separate from `fill`** buys a real workflow — a colleague adds their part, the
-  owner closes the form — and the presentation cannot express it (whether a `confirm` trigger is
-  *drawn* is presentation, not permission, and the API is the foundation). It costs one enum
-  member. Against: YAGNI says wait for the second caller. For: unlike most YAGNI cases, the
-  thing being deferred is a *permission boundary*, and adding one later means re-issuing every
-  credential in flight.
-- **`…/history` inside `read`** means there is no way to give somebody a form without giving
-  them everything it has ever held. That is inherent — "restoring is not an operation" depends
-  on the client being able to read a revision and send it back — but it deserves naming, because
-  it is a surprise to whoever sends a correction link to a second person and does not expect
-  them to see the first person's answers. Splitting `history` off is one more enum member if a
-  deployment ever wants it.
-
-**Identity is orthogonal to all of it, and that is a fence rather than an omission.** The actor
-is *recorded*, never *consulted*: `allows()` decides on the permission and the form, and never on
-who is asking. The two questions look adjacent and are not — "may this caller save" is access
-control, "who saved" is history — and merging them would put a policy in this service, which is
-the one thing every variant below is arranged to avoid. It is also the change somebody will
-propose first, so it is written here rather than discovered later.
-
-And one thing the table settles: **a `read` credential may not upload.** Uploads are the only
-fill-side operation that costs storage rather than a column, bounded only by `FILES_PER_FORM`
-and `FILES_MAX_UPLOAD` — so if `read` admitted `POST …/files`, a read-only link would be a
-write quota.
-
-## Variants
-
-Five were on the table. One of them turns out not to be a variant — and identity thins the list
-further, because a variant that cannot carry an assertion cannot serve a form that requires one.
-
-| Variant | Can it carry identity? | Verdict |
-|---|---|---|
-| **A.** all of it outside, service unchanged | no — the service must *receive* an actor in order to store it | eliminated |
-| **B.** one thin seam here | yes: one member on `Credential` | the architecture |
-| **C.** Symfony Security | yes, and it is what the machinery exists for | stronger than before, still no |
-| **D.** a credential this service issues | anonymous forms only | kept, narrowed |
-| **E.** mTLS | the author, never the filler | a deployment of B |
-
-### A. All of it outside, service unchanged
-
-A gateway (Traefik, nginx, Kong, an ALB) authenticates and the service trusts the network.
-Management behind OAuth2 client credentials or mTLS; filling behind a signed link the gateway
-verifies — nginx's `secure_link`, or
-[ForwardAuth](https://doc.traefik.io/traefik/middlewares/http/forwardauth/) to a small verifier.
-
-- **For:** nothing to build here at all. Exactly the brief, and the only variant with a zero in
-  the "lines of PHP" column.
-- **For:** the gateway sees the form id *in the path*, so it has everything it needs; nothing
-  about the request has to be reshaped for it.
-- **Against, and this is the concrete version of the old "few gateways do it":**
-  nginx's `secure_link` signs **one URI**. A page issues many, and they are not enumerable when
-  the link is minted — `…/data`, `…/confirm`, `…/files`, `…/history`, `…/history/{seq}`, and one
-  download per file whose id does not exist yet. Per-URI signing cannot express "this prefix,
-  for an hour", so `secure_link` is out for the fill side however well it fits a download link.
-- **Against:** ForwardAuth *can* do it — it forwards the original method and URI
-  (`X-Forwarded-Uri`), so a verifier can compare the token's form against the path's. But that
-  verifier is bespoke logic comparing a token to a path, and it is the same twenty lines as
-  variant B's adapter with three differences: it is deployed separately, it is versioned
-  separately, and **nothing in this repository tests it**. "No logic in the service" becomes
-  "logic nobody here can run".
-- **Against:** the failure mode is silent and total. A route pattern that does not match is an
-  open form, and there is no request that comes back wrong to tell you — the ones that come back
-  right are the same ones.
-- **Against:** the pages are part of the fill side, and a gateway rule over `^/forms/` misses
-  `/{_locale}/forms/{id}` for exactly the reason the previous section gave. The service knows
-  its own route table; a gateway is given a copy of it that drifts.
-- **How it fails in practice:** a second deployment target (a staging environment, a developer's
-  laptop, CI) that has no gateway runs with nothing at all, which is where "it works locally"
-  and "it is guarded in production" become two unrelated facts.
-
-**Identity eliminates A outright**, and it is worth being exact about why. Storing who filled a
-save means the actor reaches the aggregate, which means this service receives it, understands it
-and refuses a save that lacks it — a seam here by definition. What survives of A is "a gateway
-asserts and the service reads", which is variant B with `TrustsTheGateway` in front. A was always
-the option with a zero in the "lines of PHP" column; identity is what prices that option out.
-
-### B. One thin seam here, everything real outside *(recommended)*
-
-The service asks **one** question and does not answer it itself:
-
-```
-Access::allows(Scope $scope, ?FormId $form, Credential $credential): bool
-```
-
-One listener maps each route onto a permission and an id — from `_scope` and the route
-attributes, per the two sections above — extracts the credential, and turns "no" into `401` or
-`403`. Three adapters ship, chosen in `services.yaml` like every other port:
-
-1. **`TrustsTheGateway`** — reads what an authenticating proxy asserts (`X-Forms-Scope: manage`,
-   `X-Forms-Form: {uuid}`, and `X-Forms-Subject` once identity lands),
-   the [oauth2-proxy pattern](https://github.com/oauth2-proxy/oauth2-proxy)
-   every service behind ForwardAuth uses. Requires the network to guarantee nobody else can set
-   those headers — a deployment fact, documented as one, and checked as far as it can be: the
-   adapter refuses to answer for a request that did not arrive from a configured proxy address,
-   and refuses to *start* unless that address list is set. Symfony's `trusted_proxies` does not
-   cover custom headers, so this check is the adapter's own.
-2. **`SignedToken`** — verifies a signed bearer token carrying `{form, permissions, exp}` against
-   a key set in configuration. No user store, no session, no identity: it authorises **an
-   object, not a person**, which is the only way to add access control here without
-   contradicting the domain. This is the
-   [signed-URL pattern](https://docs.cloud.google.com/storage/docs/access-control/signed-urls)
-   S3 and every "unsubscribe" link use.
-3. **`OpenDoor`** — what dev, test and the browser suite run with, and what the service does
-   today. See "Operations" below for why its default is not "on".
-
-- **For:** flexible by configuration, which is the brief; the deployment picks its own answer
-  and the service holds no policy.
-- **For:** it is testable *here*. The integration suite can assert a table of route → permission
-  under a closed adapter, and the browser suite can drive the pages against a signed link and
-  prove a real reader still gets through. Neither is possible in A.
-- **For:** it is one port, and this codebase already knows what to do with one — declared where
-  it is needed, implemented outward, bound in `services.yaml`, faked in
-  `tests/Application/Forms/Fake/`.
-- **For:** it makes the *absence* of a credential a first-class answer, so `OpenDoor` is a
-  written-down configuration rather than the shape of a service that has no idea.
-- **Against:** it *is* logic here, however thin — a port, a value object, a listener, three
-  adapters, two new problem types, two `page.error.*` keys, a compiler pass, and tests for all
-  of it. Call it 200 lines of source and rather more of test.
-- **Against:** it is a second thing that can refuse a request, and the first one that can refuse
-  it *before* the model has an opinion. Every existing refusal is the model's; this one is not,
-  and the ordering questions it raises (below: 401 before 410, 403 before 404) are real
-  behaviour changes.
-- **Against:** three adapters is three code paths, and only one of them runs in any given
-  deployment. The two that do not are as good as their tests and no better.
-- **How it fails in practice:** `OpenDoor` reaching production. That is what the boot check
-  exists for.
-
-**With identity, B stops being the recommendation and becomes the only architecture.**
-`Credential` grows an optional `Actor`, the listener promotes what the request carries into it,
-the use case hands it to the aggregate, and the three adapters then differ in exactly one
-interesting way — how firmly the assertion is fastened to the request:
-
-- `SignedToken` — the subject is *inside* the signature, so the person filling the form cannot
-  rewrite who they are. This is the only adapter under which an audit trail is worth the name.
-- `TrustsTheGateway` — the subject is a header, as good as the network in front of it. Right for a
-  deployment whose gateway *is* its SSO (oauth2-proxy asserting a subject after a login is the
-  ordinary shape of this), wrong anywhere that network is shared.
-- `OpenDoor` — asserts nobody, so it serves anonymous forms only, plus the one configured subject
-  the suites need.
-
-Which is a useful result in itself: the identity requirement does not add an adapter, it *ranks*
-the three that were already there.
-
-### C. Symfony Security proper
-
-`security.yaml`, firewalls per route group, a custom authenticator, voters.
-
-The first draft dismissed this too quickly, so here is the fair version. It **can** be done
-without a user store: a custom authenticator returning a `SelfValidatingPassport`, a voter that
-takes the form id out of the route attributes, `security.access_control` denying by default.
-
-- **For, and it is the strongest argument any variant has:** deny-by-default machinery that
-  somebody else wrote, audited and maintains. Token extraction, the `WWW-Authenticate` header,
-  the exception-to-status mapping, the entry point — all of it is a solved problem in a
-  component under security support, and none of it is a problem this repository wants to own.
-- **For:** `#[IsGranted]` on an action puts the requirement next to the route, which is the
-  route-default idea from two sections up with framework support behind it.
-- **For:** a deployment that already runs Symfony Security elsewhere gets a familiar file, and
-  the next contributor has nothing to learn.
-- **Against:** firewalls are keyed by path pattern, so it walks straight into the
-  `/{_locale}/forms/{id}` trap unless every pattern is written twice. The framework's own
-  mechanism is the fragile one here.
-- **Against:** it drags in a vocabulary this service must then spend documentation denying. A
-  `UserInterface` may name `Framework`, so deptrac stays green — but every concept the bundle
-  offers (a user provider, a role hierarchy, a session, a `getUser()`) is a concept the next
-  contributor will reasonably assume is available, and "we have SecurityBundle but no users" is
-  a sentence that has to be written in three places and will still be misread. The domain
-  refuses identity; installing the identity framework and asking people not to use it is a
-  weaker fence than not installing it.
-- **Against:** a voter deciding on a form id is a `Voter` with a synthetic subject and a
-  synthetic token — machinery bent into a shape it was not built for, which is more code than
-  B's listener, not less, once the authenticator is counted.
-- **Against:** it is the only variant that adds a bundle. Seven is a number somebody chose.
-- **How it fails in practice:** in six months there is a user provider in it, because the
-  framework made that the path of least resistance, and this service has learnt who people are
-  after all.
-
-**Identity is the best argument C has ever had.** Recording who did something is exactly what
-`getUser()` is for, the authenticator already extracts it, and everything above about promoting a
-credential into an actor is machinery the component ships.
-
-**And it still loses, for a reason that is now one sentence rather than a paragraph:** a user
-provider's job is to **resolve** a subject into a user, and this design's whole promise is that a
-subject is recorded and never resolved. Installing the framework whose central abstraction is the
-one operation we refuse to perform is how a fence turns into a suggestion — and it would be a
-fence under pressure from the first support request that asks which forms a given person filled
-in.
-
-**Verdict:** the reason to say no is not "too much machinery" — it is that the machinery's
-concepts are the ones the domain refuses, and a fence made of documentation does not hold.
-But C's *win* should be stolen: whatever B builds, the entry point, the `WWW-Authenticate`
-header and deny-by-default are not places to be creative.
-
-### D. A per-form credential this service issues
-
-`POST …/manage/forms` answers `{id, token}`; the token is stored hashed beside the form and
-required by every fill route. A variation worth naming separately: the credential *is* the URL —
-`/forms/{id}/{secret}` — which is what every unsubscribe link in the world is.
-
-- **For:** it is the only variant with **zero external moving parts**. No gateway, no shared key
-  with anybody, no minting service. For a small deployment that is not a nicety; it is the
-  difference between deployable and not.
-- **For:** revocation is a column, and it is the only variant that has real revocation at all.
-  Every token scheme below revokes by waiting.
-- **For:** answering with the token does not break "a write never answers with the thing it
-  wrote" — the token is like the id, something the client could not have known, which is exactly
-  the test that rule applies.
-- **For, and this is underrated:** in the capability-URL shape it solves the browser problem
-  outright. The credential is a path segment, so it survives a top-level navigation, a
-  `path()`-generated link and an `<a href>` download with no cookie, no header and no JavaScript
-  — which is three of the four hard problems in this document, gone. And it is *strictly better
-  than today*, where the id alone is the credential and can neither expire nor be revoked.
-- **Against:** it puts a credential in this service's own storage — the first identity-ish state
-  in a service whose whole design says it has none. Concretely: database dumps and backups
-  become secret-bearing, which is a compliance fact somebody has to be told.
-- **Against:** it makes this service an **issuer**, and issuers acquire endpoints. Rotation
-  wants `POST …/token`, "resend the link" wants something, a second reader with `read` instead of
-  `fill` wants a second token and therefore a list. Each is defensible; together they are a
-  credential-management feature inside a forms service.
-- **Against:** in the capability-URL shape the secret is in the path, so it lands in access
-  logs, `Referer` headers and browser history — the same places the id lands today. Bounded by
-  expiry and revocation, which today's id has neither of, but not eliminated.
-- **Against:** it answers nothing for the manage side. Whoever may call `POST …/forms` at all is
-  still whatever fronts it.
-- **How it fails in practice:** a support request — "resend the link to the customer" — becomes a
-  feature request against this service instead of against the application that owns the
-  customer.
-
-**D and identity are in tension, and the tension is instructive.** A credential this service
-mints names a *form*, not a person, so a save made through one records nothing about who made
-it — unless the link is minted per person, and then this service holds a per-person credential,
-which is an account with the word filed off. So D keeps its place, narrowed honestly: **anonymous
-forms**, where it remains the only variant with no external moving parts, and it stops at the edge
-of the identity-required half. A deployment that needs both needs a real identity source for one
-of them.
-
-### E. mTLS for management — not a variant
-
-Certificates between the owning application and this service, filling left to one of the above.
-
-Worked through, this is not a fifth option: mTLS terminates at the ingress, which then asserts
-the client's subject in a header, which is `TrustsTheGateway` with a different proxy in front.
-It belongs in this document as a **deployment of B**, and a good one — the strongest
-machine-to-machine answer there is, with no bearer token to leak — and its costs (certificate
-distribution, rotation, a CA somebody runs) are the deployment's, not this service's.
-
-Keeping it listed as a variant made the comparison look wider than it is. Collapsing it is the
-finding.
-
-**On identity, E is half an answer and it is the good half.** A certificate subject is an
-excellent assertion of *the author* — a machine identity, rotated by whoever runs the CA, and
-impossible to forge from outside — and it says nothing whatever about the person filling a form
-in, who holds no certificate. Which is the shape to expect in a serious deployment: mTLS
-asserting the author on the manage side, a signed capability asserting the filler on the fill
-side.
-
-## Where the policy lives, which is the actual question
-
-Verifying a caller is easy and this service should not do it. Deciding **whether this caller may
-touch this form** is the hard half, and there are exactly three honest places to keep it. Each
-answers `allows()` without the service holding a policy.
-
-### 1. In the credential — a capability
-
-The caller presents proof minted for *this* form: `{form: "01a0…", can: ["fill"], exp: …}`,
-signed with a key both sides know. The service verifies the signature, compares the form in the
-credential with the form in the path, checks the clock, and checks the permission against what
-the route declared.
-
-Who may delete form X is then decided by **whoever mints credentials** — the owning application,
-which knows what it created and for whom. Nothing about that decision reaches this service.
-
-- **Best when** the owning application already has its own users and rules, which is the usual
-  case. It hands out narrow, short-lived capabilities the way it hands out signed download links.
-- **For:** it is the only policy home that needs no state here and no network call per request.
-- **For:** it composes with the permission set from the scope section for free — `can` is a list,
-  and "may look but not change" is one member's difference.
-- **Costs** a key (see "Verifier, never issuer" below), key rotation, and a way to get the
-  credential to a browser (see further below — this is where most of the real cost is).
-- **Costs, less obviously:** the minter must know this service's vocabulary. `can: ["fill"]` is
-  a contract between two codebases with no schema between them, so the permission names become
-  published API surface — a sixth permission is a version negotiation, not an enum member.
-  Worth writing them into the OpenAPI document as an enum for that reason alone.
-- **Revocation is by expiry**, not by list — the standard bargain, and the reason expiry should
-  be short for `manage` and only moderately short for `fill` (see "Time" below, which is where
-  that gets uncomfortable).
-
-### 2. On the form — an opaque owner label
-
-`POST …/forms` takes an optional `owner` (any string: `"crm"`, `"tenant-42"`, a UUID), stored
-beside the form and never interpreted. The gateway asserts who the caller is
-(`X-Forms-Owner: tenant-42`), and `allows()` is one string comparison.
-
-- **Best when** there are a few long-lived callers and no token infrastructure — one column and
-  an equality check, and the service still has no idea what a tenant *is*.
-- **For:** it survives a restart, a key rotation and a clock. It is the only policy home with no
-  time in it.
-- **For:** it makes multi-tenancy on the manage side trivial and auditable — the column is right
-  there in a dump.
-- **Costs** one nullable column and one member in the creation request, plus a migration.
-- **Costs, and this is the line worth crossing deliberately:** it is the first thing this
-  service stores *about a caller*. It also quietly creates the index that a refused feature
-  needs — the domain says no to a form-list endpoint, and `owner` is exactly the column
-  `GET /api/manage/forms?owner=…` would hang off. Storing it is not adding that endpoint, but it
-  is removing the reason it cannot exist.
-- **Costs:** what to do with forms created before the column existed, and with forms created
-  with no owner. Both are the "open form" question below, and a nullable column makes the unsafe
-  answer the default one.
-- **Note** it says nothing about the fill side: the stranger with the link has no owner. That
-  half still wants a capability, so this is usually combined with 1.
-- **Identity largely absorbs this one.** The `author` from the identity section *is* the owner
-  label — asserted rather than claimed, and stored because it is worth knowing rather than
-  because a policy needs it. So the question stops being "should a form store an owner" (it now
-  does) and becomes "may `allows()` read it", which the fence in the scope section already
-  answers: the actor is recorded, never consulted. If a deployment wants the author to decide who
-  may manage, that decision belongs in the minter or in a decision point, not here.
-
-### 3. Outside, per request — a decision point
-
-The gateway (ForwardAuth) or a listener here asks something else: "may this caller do `manage`
-on `01a0…`?" — [OPA](https://www.openpolicyagent.org/), Cerbos, or a five-line service the
-owning application already has, because it already knows its own rules.
-
-- **Best when** the rules are real: teams, roles, delegation, "support may read but not delete".
-- **For:** the policy can change without re-issuing anything and without a deploy here. Nothing
-  else on this list can revoke a decision inside a second.
-- **For:** it is the only home that can express a rule about *state the owner knows and this
-  service does not* — "this form belongs to a closed case", "this tenant is suspended".
-- **Costs** a network hop on every request (cacheable, and cache invalidation is then a policy
-  question) and one more thing that has to be up. What the guard does when the decision point is
-  down is a decision, and both answers are bad: fail closed and an outage there is an outage
-  here; fail open and the guard is advisory.
-- **Costs:** latency on the fill side, where the caller is a browser and the requests are
-  interactive — a save now waits on two hops.
-- **The gateway can do this on its own**, with no seam here at all: the form id is *in the path*,
-  so a ForwardAuth service sees everything it needs. That is variant A, and this is the shape it
-  should take — not a rule per prefix, but a decision per request.
-
-### The usual combination
-
-**Capability for the fill side, 2 or 3 for the manage side.** The stranger holds a credential
-for one form and nothing else; the machine is answered by whatever already knows what it owns.
-
-The reason the fill side is not negotiable is that it is the only half where the caller is a
-person this service will never know anything about. Every policy home that asks "who is this"
-has no answer there, and a capability is the shape of "we are not asking".
-
-## Verifier, never issuer
-
-If `SignedToken` verifies an HMAC against a shared secret, then this service *can also mint*.
-Nothing stops it; the discipline that it does not is a decision somebody can reverse in an
-afternoon, and the first support ticket asking for a resend is when they will.
-
-If the credential is signed asymmetrically — the owning application holds the private key, this
-service holds only the public one — then this service **cannot** mint, as a property rather than
-as a policy. That is a materially stronger position and it costs one key format decision, made
-now, when nothing is written.
-
-So: **asymmetric by default, HMAC as the option for a deployment that owns both sides and wants
-one fewer moving part.** The port does not care; the adapter reads a key set from configuration
-and the set says which algorithm each key uses.
-
-On rotation: a verifier accepts a *set* of keys identified by a key id, and that is the whole
-story — no overlap window to coordinate, no re-issuing, and a compromised key is removed from a
-configuration file. Fetching a key set over the network (JWKS) would add a request-time
-dependency and a cache to reason about, for a service whose key set changes about annually; a
-static set in configuration is enough and stays offline. Say no to JWKS and say why, so it does
-not get added as an obvious improvement.
-
-## Time: four clocks, and what happens when they disagree
-
-This is the part that has no clever answer, so it is better to name the trade-off than to pick a
-number and hope.
-
-There are four clocks: the form's `expire_date`, the credential's `exp`, the reader's session
-(how long a page stays open), and the skew between whoever signs and whoever verifies.
-
-- **Credential outlives the form:** nothing happens. The form answers `410` and the credential
-  is worthless. No check needed, and adding one — refusing to honour an `exp` past
-  `expire_date` — would buy nothing.
-- **Form outlives the credential:** the reader is locked out of a live form and needs a new
-  link. That is the owning application's job, and it is correct, but see the next point for what
-  it feels like.
-- **The credential expires while the page is open**, which is the one that hurts. Somebody is
-  filling in a long form, saves at minute 61 of a 60-minute credential, and gets a `401`. Today
-  the page would put the API's English `title` in the notice
-  (`public/js/core-html-form.js:213` falls back to `body.detail || body.title`) and the answers
-  would still be in the DOM, unsaved, with no way to send them. Three things follow, and none of
-  them is optional:
-  1. `fill` credentials are measured in **hours**, not minutes. The thing bounding long-term
-     exposure is the form's own `expire_date`, which is already part of the security model and
-     already documented as such.
-  2. The page needs **its own words** for it — a `page.error.link-expired` key, chosen on the
-     status rather than on the problem document's title, because the house rule is that what a
-     person is told about their own doing comes out of `translations/messages.*.yaml`.
-  3. A silent refresh would need an issuer, so there is none. The message has to be good enough
-     to stand alone: this link has expired, ask for a new one, and — if it can be managed —
-     *your answers are still here*, because they are.
-- **Skew** between signer and verifier: a small leeway on `exp`/`nbf`, stated in configuration,
-  and a `nbf` at all, so a credential minted for later cannot be used now.
-
-One temptation to refuse: binding a credential to an IP address or a `User-Agent` to limit
-replay. It is a classic, and it is a classic mistake — a phone moving between a cell network and
-wifi changes address mid-form, and a browser update changes the agent string. A leaked
-credential is replayable until it expires, and expiry is the answer.
-
-## What a guard does to the answers this service already gives
-
-A guard runs before the use case, so it changes what some requests answer today. All three
-changes are improvements, and all three are behaviour changes that belong in the contract.
-
-- **`403` before `404`.** The guard does not read storage, so it cannot know whether a form
-  exists — and it therefore answers the same way for a form that does and one that does not.
-  That closes an oracle: today `GET /api/forms/{id}` tells anybody whether an id is live. A
-  legitimate caller is unaffected, because their credential names the form, the guard allows,
-  and the use case answers `404` as it always did.
-- **`401` before `410`.** An expired form currently answers `410` to anybody. With a guard, it
-  answers `401` to somebody with no credential — which is right for the same reason, and worth
-  documenting, because "expired forms answer 410 everywhere" is a sentence in three places.
-- **A `401` needs `WWW-Authenticate`** (RFC 9110), two new problem types
-  (`urn:problem:ingot-forms:unauthorized`, `:forbidden`) with lines in `REFUSALS`, and — because
-  a page is not a client of RFC 9457 — two `page.error.*` keys. Note that `ErrorPageListener`
-  passes an `HttpExceptionInterface`'s own message through verbatim, so raising a framework
-  `AccessDeniedHttpException` would print an untranslated sentence on a page. The guard raises
-  its own exception type, with lines in both tables, like every other refusal here.
-
-## How a browser gets its credential
-
-The pages are API clients, so whatever the fill side uses has to survive a page load and reach
-`fetch`. This section was three bullets in the first draft and it is the largest single cost in
-the whole plan, because of the fact recorded at the top: **three things the pages do are
-navigations, not `fetch`.**
-
-**What has to work:**
-
-| What | Where | Can it carry a header? |
-|---|---|---|
-| the page itself | `GET /forms/{id}` (and `/{_locale}/…`) | no — top-level navigation |
-| save, confirm, upload, discard, history | `fetch` in both kits | yes |
-| a file download | `<a href>` in both kits | **no** |
-| language switch, "back to the form", a version page | `path()` links in both kits | no |
-
-**And identity reshuffles the options below rather than adding to them.** A credential that names
-a *person*, sitting in a URL, is no longer merely access to one form: forwarding that link is
-impersonation, and what it opens is somebody else's answers under somebody else's name. So the
-options are not ranked once, they are ranked per mode:
-
-- **an anonymous form** — the link *is* the credential and nothing else, so options 1 and 2 are
-  the whole discussion, exactly as written below.
-- **a form requiring identity** — the filler has to be authenticated by *somebody*, and that
-  somebody is whatever already has a session with them. Which promotes option 3 from "impossible
-  here" to the natural answer, and makes an SSO proxy in front of `/forms/**` — oauth2-proxy,
-  read by `TrustsTheGateway` — the ordinary deployment rather than an exotic one.
-
-The consequence worth stating plainly: **a form that requires identity should not be reachable by
-a link that carries one.** Either the reader logs in at the proxy and the page never holds a
-credential naming them, or the capability is short-lived enough that forwarding it is a narrow
-window. The first is better and it is not this service's code.
-
-### 1. In the link, used as-is
-
-`/forms/{id}?t=…`; the page renders it into a `data-` attribute and the module sends it as
-`Authorization: Bearer …`.
-
-- **For:** nothing stored, nothing to expire on the server, and it is what the browser suite can
-  be tested against.
-- **Against:** the token is in the URL — history, `Referer`, access logs. Mitigated by
-  `Referrer-Policy: no-referrer` on the pages and short expiry, not removed.
-- **Against, and this is the cost the first draft missed:** every `path()` link in both kits has
-  to thread the token through, and a missed one is a dead end for the reader rather than a
-  visible error. That is the language switch, the version links and the way back from a version
-  page — and those links are marked as *detours* precisely so unsaved answers travel with the
-  reader, which is the opposite of what a dropped token does.
-- **Against:** the download link cannot carry a header at all. Two ways out, both real:
-  `fetch` with the bearer and `URL.createObjectURL`, which buffers the file in memory — tolerable
-  against the 10 MiB `FILES_MAX_UPLOAD` default and *not* tolerable for a deployment that raises
-  it; or a server-rendered signed download URL, which the bootstrap kit is already positioned
-  for (`node.download` is built server-side) but the core-html kit is not (it builds the href in
-  JavaScript after an upload, from the descriptor). And a signed URL must not be *added to the
-  descriptor*: those four members are echoed verbatim into the values document and gated against
-  what the server measured, so growing them breaks the file mechanism.
-
-### 2. Exchanged on first load, for a cookie
-
-The link's token is swapped for a `HttpOnly`, `SameSite` cookie and the URL is cleaned with
-`history.replaceState`.
-
-- **For:** every row of the table above works unchanged — the page, the `fetch` calls, the
-  download link and every `path()` link. It is the only option that does.
-- **For:** the credential leaves the URL after one request, so history, `Referer` and logs hold
-  it once instead of forever.
-- **Against, and it is a genuine design collision:** cookie scoping cannot express "this form".
-  A cookie at path `/forms/{id}` is **not sent to** `/api/forms/{id}/data` — the paths are
-  siblings, not nested — so a per-form cookie needs either a path of `/` (and then a second form
-  in the same browser overwrites the first, which breaks two tabs) or a name carrying the form
-  id (`forms_{id}`), path `/`, with the guard picking the cookie that matches the form in the
-  path. The second works, and costs a cookie per form in that browser, all of them travelling on
-  every request until they expire.
-- **Against:** it makes `framework.yaml`'s "no sessions and no browser here, so no CSRF token"
-  false. `SameSite=Strict` plus the fact that every write is `fetch`-with-JSON to its own origin
-  (which a cross-site form post cannot forge) covers it, but "covered by two facts" is a
-  different state than "not applicable", and it has to be written down where the next person
-  changes one of those facts.
-- **Against:** it is a second seam — an exchange endpoint, cookie lifetime, and a decision about
-  what happens when the cookie is present and the URL token is too.
-
-### 3. Not in the URL at all
-
-The owning application (or an SSO proxy in front of the pages) authenticates the reader itself,
-and this service reads what it asserts.
-
-- **For:** no credential in a URL, ever — and every row of the table above works, because a
-  session cookie at the proxy is not this service's problem and travels on navigations, `path()`
-  links and `<a href>` downloads alike.
-- **For, and this is new:** it is the only option that gets identity right rather than merely
-  carrying it. The subject is asserted by whoever actually authenticated the person, at the moment
-  they did it, and no link can be forwarded into an impersonation.
-- **Against:** only possible when the person filling is somebody that application already
-  knows — which used to be *exactly the case this service was built not to require*, and is now
-  exactly the case `identity: required` does require. The first draft's reason for dismissing this
-  option is the reason it is now the right one for half the forms.
-- **Against:** it says nothing about anonymous forms, which is the other half and stays with 1
-  or 2. Two modes, two browser stories; that is the cost of having both modes at all.
-
-### 4. The credential *is* the URL
-
-Variant D's capability-URL shape: `/forms/{id}/{secret}`, and the API under a matching prefix.
-
-- **For:** every row of the table works, with no cookie and no header — the secret is in the
-  path, so navigations, `path()` links and `<a href>` downloads all carry it by construction.
-- **Against:** the secret is in the path, so it is in every log, permanently, and
-  `history.replaceState` cannot clean what the page needs to keep.
-- **Against:** it reshapes the addresses a second time, right after the manage/fill split.
-
-**The honest reading:** option 1 is the cheapest to *build* and the most expensive to get
-*right*, because it touches every link in two kits and leaves the download unsolved. Option 2 is
-the only one under which the pages work as they stand. The plan's original "start with 1 and
-leave 2 as a separate decision" is defensible only if the browser suite covers the download and
-the language switch under a token — which is exactly the two things that break — so the
-sequencing should be: **build 1 for the API, and treat the pages as their own step, with 2 the
-likely answer.** Do not ship a guarded fill side and a page that half works.
+  ordinary; if a link should be usable by exactly one person, the decision point says so.
+- **No rule that the confirmer is the author or a filler.** Somebody closing what another person
+  answered is the point of `confirm` being its own address.
+- **No refusal at creation.** An earlier draft refused creating a `recorded` form when nothing was
+  asserted — "a form nobody could ever save is not a form". With a deployment-level fallback that
+  is no longer true: whether a form can be saved depends on configuration, which is not the
+  creation's business.
+
+And one real conflict, decided rather than glossed: **a save that stores what is already stored
+records nothing** ([07](07-history.md)), and that swallows a fact an audit trail might want —
+person B re-submitting person A's answers unchanged writes no revision, so the newest revision
+still names A. The no-op rule wins, because the history records *changes*: "B looked at this and
+agreed" is an access-log fact, not a version of a document.
+
+## What is stored, and the migration
+
+`forms` grows `identity_mode` (not null), `author_subject`, `confirmed_by_subject`.
+`form_revisions` grows `actor_subject`. Portable types, like everything else there.
+
+The **events carry it**, because the write follows the record: `FormCreated` carries the author,
+`DraftSaved` carries the actor beside the `Values` it already carries, `FormConfirmed` carries the
+confirmer. A column changes because something happened, and a transition no adapter knows how to
+store stops the write rather than vanishing from it.
+
+**The migration is what makes the column readable.** Nothing can backfill who filled a form in last
+year, so `actor_subject` arrives nullable and `identity_mode` arrives **NOT NULL, backfilled
+`anonymous`** — truthful, since nobody was recorded. Together with the fallback, that leaves
+exactly one meaning per state:
+
+- a `recorded` form always has an actor on every new revision, even if it is `unattributed`;
+- an `anonymous` form never has one;
+- so **`NULL` means "anonymous form"**, and nothing else. The three-way ambiguity an earlier draft
+  had to reason around is gone, because the fallback fills the hole that produced it.
+
+## What does *not* change
+
+Worth listing, because three drafts of this plan changed all of it and this one does not:
+
+- **`404` for an unknown form and `410` for an expired one, to everybody.** With no authorization
+  here, there is no guard running before the use case, so no `403`-instead-of-`404` and no
+  `401`-before-`410`. The oracle argument — a caller learning whether an id exists — belongs to
+  whatever refuses in front.
+- **No `WWW-Authenticate`, no `unauthorized` or `forbidden` problem type**, and no new
+  `page.error.*` key except the one `IdentityRequired` needs.
+- **No `Access` port, no `Credential`, no `Scope` as a question, no adapters, no `FORMS_ACCESS`.**
+- **Nothing in either kit**, no template beyond the language switch, no Stimulus controller, no
+  `translations/` entry for an actor.
+- **The CLI, the purges, the file store, the schema cache, the validation stages.** Untouched.
+
+## What this costs to build
+
+- the route moves, the locale removal and the deprecation window;
+- a compiler pass over the route collection, and `app:routes:groups`;
+- the identity intake: read the header, validate it, fall back or refuse, hand an `Actor` to the
+  action, which passes it to the use case as an argument — no ambient state, no holder service;
+- `Actor`, the mode, `IdentityRequired`, three columns plus one, three events, one migration;
+- two manage-side reads (the envelope, the history) growing members, and one new manage-side route;
+- `FORMS_IDENTITY_FALLBACK` and trusted-proxy configuration, in `.env.dist` and
+  `docs/architecture.md`;
+- `make docs`, because the moved routes and the new members are the published contract, and
+  `OpenApiComplianceTest` validates real traffic against it.
 
 ## What this does to the test suites
 
-A security seam whose only exercise is its own unit tests is a seam that rots. Three concrete
-consequences:
+- **The suites need somebody to be**, and the fallback is it: `FORMS_IDENTITY_FALLBACK` in
+  `.env.test` means every existing fixture keeps working *and* the recording path is exercised on
+  every single one of them. That is strictly better than a dev-only special case, because the
+  mechanism under test is the mechanism that runs in production.
+- **Anonymity is a promise, so it is a test.** An asserted identity, a form declared `anonymous`, a
+  save, and `actor_subject` still `NULL`. In the unit suite against the aggregate, because Infection
+  runs there and a promise the model keeps is a rule the model should be pinned on.
+- **The header rules are a table**: a folded header, a control character, an over-long value, a
+  request from an untrusted source — each with the status it earns.
+- **The prefix pass is its own test**: a route added outside the four prefixes fails the build.
+- **The browser suite gains nothing to do.** No token to mint, no link to build, no navigation to
+  prove — which is the clearest measure of how much decision 4 removed.
 
-- **`OpenDoor` in dev and test means every existing suite keeps passing** — which is convenient
-  and is also exactly how a guard becomes untested. The counterweight is a table-driven
-  integration test: one case per route, asserting the permission it declares and a `401` under a
-  closed adapter. That test plus the compiler pass from the routing section is what makes "every
-  route is guarded" checkable rather than claimed.
-- **The browser suite has to run against a real credential**, at least in part — Panther drives a
-  separate server process, so the test mints a token with a key from `.env.test` and navigates to
-  a link carrying it. That is the only place the three navigation rows of the table above get
-  proved, and it is the reason those rows are in this document at all.
-- **`OpenApiComplianceTest` validates real traffic against `docs/openapi.yaml`**, so the moved
-  routes, the deprecation window, the two new problem types and the permission enum all have to
-  land in the generated contract in the same change. `make docs` is part of the diff, not a
-  follow-up.
-- **Identity needs the suites to have somebody to be.** `OpenDoor` asserting a configured subject
-  is what lets the existing integration and browser suites keep filling forms in that require
-  one; without it, stage two turns every fixture red. It also means the identity tests are
-  *cheap*: assert the actor on the revision the fixture just wrote.
-- **Anonymity is a promise, so it is a test, not a comment.** One case: an adapter asserting a
-  subject, a form declared `anonymous`, a save — and both actor columns still `NULL` afterwards.
-  That is the only thing standing between "we do not record who filled this in" and a sentence in
-  a document. It belongs in the unit suite, against the aggregate, because Infection runs there
-  and a promise the model keeps is a rule the model should be pinned on.
+## Risks worth naming
 
-## Operations: the default, and refusing to boot
+- **"Not publicly reachable" is a deployment property.** It is true until somebody exposes this for
+  a demo. The routing split and the trusted-proxy check are what make that survivable, and neither
+  costs anything.
+- **A forgeable header is irreversible.** Everything else here can be changed later; rows written
+  under an untrusted header cannot be repaired or even identified.
+- **A subject can be personal data** — a deployment whose subjects are email addresses has put
+  personal data in every revision row. Opaque identifiers are the cheaper answer. The history
+  leaves with its form by foreign key, which does the rest.
+- **`FORMS_HISTORY_LIMIT` evicts old saves**, so the record of who filled a form in can be evicted
+  while the form still lives. Correct for a history limit, wrong for an audit trail; a deployment
+  that wants the second sets the limit to `0` and pays for it. Say so where operations reads.
+- **Disclosure between fillers is closed by routing, not by discretion.** It holds for exactly as
+  long as nobody adds the actor to the fill-side history "for convenience".
+- **Recording an identity creates pressure to consult it.** "The author may manage" and "which
+  forms did this person fill in" are each one small step from a column that now exists, and both
+  put policy or a query surface in a service arranged to have neither.
+- **A gateway rule that does not match is an open address**, and the failure is silent. The prefix
+  pass and the export command are the two things standing against it, and neither can verify the
+  gateway itself.
+- **Rate limiting is not authentication and is still missing.** Uploads are capped per form and per
+  file; nothing else is. Whatever fronts this is where that goes.
 
-The first draft called "open by default or closed by default" the one decision that is genuinely
-the owner's. Working through it, there is a third answer that is better than both, and it is the
-one to propose.
+## What is genuinely still open
 
-- **Open by default:** nothing breaks for anybody, and the service is unsafe by omission. The
-  failure is silent, which is the property this whole document is trying to remove.
-- **Closed by default:** safe, and every existing deployment stops working on upgrade — including
-  the ones where "existing deployment" means a developer's laptop and CI.
-- **No default at all:** `FORMS_ACCESS` names the adapter (`open`, `gateway`, `token`) with **no
-  fallback value**, so a container that does not set it does not start. `dev` and `test` pin
-  `open` in their own configuration, where it is a written choice rather than an omission, and
-  `.env.dist` documents it the way it documents `APP_ENV` — including the warning, because
-  Symfony falls back to `.env.dist` and that fallback is how `APP_ENV=dev` reaches production.
+1. **`recorded` or another word** for the mode's first value. `recorded` says what happens;
+   `identified` reads better beside `anonymous`. Cosmetic, and cheapest to settle before the member
+   is published.
+2. **Whether `app:routes:groups` prints a table or a gateway snippet**, and for which gateway. A
+   table is honest and useless to paste; a snippet is useful and immediately specific to one proxy.
+3. **What the deployment does when the decision point is down.** Not this service's code, and it
+   still needs an answer written down somewhere.
 
-And one belt-and-braces check on top, generalising what the first draft asked of
-`TrustsTheGateway` alone: with `APP_ENV=prod` and the open adapter selected, refuse to boot
-unless a second variable says so out loud. A deployment that means it can say it; nobody
-arrives there by not typing anything.
+## Non-goals
 
-Rate limiting stays out of scope and stays missing — it is not authentication, and gating
-`POST /api/manage/forms` removes the worst of it by making the unauthenticated write
-authenticated. Uploads are capped per form and per file; nothing else is capped, and whatever
-fronts this is where that belongs.
-
-## Risks worth naming before writing any of it
-
-- **A token in a URL is a token in the browser history, the `Referer` and the access log.** Short
-  expiry, `Referrer-Policy: no-referrer` on the pages, and — if it matters — the cookie exchange,
-  which is a second seam and a separate decision.
-- **Cookies bring CSRF, and they contradict a comment in `framework.yaml`.** `SameSite=Strict`
-  plus JSON-only `fetch` writes to the same origin covers it; the comment has to change with the
-  cookie, or the next person reads a guarantee that is no longer there.
-- **A trusted header is trusted.** `TrustsTheGateway` is only as good as the network in front of
-  it, the failure is silent, and Symfony's `trusted_proxies` machinery does not extend to custom
-  headers. It must check the source address itself and refuse to start unless the deployment
-  says out loud that a gateway is there.
-- **Three adapters, one of them running.** The two that are not exercised in a given deployment
-  are as good as their tests. Keep the number at three.
-- **A form with no owner and no credential is open to anybody who knows its id**, whichever
-  policy home is chosen. Whether creating a form *without* saying who may manage it should be
-  refused is a decision; refusing it is the safer default and makes the creation request
-  stricter than it is today, which is a breaking change on the manage side to add to the one
-  already there.
-- **The guard is the first refusal that is not the model's.** Ordering it against expiry and
-  existence changes three documented answers (`401` before `410`, `403` instead of `404`), and
-  those are contract changes even though every one of them is an improvement.
-- **Logging a refusal is not an actor column.** A refused request should record the permission,
-  the form and the credential's key id or token id — never the credential — through the existing
-  `psr/log` seam. That is traceability without identity, and it is worth saying so before
-  somebody reads the non-goal as "log nothing".
-- **`OpenDoor` in production** would be the whole point, undone. The boot check above is the
-  answer, and it is cheaper than the discipline it replaces.
-- **A subject can still be personal data**, even with no label beside it: a deployment whose
-  subjects are email addresses has put personal data in every revision row. Two properties already
-  in place carry most of the weight — the history leaves with its form by foreign key
-  (`ON DELETE CASCADE`), so deleting a form deletes who filled it — and one works against it:
-  `FORMS_HISTORY_LIMIT` evicts old saves, which quietly means **the record of who filled a form in
-  can be evicted while the form still lives**. Correct for a history limit, wrong for an audit
-  trail; a deployment that wants the second sets the limit to 0 and pays for it. Say so where
-  operations reads it, and say that opaque subjects are the cheaper answer.
-- **A form that requires identity and a link that carries one are a bad combination.** Forwarding
-  such a link is impersonation, not merely disclosure. The answer is above; the risk is that
-  option 1 is the easiest to build and the one that makes this worst.
-- **Disclosure between fillers is closed by routing, not by discretion.** The actor is served on
-  the manage side only, so one holder of a fill link learns nothing about another. That holds for
-  exactly as long as nobody adds the actor to the fill-side history "for convenience" — which is
-  why it is written down here and in the section above rather than left as a habit.
-- **Recording an identity creates pressure to consult it.** "The author should be allowed to
-  manage" and "list the forms this person filled in" are both one small step from a column that
-  now exists, and both put policy or a query surface in this service. The fence is in the scope
-  section and in the non-goals; it will need defending more than once.
-- **Two identity sources can collide on one subject.** `"42"` from one issuer and `"42"` from
-  another are the same string and different people. That is what the optional `issuer` member on
-  `Actor` is for, and it is cheaper to put there now than to migrate in later.
-
-## What is genuinely the owner's to decide
-
-Everything above is either a deduction from the code or a recommendation with its reasons. These
-are not:
-
-1. **Asymmetric or shared-secret credentials** — whether this service must be structurally
-   unable to mint, or merely disciplined about it. Recommendation: asymmetric, because the
-   property is free today and expensive later.
-2. **Whether `confirm` is its own permission.** One enum member now against re-issuing every
-   credential later. Recommendation: yes.
-3. **Whether a form may be created with nothing said about who may manage it.** Refusing is
-   safer and is a breaking change on the manage side. Recommendation: refuse, in the same
-   release as the address split, so there is one break rather than two.
-4. **Whether the pages get the cookie exchange** or live with a token threaded through every
-   link. Recommendation: the cookie, as its own step, after the API side is guarded and tested.
-5. **Variant D for deployments with no gateway** — whether this service ever holds a credential
-   of its own. Recommendation: not yet, and revisit the moment somebody needs revocation, which
-   is the one thing no capability scheme gives.
-6. **Whether `identity` defaults, and to which mode.** A form saying nothing could be anonymous
-   (nothing changes for existing clients, and the audit trail is opt-in) or required (safe, and
-   every current client breaks). Recommendation: **no default — the creation request must say**,
-   for the same reason `FORMS_ACCESS` has none: a property this consequential should not be
-   arrived at by not typing anything. Existing rows are backfilled `anonymous`, which is a
-   migration and not a default.
-7. **Whether a display label is stored at all.** Nothing renders it, so its only reader is the
-   owning application, which already knows how to turn a subject into a person. Recommendation:
-   **no label — subject only**, and if one is wanted later it is a nullable column and a paragraph
-   about personal data.
-8. **Whether the author is required whenever the creating call is credentialed.** Recommendation:
-   yes, and refuse `identity: required` at creation when nothing is asserted, because a form
-   nobody can save is not a form.
-9. **Whether `confirm` records its own actor** or leans on the newest revision. Recommendation:
-   its own columns — confirming writes no values, so leaning on a revision would attribute the
-   locking of a form to whoever last typed in it, which is a different act and possibly a
-   different person.
-
-## Recommendation
-
-Two stages, and the order is forced rather than chosen: an actor can only come out of a
-credential, so nothing about identity can be built before something verifies one.
-
-### Stage one — the guard
-
-1. **Split the addresses** (`/api/manage/**` against `/api/forms/{id}/**` and `/forms/**`), and
-   name the **public** group explicitly so the meta-schemas stay reachable. Do this whatever
-   comes next; it costs three routes and makes every other option cheap. Serve both prefixes for
-   one release with `Deprecation`/`Sunset` on the old three.
-2. **Declare the permission in routing, not in a path pattern** — `_scope` as a route default,
-   strict by default, with a compiler pass refusing to build a container in which any route
-   lacks one.
-3. **Add the `Access` port with a `Credential` value object**, not a `Request` — one question
-   carrying the permission *and* the form, in `src/Application/Forms/Port/` with its adapters in
-   `src/Infrastructure/Access/`, which is the only shape deptrac allows and the only one that
-   matches every other port here.
-4. **Ship three adapters** (`TrustsTheGateway`, `SignedToken`, `OpenDoor`) selected by
-   `FORMS_ACCESS` with **no default**, plus a refusal to boot with the open door under
-   `APP_ENV=prod` unless the deployment says so explicitly.
-5. **Put the policy in a capability for the fill side**: credentials minted by the owning
-   application, scoped to one form, carrying a permission set, verified against a key set this
-   service can read and not write. For the manage side, start with a decision point (3) if the
-   owner has one and fall back to the `owner` label (2) if not. No roles here.
-6. **Treat the pages as their own step.** Guard the API, prove it with a table-driven test per
-   route, then decide the browser story — with the cookie exchange the likely answer, because it
-   is the only one under which the download link and the language switch keep working.
-7. **Steal C's win without C**: deny by default, a proper `WWW-Authenticate`, and no creativity
-   in the entry point.
-
-### Stage two — identity
-
-8. **`Actor` as a domain value object** — an opaque subject and an optional issuer, equal as a
-   pair, never interpreted, bounded at 255, no control characters, no trimming, no normalization,
-   and `Actor::stored()` for reading back without judging. One optional member on `Credential`,
-   promoted by the listener; no new port, because the credential is where identity comes from or
-   there is none.
-9. **`identity: required | anonymous` on the form**, given at creation, immutable, no default,
-   and `anonymous` refusing nothing but *storing* nobody. Two modes; refuse the third.
-10. **Three slots, and nothing on a page.** Author and confirmer on `forms`, the filler on
-    `form_revisions`, all written from the events that already exist, with `identity_mode` NOT
-    NULL backfilled `anonymous` — which is what makes a `NULL` actor mean one thing instead of
-    three. Served on the manage side only: the envelope, plus
-    `GET /api/manage/forms/{id}/history` for the per-save actor. No template, no `page.*` key, no
-    actor on the fill-side history.
-11. **The invariants in the aggregate**, not in a use case: `IdentityRequired` (`403`) on a save
-    that names nobody, a refusal at creation when a `required` form could never be saved, and a
-    silent discard on an anonymous one.
-12. **Validate at the boundary, not in the model.** The model's rules are the four in `Actor`;
-    the ones that matter are the adapters' — a proxy-address check and a single-valued header for
-    `TrustsTheGateway`, and for `SignedToken`: verify before reading, take the algorithm from the
-    key and not the token, require `exp`, **cap `exp` at the verifier**, compare the form claim to
-    the path, and refuse a token whose permission set comes out empty.
-13. **Prefer `SignedToken` wherever the filler matters** — the subject inside the signature is the
-    difference between a record and a rumour — and prefer an SSO proxy in front of `/forms/**`
-    over any link that carries a person's name in a URL.
-14. **Pin the promise.** A unit test that an anonymous form stores no actor even when one is
-    asserted, in the suite Infection runs — plus the boundary table: a folded header, a control
-    character, a missing `exp`, an over-long `exp`, a mismatched form claim, each with the status
-    it earns.
-
-## Non-goals, and one of them has changed
-
-**The actor column is no longer a non-goal — it is the plan.** Everything around it still is, and
-the list matters more now than when identity was simply refused, because a recorded subject is
-what every one of these would grow out of:
+**The actor column is no longer one — it is the plan.** Everything around it still is, and the list
+matters more now than when identity was simply refused, because a recorded subject is what each of
+these would grow out of:
 
 - **No accounts, no user store, no directory, no login page, no password anything, no session
-  store, no user provider.** The service records an assertion; it never resolves one. There is no
-  operation here that turns a subject into a person.
-- **No authorization by identity.** The actor is recorded, never consulted. `allows()` decides on
-  a permission and a form, and a deployment wanting "the author may manage" puts that rule in
-  whatever mints credentials.
+  store, no user provider.** The service records an assertion and never resolves one.
+- **No authorization of any kind here.** Not by identity, not by scope, not by prefix. The service
+  reads a header and stores it.
 - **No querying by identity.** "Which forms did this person fill in" is the refused form-list
-  endpoint wearing a new hat, and the columns this plan adds are exactly what would make it
-  cheap. It stays refused.
-- **No identity in the definition or the presentation.** Who answers is not an item, and it is
-  not a widget. An item a definition happens to *call* `filler` is an answer like any other, and
-  this service draws no line between the two.
-- **Nothing about an actor is ever displayed.** No page draws it, no catalogue holds a word for
-  it, and it is served on the manage side only — so the pages, both kits and every skin come out
-  of this untouched.
+  endpoint in a new hat, and the columns this adds are exactly what would make it cheap.
+- **No identity in the definition or the presentation.** Who answers is not an item and not a
+  widget.
 - **No claimed identity.** No `actor` member in any request body, ever.
-- **No issuing.** This service verifies credentials and never mints them — which asymmetric
-  signing makes a property rather than a promise.
+- **No issuing.** This service mints no credentials, and now verifies none either.
+- **Nothing displayed.** No page, no catalogue, no kit.
 
-What identity *is*, stated once: three opaque strings — an author, a confirmer, and one filler
-per save — asserted by whoever authenticated the caller, validated for transport and for nothing
-else, written from the events that already record what happened, and never read by this service
-for any purpose except handing them back to the side that asked.
+What identity *is*, stated once: three opaque strings — an author, a confirmer, and one filler per
+save — asserted by whatever authenticated the caller, validated for transport and for nothing else,
+written from the events that already record what happened, and handed back only to the side that
+created the form.
+
+## What was weighed and dropped
+
+The three drafts before this one built a guard here. The arguments are worth keeping in compressed
+form, because each was a real dead end rather than a preference.
+
+- **An `Access` port with three adapters** (`TrustsTheGateway`, `SignedToken`, `OpenDoor`), chosen
+  by `FORMS_ACCESS`, answering `allows(Scope, ?FormId, Credential)`. Dropped when the decision moved
+  outside. Two findings from it survive: the signature could not name a `Request`, because
+  `deptrac.yaml` puts it in `Framework` and the application may not touch it; and the adapters would
+  have had to be *composed*, because one deployment can have two kinds of caller — neither of which
+  matters now, and both of which would have cost a rewrite to discover later.
+- **Per-form capability tokens** — signed, expiring, carrying a permission set. Dropped with the
+  port. What killed it independently was the browser: three of the page's operations are navigations
+  that cannot carry a header, a cookie scoped to `/forms/{id}` is *not* sent to
+  `/api/forms/{id}/data`, and the download link would have needed either an in-memory buffer or a
+  second signed-URL mechanism. That section was the largest single cost in the plan and it existed
+  only to deliver a token to a browser.
+- **`_scope` as a route default** with a compiler pass checking its presence. Replaced by the pass
+  checking prefix membership, which is simpler and enforces the property the gateway actually
+  depends on. `_scope` comes back the day a route needs a group its prefix does not give.
+- **Symfony Security** with a custom authenticator and voters. Its real win was deny-by-default
+  machinery somebody else maintains; it lost because a user provider's job is to *resolve* a subject
+  into a user, and this design's whole promise is that a subject is recorded and never resolved.
+  Installing the framework whose central abstraction is the one operation we refuse is how a fence
+  becomes a suggestion.
+- **A per-form credential this service issues and stores hashed.** The only option with real
+  revocation, and the only one with no external moving parts — dropped because it makes this service
+  an issuer, puts the first secret in its storage, and cannot record *who* filled a form unless the
+  credential is minted per person, which is an account with the word filed off.
+- **An `owner` label on the form**, compared against an asserted header. Absorbed: the `author` is
+  that column, asserted rather than claimed, and stored because it is worth knowing rather than
+  because a policy needs it.
+- **`X-Forms-Scope` and `X-Forms-Form` asserted by the gateway.** They were meant as the *grant*
+  against the route's *demand*, but a plain SSO proxy cannot assert a grant — it knows who somebody
+  is, not which form they were sent. Once the decision point answers per request, a grant header is
+  redundant: what should not pass never arrives.
+- **A per-form `identity: required` that refused a save.** Became a deployment-level fallback plus
+  one refusal, once the owner's fourth decision made the gateway responsible for who is calling.
