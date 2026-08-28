@@ -8,7 +8,9 @@ use App\Application\Forms\UseCase\CreateForm;
 use App\Domain\Forms\Exception\DefinitionNotValid;
 use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Exception\ValuesNotValid;
+use App\Domain\Forms\IdentityMode;
 use App\Domain\Forms\PresentationProcessor;
+use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\UserInterface\Api\Problem\ProblemException;
 use App\UserInterface\Api\Request\CreateFormRequest;
@@ -141,6 +143,11 @@ final class CreateFormAction
             ],
         )]
         CreateFormRequest $request,
+        // Who is creating this, as the gateway asserted it — resolved by
+        // IdentityIntake, never claimed in the body. There is no `author` member
+        // for a client to send, and the closed envelope is what enforces that
+        // without a line of new code.
+        ?Actor $author,
     ): JsonResponse {
         try {
             $id = ($this->createForm)(
@@ -157,6 +164,8 @@ final class CreateFormAction
                     ? null
                     : $this->presentations->document($this->presentations->parse($request->presentation)),
                 $request->data,
+                IdentityMode::from($request->identity),
+                $author,
             );
         } catch (DefinitionNotValid $exception) {
             // Only reachable if the constraint and the aggregate ever disagree

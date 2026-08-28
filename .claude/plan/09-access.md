@@ -16,11 +16,24 @@ re-derives it.
 
 ## What has landed, and what has not
 
-**The routing split is built.** Four prefixes named in `App\UserInterface\RouteGroup`, the three
-management addresses moved under `/api/manage/`, the locale out of the page paths and into `?lang=`
-(`PageLocaleListener`), both properties asserted over the whole route collection in
-`RouteGroupsTest`, and `app:routes:groups` printing the table. **Identity is not built** — nothing
-below about an author, a confirmer, a filler, a mode or a header exists in the code yet.
+**Both halves are built.** The routing split: four prefixes named in `App\UserInterface\RouteGroup`,
+the three management addresses moved under `/api/manage/`, the locale out of the page paths and into
+`?lang=` (`PageLocaleListener`), both properties asserted over the whole route collection in
+`RouteGroupsTest`, and `app:routes:groups` printing the table. And identity: `Actor` and
+`IdentityMode` in the domain, `IdentityIntake` as a value resolver at the boundary, three slots
+across two tables, `FORMS_TRUSTED_PROXIES` and `FORMS_IDENTITY_FALLBACK`, and
+`GET /api/manage/forms/{id}/history` serving the actor on the management side alone.
+
+What is still missing is **the gateway**, which is a deployment rather than code here: nothing in
+this service decides who may act, so until something in front does, a form's UUID is the only
+credential it has of its own.
+
+One thing this document was ambiguous about, and building it forced the answer: it said the mode
+"governs the filler only", while also putting confirming on the fill side. **Confirming is judged
+like a save** — an `anonymous` form records nobody as its confirmer, however much the proxy
+asserted. A promise of anonymity that names whoever pressed "send" is not a promise. The author
+stays outside the mode, because creating happens on the management side where a caller is always
+known.
 
 Two things in this document were wrong about the mechanics, and building it is what found them:
 

@@ -11,10 +11,12 @@ use App\Domain\Forms\Event\FormEvent;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
+use App\Domain\Forms\Exception\IdentityRequired;
 use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\Port\ValuesValidator;
 use App\Domain\Forms\Presentation\PresentationRules;
+use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
@@ -66,6 +68,18 @@ final class Form
     private \DateTimeImmutable $createdAt;
 
     /**
+     * Whether this form records who fills it in, and the two people it knows by
+     * name: whoever created it, and whoever locked it. Who filled it in is on
+     * every revision instead — "who last changed this form" is the newest one,
+     * and a second copy of that would be a second truth.
+     */
+    private IdentityMode $identity;
+
+    private ?Actor $author = null;
+
+    private ?Actor $confirmedBy = null;
+
+    /**
      * Everything a form is made of arrives here, and none of it changes
      * afterwards: the definition because the values are judged against it, and
      * the presentation because there is no reason for the description of a
@@ -76,6 +90,15 @@ final class Form
      * presentation fits is a question about *this* form's definition, so it is
      * answered here rather than by whoever happened to call.
      *
+     * The identity mode defaults to storing nobody, and that is not the same
+     * default the published contract has (a creation request that says nothing
+     * gets `recorded`, because forgetting should give you *more* record, not
+     * less). The two answer different questions. A client that does not say
+     * should get the safer document; a *model* cannot know whether the
+     * deployment it is running in has an identity source at all, and one that
+     * demanded an actor by default would be a model that refuses to work in the
+     * absence of infrastructure it knows nothing about.
+     *
      * @throws PresentationNotValid when the presentation does not fit the definition
      */
     public function __construct(
@@ -85,11 +108,15 @@ final class Form
         ?Presentation $presentation = null,
         ?PresentationRules $rules = null,
         ?\DateTimeImmutable $now = null,
+        IdentityMode $identity = IdentityMode::Anonymous,
+        ?Actor $author = null,
     ) {
         $this->id = $id;
         $this->definition = $definition;
         $this->expireDate = $expireDate;
         $this->createdAt = self::utc($now ?? new \DateTimeImmutable());
+        $this->identity = $identity;
+        $this->author = $author;
 
         if ($presentation !== null) {
             $report = ($rules ?? throw new \LogicException('A presentation cannot be accepted without the rules that judge it.'))
@@ -102,7 +129,7 @@ final class Form
             $this->presentation = $presentation;
         }
 
-        $this->events[] = new FormCreated($id, $this->createdAt);
+        $this->events[] = new FormCreated($id, $this->createdAt, $this->author);
     }
 
     /**
@@ -120,8 +147,12 @@ final class Form
         ?\DateTimeImmutable $confirmedAt,
         \DateTimeImmutable $createdAt,
         ?Presentation $presentation = null,
+        IdentityMode $identity = IdentityMode::Anonymous,
+        ?Actor $author = null,
+        ?Actor $confirmedBy = null,
     ): self {
-        $form = new self($id, $definition, $expireDate, now: $createdAt);
+        $form = new self($id, $definition, $expireDate, now: $createdAt, identity: $identity, author: $author);
+        $form->confirmedBy = $confirmedBy;
         $form->data = $values;
         $form->dataSavedAt = $dataSavedAt;
         $form->confirmedAt = $confirmedAt;
@@ -140,15 +171,24 @@ final class Form
      * verdict needs machinery the model does not carry, but which contract
      * applies — lenient while filling in — is the form's own business.
      *
+     * Who entered them is recorded beside them when this form records anybody,
+     * and **discarded when it does not** — whatever the caller handed in. That
+     * discard is the one part of identity a gateway cannot be trusted with: a
+     * proxy asserts on every request, so a form promising anonymity has to be
+     * the thing that drops it.
+     *
      * @throws FormLocked when the form was confirmed and is closed for good
+     * @throws IdentityRequired when this form records who fills it in and nobody was asserted
      * @throws ValuesNotValid when the values do not fit the definition
      * @throws \InvalidArgumentException when they are not a JSON object at all
      */
-    public function saveDraft(mixed $values, ValuesValidator $validator, ?\DateTimeImmutable $now = null): void
+    public function saveDraft(mixed $values, ValuesValidator $validator, ?Actor $filler = null, ?\DateTimeImmutable $now = null): void
     {
         if ($this->confirmedAt !== null) {
             throw new FormLocked($this->id());
         }
+
+        $filler = $this->attribute($filler);
 
         $validator->assertFit($this->definition(), $values, DeriveMode::Draft, $this->id());
 
@@ -166,29 +206,74 @@ final class Form
 
         $this->data = $saved;
         $this->dataSavedAt = self::utc($now ?? new \DateTimeImmutable());
-        $this->events[] = new DraftSaved($this->id(), $this->dataSavedAt, $this->data);
+        $this->events[] = new DraftSaved($this->id(), $this->dataSavedAt, $this->data, $filler);
     }
 
     /**
      * The one-way door: what was filled in is judged against the strict
      * contract, and only a form that passes it locks.
      *
+     * Whoever closed it is recorded — under the same mode as a save, because
+     * closing a form is something the person filling it in does, and a promise
+     * of anonymity that names whoever pressed "send" is not a promise.
+     *
      * @throws FormAlreadyConfirmed when the door was already closed
      * @throws FormHasNoData when nothing was ever filled in
+     * @throws IdentityRequired when this form records who fills it in and nobody was asserted
      * @throws ValuesNotValid when what is stored does not complete the form
      */
-    public function confirm(ValuesValidator $validator, ?\DateTimeImmutable $now = null): void
+    public function confirm(ValuesValidator $validator, ?Actor $confirmer = null, ?\DateTimeImmutable $now = null): void
     {
         if ($this->confirmedAt !== null) {
             throw new FormAlreadyConfirmed($this->id());
         }
+
+        $confirmer = $this->attribute($confirmer);
 
         $values = $this->values() ?? throw new FormHasNoData($this->id());
 
         $validator->assertFit($this->definition(), $values->document(), DeriveMode::Strict, $this->id());
 
         $this->confirmedAt = self::utc($now ?? new \DateTimeImmutable());
-        $this->events[] = new FormConfirmed($this->id(), $this->confirmedAt);
+        $this->confirmedBy = $confirmer;
+        $this->events[] = new FormConfirmed($this->id(), $this->confirmedAt, $confirmer);
+    }
+
+    /**
+     * What this form does with an identity somebody handed in: keeps it, or drops
+     * it — and refuses the transition outright when it needs one and has none.
+     *
+     * One place for both halves, because they are one rule. A form that records
+     * nobody must not be able to record somebody by accident, and a form that
+     * records somebody must not be able to accept a save attributed to nothing.
+     *
+     * @throws IdentityRequired
+     */
+    private function attribute(?Actor $actor): ?Actor
+    {
+        if (!$this->identity->needsAnActor()) {
+            return null;
+        }
+
+        return $actor ?? throw new IdentityRequired($this->id());
+    }
+
+    /** Whether this form records who fills it in. */
+    public function identityMode(): IdentityMode
+    {
+        return $this->identity;
+    }
+
+    /** Who created this form, or null when nobody was asserted. */
+    public function author(): ?Actor
+    {
+        return $this->author;
+    }
+
+    /** Who locked this form, or null while it is open — or while it records nobody. */
+    public function confirmedBy(): ?Actor
+    {
+        return $this->confirmedBy;
     }
 
     /** How this form is shown, or null while nobody has said. */

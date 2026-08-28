@@ -59,9 +59,11 @@ authentication, no authorization and no concept of an actor — no user, no tena
 no rate limit. A form's UUID is the whole capability: whoever has it may act, and whoever has
 not is expected not to guess it (UUIDv7, 74 random bits).
 
-The answer is worked out in [`.claude/plan/09-access.md`](../.claude/plan/09-access.md), and it
-comes in two halves: **the routing split, which is built, and identity, which is not.** The short
-version, because it decides what this service does and does not contain:
+The answer is worked out in [`.claude/plan/09-access.md`](../.claude/plan/09-access.md) and is
+**built**: the addresses are split so a gateway can write one rule per audience, and a form records
+who created it, who locked it and who entered every save. What remains missing is the gateway
+itself, which is a deployment and not code here. The short version, because it decides what this
+service does and does not contain:
 
 **This service will authorise nothing.** A gateway decides what may reach it, per prefix and per
 method. A decision point outside — owned by the system that created the form — answers "may this
@@ -136,14 +138,21 @@ fill side, so it belongs close (a sidecar rather than a service across a network
 decisions may be cached for seconds while refusals are not cached at all: a revocation then takes
 effect one cache lifetime late, which is the ordinary bargain.
 
-**What identity will be.** Three slots and no fourth: the **author** on the form, asserted at
-creation; the **confirmer** on the form, which needs a slot of its own because confirming writes no
-values and is therefore no revision of its own; and the **filler** on every revision. "Who last
-changed this form" is not stored — the newest revision already answers it. The author and the fill
-side are orthogonal: an anonymous form still has an author.
+**What identity is.** Three slots and no fourth: the **author** on the form, asserted at creation;
+the **confirmer** on the form, which needs a slot of its own because confirming writes no values and
+is therefore no revision of its own; and the **filler** on every revision. "Who last changed this
+form" is not stored — the newest revision already answers it. The author and the fill side are
+orthogonal: an anonymous form still has an author, because somebody created it, and creating happens
+where a caller is always known.
+
+`Actor` (one opaque subject) and `IdentityMode` are the domain's; `IdentityIntake` is the boundary's
+— a value resolver, so an action declares `?Actor` as an argument and passes it to a use case.
+Nothing is ambient and nothing is a holder service: the only thing that can attribute a write is
+what was resolved for that one request.
 
 `identity: recorded | anonymous` is a third top-level property of a form beside its definition, its
-values and its `expire_date` — given at creation, immutable, **defaulting to `recorded`**.
+values and its `expire_date` — given at creation with `POST /api/manage/forms`, immutable, and
+**defaulting to `recorded`**.
 `anonymous` means the filler is **not** stored *even when the proxy asserted one*, which is the one
 half of this that cannot be delegated, so the aggregate discards it. It defaults to `recorded`
 because the two options fail differently: `anonymous` by default fails silently and unrecoverably,
@@ -156,9 +165,14 @@ header visible instead of recording `unattributed` forever. The fallback value s
 and obviously not a person (`unattributed`, not `system`), so a row saying "nobody told us" is a
 fact rather than something mistakable for a subject.
 
-**Asserted, never claimed**: identity arrives in the header and nowhere else, and nothing new
-enforces that — request bodies are already closed, so a client sending `actor` gets
-`request.unexpected_key` today. **Never displayed**: no page draws an actor, no catalogue holds a
+**Confirming is judged the same way a save is**, and that is worth stating because it is the one
+place the "author is orthogonal" rule stops: closing a form is something the person filling it in
+does, so an `anonymous` form records nobody as its confirmer however much the proxy asserted. A
+promise of anonymity that names whoever pressed "send" is not a promise.
+
+**Asserted, never claimed**: identity arrives in `X-Forms-Identity` and nowhere else, and nothing
+new enforces that — request bodies are already closed, so a client sending `actor` or `author` gets
+`request.unexpected_key`. **Never displayed**: no page draws an actor, no catalogue holds a
 word for one, both kits and every skin are untouched. Served on the **manage side only** — the
 envelope grows `identity`, the author and the confirmer, and a new
 `GET /api/manage/forms/{id}/history` carries the actor per save, while the fill-side history stays
@@ -166,22 +180,31 @@ exactly as it is. That is what keeps one person who reached a form from learning
 in. And **no display label**: with nothing rendering it, its only reader is the system that already
 knows how to turn a subject into a person.
 
-`forms` grows `identity_mode` (not null), `author_subject` and `confirmed_by_subject`;
-`form_revisions` grows `actor_subject`; all written from the events that already record what
-happened (`FormCreated`, `DraftSaved`, `FormConfirmed`). The migration is what makes the column
-readable: nothing can backfill who filled a form in last year, so `actor_subject` arrives nullable
-and `identity_mode` arrives **NOT NULL, backfilled `anonymous`** — truthful, since nobody was
-recorded. With the fallback filling every other hole, `NULL` then means one thing only: an
-anonymous form.
+`forms` carries `identity_mode` (not null), `author_subject` and `confirmed_by_subject`;
+`form_revisions` carries `actor_subject`; all written from the events that already record what
+happened (`FormCreated`, `DraftSaved`, `FormConfirmed`), so a column changes because something
+happened rather than because a copying routine remembered it. The migration is what makes the column
+readable: nothing can backfill who filled a form in last year, so `actor_subject` arrived nullable
+and `identity_mode` arrived **NOT NULL, backfilled `anonymous`** — truthful, since nobody was
+recorded. With the fallback filling every other hole, `NULL` then means one thing only: an anonymous
+form.
 
 **The validation that matters is at the boundary, not in the model.** The header is read only from
-a configured trusted proxy (Symfony's `trusted_proxies` does not extend to custom headers, so this
-is the intake's own check), must be single-valued (PHP folds repeats with commas, so `a, b` would
-otherwise *be* the subject), is length-checked first, is ASCII only, and a malformed one is a
-refusal rather than a fallback. `Actor` itself is one opaque subject: 1–255 characters, no control
-characters, no trimming, no normalization, no format imposed and none parsed, stored verbatim and
-namespaced by the deployment if it ever has two identity sources — and never judged again when read
-back, the way a stored definition is not.
+an address in `FORMS_TRUSTED_PROXIES` (Symfony's own machinery only sanitises `X-Forwarded-*`, so
+consulting the list for a header of ours is the intake's decision — it reuses the list rather than
+keeping a second one). It must arrive once: a repeat is refused, and so is a value containing a
+comma, because PHP folds repeated headers into one comma-joined string and by the time it is here
+`a, b` looks exactly like a subject somebody chose. A deployment whose subjects contain commas — a
+certificate DN — namespaces or encodes them. And a header that is there and unusable is a **refusal
+(400 `identity-not-valid`)** rather than a quiet fall back to the fallback: falling back would
+attribute the save to the wrong person and hide a broken proxy for months.
+
+`Actor` itself is one opaque subject: 1–255 **characters** (not bytes — a cap on bytes would refuse
+a legal identifier in half the world's alphabets), no control characters, no leading or trailing
+whitespace, valid UTF-8, no normalization, no format imposed and none parsed. It is stored verbatim,
+namespaced by the deployment if it ever has two identity sources (`sso:12345`), and never judged
+again when read back — the way a stored definition is not. A refusal never echoes the value: a
+subject may be somebody's email address, and an exception message travels into logs.
 
 **Recorded, never consulted.** Nothing here decides anything from an actor, and "which forms did
 this person fill in" stays as refused as the form-list endpoint. The columns this adds are exactly
@@ -416,7 +439,8 @@ inline CSS.
 
 **The reader's own switches** (colours, contrast, text size) are attributes on `<html>`, applied
 before the first paint by a scrap of inline script and kept in `localStorage` under
-`ingot-forms:*`. Nothing reaches the server — there is no identity here to hang a preference on.
+`ingot-forms:*`. Nothing reaches the server — an actor is recorded against a save, never resolved
+into somebody with settings, so there is nowhere here for a preference to live.
 Dark and high contrast are painted by the application's own stylesheet rather than left to a
 skin: Bootswatch themes support dark unevenly, and chasing each theme's exceptions is endless,
 so the skin keeps its shapes and fonts while the page a reader needs belongs to the reader.
@@ -449,6 +473,11 @@ real environment a container or unit exports → `.env.local` → `.env` → `.e
 holds the test database and a fixed `APP_SECRET` that is not one, and is committed because CI
 needs it.
 
+- **Deploy (identity):** set **`FORMS_TRUSTED_PROXIES`** to where the proxy is, or
+  `X-Forms-Identity` is ignored entirely and every save on a `recorded` form is refused. Set
+  **`FORMS_IDENTITY_FALLBACK`** only if that refusal is not wanted — and to something reserved and
+  obviously not a person. The proxy must also be configured to *set* the header and strip whatever
+  a client sent; nothing here can check that, and the trusted-proxy list is the backstop.
 - **Deploy:** clear the pools that hold what this code derived — `bin/console
   cache:pool:clear --all`, which is what `make cache-clear` runs. Neither pool's key says
   anything about the rules behind the entry: `cache.ingot_mapper` keys on class names, and

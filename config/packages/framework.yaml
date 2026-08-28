@@ -10,6 +10,14 @@ framework:
     default_locale: en
     set_locale_from_accept_language: true
     http_method_override: false
+    # Where the proxy in front of this service is, and therefore whose asserted
+    # headers may be believed at all. Unset means none — and then
+    # `X-Forms-Identity` is ignored entirely, which is the safe direction: a form
+    # that records who fills it in refuses every save until a deployment says
+    # where its proxy is, rather than trusting a header any client could send.
+    # Rows written under a forgeable header can never be repaired or even told
+    # apart from the good ones, which is why this one is not optional.
+    trusted_proxies: '%env(default::FORMS_TRUSTED_PROXIES)%'
     handle_all_throwables: true
     # Request envelopes are mapped and validated by Symfony (#[MapRequestPayload],
     # #[MapQueryString] + Assert attributes on the DTOs in
@@ -63,3 +71,8 @@ when@dev:
 when@test:
     framework:
         test: true
+        # The test client *is* the proxy here, so the identity intake has
+        # something to believe. Without this every suite would run with the
+        # header ignored, and the one path that matters would be the one path
+        # nothing exercises.
+        trusted_proxies: '127.0.0.1'

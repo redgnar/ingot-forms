@@ -339,6 +339,30 @@ paths:
           $ref: '#/components/responses/FormNotFound'
         '410':
           $ref: '#/components/responses/FormGone'
+  '/api/manage/forms/{id}/history':
+    get:
+      summary: 'List every accepted save of this form, with who entered it'
+      description: 'The management side of `GET /api/forms/{id}/history`: the same saves, newest first, each carrying the identity that was asserted when it was accepted. `actor` is null on a form created as `anonymous` — that form records nobody, whatever a gateway asserted. It is served here and not on the fill side so that one person who was let through to a form learns nothing about who else filled it in. The subject is opaque: it is whatever authenticated the caller said, never resolved into a person by this service.'
+      operationId: getManagedFormHistory
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      responses:
+        '200':
+          description: 'The history, newest first. Empty for a form nobody has filled in.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormHistoryWithActors'
+        '404':
+          $ref: '#/components/responses/FormNotFound'
+        '410':
+          $ref: '#/components/responses/FormGone'
   '/api/forms/{id}/presentation':
     get:
       summary: 'Read how the form is shown'
@@ -601,6 +625,41 @@ components:
           type: string
       type: object
       additionalProperties: false
+    FormRevisionWithActor:
+      description: 'One accepted save, as the management side sees it: the same thing a filler is shown, plus who entered it.'
+      required:
+        - seq
+        - savedAt
+        - confirmed
+        - actor
+      properties:
+        seq:
+          type: integer
+          minimum: 1
+        savedAt:
+          type: string
+          format: date-time
+        confirmed:
+          type: boolean
+        actor:
+          description: 'The identity that was asserted when this save was accepted — an opaque subject, exactly as whatever authenticated the caller said it, never parsed or resolved into a person by this service. Null on a form created as `anonymous`, which records nobody whatever a gateway asserted.'
+          type:
+            - string
+            - 'null'
+          maxLength: 255
+      type: object
+      additionalProperties: false
+    FormHistoryWithActors:
+      description: 'Every accepted save of one form, newest first, with who entered each.'
+      required:
+        - revisions
+      properties:
+        revisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormRevisionWithActor'
+      type: object
+      additionalProperties: false
     FormRevision:
       description: 'One accepted save of a form. The document itself is read one at a time; this is what a client chooses by.'
       required:
@@ -642,6 +701,9 @@ components:
         - data
         - dataSavedAt
         - confirmedAt
+        - identity
+        - author
+        - confirmedBy
       properties:
         id:
           type: string
@@ -672,6 +734,24 @@ components:
             - string
             - 'null'
           format: date-time
+        identity:
+          description: 'Whether this form records who fills it in. Given at creation and immutable. `anonymous` discards an asserted identity rather than refusing it, so a gateway asserting on every request cannot build a record by accident.'
+          type: string
+          enum:
+            - recorded
+            - anonymous
+        author:
+          description: 'Who created this form — an opaque subject as whatever authenticated the caller said it, never resolved into a person here. Null when nobody was asserted. Outside `identity` on purpose: an anonymous form still has an author, because somebody created it.'
+          type:
+            - string
+            - 'null'
+          maxLength: 255
+        confirmedBy:
+          description: 'Who locked this form. Its own member because confirming writes no values and is therefore no revision — without it, the most consequential act on a form would be the one nobody attributed. Null while the form is open, and on an anonymous form.'
+          type:
+            - string
+            - 'null'
+          maxLength: 255
       type: object
       additionalProperties: false
     ProblemError:
@@ -760,6 +840,14 @@ components:
           example:
             email: ada@example.com
           default: null
+        identity:
+          description: 'Whether this form records who fills it in. `recorded` (the default) stores the identity a gateway asserted with every accepted save, and refuses a save that can name nobody. `anonymous` stores nobody — and *discards* an asserted identity rather than refusing it, so a deployment whose proxy asserts on every request cannot build a record by accident. Immutable, like the definition. There is deliberately no third value: an "optional" mode would make one column mean both "nobody was there" and "somebody was and did not say".'
+          type: string
+          example: recorded
+          default: recorded
+          enum:
+            - recorded
+            - anonymous
       type: object
       additionalProperties: false
     DataSchemaQuery:

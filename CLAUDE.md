@@ -66,22 +66,30 @@ held: a value outside the form it belongs to says nothing, so looking at one is 
 complete without a line of client code — every control, list and attached file is drawn by the
 code that already draws the current version — and it is why the way out of it (putting that
 version back) is an ordinary `PUT …/data` like every other write from a page. `reset` is the same
-page drawn again with nothing sent. **"Who" has been decided, and it is recording rather than
-learning** — decided, and **not built yet**, so nothing here is in the code. A form will have an
-**author** and a **confirmer**, every
-accepted save will record **who entered it**, and a form may instead be declared **anonymous** and
-record nobody: one more immutable top-level property, `identity: recorded | anonymous`, given at
-creation, **defaulting to `recorded`** because the two options fail differently — `anonymous` by
-default fails silently and unrecoverably, `recorded` by default fails loudly at the first save.
+page drawn again with nothing sent. **"Who" is recording rather than learning.** A form has an
+**author** and a **confirmer**, every accepted save records **who entered it**, and a form may
+instead be declared **anonymous** and record nobody: one more immutable top-level property,
+`identity: recorded | anonymous`, given at creation, **defaulting to `recorded`** because the two
+options fail differently — `anonymous` by default fails silently and unrecoverably, `recorded` by
+default fails loudly at the first save.
 `anonymous` *discards* an assertion rather than refusing it, so a proxy asserting identity on every
 request cannot build a record by accident, and that discard is the one half of this that cannot be
 delegated. Three slots and no fourth: the confirmer needs its own because confirming writes no
 values and is no revision of its own, while "who last changed this form" is the newest revision and
 a second copy is a second truth. One opaque subject, never parsed, trimmed or normalized, **never
 displayed on any page** and served on the manage side only. Asserted in a header and never claimed
-in a body — which the closed-envelope rule already enforces for free. That supersedes
+in a body — which the closed-envelope rule already enforces for free: a client sending `actor` gets
+`request.unexpected_key`. **Confirming is judged like a save**, not like creating: closing a form is
+something the person filling it in does, so an anonymous form records nobody as its confirmer
+however much the proxy asserted. `Actor` and `IdentityMode` are the domain's, `IdentityIntake` is a
+value resolver at the boundary — an action declares `?Actor` and hands it to a use case, so nothing
+is ambient. **The header is read only from an address in `FORMS_TRUSTED_PROXIES`**, which is the one
+irreversible detail: rows written under a forgeable header can never be repaired or told apart from
+the good ones. An absent header falls back to `FORMS_IDENTITY_FALLBACK`, and with that unset a save
+on a `recorded` form is refused (`IdentityRequired`, 403) — the only thing this service checks about
+identity, and what makes a proxy that stopped asserting visible. That supersedes
 [07](.claude/plan/07-history.md)'s refusal of an actor column, exactly as 07 predicted it would —
-the table grows and nothing else moves. What stays a non-goal is *resolving* an identity: no
+the table grew and nothing else moved. What stays a non-goal is *resolving* an identity: no
 accounts, no user store, no directory, and the actor is **recorded, never consulted**.
 
 Being open does not stay one. Today the form's UUID is the whole credential and **it opens
@@ -116,10 +124,8 @@ filling, so the compatibility layer would have been the hole. Four of the five p
 gateway rules on a path and a method — read is GET-only, confirm is its own address — and the
 fifth, "this caller for this form", is delegated rather than deferred.
 
-**Identity is the half that is not built.** The only thing this service will itself check is that a
-`recorded` form is not saved with nobody: an absent header falls back to
-`FORMS_IDENTITY_FALLBACK`, and with that unset the save is refused (`IdentityRequired`), which is
-what makes a proxy that quietly stopped asserting visible.
+Both halves are built. What is still missing is the gateway itself, which is a deployment and not
+code here.
 
 **How a file works.** A `file` item's value is not bytes but the **description** of them —
 `{id, name, size, type}`, all four measured by the server when the upload landed and echoed

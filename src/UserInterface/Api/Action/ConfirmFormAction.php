@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\UserInterface\Api\Action;
 
 use App\Application\Forms\UseCase\ConfirmForm;
+use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\FormId;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\Response;
@@ -94,9 +95,9 @@ final class ConfirmFormAction
             ],
         ),
     )]
-    public function __invoke(Uuid $id): Response
+    public function __invoke(Uuid $id, ?Actor $confirmer): Response
     {
-        ($this->confirmForm)(FormId::of($id));
+        ($this->confirmForm)(FormId::of($id), $confirmer);
 
         return new Response(status: 204);
     }

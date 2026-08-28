@@ -53,18 +53,16 @@ versioning and multi-submission forms are deliberately out of scope.
 - **A form can draw itself.** An optional presentation document says how, in one of two kits;
   a skin says what it looks like; and what a *reader* needs — contrast, colours, text size — is
   theirs to set and no document's to decide ([the pages](docs/architecture.md#the-pages)).
-- **There is no "who" yet, and today there is no gate either.** Two things are settled and
-  unbuilt. **Identity as a record**: a form will have an author and a confirmer, every save will
-  record who entered it, and a form may instead be declared anonymous and record nobody —
-  recording an assertion, never resolving one, and nothing about it ever drawn on a page. And
-  **the addresses split into four prefixes**, one per audience, because this service will
-  authorise nothing itself: a gateway decides what may reach it, and a decision point outside
-  decides who may touch which form, since whoever created a form already knows who may touch it.
-  Until that lands nothing here should be exposed — a form's UUID is the only credential and it
-  opens everything, so whoever can fill a form in can also delete it, confirm it and download its
-  files. Both answers are worked out in
-  [`.claude/plan/09-access.md`](.claude/plan/09-access.md); read
-  [Who may do what](docs/architecture.md#who-may-do-what) first.
+- **A form records who filled it in, and this service authorises nothing.** It has an author, a
+  confirmer, and who entered every save — an opaque subject a gateway asserts in one header, never
+  resolved into a person here and never drawn on a page. A form may instead be declared
+  `anonymous` and record nobody, discarding an assertion rather than refusing it. Who *may* act is
+  somebody else's answer: the addresses are split into four prefixes, one per audience, so a
+  gateway writes one rule each and a decision point outside says who may touch which form — since
+  whoever created a form already knows. **There is still no gateway here**, so nothing should be
+  exposed without one: a form's UUID is the only credential it has of its own. See
+  [Who may do what](docs/architecture.md#who-may-do-what), worked out in
+  [`.claude/plan/09-access.md`](.claude/plan/09-access.md).
 - Definitions may contain **unknown (plugin) item types** — they round-trip losslessly
   (`GenericField` + `#[Extras]`), can be drafted, but a form containing one can never be
   confirmed: the server refuses to vouch for a value contract it does not know.
@@ -75,6 +73,7 @@ versioning and multi-submission forms are deliberately out of scope.
 POST   /api/manage/forms               create one          GET /forms/{id}                 the page
 GET    /api/manage/forms/{id}          read it             GET /forms/{id}?lang=pl         in a language
 DELETE /api/manage/forms/{id}          delete it           GET /forms/{id}/versions/{seq}  one saved version
+GET    /api/manage/forms/{id}/history  saves, with who entered each
 GET    /api/forms/{id}/schema          its values schema
 PUT    /api/forms/{id}/data            save a draft
 POST   /api/forms/{id}/confirm         lock it

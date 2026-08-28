@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\UserInterface\Api\Action;
 
 use App\Application\Forms\UseCase\SaveFormData;
+use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\FormId;
 use App\UserInterface\Api\Request\SaveFormDataRequest;
 use OpenApi\Attributes as OA;
@@ -91,8 +92,11 @@ final class SaveFormDataAction
             serializationContext: [JsonDecode::ASSOCIATIVE => false],
         )]
         SaveFormDataRequest $request,
+        // Who is saving, as the gateway asserted it. Whether it is kept — or
+        // needed at all — is the form's own business.
+        ?Actor $filler,
     ): Response {
-        ($this->saveFormData)(FormId::of($id), $request->values);
+        ($this->saveFormData)(FormId::of($id), $request->values, $filler);
 
         return new Response(status: 204);
     }

@@ -8,9 +8,11 @@ use App\Domain\Forms\Exception\DefinitionNotValid;
 use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\FormDefinitionProcessor;
+use App\Domain\Forms\IdentityMode;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\Port\ValuesValidator;
 use App\Domain\Forms\Presentation\PresentationRules;
+use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
@@ -43,12 +45,15 @@ final class CreateForm
      * @throws DefinitionNotValid
      * @throws PresentationNotValid when the presentation does not fit the definition it came with
      * @throws \App\Domain\Forms\Exception\ValuesNotValid when the values it is born with do not fit it
+     * @throws \App\Domain\Forms\Exception\IdentityRequired when it is born holding values it cannot attribute
      */
     public function __invoke(
         \stdClass|array $definitionDocument,
         ExpireDate $expireDate,
         ?Presentation $presentation = null,
         ?\stdClass $data = null,
+        IdentityMode $identity = IdentityMode::Anonymous,
+        ?Actor $author = null,
     ): FormId {
         $definition = $this->processor->parse($definitionDocument);
 
@@ -58,10 +63,15 @@ final class CreateForm
             $expireDate,
             $presentation,
             $this->rules,
+            identity: $identity,
+            author: $author,
         );
 
+        // A form born holding values is a form whose first save has an author
+        // and a filler, and on this one call they are the same person: nobody
+        // else has been near it yet.
         if ($data !== null) {
-            $form->saveDraft($data, $this->values);
+            $form->saveDraft($data, $this->values, $author);
         }
 
         $this->forms->add($form);

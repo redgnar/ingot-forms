@@ -11,15 +11,18 @@ use App\Domain\Forms\Event\FormCreated;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
+use App\Domain\Forms\Exception\IdentityRequired;
 use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\FormMapperFactory;
 use App\Domain\Forms\FormStatus;
+use App\Domain\Forms\IdentityMode;
 use App\Domain\Forms\Presentation\Engine\CoreHtmlEngine;
 use App\Domain\Forms\Presentation\Engine\Engines;
 use App\Domain\Forms\Presentation\PresentationRules;
 use App\Domain\Forms\PresentationProcessor;
+use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
@@ -63,7 +66,7 @@ final class FormTest extends TestCase
         $saved = new \DateTimeImmutable('2026-02-03T04:05:06+00:00');
 
         // WHEN
-        $form->saveDraft(self::values('{"email": "ada@example.com"}'), $values, $saved);
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), $values, now: $saved);
 
         // THEN the draft is stored and stamped
         self::assertSame(FormStatus::Draft, $form->status());
@@ -95,13 +98,13 @@ final class FormTest extends TestCase
     {
         // GIVEN a form holding a draft
         $form = self::form();
-        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues(), new \DateTimeImmutable('2026-02-03T04:05:06+00:00'));
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues(), now: new \DateTimeImmutable('2026-02-03T04:05:06+00:00'));
         $form->releaseEvents();
 
         // WHEN the same answers are sent again, later, with their names in
         // another order — which is what putting a version back does when the
         // version is where the form already is
-        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues(), new \DateTimeImmutable('2026-02-04T04:05:06+00:00'));
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues(), now: new \DateTimeImmutable('2026-02-04T04:05:06+00:00'));
 
         // THEN nothing happened: no second identical moment to go back to, and
         // no claim that the form changed at a time when nothing about it did
@@ -155,7 +158,7 @@ final class FormTest extends TestCase
         $confirmed = new \DateTimeImmutable('2026-03-04T05:06:07+00:00');
 
         // WHEN
-        $form->confirm($values, $confirmed);
+        $form->confirm($values, now: $confirmed);
 
         // THEN the form locked, and what locked it was the strict contract over what it holds
         self::assertSame(FormStatus::Confirmed, $form->status());
@@ -410,8 +413,177 @@ final class FormTest extends TestCase
         }
     }
 
-    private static function form(?\DateTimeImmutable $now = null, ?\DateTimeImmutable $expires = null, ?Presentation $presentation = null): Form
+    public function testAFormThatRecordsWhoFillsItInRefusesASaveNamingNobody(): void
     {
+        // GIVEN a form that records who fills it in
+        $form = self::form(identity: IdentityMode::Recorded);
+
+        // WHEN a save arrives that can name nobody
+        // THEN it is refused, and nothing about the form moved. This is the one
+        // thing this service checks about identity itself, and it is what makes a
+        // proxy that quietly stopped asserting visible on the first save instead
+        // of six months later.
+        $this->expectException(IdentityRequired::class);
+
+        try {
+            $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+        } finally {
+            self::assertSame(FormStatus::Empty, $form->status());
+            self::assertNull($form->valuesJson());
+            self::assertSame([], array_filter(
+                $form->releaseEvents(),
+                static fn(object $event): bool => $event instanceof DraftSaved,
+            ));
+        }
+    }
+
+    public function testWhoFilledInASaveTravelsWithTheValuesItStored(): void
+    {
+        // GIVEN a form that records who fills it in, and somebody filling it
+        $form = self::form(identity: IdentityMode::Recorded);
+        $form->releaseEvents();
+
+        // WHEN they save
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues(), Actor::of('ada'));
+
+        // THEN the one event carries both — the row and the revision are written
+        // from it, so neither can end up naming a different person than the other
+        $events = $form->releaseEvents();
+        self::assertCount(1, $events);
+        self::assertInstanceOf(DraftSaved::class, $events[0]);
+        self::assertSame('{"email":"ada@example.com"}', (string) $events[0]->values);
+        self::assertSame('ada', (string) $events[0]->filler);
+    }
+
+    public function testAnAnonymousFormDiscardsAnIdentityItWasHandedRatherThanRefusingIt(): void
+    {
+        // GIVEN a form that records nobody, and a deployment whose proxy asserts
+        // an identity on every single request
+        $form = self::form(identity: IdentityMode::Anonymous);
+        $form->releaseEvents();
+
+        // WHEN a save arrives carrying one anyway
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues(), Actor::of('ada'));
+
+        // THEN the values were kept and the person was not. Refusing instead
+        // would break every legitimate caller behind such a proxy, and keeping it
+        // would make "this form records nobody" a sentence in a document rather
+        // than a property of the form.
+        $events = $form->releaseEvents();
+        self::assertCount(1, $events);
+        self::assertInstanceOf(DraftSaved::class, $events[0]);
+        self::assertSame('{"email":"ada@example.com"}', (string) $events[0]->values);
+        self::assertNull($events[0]->filler);
+    }
+
+    public function testAnAnonymousFormTakesASaveThatNamesNobody(): void
+    {
+        // GIVEN / WHEN a form that records nobody, saved by nobody
+        $form = self::form(identity: IdentityMode::Anonymous);
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+
+        // THEN that is an ordinary save: a deployment with no identity source at
+        // all still has a usable service, which is why this is the model's own
+        // default
+        self::assertSame(FormStatus::Draft, $form->status());
+    }
+
+    public function testTheAuthorIsRecordedWhateverTheFormDoesWithItsFillers(): void
+    {
+        // GIVEN a form that records nobody, created by somebody
+        $form = self::form(identity: IdentityMode::Anonymous, author: Actor::of('crm'));
+
+        // THEN it still has an author, and the creation says so: the two are
+        // orthogonal, because an anonymous form was still made by somebody and
+        // creating happens where a caller is always known
+        self::assertSame('crm', (string) $form->author());
+        self::assertSame(IdentityMode::Anonymous, $form->identityMode());
+
+        $events = $form->releaseEvents();
+        self::assertCount(1, $events);
+        self::assertInstanceOf(FormCreated::class, $events[0]);
+        self::assertSame('crm', (string) $events[0]->author);
+    }
+
+    public function testConfirmingIsAttributedUnderTheSameRuleAsASave(): void
+    {
+        // GIVEN a form that records who fills it in, with something to confirm
+        $form = self::form(identity: IdentityMode::Recorded);
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues(), Actor::of('ada'));
+        $form->releaseEvents();
+
+        // WHEN it is closed by somebody else, which is an ordinary workflow
+        $form->confirm(new StubValues(), Actor::of('owner'));
+
+        // THEN who closed it is kept in its own right. Confirming writes no
+        // values, so it is no revision — without a slot of its own the most
+        // consequential act on a form would be the one act nobody attributed.
+        self::assertSame('owner', (string) $form->confirmedBy());
+
+        $events = $form->releaseEvents();
+        self::assertCount(1, $events);
+        self::assertInstanceOf(FormConfirmed::class, $events[0]);
+        self::assertSame('owner', (string) $events[0]->confirmer);
+    }
+
+    public function testAFormThatRecordsWhoFillsItInRefusesAConfirmationNamingNobody(): void
+    {
+        // GIVEN such a form, filled in
+        $form = self::form(identity: IdentityMode::Recorded);
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues(), Actor::of('ada'));
+
+        // WHEN nobody is named at the door
+        // THEN it stays open: closing a form is something the person filling it
+        // in does, so it is judged the same way a save is
+        $this->expectException(IdentityRequired::class);
+
+        try {
+            $form->confirm(new StubValues());
+        } finally {
+            self::assertNull($form->confirmedAt());
+            self::assertSame(FormStatus::Draft, $form->status());
+        }
+    }
+
+    public function testConfirmingAnAnonymousFormNamesNobody(): void
+    {
+        // GIVEN a form that records nobody, filled in and about to be closed
+        $form = self::form(identity: IdentityMode::Anonymous);
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+
+        // WHEN it is closed by somebody the deployment happens to know
+        $form->confirm(new StubValues(), Actor::of('owner'));
+
+        // THEN nobody was recorded. A promise of anonymity that names whoever
+        // pressed "send" is not a promise.
+        self::assertSame(FormStatus::Confirmed, $form->status());
+        self::assertNull($form->confirmedBy());
+    }
+
+    public function testPuttingBackWhatIsAlreadyStoredRecordsNothingEvenForSomebodyElse(): void
+    {
+        // GIVEN a form holding what one person entered
+        $form = self::form(identity: IdentityMode::Recorded);
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues(), Actor::of('ada'));
+        $form->releaseEvents();
+
+        // WHEN somebody else sends the identical document back
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues(), Actor::of('reviewer'));
+
+        // THEN nothing happened, and the form still says the first person entered
+        // what it holds. The history records *changes*: "somebody looked at this
+        // and agreed" is an access-log fact, not a version of a document — and
+        // this is also what keeps putting a version back safe to press twice.
+        self::assertSame([], $form->releaseEvents());
+    }
+
+    private static function form(
+        ?\DateTimeImmutable $now = null,
+        ?\DateTimeImmutable $expires = null,
+        ?Presentation $presentation = null,
+        IdentityMode $identity = IdentityMode::Anonymous,
+        ?Actor $author = null,
+    ): Form {
         return new Form(
             FormId::next(),
             Definition::stored(self::DEFINITION, new SpyParser()),
@@ -419,6 +591,8 @@ final class FormTest extends TestCase
             $presentation,
             self::rules(),
             $now,
+            $identity,
+            $author,
         );
     }
 

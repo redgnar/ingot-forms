@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Infrastructure\Persistence;
 
+use App\Application\Forms\Port\FormHistory;
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
 use App\Domain\Forms\Exception\FormUnreadable;
@@ -11,11 +12,13 @@ use App\Domain\Forms\Form;
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\FormMapperFactory;
 use App\Domain\Forms\FormStatus;
+use App\Domain\Forms\IdentityMode;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\Presentation\Engine\CoreHtmlEngine;
 use App\Domain\Forms\Presentation\Engine\Engines;
 use App\Domain\Forms\Presentation\PresentationRules;
 use App\Domain\Forms\PresentationProcessor;
+use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
@@ -127,12 +130,20 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         // GIVEN a form taken all the way through its life
         $id = self::uuid();
         $expireDate = ExpireDate::future(new \DateTimeImmutable('+1 day'));
-        $this->repository->add(new Form($id, self::definition(), $expireDate, self::presentation(), new PresentationRules(new Engines([new CoreHtmlEngine()]))));
+        $this->repository->add(new Form(
+            $id,
+            self::definition(),
+            $expireDate,
+            self::presentation(),
+            new PresentationRules(new Engines([new CoreHtmlEngine()])),
+            identity: IdentityMode::Recorded,
+            author: Actor::of('crm'),
+        ));
 
         $this->transactions->run(function () use ($id): void {
             $form = $this->repository->getForUpdate($id);
-            $form->saveDraft(json_decode('{"email": "ada@example.com"}', false, flags: \JSON_THROW_ON_ERROR), new StubValues());
-            $form->confirm(new StubValues());
+            $form->saveDraft(json_decode('{"email": "ada@example.com"}', false, flags: \JSON_THROW_ON_ERROR), new StubValues(), Actor::of('ada'));
+            $form->confirm(new StubValues(), Actor::of('owner'));
             $this->repository->save($form);
         });
 
@@ -153,6 +164,19 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         self::assertSame(FormStatus::Confirmed, $read->status());
         self::assertSame((string) self::presentation(), (string) $read->presentation());
         self::assertSame('email', $read->presentation()?->structure()->items[0]->name);
+
+        // AND the three people it knows by name, each written by a different
+        // transition: the author by the insert, the confirmer by the lock, and
+        // the filler onto the revision the save appended
+        self::assertSame(IdentityMode::Recorded, $read->identityMode());
+        self::assertSame('crm', (string) $read->author());
+        self::assertSame('owner', (string) $read->confirmedBy());
+
+        $history = self::getContainer()->get(FormHistory::class);
+        self::assertInstanceOf(FormHistory::class, $history);
+        $revisions = $history->revisionsOf($id);
+        self::assertCount(1, $revisions);
+        self::assertSame('ada', (string) $revisions[0]->actor);
 
         // AND a form that was only read has done nothing worth recording
         self::assertSame([], $read->releaseEvents());
@@ -505,6 +529,7 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
 
         $record = new FormRecord();
+        $record->identityMode = IdentityMode::Anonymous->value;
         $record->id = $id->toUuid();
         $record->definition = self::DEFINITION;
         $record->expireDate = new \DateTimeImmutable('+1 day');

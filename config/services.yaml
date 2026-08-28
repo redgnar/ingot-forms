@@ -22,12 +22,31 @@ parameters:
     # past this, its oldest one leaves. 0 keeps every save there has ever been.
     forms.default_history_limit: 100
     forms.history_limit: '%env(int:default:forms.default_history_limit:FORMS_HISTORY_LIMIT)%'
+    # Who a save is attributed to when the gateway asserted nobody. Unset means
+    # *refuse* rather than fall back: a form that records who fills it in cannot
+    # accept a save naming nobody, which is what makes a proxy that quietly
+    # stopped asserting visible instead of filling the column with a placeholder
+    # for months. A deployment that does not want the check sets this — to
+    # something reserved and obviously not a person, so a row saying "nobody told
+    # us" reads as a fact rather than as somebody's name.
+    forms.identity_fallback: '%env(default::FORMS_IDENTITY_FALLBACK)%'
+
     # What a form is dressed in when its own presentation names no skin. The
     # document wins where it says something; this is what re-dresses every form
     # that says nothing, without touching a single stored document. It must be a
     # skin the kit has, and the renderer refuses to be built otherwise.
     forms.default_skin: 'default'
     forms.skin: '%env(default:forms.default_skin:FORMS_SKIN)%'
+
+when@test:
+    parameters:
+        # The suites need somebody to be. Every fixture creates its forms the way
+        # a client would — without saying anything about identity, so `recorded` —
+        # and this is what lets them go on saving *and* makes every one of them
+        # exercise the path that writes an actor. The refusal that happens with no
+        # fallback is pinned in the unit suite instead, against the aggregate,
+        # where Infection runs.
+        forms.identity_fallback: 'test-suite'
 
 services:
     _defaults:

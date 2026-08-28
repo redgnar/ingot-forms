@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\UserInterface\Api;
 
 use App\Domain\Forms\Form;
+use App\Domain\Forms\ValueObject\Actor;
 
 /**
  * The canonical JSON shape of a form returned by every endpoint.
@@ -35,6 +36,15 @@ final class FormEnvelope
             'data' => $record->valuesJson() ?? 'null',
             'dataSavedAt' => self::encoded($record->dataSavedAt()?->format(\DateTimeInterface::ATOM)),
             'confirmedAt' => self::encoded($record->confirmedAt()?->format(\DateTimeInterface::ATOM)),
+            // Whether this form records who fills it in, and the two people it
+            // knows by name. Who filled it in is per save and is read from the
+            // management side's history instead: "who last changed this form" is
+            // the newest revision, and a second copy of it here would be a
+            // second truth. Opaque strings, never resolved into anybody, and
+            // served only here — no page draws them.
+            'identity' => self::encoded($record->identityMode()->value),
+            'author' => self::encoded(self::subject($record->author())),
+            'confirmedBy' => self::encoded(self::subject($record->confirmedBy())),
         ]);
     }
 
@@ -50,6 +60,11 @@ final class FormEnvelope
         }
 
         return '{' . implode(',', $pairs) . '}';
+    }
+
+    private static function subject(?Actor $actor): ?string
+    {
+        return $actor === null ? null : (string) $actor;
     }
 
     private static function encoded(string|int|float|bool|null $value): string

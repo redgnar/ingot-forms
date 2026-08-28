@@ -691,9 +691,10 @@ so they stack).
 
 Both kits draw all three switches folded away behind one summary until somebody wants them — the
 richer kit as toggle buttons behind an icon, the plain kit as checkboxes — and both remember the
-choice **in that browser only**. Nothing is sent to the server: this service has no identity of
-any kind, so there is nowhere else it could live, and a reading preference is a fact about a
-screen and a pair of eyes rather than about a form.
+choice **in that browser only**. Nothing is sent to the server: this service records who filled a
+form in and knows nothing else about anybody — no profile, no account, nowhere a preference could
+live — and a reading preference is a fact about a screen and a pair of eyes rather than about a
+form or the person answering it.
 
 This matters when you pick a skin: **high contrast wins over it.** It is not one of the skins
 but an overlay on top of whichever one you chose, because an accessibility preference outranks
@@ -820,17 +821,17 @@ belongs to says nothing. Each one offers **View** and **Restore**:
 holds, for somebody who typed over it and changed their mind. A save refreshes the panel, because
 a save makes a new moment and a list that does not show it is lying.
 
-What history does **not** answer *today* is **who**. A revision says *when* and *what*, because
-this service has no identity of any kind yet — and that is the part that is changing. It has been
-decided that a form will carry an author and a confirmer, that every accepted save will record who
-entered it, and that a form may instead be declared **anonymous** and record nobody. None of it is
-built; when it is, none of it will be **drawn on a page**, and none of it changes anything about
-how a form is described — who answers is not an item and not a widget. The one member it will add
-to a creation request is `identity`, which is `recorded` unless a document says `anonymous`, and
-`anonymous` means nobody is stored even when the deployment asserted somebody. The shape is worked
-out in
-[`.claude/plan/09-access.md`](../.claude/plan/09-access.md), and this document grows a section
-about it when there is something here to configure.
+History answers **who** as well, and answers it on one side only. Every accepted save records the
+identity a gateway asserted, and it is served by `GET /api/manage/forms/{id}/history` — the
+management side. The list a *filler* reads carries `when` and nothing about who, so one person who
+was let through to a form learns nothing about who else filled it in.
+
+Nothing about it is ever **drawn on a page**, in either kit, and nothing about it changes how a form
+is described: who answers is not an item and not a widget. The one thing a creation request says
+about it is `identity`, which is `recorded` unless you write `anonymous` — and `anonymous` means
+nobody is stored *even when the deployment asserted somebody*, including whoever pressed the button
+that locked the form. See [Who may do what](architecture.md#who-may-do-what) for where the identity
+comes from and what a deployment has to configure for it to arrive at all.
 
 ## Talking to the API
 
@@ -847,8 +848,9 @@ message beside a control needs to know which control.
 
 | Method & path | Purpose |
 |---|---|
-| `POST /api/manage/forms` | Create a form. Body: `{"expireDate": "<RFC 3339>", "definition": {…}, "presentation": {…}?, "data": {…}?}`. `201` + `Location`, answering with `{"id": …}` alone. |
+| `POST /api/manage/forms` | Create a form. Body: `{"expireDate": "<RFC 3339>", "definition": {…}, "presentation": {…}?, "data": {…}?, "identity": "recorded"\|"anonymous"?}`. `201` + `Location`, answering with `{"id": …}` alone. |
 | `GET /api/manage/forms/{id}` | Full envelope: definition, status, data, timestamps. |
+| `GET /api/manage/forms/{id}/history` | Every accepted save, newest first, each with the identity that was asserted when it was accepted (`actor`, null on an `anonymous` form). The management side of `GET /api/forms/{id}/history`, which carries no `actor` at all. |
 | `DELETE /api/manage/forms/{id}` | `204`. The "definition changed" path is delete + recreate. |
 | `GET /api/forms/{id}/schema` | Derived JSON Schema of the form's *values* (`application/schema+json`). `?mode=draft` returns the relaxed variant. |
 | `GET /api/schemas/definition` · `GET /api/schemas/presentation` | The meta-schema each of those documents is judged by (`application/schema+json`) — the authoritative contract for what you may write, which is why it is served rather than described. Fixed for a deployment. |

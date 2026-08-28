@@ -45,4 +45,26 @@ class FormRecord
 
     #[ORM\Column(name: 'created_at', type: Types::DATETIME_IMMUTABLE)]
     public \DateTimeImmutable $createdAt;
+
+    /**
+     * Whether this form records who fills it in. Not null, and with no default of
+     * its own: a write that forgot to say is refused by the column rather than
+     * quietly stored as one of the two answers. The default in the schema is what
+     * the migration needed to add this to a table that already had rows, and
+     * declaring it here is only what keeps the mapping and the database saying
+     * the same thing.
+     */
+    #[ORM\Column(name: 'identity_mode', type: Types::STRING, length: 16, options: ['default' => 'anonymous'])]
+    public string $identityMode;
+
+    /**
+     * Who created the form, and who locked it — opaque strings, never resolved
+     * into anybody. Null when nobody was asserted, and on an anonymous form the
+     * confirmer stays null however much the deployment asserted.
+     */
+    #[ORM\Column(name: 'author_subject', type: Types::STRING, length: 255, nullable: true)]
+    public ?string $authorSubject = null;
+
+    #[ORM\Column(name: 'confirmed_by_subject', type: Types::STRING, length: 255, nullable: true)]
+    public ?string $confirmedBySubject = null;
 }

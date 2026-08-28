@@ -18,6 +18,7 @@ use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
 use App\Domain\Forms\Exception\FormNotFound;
 use App\Domain\Forms\Exception\FormUnreadable;
+use App\Domain\Forms\Exception\IdentityRequired;
 use App\Domain\Forms\Exception\PresentationNotSet;
 use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Exception\ValuesNotValid;
@@ -76,6 +77,10 @@ final class ProblemExceptionListener
         // Nothing to confirm. The read endpoint answers 404 for the same state and
         // translates it itself — a missing document, not a conflict.
         FormHasNoData::class => [409, 'form-data-empty', 'There is no data to confirm.'],
+        // This form records who fills it in, and nothing asserted anybody. Not a
+        // 422: nothing is wrong with the document, so there is no pointer to
+        // give — the caller may not do this on account of who they are not.
+        IdentityRequired::class => [403, 'identity-required', 'This form records who fills it in, and nobody was asserted.'],
         FormGone::class => [410, 'form-gone', 'Form has expired.'],
         FileTooLarge::class => [413, 'upload-too-large', 'The upload is larger than this deployment accepts.'],
         FileEmpty::class => [422, 'upload-empty', 'An empty file is not an upload.'],

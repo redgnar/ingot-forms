@@ -10,6 +10,7 @@ use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
 use App\Domain\Forms\Exception\FormNotFound;
 use App\Domain\Forms\Exception\FormUnreadable;
+use App\Domain\Forms\Exception\IdentityRequired;
 use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\ValueObject\FormId;
 use Ingot\Error\ErrorReport;
@@ -48,6 +49,7 @@ final class FormExceptionsTest extends TestCase
     public static function refusals(): \Generator
     {
         yield 'locked' => [static fn(FormId $id): \RuntimeException => new FormLocked($id), 'can no longer be edited'];
+        yield 'nobody was asserted' => [static fn(FormId $id): \RuntimeException => new IdentityRequired($id), 'nobody was asserted'];
         yield 'already confirmed' => [static fn(FormId $id): \RuntimeException => new FormAlreadyConfirmed($id), 'already confirmed'];
         yield 'no data' => [static fn(FormId $id): \RuntimeException => new FormHasNoData($id), 'no data'];
         yield 'not found' => [static fn(FormId $id): \RuntimeException => new FormNotFound($id), 'does not exist'];

@@ -6,6 +6,7 @@ namespace App\Tests\UserInterface\Web;
 
 use App\Domain\Forms\Form;
 use App\Domain\Forms\FormDefinitionProcessor;
+use App\Domain\Forms\IdentityMode;
 use App\Domain\Forms\Presentation\Engine\BootstrapEngine;
 use App\Domain\Forms\Presentation\Engine\CoreHtmlEngine;
 use App\Domain\Forms\Presentation\Engine\Engines;
@@ -264,6 +265,7 @@ final class ViewFormActionTest extends WebTestCase
         self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
 
         $record = new FormRecord();
+        $record->identityMode = IdentityMode::Anonymous->value;
         $record->id = Uuid::fromString($id);
         $record->definition = json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR);
         $record->expireDate = new \DateTimeImmutable('+1 day');
@@ -347,6 +349,7 @@ final class ViewFormActionTest extends WebTestCase
         $document['engine'] = $engine;
 
         $record = new FormRecord();
+        $record->identityMode = IdentityMode::Anonymous->value;
         $record->id = $id->toUuid();
         $record->definition = (string) $definitions->document($definitions->parse(self::DEFINITION));
         $record->expireDate = new \DateTimeImmutable('+1 day');

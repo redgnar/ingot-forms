@@ -14,7 +14,11 @@ use Symfony\Component\Validator\Constraints as Assert;
  * (`#[MapRequestPayload]`).
  *
  * Every member is required and non-nullable: an instance of this class means
- * a complete request. What the mapper cannot supply never reaches the
+ * a complete request. `identity` has a default, which is a value and not a null:
+ * `recorded`, because the two options fail differently — a client that forgets to
+ * say should get the document that keeps *more* record, since `anonymous` by
+ * default fails silently and unrecoverably while `recorded` by default fails
+ * loudly on the first save a deployment cannot attribute. What the mapper cannot supply never reaches the
  * constructor — a missing or mistyped member is reported at its pointer
  * before validation runs.
  *
@@ -62,5 +66,18 @@ final readonly class CreateFormRequest
             example: ['email' => 'ada@example.com'],
         )]
         public ?\stdClass $data = null,
+        #[OA\Property(
+            description: 'Whether this form records who fills it in. `recorded` (the default) stores the identity a gateway asserted with every accepted save, and refuses a save that can name nobody. `anonymous` stores nobody — and *discards* an asserted identity rather than refusing it, so a deployment whose proxy asserts on every request cannot build a record by accident. Immutable, like the definition. There is deliberately no third value: an "optional" mode would make one column mean both "nobody was there" and "somebody was and did not say".',
+            type: 'string',
+            default: 'recorded',
+            enum: ['recorded', 'anonymous'],
+            example: 'recorded',
+        )]
+        #[Assert\Choice(
+            choices: ['recorded', 'anonymous'],
+            message: 'identity must be "recorded" or "anonymous".',
+            payload: ['code' => 'form.identity.unknown'],
+        )]
+        public string $identity = 'recorded',
     ) {}
 }

@@ -23,6 +23,7 @@ this reference cannot drift from the implementation.
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
 | [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `415`, `410`, `422` |
 | [`GET /api/forms/{id}/history`](#get-apiformsidhistory) | `getFormHistory` | List every accepted save of this form | `200`, `404`, `410` |
+| [`GET /api/manage/forms/{id}/history`](#get-apimanageformsidhistory) | `getManagedFormHistory` | List every accepted save of this form, with who entered it | `200`, `404`, `410` |
 | [`GET /api/forms/{id}/presentation`](#get-apiformsidpresentation) | `getFormPresentation` | Read how the form is shown | `200`, `404`, `410` |
 | [`GET /api/forms/{id}/history/{seq}`](#get-apiformsidhistoryseq) | `getFormRevision` | Read one save of this form | `200`, `404`, `410` |
 | [`GET /api/schemas/{document}`](#get-apischemasdocument) | `getMetaSchema` | Read the meta-schema of a definition or a presentation | `200`, `404` |
@@ -216,6 +217,26 @@ Newest first, because that is what somebody looking for an earlier version is us
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 
+### GET /api/manage/forms/{id}/history
+
+`operationId: getManagedFormHistory` — List every accepted save of this form, with who entered it
+
+The management side of `GET /api/forms/{id}/history`: the same saves, newest first, each carrying the identity that was asserted when it was accepted. `actor` is null on a form created as `anonymous` — that form records nobody, whatever a gateway asserted. It is served here and not on the fill side so that one person who was let through to a form learns nothing about who else filled it in. The subject is opaque: it is whatever authenticated the caller said, never resolved into a person by this service.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | `application/json` | [`FormHistoryWithActors`](#formhistorywithactors) | The history, newest first. Empty for a form nobody has filled in. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
+| `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
+
 ### GET /api/forms/{id}/presentation
 
 `operationId: getFormPresentation` — Read how the form is shown
@@ -378,6 +399,29 @@ What an upload answers with, and exactly what a `file` item in this form's value
 
 No other properties are allowed.
 
+### FormRevisionWithActor
+
+One accepted save, as the management side sees it: the same thing a filler is shown, plus who entered it.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `seq` | `integer` (≥ 1) | yes |  |
+| `savedAt` | `string` (`date-time`) | yes |  |
+| `confirmed` | `boolean` | yes |  |
+| `actor` | `string \| null` (max length 255) | yes | The identity that was asserted when this save was accepted — an opaque subject, exactly as whatever authenticated the caller said it, never parsed or resolved into a person by this service. Null on a form created as `anonymous`, which records nobody whatever a gateway asserted. |
+
+No other properties are allowed.
+
+### FormHistoryWithActors
+
+Every accepted save of one form, newest first, with who entered each.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `revisions` | `array` of [`FormRevisionWithActor`](#formrevisionwithactor) | yes |  |
+
+No other properties are allowed.
+
 ### FormRevision
 
 One accepted save of a form. The document itself is read one at a time; this is what a client chooses by.
@@ -414,6 +458,9 @@ The canonical JSON shape of a form read back from the API.
 | `data` | [`FormValues`](#formvalues) or `null` | yes |  |
 | `dataSavedAt` | `string \| null` (`date-time`) | yes |  |
 | `confirmedAt` | `string \| null` (`date-time`) | yes |  |
+| `identity` | `string` (`recorded` \| `anonymous`) | yes | Whether this form records who fills it in. Given at creation and immutable. `anonymous` discards an asserted identity rather than refusing it, so a gateway asserting on every request cannot build a record by accident. |
+| `author` | `string \| null` (max length 255) | yes | Who created this form — an opaque subject as whatever authenticated the caller said it, never resolved into a person here. Null when nobody was asserted. Outside `identity` on purpose: an anonymous form still has an author, because somebody created it. |
+| `confirmedBy` | `string \| null` (max length 255) | yes | Who locked this form. Its own member because confirming writes no values and is therefore no revision — without it, the most consequential act on a form would be the one nobody attributed. Null while the form is open, and on an anonymous form. |
 
 No other properties are allowed.
 
@@ -452,6 +499,7 @@ No other properties are allowed.
 | `definition` | `object` | yes | The form definition: 1–1000 typed items with unique names, per the meta-schema this API serves at `GET /api/schemas/definition`. Immutable once created — changing it means deleting the form and creating a new one. |
 | `presentation` | `object \| null` | no | How the form is shown, per the meta-schema this API serves at `GET /api/schemas/presentation`. Optional — a client that draws forms its own way needs none. May name a "skin" the engine offers, which changes how the page looks and never what the document may say; a deployment default dresses whatever names none. Immutable with the definition: changing either means deleting the form and creating a new one. |
 | `data` | `object \| null` | no | What the form already holds, keyed by item name — for values a client knows before anybody opens the form. Optional. Judged against this form's own definition under the *draft* contract, so an incomplete document is fine and `required` items may be left out; a value that breaks its item's rules is reported at `/data/<item>`. A form created with this is born a draft: it can be filled in further, and confirmed when it is complete. |
+| `identity` | `string` (`recorded` \| `anonymous`) | no | Whether this form records who fills it in. `recorded` (the default) stores the identity a gateway asserted with every accepted save, and refuses a save that can name nobody. `anonymous` stores nobody — and *discards* an asserted identity rather than refusing it, so a deployment whose proxy asserts on every request cannot build a record by accident. Immutable, like the definition. There is deliberately no third value: an "optional" mode would make one column mean both "nobody was there" and "somebody was and did not say". |
 
 No other properties are allowed.
 

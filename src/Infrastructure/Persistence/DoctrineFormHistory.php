@@ -6,6 +6,7 @@ namespace App\Infrastructure\Persistence;
 
 use App\Application\Forms\History\FormRevision;
 use App\Application\Forms\Port\FormHistory;
+use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\FormId;
 use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\EntityManagerInterface;
@@ -27,14 +28,20 @@ final class DoctrineFormHistory implements FormHistory
 
     public function revisionsOf(FormId $form): array
     {
-        /** @var list<array{seq: int, savedAt: \DateTimeImmutable}> $rows */
+        /** @var list<array{seq: int, savedAt: \DateTimeImmutable, actorSubject: string|null}> $rows */
         $rows = $this->entityManager
-            ->createQuery(\sprintf('SELECT r.seq, r.savedAt FROM %s r WHERE r.formId = :form ORDER BY r.seq DESC', FormRevisionRecord::class))
+            ->createQuery(\sprintf('SELECT r.seq, r.savedAt, r.actorSubject FROM %s r WHERE r.formId = :form ORDER BY r.seq DESC', FormRevisionRecord::class))
             ->setParameter('form', $form->toUuid())
             ->getArrayResult();
 
         return array_map(
-            static fn(array $row): FormRevision => new FormRevision($row['seq'], $row['savedAt']),
+            // Put back without judging: what was stored was judged on its way in,
+            // and a rule tightened since must not make an old row unreadable.
+            static fn(array $row): FormRevision => new FormRevision(
+                $row['seq'],
+                $row['savedAt'],
+                actor: $row['actorSubject'] === null ? null : Actor::stored($row['actorSubject']),
+            ),
             $rows,
         );
     }

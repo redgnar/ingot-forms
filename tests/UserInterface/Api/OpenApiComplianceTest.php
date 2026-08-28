@@ -7,6 +7,7 @@ namespace App\Tests\UserInterface\Api;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\FormMapperFactory;
+use App\Domain\Forms\IdentityMode;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
@@ -330,6 +331,19 @@ final class OpenApiComplianceTest extends WebTestCase
             ['GET', '/api/forms/{id}/history', 410, true, '', static function (self $test): void {
                 $test->client->request('GET', \sprintf('/api/forms/%s/history', $test->expiredForm()));
             }],
+            // The management side of the same list, which carries who entered
+            // each save. A second route rather than one response that changes
+            // shape with the caller: this test is what makes that necessary,
+            // since it validates one shape per operation.
+            ['GET', '/api/manage/forms/{id}/history', 200, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s/history', $test->savedForm()));
+            }],
+            ['GET', '/api/manage/forms/{id}/history', 404, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s/history', Uuid::v7()->toRfc4122()));
+            }],
+            ['GET', '/api/manage/forms/{id}/history', 410, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s/history', $test->expiredForm()));
+            }],
             ['GET', '/api/forms/{id}/history/{seq}', 200, true, '', static function (self $test): void {
                 $test->client->request('GET', \sprintf('/api/forms/%s/history/1', $test->savedForm()));
             }],
@@ -559,6 +573,7 @@ final class OpenApiComplianceTest extends WebTestCase
         self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
 
         $record = new FormRecord();
+        $record->identityMode = IdentityMode::Anonymous->value;
         $record->id = Uuid::fromString($id);
         $record->definition = json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR);
         $record->expireDate = new \DateTimeImmutable('+1 day');

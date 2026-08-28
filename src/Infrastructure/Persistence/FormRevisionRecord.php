@@ -35,4 +35,12 @@ class FormRevisionRecord
 
     #[ORM\Column(type: Types::TEXT)]
     public string $data;
+
+    /**
+     * Who entered this save. Null on a form that records nobody — which, with
+     * the mode on the form being not null and backfilled `anonymous`, is the
+     * only thing a null here can mean.
+     */
+    #[ORM\Column(name: 'actor_subject', type: Types::STRING, length: 255, nullable: true)]
+    public ?string $actorSubject = null;
 }

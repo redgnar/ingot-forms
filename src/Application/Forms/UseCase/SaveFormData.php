@@ -9,6 +9,7 @@ use App\Domain\Forms\Exception\FormLocked;
 use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\Port\ValuesValidator;
+use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\FormId;
 
 /**
@@ -36,14 +37,20 @@ final class SaveFormData
     ) {}
 
     /**
+     * Who is saving arrives as an argument rather than as ambient state, so the
+     * only thing that can attribute a save is whatever the boundary resolved for
+     * *this* request. Whether it is kept, or needed at all, is the form's own
+     * business.
+     *
      * @throws FormLocked
+     * @throws \App\Domain\Forms\Exception\IdentityRequired
      * @throws ValuesNotValid
      */
-    public function __invoke(FormId $id, mixed $values): void
+    public function __invoke(FormId $id, mixed $values, ?Actor $filler = null): void
     {
-        $this->transactions->run(function () use ($id, $values): void {
+        $this->transactions->run(function () use ($id, $values, $filler): void {
             $form = $this->forms->getForUpdate($id);
-            $form->saveDraft($values, $this->valuesValidator);
+            $form->saveDraft($values, $this->valuesValidator, $filler);
             $this->forms->save($form);
         });
     }

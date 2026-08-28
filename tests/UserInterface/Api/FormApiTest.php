@@ -7,6 +7,7 @@ namespace App\Tests\UserInterface\Api;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\FormMapperFactory;
+use App\Domain\Forms\IdentityMode;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
@@ -742,6 +743,7 @@ final class FormApiTest extends WebTestCase
         self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
 
         $record = new FormRecord();
+        $record->identityMode = IdentityMode::Anonymous->value;
         $record->id = Uuid::fromString($id);
         $record->definition = json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR);
         $record->expireDate = new \DateTimeImmutable('+1 day');

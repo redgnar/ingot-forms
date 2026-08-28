@@ -12,9 +12,11 @@ use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
 use App\Domain\Forms\Exception\FormUnreadable;
 use App\Domain\Forms\Form;
+use App\Domain\Forms\IdentityMode;
 use App\Domain\Forms\Port\DefinitionParser;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\Port\PresentationParser;
+use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
@@ -60,6 +62,10 @@ final class DoctrineFormRepository implements FormRepository
         // the whole row.
         $record->data = $form->valuesJson();
         $record->dataSavedAt = $form->dataSavedAt();
+        // Who this form records, and who made it. A new row has no confirmer by
+        // definition: nothing has locked it yet.
+        $record->identityMode = $form->identityMode()->value;
+        $record->authorSubject = self::subject($form->author());
 
         $this->entityManager->persist($record);
 
@@ -235,6 +241,13 @@ final class DoctrineFormRepository implements FormRepository
             $record->confirmedAt,
             $record->createdAt,
             $record->presentation === null ? null : Presentation::stored($record->presentation, $this->presentations),
+            // A mode nothing recognises is a row this deployment cannot judge,
+            // and it is reported the way an unreadable definition is rather than
+            // guessed at: guessing `anonymous` would quietly promise something,
+            // and guessing `recorded` would lock the form.
+            IdentityMode::from($record->identityMode),
+            self::actor($record->authorSubject),
+            self::actor($record->confirmedBySubject),
         );
     }
 
@@ -256,12 +269,20 @@ final class DoctrineFormRepository implements FormRepository
     {
         match (true) {
             $event instanceof DraftSaved => $this->store($record, $event),
-            $event instanceof FormConfirmed => $record->confirmedAt = $event->occurredAt,
+            $event instanceof FormConfirmed => $this->lock($record, $event),
             // A form is inserted as a whole; nothing about its creation is an
             // update to an existing row.
             $event instanceof FormCreated => null,
             default => throw new \LogicException(\sprintf('There is no way to store %s.', $event::class)),
         };
+    }
+
+    private function lock(FormRecord $record, FormConfirmed $event): void
+    {
+        $record->confirmedAt = $event->occurredAt;
+        // Confirming writes no values, so it is no revision — which is exactly
+        // why the person who did it needs a column of its own.
+        $record->confirmedBySubject = self::subject($event->confirmer);
     }
 
     private function store(FormRecord $record, DraftSaved $event): void
@@ -315,8 +336,19 @@ final class DoctrineFormRepository implements FormRepository
         $revision->seq = $this->lastSequence($event->formId) + 1;
         $revision->savedAt = $event->occurredAt;
         $revision->data = (string) $event->values;
+        $revision->actorSubject = self::subject($event->filler);
 
         return $revision;
+    }
+
+    private static function subject(?Actor $actor): ?string
+    {
+        return $actor === null ? null : (string) $actor;
+    }
+
+    private static function actor(?string $subject): ?Actor
+    {
+        return $subject === null ? null : Actor::stored($subject);
     }
 
     private function lastSequence(FormId $id): int

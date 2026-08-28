@@ -98,6 +98,41 @@ nelmio_api_doc:
                         type:
                             type: string
                             description: A media type, lower case, as the server sniffed it — not as the browser claimed.
+                FormRevisionWithActor:
+                    type: object
+                    description: >-
+                        One accepted save, as the management side sees it: the same
+                        thing a filler is shown, plus who entered it.
+                    required: [seq, savedAt, confirmed, actor]
+                    additionalProperties: false
+                    properties:
+                        seq:
+                            type: integer
+                            minimum: 1
+                        savedAt:
+                            type: string
+                            format: date-time
+                        confirmed:
+                            type: boolean
+                        actor:
+                            type: [string, 'null']
+                            maxLength: 255
+                            description: >-
+                                The identity that was asserted when this save was accepted —
+                                an opaque subject, exactly as whatever authenticated the caller
+                                said it, never parsed or resolved into a person by this service.
+                                Null on a form created as `anonymous`, which records nobody
+                                whatever a gateway asserted.
+                FormHistoryWithActors:
+                    type: object
+                    description: Every accepted save of one form, newest first, with who entered each.
+                    required: [revisions]
+                    additionalProperties: false
+                    properties:
+                        revisions:
+                            type: array
+                            items:
+                                $ref: '#/components/schemas/FormRevisionWithActor'
                 FormRevision:
                     type: object
                     description: >-
@@ -131,7 +166,7 @@ nelmio_api_doc:
                 FormEnvelope:
                     type: object
                     description: The canonical JSON shape of a form read back from the API.
-                    required: [id, status, expireDate, createdAt, definition, data, dataSavedAt, confirmedAt]
+                    required: [id, status, expireDate, createdAt, definition, data, dataSavedAt, confirmedAt, identity, author, confirmedBy]
                     additionalProperties: false
                     properties:
                         id:
@@ -157,6 +192,30 @@ nelmio_api_doc:
                         confirmedAt:
                             type: [string, 'null']
                             format: date-time
+                        identity:
+                            type: string
+                            enum: [recorded, anonymous]
+                            description: >-
+                                Whether this form records who fills it in. Given at creation and
+                                immutable. `anonymous` discards an asserted identity rather than
+                                refusing it, so a gateway asserting on every request cannot build
+                                a record by accident.
+                        author:
+                            type: [string, 'null']
+                            maxLength: 255
+                            description: >-
+                                Who created this form — an opaque subject as whatever authenticated
+                                the caller said it, never resolved into a person here. Null when
+                                nobody was asserted. Outside `identity` on purpose: an anonymous
+                                form still has an author, because somebody created it.
+                        confirmedBy:
+                            type: [string, 'null']
+                            maxLength: 255
+                            description: >-
+                                Who locked this form. Its own member because confirming writes no
+                                values and is therefore no revision — without it, the most
+                                consequential act on a form would be the one nobody attributed.
+                                Null while the form is open, and on an anonymous form.
                 ProblemError:
                     type: object
                     description: One validation error, mapped 1:1 from the engine's report or a constraint violation.
