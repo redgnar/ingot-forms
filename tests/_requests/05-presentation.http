@@ -4,7 +4,7 @@
 
 ### A form created with both documents at once.
 # @name createPresentedForm
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -86,7 +86,7 @@ GET {{host}}/api/forms/{{presentedFormId}}/presentation
 
 ### A form described by nobody: the document is simply not there.
 # @name formWithoutPresentation
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -114,7 +114,7 @@ GET {{host}}/api/forms/{{bareFormId}}/presentation
 
 ### An item the definition does not declare. No form comes into existence.
 # @name presentationWithUnknownItem
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -133,7 +133,7 @@ Content-Type: application/json
 
 ### A control the engine does not draw for that kind of item.
 # @name presentationWithWrongWidget
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -152,7 +152,7 @@ Content-Type: application/json
 ### A value that also holds items: a field is not a group. Refused by the
 ### document's own meta-schema, so the pointer is rooted where it was sent.
 # @name presentationWithValueHoldingItems
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -172,7 +172,7 @@ Content-Type: application/json
 ### An item the definition asks for and the presentation leaves out: a question
 ### nobody can answer, and if it is required, a form nobody can confirm.
 # @name presentationLeavingAnItemOut
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -197,7 +197,7 @@ Content-Type: application/json
 ### A value a client fills in rather than a person: drawn where nobody looks,
 ### which is a decision written down instead of an omission.
 # @name presentationWithAHiddenValue
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -226,7 +226,7 @@ Content-Type: application/json
 
 ### A document that shows a form and offers no way to finish it.
 # @name presentationWithoutAWayToConfirm
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -244,7 +244,7 @@ Content-Type: application/json
 
 ### A catalogue missing a code it uses, in the language it falls back to.
 # @name presentationWithIncompleteDefaultLocale
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -267,7 +267,7 @@ Content-Type: application/json
 
 ### An engine nobody here knows: accepted, widgets unchecked.
 # @name presentationForAnUnknownEngine
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -287,7 +287,7 @@ Content-Type: application/json
 
 ### Wording an option the item does not offer.
 # @name choiceNobodyCanPick
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -314,7 +314,7 @@ Content-Type: application/json
 
 ### Wording some options and not the rest.
 # @name choicesHalfWorded
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {

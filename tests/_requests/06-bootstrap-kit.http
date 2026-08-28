@@ -5,7 +5,7 @@
 
 ### A form described for the richer kit, using every group and control it has.
 # @name createBootstrapForm
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -138,7 +138,7 @@ GET {{host}}/forms/{{bootstrapFormId}}
 %}
 
 ### The same page in Polish, because the URL says so.
-GET {{host}}/pl/forms/{{bootstrapFormId}}
+GET {{host}}/forms/{{bootstrapFormId}}?lang=pl
 
 > {%
     client.test("200 — codes Polish has come out Polish, the rest falls back", function () {
@@ -150,7 +150,7 @@ GET {{host}}/pl/forms/{{bootstrapFormId}}
 
 ### A control only this kit has, asked for in the plain one: refused.
 # @name autocompleteInThePlainKit
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -171,7 +171,7 @@ Content-Type: application/json
 
 ### And a way of grouping the plain kit has, asked for in this one: also refused.
 # @name fieldsetInTheRicherKit
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -194,7 +194,7 @@ Content-Type: application/json
 ### what the document may say — open both ids and compare: the markup is the
 ### same to the byte, and only the stylesheet differs.
 # @name aDressedForm
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -221,7 +221,7 @@ Content-Type: application/json
 
 ### A look this kit does not have: refused where it was named, at creation.
 # @name aSkinNobodyHas
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -244,7 +244,7 @@ Content-Type: application/json
 
 ### And the kit with one look takes none at all, rather than quietly ignoring it.
 # @name aSkinForThePlainKit
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {

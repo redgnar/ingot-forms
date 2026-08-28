@@ -5,7 +5,7 @@
 
 ### An unknown (but well-formed) id.
 # @name unknownForm
-GET {{host}}/api/forms/01a00000-0000-7000-8000-000000000000
+GET {{host}}/api/manage/forms/01a00000-0000-7000-8000-000000000000
 
 > {%
     client.test("404 form-not-found", function () {
@@ -16,7 +16,7 @@ GET {{host}}/api/forms/01a00000-0000-7000-8000-000000000000
 
 ### An id that is not a UUID does not even match the route.
 # @name malformedId
-GET {{host}}/api/forms/not-a-uuid
+GET {{host}}/api/manage/forms/not-a-uuid
 
 > {%
     client.test("404 — the route requires a UUID", function () {
@@ -26,7 +26,7 @@ GET {{host}}/api/forms/not-a-uuid
 
 ### A form nobody has filled in yet.
 # @name createEmptyForm
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -66,7 +66,7 @@ POST {{host}}/api/forms/{{emptyFormId}}/confirm
 %}
 
 ### Clean up.
-DELETE {{host}}/api/forms/{{emptyFormId}}
+DELETE {{host}}/api/manage/forms/{{emptyFormId}}
 
 > {%
     client.test("204", function () {
@@ -80,7 +80,7 @@ DELETE {{host}}/api/forms/{{emptyFormId}}
 < {%
     request.variables.set("expiresSoon", new Date(Date.now() + 5000).toISOString());
 %}
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -100,7 +100,7 @@ Content-Type: application/json
 ### Run this one AFTER the expire date passes (wait ~5 seconds). Every endpoint of an
 ### expired form answers the same way — reads and writes alike.
 # @name readExpiredForm
-GET {{host}}/api/forms/{{expiringFormId}}
+GET {{host}}/api/manage/forms/{{expiringFormId}}
 
 > {%
     client.test("410 form-gone", function () {

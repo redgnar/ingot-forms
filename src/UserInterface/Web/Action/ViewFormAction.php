@@ -48,15 +48,6 @@ final class ViewFormAction
         'id' => Requirement::UUID,
         'seq' => Requirement::DIGITS,
     ])]
-    #[Route('/{_locale}/forms/{id}', name: 'web_form_view_localized', methods: ['GET'], requirements: [
-        'id' => Requirement::UUID,
-        '_locale' => '[a-z]{2}(-[A-Z]{2})?',
-    ])]
-    #[Route('/{_locale}/forms/{id}/versions/{seq}', name: 'web_form_version_localized', methods: ['GET'], requirements: [
-        'id' => Requirement::UUID,
-        'seq' => Requirement::DIGITS,
-        '_locale' => '[a-z]{2}(-[A-Z]{2})?',
-    ])]
     public function __invoke(Uuid $id, Request $request, ?int $seq = null): Response
     {
         $formId = FormId::of($id);
@@ -66,10 +57,10 @@ final class ViewFormAction
         $renderer = $this->renderers->find($engine)
             ?? throw new ConflictHttpException(\sprintf('Nothing here draws presentations written for "%s".', $engine));
 
-        // The locale is whatever the framework negotiated: `_locale` from the
-        // URL when it is there, Accept-Language otherwise, and the configured
-        // default last. Reading it off the request is reading a decision, not a
-        // payload — envelopes still arrive as DTOs.
+        // The locale is whatever the framework negotiated: `?lang=` when the
+        // reader asked for one (see PageLocaleListener), Accept-Language
+        // otherwise, and the configured default last. Reading it off the request
+        // is reading a decision, not a payload — envelopes still arrive as DTOs.
         $response = new Response($renderer->render(new RenderedForm(
             $form,
             $request->getLocale(),

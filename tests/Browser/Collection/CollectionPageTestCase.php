@@ -496,7 +496,7 @@ abstract class CollectionPageTestCase extends PantherTestCase
      */
     final protected function plantNested(): string
     {
-        $response = $this->api->request('POST', '/api/forms', [
+        $response = $this->api->request('POST', '/api/manage/forms', [
             'json' => [
                 'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
                 'definition' => ['items' => [
@@ -587,7 +587,7 @@ abstract class CollectionPageTestCase extends PantherTestCase
      */
     final protected function plant(): string
     {
-        $response = $this->api->request('POST', '/api/forms', [
+        $response = $this->api->request('POST', '/api/manage/forms', [
             'json' => [
                 'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
                 'definition' => ['items' => [
@@ -653,7 +653,7 @@ abstract class CollectionPageTestCase extends PantherTestCase
     final protected function formStatus(string $id): string
     {
         $body = json_decode(
-            $this->api->request('GET', \sprintf('/api/forms/%s', $id))->getContent(),
+            $this->api->request('GET', \sprintf('/api/manage/forms/%s', $id))->getContent(),
             true,
             flags: \JSON_THROW_ON_ERROR,
         );

@@ -8,7 +8,7 @@
 
 ### A form that asks for a file.
 # @name createFileForm
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -310,7 +310,7 @@ Content-Type: application/pdf
 ### A confirmed form takes no more bytes: its values can never change again, so
 ### they could never name them.
 # @name confirmedForm
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {

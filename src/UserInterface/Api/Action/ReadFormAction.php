@@ -23,7 +23,7 @@ final class ReadFormAction
         private readonly FormEnvelope $envelope,
     ) {}
 
-    #[Route('/api/forms/{id}', methods: ['GET'], requirements: ['id' => Requirement::UUID])]
+    #[Route('/api/manage/forms/{id}', methods: ['GET'], requirements: ['id' => Requirement::UUID])]
     #[OA\Get(operationId: 'getForm', summary: 'Read a form')]
     #[OA\Response(response: 200, description: 'The full form envelope.', content: new OA\JsonContent(ref: '#/components/schemas/FormEnvelope'))]
     #[OA\Response(response: 404, ref: '#/components/responses/FormNotFound')]

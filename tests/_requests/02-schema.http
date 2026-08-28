@@ -4,7 +4,7 @@
 
 ### A form to derive the schema from.
 # @name createFormForSchema
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -68,7 +68,7 @@ GET {{host}}/api/forms/{{schemaFormId}}/schema?mode=bogus
 %}
 
 ### Clean up.
-DELETE {{host}}/api/forms/{{schemaFormId}}
+DELETE {{host}}/api/manage/forms/{{schemaFormId}}
 
 > {%
     client.test("204", function () {

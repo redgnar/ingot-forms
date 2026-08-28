@@ -1,9 +1,12 @@
 framework:
     secret: '%env(APP_SECRET)%'
-    # Which language a page is drawn in is the framework's own negotiation: an
-    # explicit `_locale` in the URL wins, otherwise Accept-Language decides, and
-    # this is the last word. The API is untouched by it — it serves codes and
-    # never resolves a language.
+    # Which language a page is drawn in is the framework's own negotiation: a
+    # `?lang=` the reader asked for wins (PageLocaleListener puts it in the
+    # `_locale` attribute, which is where the framework looks), otherwise
+    # Accept-Language decides, and this is the last word. The locale is not in
+    # the path — one shape per address is what lets a gateway rule be one line.
+    # The API is untouched by any of it: it serves codes and never resolves a
+    # language.
     default_locale: en
     set_locale_from_accept_language: true
     http_method_override: false

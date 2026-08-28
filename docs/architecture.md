@@ -59,9 +59,9 @@ authentication, no authorization and no concept of an actor — no user, no tena
 no rate limit. A form's UUID is the whole capability: whoever has it may act, and whoever has
 not is expected not to guess it (UUIDv7, 74 random bits).
 
-The answer is **settled and unbuilt**, and it is worked out in
-[`.claude/plan/09-access.md`](../.claude/plan/09-access.md). The short version, because it decides
-what this service will and will not contain:
+The answer is worked out in [`.claude/plan/09-access.md`](../.claude/plan/09-access.md), and it
+comes in two halves: **the routing split, which is built, and identity, which is not.** The short
+version, because it decides what this service does and does not contain:
 
 **This service will authorise nothing.** A gateway decides what may reach it, per prefix and per
 method. A decision point outside — owned by the system that created the form — answers "may this
@@ -93,21 +93,30 @@ line and a decision point extracts the id with one pattern per prefix.
 | `/forms/` | filling, pages | the same person, in a browser |
 | `/api/schemas/` | public | anybody, deliberately — it is the contract a client writes against |
 
-Two things move to make that true. **`GET /api/forms/{id}` becomes `/api/manage/forms/{id}`**,
-because the envelope hands over the definition and the values together and the pages do not use it
-(they read `…/presentation` and `…/data`). And **the locale leaves the page paths**:
-`/{_locale}/forms/{id}` breaks the split twice over — a rule on `^/forms/` misses it silently, and
-the form id sits at position 2 or 3 depending on whether a language is in the URL — so the pages
-become `/forms/{id}` and `/forms/{id}/versions/{seq}`, with the language as `?lang=xx` and
-`Accept-Language` when it is absent. The old management addresses serve one release with
-`Deprecation` and `Sunset` (RFC 8594).
+`RouteGroup` is where those four are named, and two things moved to make them true.
+**`GET|DELETE /api/forms/{id}` became `/api/manage/forms/{id}`** and `POST /api/forms` became
+`POST /api/manage/forms`, because the envelope hands over the definition and the values together and
+creating a form is not something a filler does; the pages never used the envelope (they read
+`…/presentation` and `…/data`), so nothing in the browser noticed. And **the locale left the page
+paths**: `/{_locale}/forms/{id}` broke the split twice over — a rule on `^/forms/` misses it
+silently, and the form id sat at position 2 or 3 depending on whether a language was in the URL — so
+a page is `/forms/{id}` or `/forms/{id}/versions/{seq}`, and a language is `?lang=xx`, put where the
+framework already looks for it by `PageLocaleListener` and answered by `Accept-Language` when it is
+absent.
 
-**The prefixes are checked at build time**: a compiler pass over the route collection refuses to
-build a container holding a route whose path starts with none of the four, which is the only moment
-anything sees the whole table at once. And `bin/console app:routes:groups` prints it — prefix,
-group, methods, whether a form id follows — as a table sorted by prefix, so a deployment can diff
-it in its own CI and see a group appear or move. A gateway holding a stale copy of the route table
-is the failure this whole section exists to prevent.
+**There was no deprecation window, deliberately.** Serving `POST /api/forms` for one release would
+have left a management address under the prefix a gateway opens for filling — so the compatibility
+layer would itself have been the hole this change closes. A deployment has to move three URLs, and
+it has to reconfigure its gateway anyway, which is the whole point of the change.
+
+**Both properties are checked, over the whole collection at once.** `RouteGroupsTest` asserts that
+every route falls in exactly one group and that every route naming a form has the id straight after
+its group's prefix — no single file shows either, and a route added outside the four would otherwise
+land outside every rule in front, silently. It is a test rather than a compiler pass because routes
+are not visible when the container is compiled; `make ci` is the gate. And
+`bin/console app:routes:groups` prints the table — group, prefix, methods, path — sorted by path, so
+a deployment can diff it in its own CI and see a route appear or move. A gateway holding a stale
+copy of the route table is the failure this whole section exists to prevent.
 
 **Four of the five permissions are then gateway rules**, with no code here at all:
 
@@ -185,16 +194,17 @@ does the rest. And **`FORMS_HISTORY_LIMIT` evicts old saves**, so the record of 
 can be evicted while the form still lives: correct for a history limit, wrong for an audit trail, so
 a deployment that wants the second sets the limit to `0` and pays for it.
 
-Until that lands, it is all the deployment's:
+Until identity lands, it is all the deployment's — and the split is what makes each of these one
+rule instead of a regular expression:
 
-- **The management endpoints need a gate.** `POST /api/forms`, `GET /api/forms/{id}` (it hands
-  over the definition and the values together) and `DELETE /api/forms/{id}` have to be
-  unreachable from wherever the people filling forms in are. Nothing here will do that for you,
-  and nothing here will notice if you forget.
-- **Gate those three, not everything under `/api`.** `GET /api/schemas/definition` and
-  `GET /api/schemas/presentation` are meant to be readable by anybody — they are the contract a
-  client writes its definitions against, and putting them behind the same gate as the management
-  endpoints makes that contract unreadable to whoever needs it first.
+- **`/api/manage/**` needs a gate.** Creating, the envelope (it hands over the definition and the
+  values together) and deleting all live there now, so one prefix rule reaches them and nothing
+  else. They have to be unreachable from wherever the people filling forms in are. Nothing here
+  will do that for you, and nothing here will notice if you forget.
+- **Leave `/api/schemas/**` open.** The two meta-schemas are meant to be readable by anybody — they
+  are the contract a client writes its definitions against, and putting them behind the management
+  gate makes that contract unreadable to whoever needs it first. This is why the public group is
+  named rather than left implicit.
 - **A form link is a password today**, because the id is the only credential. It travels in a URL,
   so it lands in browser history, in `Referer` headers, in proxy and access logs, and in whatever a
   person pastes it into. Keep it off the open internet and hand it out from the system that created
@@ -204,8 +214,9 @@ Until that lands, it is all the deployment's:
   person's answers. That is inherent — putting an old document back is an ordinary
   `PUT …/data`, which is what makes it possible at all — and it is worth knowing before a link
   is forwarded.
-- **`POST /api/forms` is an unauthenticated write**, and the only one: whatever fronts it is
-  where a rate limit goes, and moving it under `/api/manage/` is what lets a gateway close it.
+- **`POST /api/manage/forms` is an unauthenticated write**, and the only one: whatever fronts it is
+  where a rate limit goes, and its living under `/api/manage/` is what lets a gateway close it with
+  the rest of management.
 - **When SSO lands in front, the proxy must answer `401` rather than redirect** for anything that
   is not a navigation. A page saves with `fetch`, `fetch` follows redirects, and a login page
   arriving as `200` with HTML would tell somebody their answers were stored when they were not.
@@ -339,7 +350,7 @@ uses the exact same document, so the contract cannot drift.
 
 ```
 GET /forms/{id}                    the form, drawn by the kit its presentation names
-GET /{_locale}/forms/{id}          the same, in a language the URL pins
+GET /forms/{id}?lang=pl            the same, in a language the reader asked for
 GET /forms/{id}/versions/{seq}     an earlier save of it, read-only
 ```
 

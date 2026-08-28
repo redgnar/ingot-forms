@@ -326,7 +326,7 @@ final class FormHistoryApiTest extends WebTestCase
             $payload['data'] = $data;
         }
 
-        $this->putJson('/api/forms', json_encode($payload, \JSON_THROW_ON_ERROR), method: 'POST');
+        $this->putJson('/api/manage/forms', json_encode($payload, \JSON_THROW_ON_ERROR), method: 'POST');
         self::assertResponseStatusCodeSame(201);
 
         $id = $this->responseBody()['id'] ?? '';
@@ -342,7 +342,7 @@ final class FormHistoryApiTest extends WebTestCase
      */
     private function createFileForm(): string
     {
-        $this->putJson('/api/forms', json_encode([
+        $this->putJson('/api/manage/forms', json_encode([
             'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
             'definition' => ['items' => [['type' => 'file', 'name' => 'invoice', 'accept' => ['application/pdf'], 'maxSize' => 4096]]],
         ], \JSON_THROW_ON_ERROR), method: 'POST');

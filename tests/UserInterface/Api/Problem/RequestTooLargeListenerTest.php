@@ -99,7 +99,7 @@ final class RequestTooLargeListenerTest extends TestCase
                     throw new \LogicException('Nothing here handles a request.');
                 }
             },
-            Request::create('/api/forms', 'POST', server: $server),
+            Request::create('/api/manage/forms', 'POST', server: $server),
             $type,
         );
     }

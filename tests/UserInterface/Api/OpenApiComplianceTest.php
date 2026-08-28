@@ -197,47 +197,47 @@ final class OpenApiComplianceTest extends WebTestCase
     public static function scenarios(): \Generator
     {
         $cases = [
-            ['POST', '/api/forms', 201, true, '', static function (self $test): void {
-                $test->postJson('/api/forms', self::createPayload());
+            ['POST', '/api/manage/forms', 201, true, '', static function (self $test): void {
+                $test->postJson('/api/manage/forms', self::createPayload());
             }],
-            ['POST', '/api/forms', 400, false, '', static function (self $test): void {
-                $test->postJson('/api/forms', '{broken');
+            ['POST', '/api/manage/forms', 400, false, '', static function (self $test): void {
+                $test->postJson('/api/manage/forms', '{broken');
             }],
-            ['POST', '/api/forms', 415, false, '', static function (self $test): void {
+            ['POST', '/api/manage/forms', 415, false, '', static function (self $test): void {
                 // Only JSON bodies are accepted, and the contract says so
-                $test->client->request('POST', '/api/forms', server: ['CONTENT_TYPE' => 'text/plain'], content: self::createPayload());
+                $test->client->request('POST', '/api/manage/forms', server: ['CONTENT_TYPE' => 'text/plain'], content: self::createPayload());
             }],
-            ['POST', '/api/forms', 422, true, 'expired', static function (self $test): void {
+            ['POST', '/api/manage/forms', 422, true, 'expired', static function (self $test): void {
                 // A past date is a valid date-time — only the app can know it is too late
-                $test->postJson('/api/forms', self::createPayload(new \DateTimeImmutable('-1 hour')));
+                $test->postJson('/api/manage/forms', self::createPayload(new \DateTimeImmutable('-1 hour')));
             }],
-            ['POST', '/api/forms', 422, true, 'presentation does not fit', static function (self $test): void {
-                $test->postJson('/api/forms', self::createPayload(presentation: '{"engine": "core-html", "items": [{"name": "nickname"}, {"widget": "confirm"}]}'));
+            ['POST', '/api/manage/forms', 422, true, 'presentation does not fit', static function (self $test): void {
+                $test->postJson('/api/manage/forms', self::createPayload(presentation: '{"engine": "core-html", "items": [{"name": "nickname"}, {"widget": "confirm"}]}'));
             }],
-            ['POST', '/api/forms', 422, false, 'unknown key', static function (self $test): void {
+            ['POST', '/api/manage/forms', 422, false, 'unknown key', static function (self $test): void {
                 // The request DTO closes the body, and so does the published schema
-                $test->postJson('/api/forms', '{"expireDate": "2999-01-01T00:00:00+00:00", "definition": {}, "bogus": 1}');
+                $test->postJson('/api/manage/forms', '{"expireDate": "2999-01-01T00:00:00+00:00", "definition": {}, "bogus": 1}');
             }],
-            ['GET', '/api/forms/{id}', 200, true, '', static function (self $test): void {
-                $test->client->request('GET', \sprintf('/api/forms/%s', $test->createForm()));
+            ['GET', '/api/manage/forms/{id}', 200, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s', $test->createForm()));
             }],
-            ['GET', '/api/forms/{id}', 404, true, '', static function (self $test): void {
-                $test->client->request('GET', \sprintf('/api/forms/%s', Uuid::v7()->toRfc4122()));
+            ['GET', '/api/manage/forms/{id}', 404, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s', Uuid::v7()->toRfc4122()));
             }],
-            ['GET', '/api/forms/{id}', 409, true, '', static function (self $test): void {
-                $test->client->request('GET', \sprintf('/api/forms/%s', $test->unreadableForm()));
+            ['GET', '/api/manage/forms/{id}', 409, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s', $test->unreadableForm()));
             }],
-            ['GET', '/api/forms/{id}', 410, true, '', static function (self $test): void {
-                $test->client->request('GET', \sprintf('/api/forms/%s', $test->expiredForm()));
+            ['GET', '/api/manage/forms/{id}', 410, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s', $test->expiredForm()));
             }],
-            ['DELETE', '/api/forms/{id}', 204, true, '', static function (self $test): void {
-                $test->client->request('DELETE', \sprintf('/api/forms/%s', $test->createForm()));
+            ['DELETE', '/api/manage/forms/{id}', 204, true, '', static function (self $test): void {
+                $test->client->request('DELETE', \sprintf('/api/manage/forms/%s', $test->createForm()));
             }],
-            ['DELETE', '/api/forms/{id}', 404, true, '', static function (self $test): void {
-                $test->client->request('DELETE', \sprintf('/api/forms/%s', Uuid::v7()->toRfc4122()));
+            ['DELETE', '/api/manage/forms/{id}', 404, true, '', static function (self $test): void {
+                $test->client->request('DELETE', \sprintf('/api/manage/forms/%s', Uuid::v7()->toRfc4122()));
             }],
-            ['DELETE', '/api/forms/{id}', 410, true, '', static function (self $test): void {
-                $test->client->request('DELETE', \sprintf('/api/forms/%s', $test->expiredForm()));
+            ['DELETE', '/api/manage/forms/{id}', 410, true, '', static function (self $test): void {
+                $test->client->request('DELETE', \sprintf('/api/manage/forms/%s', $test->expiredForm()));
             }],
             ['GET', '/api/forms/{id}/schema', 200, true, '', static function (self $test): void {
                 $test->client->request('GET', \sprintf('/api/forms/%s/schema?mode=draft', $test->createForm()));
@@ -508,7 +508,7 @@ final class OpenApiComplianceTest extends WebTestCase
      */
     private function formHoldingAFile(): array
     {
-        $this->postJson('/api/forms', json_encode([
+        $this->postJson('/api/manage/forms', json_encode([
             'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
             'definition' => ['items' => [['type' => 'file', 'name' => 'invoice', 'accept' => ['application/pdf'], 'maxSize' => 4096]]],
         ], \JSON_THROW_ON_ERROR));
@@ -540,7 +540,7 @@ final class OpenApiComplianceTest extends WebTestCase
 
     private function createForm(): string
     {
-        $this->postJson('/api/forms', self::createPayload());
+        $this->postJson('/api/manage/forms', self::createPayload());
         $body = json_decode((string) $this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
         self::assertIsArray($body);
         self::assertIsString($body['id'] ?? null);
@@ -572,7 +572,7 @@ final class OpenApiComplianceTest extends WebTestCase
 
     private function presentedForm(): string
     {
-        $this->postJson('/api/forms', self::createPayload(presentation: self::PRESENTATION));
+        $this->postJson('/api/manage/forms', self::createPayload(presentation: self::PRESENTATION));
         $body = json_decode((string) $this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
         self::assertIsArray($body);
         self::assertIsString($body['id'] ?? null);

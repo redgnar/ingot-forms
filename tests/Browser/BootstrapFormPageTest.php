@@ -399,7 +399,7 @@ final class BootstrapFormPageTest extends PantherTestCase
 
     private function plantMoment(string $held): string
     {
-        $response = $this->api->request('POST', '/api/forms', [
+        $response = $this->api->request('POST', '/api/manage/forms', [
             'json' => [
                 'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
                 'definition' => ['items' => [
@@ -434,7 +434,7 @@ final class BootstrapFormPageTest extends PantherTestCase
 
     private function plant(?string $skin = null): string
     {
-        $response = $this->api->request('POST', '/api/forms', [
+        $response = $this->api->request('POST', '/api/manage/forms', [
             'json' => [
                 'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
                 'definition' => [
@@ -520,7 +520,7 @@ final class BootstrapFormPageTest extends PantherTestCase
     private function formStatus(string $id): string
     {
         $body = json_decode(
-            $this->api->request('GET', \sprintf('/api/forms/%s', $id))->getContent(),
+            $this->api->request('GET', \sprintf('/api/manage/forms/%s', $id))->getContent(),
             true,
             flags: \JSON_THROW_ON_ERROR,
         );

@@ -54,7 +54,7 @@ final class CreateFormAction
         return ErrorReport::of(...$rerooted);
     }
 
-    #[Route('/api/forms', methods: ['POST'])]
+    #[Route('/api/manage/forms', methods: ['POST'])]
     #[OA\Post(
         operationId: 'createForm',
         summary: 'Create a form',
@@ -63,7 +63,7 @@ final class CreateFormAction
     #[OA\Response(
         response: 201,
         description: 'Form created. The body carries the new id and nothing else — everything else the client already sent, or can read back from `Location`.',
-        headers: [new OA\Header(header: 'Location', description: 'Path of the created form, `/api/forms/{id}`.', schema: new OA\Schema(type: 'string'))],
+        headers: [new OA\Header(header: 'Location', description: 'Path of the created form, `/api/manage/forms/{id}`.', schema: new OA\Schema(type: 'string'))],
         content: new OA\JsonContent(ref: '#/components/schemas/CreatedForm'),
     )]
     #[OA\Response(response: 400, ref: '#/components/responses/MalformedJson')]
@@ -177,7 +177,7 @@ final class CreateFormAction
         return new JsonResponse(
             ['id' => (string) $id],
             201,
-            ['Location' => \sprintf('/api/forms/%s', $id)],
+            ['Location' => \sprintf('/api/manage/forms/%s', $id)],
         );
     }
 

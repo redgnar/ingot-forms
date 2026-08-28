@@ -14,6 +14,26 @@ That is a much smaller change than the first three drafts of this plan proposed,
 is mostly the reasoning that got it there. What was weighed and dropped is at the end, so nobody
 re-derives it.
 
+## What has landed, and what has not
+
+**The routing split is built.** Four prefixes named in `App\UserInterface\RouteGroup`, the three
+management addresses moved under `/api/manage/`, the locale out of the page paths and into `?lang=`
+(`PageLocaleListener`), both properties asserted over the whole route collection in
+`RouteGroupsTest`, and `app:routes:groups` printing the table. **Identity is not built** — nothing
+below about an author, a confirmer, a filler, a mode or a header exists in the code yet.
+
+Two things in this document were wrong about the mechanics, and building it is what found them:
+
+- **A compiler pass cannot see routes.** The route collection is built by the router, not by the
+  container, so "refusing to build a container in which any route falls outside the four" is not
+  available. `RouteGroupsTest` asserts it instead, and `make ci` is the gate — the same effect one
+  step later, and the only place that sees every route at once either way.
+- **The deprecation window had to go.** Serving `POST /api/forms` for one release would have left a
+  *management* address under the prefix a gateway opens for *filling*, so the compatibility layer
+  would itself have been the hole this change closes. A deployment moves three URLs; it has to
+  reconfigure its gateway anyway, which is the point of the change. `Deprecation`/`Sunset` remain
+  the right shape for a change that is not a security boundary.
+
 ## What was decided, and the rest is consequence
 
 Four decisions by the owner, in the order they were taken:

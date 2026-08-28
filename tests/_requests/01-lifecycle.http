@@ -5,7 +5,7 @@
 
 ### Create a form. The definition is immutable afterwards: changing it means delete + recreate.
 # @name createForm
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -22,7 +22,7 @@ Content-Type: application/json
 > {%
     client.test("201 with a Location header", function () {
         client.assert(response.status === 201, "Expected 201, got " + response.status);
-        client.assert(response.headers.valueOf("Location") === "/api/forms/" + response.body.id, "Location must point at the new form");
+        client.assert(response.headers.valueOf("Location") === "/api/manage/forms/" + response.body.id, "Location must point at the new form");
     });
     client.test("the body carries the id alone", function () {
         client.assert(Object.keys(response.body).length === 1, "Creation answers with the id only; read the form to see its state");
@@ -32,7 +32,7 @@ Content-Type: application/json
 
 ### Read it back: definition, derived status, timestamps.
 # @name getForm
-GET {{host}}/api/forms/{{presentedFormId}}
+GET {{host}}/api/manage/forms/{{presentedFormId}}
 
 > {%
     client.test("200 with the full envelope", function () {
@@ -137,7 +137,7 @@ POST {{host}}/api/forms/{{presentedFormId}}/confirm
 
 ### Delete it. This is the only way to "change" a definition: delete and create anew.
 # @name deleteForm
-DELETE {{host}}/api/forms/{{presentedFormId}}
+DELETE {{host}}/api/manage/forms/{{presentedFormId}}
 
 > {%
     client.test("204 and it is gone", function () {
@@ -146,7 +146,7 @@ DELETE {{host}}/api/forms/{{presentedFormId}}
 %}
 
 ### Reading a deleted form is a 404.
-GET {{host}}/api/forms/{{presentedFormId}}
+GET {{host}}/api/manage/forms/{{presentedFormId}}
 
 > {%
     client.test("404 form-not-found", function () {
@@ -159,7 +159,7 @@ GET {{host}}/api/forms/{{presentedFormId}}
 # The values are its first draft: judged leniently, so an incomplete document is
 # fine, and refused before the form exists if something does not fit.
 # @name createSeededForm
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -181,7 +181,7 @@ Content-Type: application/json
 %}
 
 ### And it is a draft from the start, holding exactly that.
-GET {{host}}/api/forms/{{seededFormId}}
+GET {{host}}/api/manage/forms/{{seededFormId}}
 
 > {%
     client.test("draft, holding the seeded values", function () {
@@ -192,7 +192,7 @@ GET {{host}}/api/forms/{{seededFormId}}
 %}
 
 ### A value the form would refuse later cannot be its first one.
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {

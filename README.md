@@ -72,15 +72,21 @@ versioning and multi-submission forms are deliberately out of scope.
 ## What a client talks to
 
 ```
-POST   /api/forms                      create one          GET /forms/{id}            the page
-GET    /api/forms/{id}                 read it             GET /{_locale}/forms/{id}  the page, in a language
-GET    /api/forms/{id}/schema          its values schema   GET /forms/{id}/versions/{seq}
+POST   /api/manage/forms               create one          GET /forms/{id}                 the page
+GET    /api/manage/forms/{id}          read it             GET /forms/{id}?lang=pl         in a language
+DELETE /api/manage/forms/{id}          delete it           GET /forms/{id}/versions/{seq}  one saved version
+GET    /api/forms/{id}/schema          its values schema
 PUT    /api/forms/{id}/data            save a draft
 POST   /api/forms/{id}/confirm         lock it
 GET    /api/forms/{id}/history[/{seq}] what it held, and when
 POST   /api/forms/{id}/files           upload bytes; the answer goes into the values
 GET    /api/schemas/{document}         the meta-schema of a definition or a presentation
 ```
+
+**The prefix is the audience**, and that is deliberate: `/api/manage/` is the system that owns
+the form, `/api/forms/` and `/forms/` are whoever it let through to one form, `/api/schemas/` is
+open to anybody. One rule each for whatever guards them, with the form's id always the segment
+straight after the prefix — `app:routes:groups` prints the table.
 
 Every body is JSON, every error is RFC 9457 `application/problem+json`, and a validation
 problem carries one `{pointer, code, message}` per finding, pointed at the member that is

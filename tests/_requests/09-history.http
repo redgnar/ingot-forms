@@ -8,7 +8,7 @@
 
 ### A form born holding something, so its history starts at one.
 # @name createHistoryForm
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {

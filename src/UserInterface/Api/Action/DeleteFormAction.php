@@ -21,7 +21,7 @@ final class DeleteFormAction
         private readonly DeleteForm $deleteForm,
     ) {}
 
-    #[Route('/api/forms/{id}', methods: ['DELETE'], requirements: ['id' => Requirement::UUID])]
+    #[Route('/api/manage/forms/{id}', methods: ['DELETE'], requirements: ['id' => Requirement::UUID])]
     #[OA\Delete(
         operationId: 'deleteForm',
         summary: 'Delete a form',

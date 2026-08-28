@@ -744,7 +744,10 @@ final class CoreHtmlRendererTest extends KernelTestCase
 
         // AND the link pins the language in the URL and is marked as a detour,
         // so what somebody typed goes with them and comes back
-        self::assertSame('/pl/forms/' . $page->filter('body')->attr('data-form'), $nav->filter('a')->attr('href'));
+        self::assertSame(
+            \sprintf('/forms/%s?lang=pl', $page->filter('body')->attr('data-form')),
+            $nav->filter('a')->attr('href'),
+        );
         self::assertNotNull($nav->filter('a')->attr('data-language'));
     }
 

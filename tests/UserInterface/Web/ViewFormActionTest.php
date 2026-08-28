@@ -101,7 +101,7 @@ final class ViewFormActionTest extends WebTestCase
         $id = $this->plant();
 
         // WHEN the locale is pinned in the path
-        $crawler = $this->client->request('GET', \sprintf('/pl/forms/%s', $id));
+        $crawler = $this->client->request('GET', \sprintf('/forms/%s?lang=pl', $id));
 
         // THEN
         self::assertResponseIsSuccessful();
@@ -132,7 +132,7 @@ final class ViewFormActionTest extends WebTestCase
         $id = $this->plant();
 
         // WHEN somebody asks for German
-        $crawler = $this->client->request('GET', \sprintf('/de/forms/%s', $id));
+        $crawler = $this->client->request('GET', \sprintf('/forms/%s?lang=de', $id));
 
         // THEN the default locale answers rather than a blank label
         self::assertSame('E-mail *', $crawler->filter('label[for="item-email"]')->text());
@@ -145,8 +145,8 @@ final class ViewFormActionTest extends WebTestCase
         $rich = $this->plantRich();
 
         // WHEN both pages are asked for in Polish
-        $plainPage = $this->client->request('GET', \sprintf('/pl/forms/%s', $plain));
-        $richPage = $this->client->request('GET', \sprintf('/pl/forms/%s', $rich));
+        $plainPage = $this->client->request('GET', \sprintf('/forms/%s?lang=pl', $plain));
+        $richPage = $this->client->request('GET', \sprintf('/forms/%s?lang=pl', $rich));
 
         // THEN the sentences this application invented come out of its own
         // catalogue, in the language the request negotiated — the presentation's
@@ -163,7 +163,7 @@ final class ViewFormActionTest extends WebTestCase
     public function testAPageThatCannotBeDrawnAlsoSpeaksTheLanguageAskedFor(): void
     {
         // GIVEN / WHEN a form nobody has
-        $page = $this->client->request('GET', \sprintf('/pl/forms/%s', Uuid::v7()->toRfc4122()));
+        $page = $this->client->request('GET', \sprintf('/forms/%s?lang=pl', Uuid::v7()->toRfc4122()));
 
         // THEN even the refusal is a page, in Polish, with the status that says
         // what happened

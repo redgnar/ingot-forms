@@ -56,7 +56,7 @@ paths:
                 unknown-field-type:
                   summary: 'The definition carries a plugin field the server cannot vouch for'
                   value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /items/3/type, code: form.data.unknown-field-type, message: 'Field "sig" has unknown type "signature" — its value contract cannot be confirmed.', input: signature }] }
-  /api/forms:
+  /api/manage/forms:
     post:
       summary: 'Create a form'
       description: 'Both documents a form is made of arrive here: what it asks, and optionally how it is shown. Both are immutable afterwards — changing either means delete and recreate. A form may also be born holding values a client already knows (`data`), judged under the draft contract, which makes it a draft from the start. Problems inside a document are reported with JSON Pointers rooted at `/definition`, `/presentation` or `/data`.'
@@ -72,7 +72,7 @@ paths:
           description: 'Form created. The body carries the new id and nothing else — everything else the client already sent, or can read back from `Location`.'
           headers:
             Location:
-              description: 'Path of the created form, `/api/forms/{id}`.'
+              description: 'Path of the created form, `/api/manage/forms/{id}`.'
               schema:
                 type: string
           content:
@@ -102,7 +102,7 @@ paths:
                 presentation-not-valid:
                   summary: 'The presentation shows an item the definition does not declare'
                   value: { type: 'urn:problem:ingot-forms:presentation-not-valid', title: 'Form presentation is not valid.', status: 422, errors: [{ pointer: /presentation/items/0/name, code: presentation.item.unknown, message: 'This form declares no item named "nickname".', input: nickname }] }
-  '/api/forms/{id}':
+  '/api/manage/forms/{id}':
     get:
       summary: 'Read a form'
       operationId: getForm

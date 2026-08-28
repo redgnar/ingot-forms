@@ -253,7 +253,7 @@ abstract class FilePageTestCase extends PantherTestCase
      */
     private function plant(): string
     {
-        $response = $this->api->request('POST', '/api/forms', [
+        $response = $this->api->request('POST', '/api/manage/forms', [
             'json' => [
                 'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
                 'definition' => ['items' => [

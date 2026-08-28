@@ -67,10 +67,10 @@ final class FormApiTest extends WebTestCase
         // because everything else was in the request or is readable at Location
         $id = $this->createForm();
         self::assertSame(['id' => $id], $this->responseBody());
-        self::assertSame(\sprintf('/api/forms/%s', $id), $this->client->getResponse()->headers->get('Location'));
+        self::assertSame(\sprintf('/api/manage/forms/%s', $id), $this->client->getResponse()->headers->get('Location'));
 
         // WHEN reading it back
-        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s', $id));
 
         // THEN the full envelope is where the state lives
         self::assertSame('empty', $this->responseBody()['status']);
@@ -83,7 +83,7 @@ final class FormApiTest extends WebTestCase
         // answer is the status alone — the client keeps no copy it did not ask for
         self::assertResponseStatusCodeSame(204);
         self::assertSame('', $this->client->getResponse()->getContent());
-        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s', $id));
         self::assertSame('draft', $this->responseBody()['status']);
 
         // WHEN confirming the incomplete draft
@@ -101,7 +101,7 @@ final class FormApiTest extends WebTestCase
         // THEN the form is locked for good, again with no body
         self::assertResponseStatusCodeSame(204);
         self::assertSame('', $this->client->getResponse()->getContent());
-        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s', $id));
         $confirmed = $this->responseBody();
         self::assertSame('confirmed', $confirmed['status']);
         self::assertNotNull($confirmed['confirmedAt']);
@@ -121,7 +121,7 @@ final class FormApiTest extends WebTestCase
     public function testMalformedRequestBodyIsA400Problem(): void
     {
         // GIVEN / WHEN
-        $this->putJson('/api/forms', '{broken', method: 'POST');
+        $this->putJson('/api/manage/forms', '{broken', method: 'POST');
 
         // THEN
         self::assertResponseStatusCodeSame(400);
@@ -150,7 +150,7 @@ final class FormApiTest extends WebTestCase
         ], \JSON_THROW_ON_ERROR);
 
         // WHEN
-        $this->client->request('POST', '/api/forms', server: ['CONTENT_TYPE' => 'application/x-www-form-urlencoded'], content: $payload);
+        $this->client->request('POST', '/api/manage/forms', server: ['CONTENT_TYPE' => 'application/x-www-form-urlencoded'], content: $payload);
 
         // THEN the media type is refused before anything is mapped
         self::assertResponseStatusCodeSame(415);
@@ -164,7 +164,7 @@ final class FormApiTest extends WebTestCase
         $payload = json_encode(['definition' => self::DEFINITION], \JSON_THROW_ON_ERROR);
 
         // WHEN
-        $this->putJson('/api/forms', $payload, method: 'POST');
+        $this->putJson('/api/manage/forms', $payload, method: 'POST');
 
         // THEN the DTO could not be built, and says so in the wire's terms
         self::assertResponseStatusCodeSame(422);
@@ -184,7 +184,7 @@ final class FormApiTest extends WebTestCase
         ], \JSON_THROW_ON_ERROR);
 
         // WHEN
-        $this->putJson('/api/forms', $payload, method: 'POST');
+        $this->putJson('/api/manage/forms', $payload, method: 'POST');
 
         // THEN the DTO's closed contract answers, pointing at the extra member
         self::assertResponseStatusCodeSame(422);
@@ -280,7 +280,7 @@ final class FormApiTest extends WebTestCase
         ], \JSON_THROW_ON_ERROR);
 
         // WHEN
-        $this->putJson('/api/forms', $payload, method: 'POST');
+        $this->putJson('/api/manage/forms', $payload, method: 'POST');
 
         // THEN no form comes into existence, and the pointer walks into what was sent
         self::assertResponseStatusCodeSame(422);
@@ -299,7 +299,7 @@ final class FormApiTest extends WebTestCase
         ], \JSON_THROW_ON_ERROR);
 
         // WHEN
-        $this->putJson('/api/forms', $payload, method: 'POST');
+        $this->putJson('/api/manage/forms', $payload, method: 'POST');
 
         // THEN the form is never created. A presentation exists to be drawn, so
         // one nothing here draws is a document with no remaining purpose — unlike
@@ -323,7 +323,7 @@ final class FormApiTest extends WebTestCase
         ], \JSON_THROW_ON_ERROR);
 
         // WHEN
-        $this->putJson('/api/forms', $payload, method: 'POST');
+        $this->putJson('/api/manage/forms', $payload, method: 'POST');
 
         // THEN the pointer is rooted where the client sent the document
         self::assertResponseStatusCodeSame(422);
@@ -337,7 +337,7 @@ final class FormApiTest extends WebTestCase
         $id = $this->plantUnreadable();
 
         // WHEN it is read
-        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s', $id));
 
         // THEN the answer says what happened and why: the row is intact, the
         // rules moved on, and here is the finding to act on
@@ -346,14 +346,14 @@ final class FormApiTest extends WebTestCase
         self::assertSame('presentation.confirm.missing', $this->firstError()['code']);
 
         // AND it can still be got rid of
-        $this->client->request('DELETE', \sprintf('/api/forms/%s', $id));
+        $this->client->request('DELETE', \sprintf('/api/manage/forms/%s', $id));
         self::assertResponseStatusCodeSame(204);
     }
 
     public function testUnknownFormIsA404Problem(): void
     {
         // GIVEN / WHEN
-        $this->client->request('GET', \sprintf('/api/forms/%s', Uuid::v7()->toRfc4122()));
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s', Uuid::v7()->toRfc4122()));
 
         // THEN
         self::assertResponseStatusCodeSame(404);
@@ -371,13 +371,13 @@ final class FormApiTest extends WebTestCase
         ], \JSON_THROW_ON_ERROR);
 
         // WHEN
-        $this->putJson('/api/forms', $payload, method: 'POST');
+        $this->putJson('/api/manage/forms', $payload, method: 'POST');
         self::assertResponseStatusCodeSame(201);
         $id = $this->responseBody()['id'];
         self::assertIsString($id);
 
         // THEN it is a draft from the start, holding exactly that
-        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s', $id));
         self::assertSame('draft', $this->responseBody()['status']);
         self::assertSame(['email' => 'ada@example.com', 'age' => 36], self::arrayAt($this->responseBody(), 'data'));
         self::assertNotNull($this->responseBody()['dataSavedAt']);
@@ -402,7 +402,7 @@ final class FormApiTest extends WebTestCase
             'definition' => self::DEFINITION,
             'data' => ['email' => 'ada@example.com', 'country' => 'pl'],
         ], \JSON_THROW_ON_ERROR);
-        $this->putJson('/api/forms', $payload, method: 'POST');
+        $this->putJson('/api/manage/forms', $payload, method: 'POST');
         $id = $this->responseBody()['id'];
         self::assertIsString($id);
 
@@ -412,7 +412,7 @@ final class FormApiTest extends WebTestCase
         // THEN nothing was missing: the values it was born with are the values
         // the strict contract judged
         self::assertResponseStatusCodeSame(204);
-        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s', $id));
         self::assertSame('confirmed', $this->responseBody()['status']);
     }
 
@@ -426,7 +426,7 @@ final class FormApiTest extends WebTestCase
         ], \JSON_THROW_ON_ERROR);
 
         // WHEN
-        $this->putJson('/api/forms', $payload, method: 'POST');
+        $this->putJson('/api/manage/forms', $payload, method: 'POST');
 
         // THEN the form is refused before it exists, and the finding is rooted
         // where the client put the document
@@ -448,7 +448,7 @@ final class FormApiTest extends WebTestCase
         ], \JSON_THROW_ON_ERROR);
 
         // WHEN
-        $this->putJson('/api/forms', $payload, method: 'POST');
+        $this->putJson('/api/manage/forms', $payload, method: 'POST');
 
         // THEN the same closed contract every later save gets
         self::assertResponseStatusCodeSame(422);
@@ -501,7 +501,7 @@ final class FormApiTest extends WebTestCase
 
         // THEN it locks, holding the list it was confirmed with
         self::assertResponseStatusCodeSame(204);
-        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s', $id));
         self::assertSame('confirmed', $this->responseBody()['status']);
         self::assertCount(2, self::arrayAt(self::arrayAt($this->responseBody(), 'data'), 'lines'));
     }
@@ -536,7 +536,7 @@ final class FormApiTest extends WebTestCase
         $repository->add(new Form(FormId::fromString($id), self::definition(), ExpireDate::at(new \DateTimeImmutable('-1 hour'))));
 
         // WHEN / THEN reads and writes both report gone
-        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s', $id));
         self::assertResponseStatusCodeSame(410);
         self::assertSame('urn:problem:ingot-forms:form-gone', $this->responseBody()['type']);
 
@@ -574,11 +574,11 @@ final class FormApiTest extends WebTestCase
         $id = $this->createForm();
 
         // WHEN
-        $this->client->request('DELETE', \sprintf('/api/forms/%s', $id));
+        $this->client->request('DELETE', \sprintf('/api/manage/forms/%s', $id));
 
         // THEN
         self::assertResponseStatusCodeSame(204);
-        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s', $id));
         self::assertResponseStatusCodeSame(404);
     }
 
@@ -669,7 +669,7 @@ final class FormApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(204);
 
         // WHEN the whole form is read
-        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s', $id));
 
         // THEN the envelope carries the document that was stored, and not a list
         // that looks like it: two endpoints may never disagree about one document
@@ -694,7 +694,7 @@ final class FormApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(204);
 
         // WHEN the whole form is read
-        $this->client->request('GET', \sprintf('/api/forms/%s', $id));
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s', $id));
 
         // THEN the empty entry is still an entry: decoding the document to put it
         // in the envelope is exactly what used to turn it into a list
@@ -724,7 +724,7 @@ final class FormApiTest extends WebTestCase
             'definition' => $definition,
         ], \JSON_THROW_ON_ERROR);
 
-        $this->putJson('/api/forms', $payload, method: 'POST');
+        $this->putJson('/api/manage/forms', $payload, method: 'POST');
 
         $id = $this->responseBody()['id'] ?? '';
 
@@ -762,7 +762,7 @@ final class FormApiTest extends WebTestCase
             'presentation' => json_decode(self::PRESENTATION, true, flags: \JSON_THROW_ON_ERROR),
         ], \JSON_THROW_ON_ERROR);
 
-        $this->putJson('/api/forms', $payload, method: 'POST');
+        $this->putJson('/api/manage/forms', $payload, method: 'POST');
         self::assertResponseStatusCodeSame(201);
 
         $id = $this->responseBody()['id'] ?? '';

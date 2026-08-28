@@ -5,7 +5,7 @@
 
 ### An order with as many lines as it needs.
 # @name createListForm
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -182,7 +182,7 @@ Content-Type: application/json
 %}
 
 ### Asking for entries with `required` instead of `min`.
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -202,7 +202,7 @@ Content-Type: application/json
 %}
 
 ### The same name twice inside one entry — a scope of its own, judged as one.
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -229,7 +229,7 @@ Content-Type: application/json
 %}
 
 ### A list shown without saying how an entry looks.
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -249,7 +249,7 @@ Content-Type: application/json
 %}
 
 ### A column naming something no entry answers.
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -272,7 +272,7 @@ Content-Type: application/json
 %}
 
 ### A trigger inside an entry: saving and confirming are the form's doing.
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -295,7 +295,7 @@ Content-Type: application/json
 
 ### A list inside an entry, drawn: a table in the form of an entry.
 # @name createNestedListForm
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -396,7 +396,7 @@ Content-Type: application/json
 %}
 
 ### A list may not be a column: a column previews a value as text.
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -438,7 +438,7 @@ Content-Type: application/json
 %}
 
 ### A list inside an entry left out of that entry's form.
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {

@@ -98,20 +98,28 @@ system that uses it, with the pages behind the same SSO. What lands here is one 
 the whole plan, since rows written under a forgeable header can never be repaired or even
 identified.
 
-So the deliverable is **the routing split**: four prefixes, one per group (`/api/manage/`,
-`/api/forms/`, `/forms/`, `/api/schemas/` staying open to anybody because a contract stated once has
-to be reachable), with **the form id always the first segment after the prefix**, so a gateway rule
-is one line and a decision point extracts the id with one pattern. Two things move to make that
-true: the envelope becomes `/api/manage/forms/{id}`, and **the locale leaves the page paths**
-(`/{_locale}/forms/{id}` breaks the split twice — a rule on `^/forms/` misses it silently, and the
-id shifts position — so pages become `/forms/{id}` with `?lang=xx`). A compiler pass over the route
-collection refuses to build a container holding a route outside the four prefixes, and
-`app:routes:groups` prints the table so a gateway reads the routes instead of remembering them. Four
-of the five permissions are then gateway rules on a path and a method — read is GET-only, confirm is
-its own address — and the fifth, "this caller for this form", is delegated rather than deferred. The
-only thing this service itself checks is that a `recorded` form is not saved with nobody: an absent
-header falls back to `FORMS_IDENTITY_FALLBACK`, and with that unset the save is refused
-(`IdentityRequired`), which is what makes a proxy that quietly stopped asserting visible.
+**The routing split is the half that is built** (`RouteGroup` names it): four prefixes, one per
+audience — `/api/manage/` for the system that owns the form, `/api/forms/` and `/forms/` for
+whoever it let through to one form, `/api/schemas/` open to anybody because a contract stated once
+has to be reachable — with **the form id always the segment straight after the prefix**, so a
+gateway rule is one line and a decision point outside extracts the id with one pattern.
+`GET|DELETE /api/manage/forms/{id}` and `POST /api/manage/forms` moved there, and **the locale left
+the page paths**: `/{_locale}/forms/{id}` broke the split twice — a rule on `^/forms/` misses it
+silently, and an optional first segment moves the id — so a page is `/forms/{id}` and a language is
+`?lang=xx` (`PageLocaleListener` puts it where the framework already looks). Both properties are
+asserted over the whole route collection in `RouteGroupsTest`, because no single file shows them;
+routes are not visible at container compile time, so a test is the mechanism rather than a compiler
+pass. `app:routes:groups` prints the table, sorted by path, so a deployment diffs the routes
+instead of remembering them. **There was no deprecation window**, deliberately: keeping
+`POST /api/forms` alive would have left a management address under the prefix a gateway opens for
+filling, so the compatibility layer would have been the hole. Four of the five permissions are
+gateway rules on a path and a method — read is GET-only, confirm is its own address — and the
+fifth, "this caller for this form", is delegated rather than deferred.
+
+**Identity is the half that is not built.** The only thing this service will itself check is that a
+`recorded` form is not saved with nobody: an absent header falls back to
+`FORMS_IDENTITY_FALLBACK`, and with that unset the save is refused (`IdentityRequired`), which is
+what makes a proxy that quietly stopped asserting visible.
 
 **How a file works.** A `file` item's value is not bytes but the **description** of them —
 `{id, name, size, type}`, all four measured by the server when the upload landed and echoed
@@ -423,7 +431,7 @@ Rules that follow from it, and that the tooling checks:
   with swagger-php's `#[OA\Property]`, and NelmioApiDocBundle turns routes + DTOs +
   `#[OA\Response]` into the published contract (`make docs`).
 - **How a form is shown is a second document, given with the first and just as immutable.**
-  A presentation arrives with `POST /api/forms`, optional, names the definition's items, and
+  A presentation arrives with `POST /api/manage/forms`, optional, names the definition's items, and
   never changes afterwards: a fixed thing has no reason for its description to drift, and
   changing either document means delete and recreate. It is one recursive shape (an item
   presents a value, or holds items, or stands alone — no fixed levels), its text is translation
@@ -523,7 +531,7 @@ Rules that follow from it, and that the tooling checks:
   call, and a use case that re-checks a rule the model already keeps has duplicated it.
 - **A write never answers with the thing it wrote** — that is what `GET` is for, and a
   second copy is a second truth. `PUT …/data` and `POST …/confirm` return `204 No Content`
-  (`422` with the report when refused); `POST /api/forms` returns `201` with `{"id": …}` and
+  (`422` with the report when refused); `POST /api/manage/forms` returns `201` with `{"id": …}` and
   a `Location` header, because the id is the only part the client could not already know. An
   upload answers with the whole description for the same reason: the bytes are what was
   written, and the id plus the three facts the server measured are exactly what the client

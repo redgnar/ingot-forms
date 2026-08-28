@@ -231,8 +231,8 @@
                     <strong aria-current="true">{{ one.text }}</strong>
                 {% else %}
                     <a data-language href="{{ chrome.version is null
-                        ? path('web_form_view_localized', {_locale: one.locale, id: chrome.id})
-                        : path('web_form_version_localized', {_locale: one.locale, id: chrome.id, seq: chrome.version}) }}">{{ one.text }}</a>
+                        ? path('web_form_view', {id: chrome.id, lang: one.locale})
+                        : path('web_form_version', {id: chrome.id, seq: chrome.version, lang: one.locale}) }}">{{ one.text }}</a>
                 {% endif %}
             {% endfor %}
         </nav>

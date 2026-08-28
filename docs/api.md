@@ -15,9 +15,9 @@ this reference cannot drift from the implementation.
 | Method & path | Operation | Purpose | Responses |
 |---|---|---|---|
 | [`POST /api/forms/{id}/confirm`](#post-apiformsidconfirm) | `confirmForm` | Confirm the stored values | `204`, `404`, `409`, `410`, `422` |
-| [`POST /api/forms`](#post-apiforms) | `createForm` | Create a form | `201`, `400`, `415`, `422` |
-| [`GET /api/forms/{id}`](#get-apiformsid) | `getForm` | Read a form | `200`, `404`, `409`, `410` |
-| [`DELETE /api/forms/{id}`](#delete-apiformsid) | `deleteForm` | Delete a form | `204`, `404`, `410` |
+| [`POST /api/manage/forms`](#post-apimanageforms) | `createForm` | Create a form | `201`, `400`, `415`, `422` |
+| [`GET /api/manage/forms/{id}`](#get-apimanageformsid) | `getForm` | Read a form | `200`, `404`, `409`, `410` |
+| [`DELETE /api/manage/forms/{id}`](#delete-apimanageformsid) | `deleteForm` | Delete a form | `204`, `404`, `410` |
 | [`GET /api/forms/{id}/files/{fileId}`](#get-apiformsidfilesfileid) | `readFormFile` | Download a file this form holds | `200`, `404`, `410` |
 | [`DELETE /api/forms/{id}/files/{fileId}`](#delete-apiformsidfilesfileid) | `discardFormFile` | Throw away an uploaded file this form has not saved | `204`, `404`, `409`, `410` |
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
@@ -53,7 +53,7 @@ Validates the stored data against the full strict schema and locks the form fore
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | The stored data fails the strict contract. |
 
-### POST /api/forms
+### POST /api/manage/forms
 
 `operationId: createForm` — Create a form
 
@@ -70,7 +70,7 @@ Both documents a form is made of arrive here: what it asks, and optionally how i
 | `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | The request envelope, the definition, the presentation or the values the form would be born with are not valid. |
 
-### GET /api/forms/{id}
+### GET /api/manage/forms/{id}
 
 `operationId: getForm` — Read a form
 
@@ -89,7 +89,7 @@ Both documents a form is made of arrive here: what it asks, and optionally how i
 | `409` | `application/problem+json` | [`Problem`](#problem) | The form is stored under rules that have since changed, so it cannot be read back. The findings say which. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 
-### DELETE /api/forms/{id}
+### DELETE /api/manage/forms/{id}
 
 `operationId: deleteForm` — Delete a form
 

@@ -70,7 +70,7 @@ Two things are worth knowing before you design anything around this:
 ## Creating one
 
 ```http
-POST /api/forms
+POST /api/manage/forms
 Content-Type: application/json
 
 {
@@ -847,9 +847,9 @@ message beside a control needs to know which control.
 
 | Method & path | Purpose |
 |---|---|
-| `POST /api/forms` | Create a form. Body: `{"expireDate": "<RFC 3339>", "definition": {…}, "presentation": {…}?, "data": {…}?}`. `201` + `Location`, answering with `{"id": …}` alone. |
-| `GET /api/forms/{id}` | Full envelope: definition, status, data, timestamps. |
-| `DELETE /api/forms/{id}` | `204`. The "definition changed" path is delete + recreate. |
+| `POST /api/manage/forms` | Create a form. Body: `{"expireDate": "<RFC 3339>", "definition": {…}, "presentation": {…}?, "data": {…}?}`. `201` + `Location`, answering with `{"id": …}` alone. |
+| `GET /api/manage/forms/{id}` | Full envelope: definition, status, data, timestamps. |
+| `DELETE /api/manage/forms/{id}` | `204`. The "definition changed" path is delete + recreate. |
 | `GET /api/forms/{id}/schema` | Derived JSON Schema of the form's *values* (`application/schema+json`). `?mode=draft` returns the relaxed variant. |
 | `GET /api/schemas/definition` · `GET /api/schemas/presentation` | The meta-schema each of those documents is judged by (`application/schema+json`) — the authoritative contract for what you may write, which is why it is served rather than described. Fixed for a deployment. |
 | `GET /api/forms/{id}/presentation` | How the form is shown, as it was given at creation (`404 presentation-not-set` when none). |

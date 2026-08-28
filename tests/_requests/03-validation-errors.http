@@ -8,7 +8,7 @@
 
 ### A body that is not JSON at all: 400, before anything is mapped.
 # @name malformedJson
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -23,7 +23,7 @@ Content-Type: application/json
 
 ### Any media type other than application/json: 415. A form-encoded payload is refused too.
 # @name unsupportedMediaType
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/x-www-form-urlencoded
 
 expireDate=2030-01-31T23:59:59%2B00:00
@@ -37,7 +37,7 @@ expireDate=2030-01-31T23:59:59%2B00:00
 
 ### A missing member is reported at its own pointer, in the wire's terms.
 # @name missingMember
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -54,7 +54,7 @@ Content-Type: application/json
 
 ### The body is a closed contract: a member the DTO does not declare is refused.
 # @name unexpectedMember
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -73,7 +73,7 @@ Content-Type: application/json
 
 ### A form that expires in the past could never be filled in.
 # @name pastExpireDate
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -90,7 +90,7 @@ Content-Type: application/json
 
 ### Problems inside the definition keep the engine's pointer, re-rooted under /definition.
 # @name duplicateFieldNames
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -113,7 +113,7 @@ Content-Type: application/json
 
 ### A definition that breaks the meta-schema (no items) is refused the same way.
 # @name definitionAgainstMetaSchema
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -131,7 +131,7 @@ Content-Type: application/json
 
 ### From here on, the values of a real form. Create one first.
 # @name createFormForValueErrors
-POST {{host}}/api/forms
+POST {{host}}/api/manage/forms
 Content-Type: application/json
 
 {
@@ -236,7 +236,7 @@ Content-Type: application/json
 %}
 
 ### Clean up.
-DELETE {{host}}/api/forms/{{valuesFormId}}
+DELETE {{host}}/api/manage/forms/{{valuesFormId}}
 
 > {%
     client.test("204", function () {

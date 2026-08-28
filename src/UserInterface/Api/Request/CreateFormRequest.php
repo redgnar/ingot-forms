@@ -10,7 +10,7 @@ use OpenApi\Attributes as OA;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
- * Body of `POST /api/forms`, mapped and validated by Symfony
+ * Body of `POST /api/manage/forms`, mapped and validated by Symfony
  * (`#[MapRequestPayload]`).
  *
  * Every member is required and non-nullable: an instance of this class means

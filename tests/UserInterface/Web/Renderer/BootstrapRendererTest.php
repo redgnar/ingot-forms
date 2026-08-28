@@ -661,8 +661,23 @@ final class BootstrapRendererTest extends KernelTestCase
         // language switch offers the catalogue the document carries
         self::assertCount(1, $page->filter('[data-controller="comfort"]'));
         self::assertSame(['pl'], $page->filter('nav a[data-language]')->each(
-            static fn(Crawler $one): string => substr((string) $one->attr('href'), 1, 2),
+            static fn(Crawler $one): string => self::languageOffered((string) $one->attr('href')),
         ));
+    }
+
+    /**
+     * Which language a switch offers. It rides in the query string rather than
+     * in the path: a page's address has to be one shape, because what stands in
+     * front of this service reads the form's id out of the segment after a fixed
+     * prefix, and an optional language segment moves it.
+     */
+    private static function languageOffered(string $href): string
+    {
+        $query = [];
+        parse_str((string) parse_url($href, \PHP_URL_QUERY), $query);
+        $lang = $query['lang'] ?? null;
+
+        return \is_string($lang) ? $lang : '';
     }
 
     public function testTheSwitchesAreThereEvenWhenTheDocumentSaysNothing(): void

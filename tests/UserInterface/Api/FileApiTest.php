@@ -381,7 +381,7 @@ final class FileApiTest extends WebTestCase
             'definition' => self::DEFINITION,
         ], \JSON_THROW_ON_ERROR);
 
-        $this->putJson('/api/forms', $payload, method: 'POST');
+        $this->putJson('/api/manage/forms', $payload, method: 'POST');
         self::assertResponseStatusCodeSame(201);
 
         $id = $this->responseBody()['id'] ?? '';
