@@ -23,7 +23,7 @@ final class ReadFormHistoryAction
         private readonly ReadFormHistory $readFormHistory,
     ) {}
 
-    #[Route('/api/forms/{id}/history', methods: ['GET'], requirements: ['id' => Requirement::UUID])]
+    #[Route('/api/forms/{id}/history', name: 'api_form_history', methods: ['GET'], requirements: ['id' => Requirement::UUID])]
     #[OA\Get(
         operationId: 'getFormHistory',
         summary: 'List every accepted save of this form',

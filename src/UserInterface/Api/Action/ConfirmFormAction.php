@@ -23,7 +23,7 @@ final class ConfirmFormAction
         private readonly ConfirmForm $confirmForm,
     ) {}
 
-    #[Route('/api/forms/{id}/confirm', methods: ['POST'], requirements: ['id' => Requirement::UUID])]
+    #[Route('/api/forms/{id}/confirm', name: 'api_form_confirm', methods: ['POST'], requirements: ['id' => Requirement::UUID])]
     #[OA\Post(
         operationId: 'confirmForm',
         summary: 'Confirm the stored values',

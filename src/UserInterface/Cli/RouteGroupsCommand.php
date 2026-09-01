@@ -36,6 +36,8 @@ final class RouteGroupsCommand extends Command
 {
     public function __construct(
         private readonly RouterInterface $router,
+        private readonly string $basePath,
+        private readonly string $assetsPrefix,
     ) {
         parent::__construct();
     }
@@ -46,7 +48,7 @@ final class RouteGroupsCommand extends Command
 
         foreach ($this->router->getRouteCollection() as $route) {
             $path = $route->getPath();
-            $group = RouteGroup::of($path);
+            $group = RouteGroup::of($path, $this->basePath);
             $methods = $route->getMethods();
 
             // A group of none cannot happen while RouteGroupsTest passes, and it
@@ -67,6 +69,17 @@ final class RouteGroupsCommand extends Command
         $table = new Table($output);
         $table->setHeaders(['Group', 'Prefix', 'Methods', 'Path'])->setRows($rows)->render();
 
+        // Where this installation put the service, and where it serves the pages'
+        // own files from. Neither is a route, and the second is not even served by
+        // the router — which is exactly why they belong in this output: a gateway
+        // that passes the forms through and drops their stylesheet has followed
+        // the table above to the letter.
+        $output->writeln('');
+        $output->writeln(\sprintf(
+            'Base path: <info>%s</info>   Static files: <info>%s*</info> (no route: served as files, GET, public)',
+            $this->basePath === '' ? '(none — the root of this host)' : $this->basePath,
+            $this->assetsPrefix,
+        ));
         $output->writeln('');
         $output->writeln('A form id, where an address names one, is always the segment straight after');
         $output->writeln('the prefix — `/api/manage/forms/{id}` in management, `{id}` itself elsewhere.');

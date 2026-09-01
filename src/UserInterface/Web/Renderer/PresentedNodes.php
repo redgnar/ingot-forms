@@ -15,6 +15,7 @@ use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\Presentation\PresentationActions;
 use App\Domain\Forms\Presentation\PresentedItem;
+use App\UserInterface\Web\FormApi;
 use App\UserInterface\Web\Renderer\Node\BranchNode;
 use App\UserInterface\Web\Renderer\Node\CollectionNode;
 use App\UserInterface\Web\Renderer\Node\PresentedEntry;
@@ -47,6 +48,15 @@ final class PresentedNodes
      * has no place in the list yet.
      */
     public const string PENDING = 'NEW';
+
+    /**
+     * The addresses a page sends what somebody typed to. A node carries two of
+     * them — where a file is uploaded, and where the one it already holds can be
+     * fetched — and neither may be a string built here: see {@see FormApi}.
+     */
+    public function __construct(
+        private readonly FormApi $api,
+    ) {}
 
     /**
      * @return list<PresentedNode>
@@ -188,8 +198,8 @@ final class PresentedNodes
                 // bytes it already holds can be fetched from.
                 $field instanceof FileField ? $field->accept : [],
                 $field instanceof FileField ? $field->maxSize : null,
-                $field instanceof FileField ? self::downloadOf($form, $values[$item->name] ?? null) : null,
-                $field instanceof FileField ? \sprintf('/api/forms/%s/files', $form) : null,
+                $field instanceof FileField ? $this->downloadOf($form, $values[$item->name] ?? null) : null,
+                $field instanceof FileField ? $this->api->files($form) : null,
             );
         }
 
@@ -409,11 +419,11 @@ final class PresentedNodes
         return false;
     }
 
-    private static function downloadOf(string $form, mixed $value): ?string
+    private function downloadOf(string $form, mixed $value): ?string
     {
         $id = \is_array($value) ? $value['id'] ?? null : null;
 
-        return \is_string($id) ? \sprintf('/api/forms/%s/files/%s', $form, $id) : null;
+        return \is_string($id) ? $this->api->file($form, $id) : null;
     }
 
     private static function fileName(mixed $value): ?string

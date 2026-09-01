@@ -14,6 +14,7 @@ use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Tests\Domain\Forms\Fake\StubValues;
+use App\UserInterface\Web\FormApi;
 use App\UserInterface\Web\Renderer\BootstrapRenderer;
 use App\UserInterface\Web\Renderer\PresentedNodes;
 use App\UserInterface\Web\Renderer\RenderedForm;
@@ -121,19 +122,24 @@ final class BootstrapRendererTest extends KernelTestCase
 
     private Environment $twig;
 
+    private FormApi $api;
+
     protected function setUp(): void
     {
         self::bootKernel();
         $twig = self::getContainer()->get('twig');
         self::assertInstanceOf(Environment::class, $twig);
         $this->twig = $twig;
-        $this->renderer = new BootstrapRenderer($twig, new PresentedNodes(), new BootstrapEngine());
+        $api = self::getContainer()->get(FormApi::class);
+        self::assertInstanceOf(FormApi::class, $api);
+        $this->api = $api;
+        $this->renderer = new BootstrapRenderer($twig, new PresentedNodes($api), new BootstrapEngine(), $api);
     }
 
     /** The same kit, dressing what a document leaves undressed in something else. */
     private function dressedIn(string $skin): BootstrapRenderer
     {
-        return new BootstrapRenderer($this->twig, new PresentedNodes(), new BootstrapEngine(), $skin);
+        return new BootstrapRenderer($this->twig, new PresentedNodes($this->api), new BootstrapEngine(), $this->api, $skin);
     }
 
     /** Everything from `<body` on: the page itself, without what it loads. */
@@ -346,7 +352,13 @@ final class BootstrapRendererTest extends KernelTestCase
         self::assertSame('Earlier versions', $panel->filter('summary')->text());
         self::assertNull($panel->attr('open'));
         self::assertSame('history', $panel->attr('data-controller'));
-        self::assertNotNull($panel->attr('data-history-id-value'));
+        // The addresses it will ask, generated rather than composed here — the
+        // panel reads one of them and adds nothing but a revision number.
+        $said = $panel->attr('data-history-api-value');
+        self::assertIsString($said);
+        $addresses = json_decode($said, true, flags: \JSON_THROW_ON_ERROR);
+        self::assertIsArray($addresses);
+        self::assertArrayHasKey('history', $addresses);
         self::assertNotNull($panel->attr('data-history-page-value'));
 
         // AND the row it will draw is rendered here rather than written in

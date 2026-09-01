@@ -36,7 +36,7 @@ final class ReadFormFileAction
         private readonly ReadFormFile $readFormFile,
     ) {}
 
-    #[Route('/api/forms/{id}/files/{fileId}', methods: ['GET'], requirements: [
+    #[Route('/api/forms/{id}/files/{fileId}', name: 'api_form_file', methods: ['GET'], requirements: [
         'id' => Requirement::UUID,
         'fileId' => Requirement::UUID,
     ])]

@@ -8,6 +8,7 @@ service, [configuring-forms.md](configuring-forms.md) is the document you want.
 
 - [Layers](#layers)
 - [Who may do what](#who-may-do-what)
+- [Where this service is installed](#where-this-service-is-installed)
 - [The model, and what it refuses](#the-model-and-what-it-refuses)
 - [Storage](#storage)
 - [How values are judged](#how-values-are-judged)
@@ -29,7 +30,8 @@ src/Infrastructure/        the adapters: the row, its Doctrine mapping and the r
 src/UserInterface/Api/     one invokable Action per endpoint, request DTOs, problem+json
 src/UserInterface/Web/     the pages that draw a form: an action, a renderer per engine, and
                            the templates each draws with
-templates/, public/js/     what those pages are made of — markup and one small module
+templates/, assets/        what those pages are made of — markup, and the JavaScript and CSS
+                           AssetMapper delivers (one hand-written module for the plain kit)
 src/UserInterface/Cli/     console commands
 tools/build-docs.php       renders the generated contract into docs/ (dev tooling)
 ```
@@ -129,6 +131,18 @@ copy of the route table is the failure this whole section exists to prevent.
 | read | `GET` only, under `/api/forms/` and `/forms/` — method |
 | confirm | `POST /api/forms/{id}/confirm` — its own path |
 | fill | mutating methods under `/api/forms/` |
+
+Two more rules have nothing to do with permissions and are the ones most often forgotten, because
+they are not routes at all — no `RouteGroup` claims them and `app:routes:groups` prints them below
+the table for exactly that reason:
+
+| What | Rule at the gateway |
+|---|---|
+| the pages' JavaScript and CSS | `GET` under `FORMS_ASSETS_PREFIX` (`/assets/` by default) — public, cacheable, no identity |
+| nothing else | there is no other static path: the plain kit's module moved under the same prefix |
+
+A gateway that passes the forms through and drops their stylesheet has followed the table above to
+the letter.
 
 The fifth — "this caller, for *this* form" — is the one a gateway cannot express on its own, and it
 is delegated rather than deferred: the decision point receives the form id from the path and asks
@@ -245,6 +259,58 @@ rule instead of a regular expression:
   arriving as `200` with HTML would tell somebody their answers were stored when they were not.
   Both kits already degrade an unparseable refusal to their own wording, so a `401` reads correctly
   with no change here — a redirect does not.
+
+## Where this service is installed
+
+Nothing in here knows its own address. Every URL a page carries is generated — the page itself,
+the endpoints it writes to, the module that drives it, the stylesheets — which is what makes the
+same build serve a form at `https://forms.example.com/forms/{id}` and at
+`https://gateway.example.com/svc/forms/{id}` without an edit. Two mechanisms, one per kind of
+gateway, and a deployment picks the one its gateway can do:
+
+| The gateway | What it sends | What is configured here |
+|---|---|---|
+| answers on its own host | `/forms/{id}` | nothing |
+| answers on a path and **strips** it | `/forms/{id}` + `X-Forwarded-Prefix: /svc` | nothing — the header is believed from a trusted proxy |
+| answers on a path and **passes it through** | `/svc/forms/{id}` | `FORMS_BASE_PATH=/svc` |
+| serves the static files itself | — | `FORMS_ASSETS_PREFIX`, or a CDN URL, and `asset-map:compile` output |
+
+**`X-Forwarded-Prefix` is runtime and free.** It is trusted exactly like `X-Forms-Identity` —
+only from an address in `FORMS_TRUSTED_PROXIES`, and for the same reason: it changes what this
+service says about itself, so a client must not be able to say it. With it, the router, the asset
+package and therefore every address on a page carry the prefix, and the service answers on the
+paths it always did.
+
+**`FORMS_BASE_PATH` is build-time, and that is not a wart but the mechanism.** Routes are declared
+when the container is compiled, so a prefix they are declared *under* is read there
+(`App\Kernel::build()`, `config/routes.yaml`). Consequences worth knowing: changing it needs the
+cache rebuilt (a deploy's `cache:clear`, or `make cache-clear`), and nothing warns about a stale
+one — which is why `app:routes:groups` prints the base path it is actually serving under, beside
+the static prefix that is not a route at all. Write it as `/svc`, `svc` or `/svc/`; all three
+normalize to the same routes.
+
+**The four audience prefixes stay fixed on purpose.** A base path is enough to make several of
+these services unique behind one host — `/forms-a/api/forms/{id}` and `/forms-b/api/forms/{id}`
+collide nowhere — and making the four configurable as well would buy nothing while turning a
+gateway rule into a guess and `RouteGroup` into a description of one deployment.
+`RouteGroup::of()` takes the base and asks its four questions about what follows it, so the two
+properties a gateway depends on hold in every installation; `RouteGroupsTest` asserts them both
+ways.
+
+**What is deliberately not supported**: rewriting paths inside the application (if the service
+knows its base there is nothing to rewrite, and if it does not, no rewrite fixes the addresses
+already in the HTML), and serving the pages and the API from different origins (it buys nothing a
+path rule cannot do, and costs CORS, cookie configuration and the page's standing as a client of
+the API next to it).
+
+**A page reaches nothing outside this service, and one entry in `importmap.php` is what makes that
+true.** `importmap()` puts an import-map polyfill on the page for a browser that has none of its
+own, and with no entry in the map AssetMapper falls back to a URL on `ga.jspm.io` — unfetchable in
+an installation with no egress, and refused by any CSP that does not name that host. So
+`es-module-shims` is required into the import map like every other dependency: committed under
+`assets/vendor/`, served under `FORMS_ASSETS_PREFIX`, nothing imports it. An installation that
+would rather not carry the 48 KB, and does not care about browsers older than import maps
+(Safari 16.4, 2023), sets `framework.asset_mapper.importmap_polyfill: false`.
 
 ## The model, and what it refuses
 
@@ -438,8 +504,17 @@ value (`data-form-refused-value`, `data-refused`).
 `assets/icons/` holds UX Icons imported once, and `make assets` refreshes the vendor files. No
 build step, no package manager, no CDN. The `bootstrap` kit has one entrypoint per skin, each
 importing its own Bootstrap and then the shared `kit.js`, so exactly one Bootstrap is ever
-loaded. `core-html` imports nothing: one hand-written module in `public/js/` and thirty lines of
-inline CSS.
+loaded. `core-html` imports nothing: one hand-written module
+(`assets/pages/core-html-form.js`, asked for with `asset()` rather than by a path written into
+the template) and thirty lines of inline CSS.
+
+**Every address a page carries is generated, and that is a rule rather than a habit.** The page
+itself and the four endpoints it writes to come from the router (`FormApi` is the one place that
+says which routes a kit needs, handed over as `data-form-api-value` / `data-api`), the module and
+the stylesheets come from AssetMapper under `FORMS_ASSETS_PREFIX`. A kit that built
+`/api/forms/${id}/data` for itself would be claiming this service stands at the root of a host —
+and it would keep drawing perfectly the day it does not, with every save answering 404. See
+[Where this service is installed](#where-this-service-is-installed).
 
 **The reader's own switches** (colours, contrast, text size) are attributes on `<html>`, applied
 before the first paint by a scrap of inline script and kept in `localStorage` under
@@ -490,8 +565,18 @@ needs it.
   clear is served from yesterday's document. In dev both pools are in-memory for exactly that
   reason.
 - **Deploy (pages):** `bin/console asset-map:compile` writes the mapped assets into `public/`
-  for the web server to serve directly. Only the `bootstrap` kit's pages need it; the API does
-  not, and in dev and test they are served by the framework.
+  for the web server to serve directly — under `FORMS_ASSETS_PREFIX` (`/assets/`), which is also
+  the one static rule a gateway needs and the value to change when several of these services share
+  a host, or to point at a CDN or bucket (an absolute URL works; the store then needs CORS, because
+  a module fetched cross-origin without it is refused by the browser with a perfectly good `200`).
+  Both kits need it now: the plain kit's module moved out of `public/js/` so that it, too, follows
+  the prefix and gets a digest. In dev and test the framework serves them.
+- **Deploy (where the service stands):** nothing, if it stands at the root of a host or its gateway
+  strips the prefix and sends `X-Forwarded-Prefix`. Otherwise **`FORMS_BASE_PATH`**, which is read
+  when the container is built — so it belongs in the image or the build, and a change to it needs
+  the cache rebuilt. `app:routes:groups` prints what is actually being served, base path and static
+  prefix included; diff that rather than trusting the variable.
+  See [Where this service is installed](#where-this-service-is-installed).
 - **Cron:** `bin/console app:forms:purge-expired` — expired forms are already invisible
   to the API (410); this fulfils the promise that expired data leaves the system. Next to it,
   `bin/console app:files:purge-temporary` collects uploads no stored document names

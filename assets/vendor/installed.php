@@ -93,4 +93,14 @@
     array (
     ),
   ),
+  'es-module-shims' => 
+  array (
+    'version' => '2.8.4',
+    'dependencies' => 
+    array (
+    ),
+    'extraFiles' => 
+    array (
+    ),
+  ),
 );

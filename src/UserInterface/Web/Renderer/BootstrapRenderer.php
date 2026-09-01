@@ -6,6 +6,7 @@ namespace App\UserInterface\Web\Renderer;
 
 use App\Domain\Forms\FormStatus;
 use App\Domain\Forms\Presentation\Engine\BootstrapEngine;
+use App\UserInterface\Web\FormApi;
 use Twig\Environment;
 
 /**
@@ -29,6 +30,7 @@ final class BootstrapRenderer implements FormRenderer
         private readonly Environment $twig,
         private readonly PresentedNodes $nodes,
         private readonly BootstrapEngine $engine,
+        private readonly FormApi $api,
         /** What a form is dressed in when its own document names nothing. */
         private readonly string $defaultSkin = 'default',
     ) {
@@ -56,6 +58,10 @@ final class BootstrapRenderer implements FormRenderer
         return $this->twig->render('forms/bootstrap/form.html.twig', [
             'id' => (string) $request->form->id(),
             'locale' => $request->locale,
+            // Where this form is written to, handed to the page as data. The kit
+            // is a client of the API and clients are told addresses, never left
+            // to guess them from a shape somebody hardcoded.
+            'api' => $this->api->of((string) $request->form->id()),
             // What the form is to look like: the document's word if it gave one,
             // and otherwise whatever this deployment dresses forms in. It reaches
             // the page as the name of an entrypoint and nothing else — a skin is

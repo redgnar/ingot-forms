@@ -30,8 +30,12 @@ final class RouteGroupsTest extends KernelTestCase
         // GIVEN every route this service answers on
         $routes = $this->routes();
         self::assertNotEmpty($routes, 'The router served no routes at all, so this test proves nothing.');
+        $base = $this->basePath();
 
         foreach ($routes as $name => $path) {
+            $path = RouteGroup::under($base, $path);
+            self::assertNotNull($path, \sprintf('Route "%s" is not served under "%s".', $name, $base));
+
             // WHEN each is matched against the four group prefixes
             $matched = array_filter(
                 RouteGroup::cases(),
@@ -52,11 +56,14 @@ final class RouteGroupsTest extends KernelTestCase
     public function testAFormIdAlwaysSitsStraightAfterItsGroupPrefix(): void
     {
         // GIVEN every route that names one form
+        $base = $this->basePath();
+
         foreach ($this->routes() as $name => $path) {
             if (!str_contains($path, '{id}')) {
                 continue;
             }
 
+            $path = (string) RouteGroup::under($base, $path);
             $group = RouteGroup::of($path);
             self::assertNotNull($group, \sprintf('Route "%s" (%s) is in no group.', $name, $path));
 
@@ -80,9 +87,10 @@ final class RouteGroupsTest extends KernelTestCase
         // GIVEN the four groups
         // WHEN each is asked for the addresses it holds
         $held = [];
+        $base = $this->basePath();
 
         foreach ($this->routes() as $path) {
-            $group = RouteGroup::of($path);
+            $group = RouteGroup::of($path, $base);
 
             if ($group !== null) {
                 $held[$group->value] = true;
@@ -95,6 +103,41 @@ final class RouteGroupsTest extends KernelTestCase
         foreach (RouteGroup::cases() as $group) {
             self::assertArrayHasKey($group->value, $held, \sprintf('No address is served under "%s".', $group->value));
         }
+    }
+
+    /**
+     * The two properties again, for an installation that put this service under a
+     * path of its own: the base belongs to the deployment and the four prefixes
+     * belong to the service, so a rule in front is still one line — written
+     * against the base plus the prefix.
+     */
+    public function testTheGroupsHoldWhereverTheInstallationPutTheService(): void
+    {
+        // GIVEN a service installed under a prefix of the deployment's choosing
+        $base = '/somewhere';
+
+        // WHEN an address of each group is read the way a gateway reads it
+        // THEN the group is the same one, and only the base has moved
+        self::assertSame(RouteGroup::Manage, RouteGroup::of($base . '/api/manage/forms/x', $base));
+        self::assertSame(RouteGroup::Fill, RouteGroup::of($base . '/api/forms/x/data', $base));
+        self::assertSame(RouteGroup::Pages, RouteGroup::of($base . '/forms/x', $base));
+        self::assertSame(RouteGroup::Contract, RouteGroup::of($base . '/api/schemas/definition', $base));
+
+        // AND an address that does not begin with that base is not this
+        // service's at all — answering "filling" for somebody else's `/forms/x`
+        // is how a rule ends up guarding the wrong thing
+        self::assertNull(RouteGroup::of('/forms/x', $base));
+        self::assertNull(RouteGroup::of($base . 'ish/forms/x', $base));
+    }
+
+    /** Where this installation put the service: empty unless it said otherwise. */
+    private function basePath(): string
+    {
+        self::bootKernel();
+        $base = self::getContainer()->getParameter('forms.base_path');
+        self::assertIsString($base);
+
+        return $base;
     }
 
     /**

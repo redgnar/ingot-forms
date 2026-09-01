@@ -13,7 +13,7 @@ attached. So everything below differs in markup and behaviour, never in what a f
 | | `core-html` | `bootstrap` |
 |---|---|---|
 | Looks like | the browser's own controls | [Bootstrap 5.3](https://getbootstrap.com/docs/5.3/) |
-| Ships | one hand-written module (`public/js/core-html-form.js`), ~30 lines of inline CSS | AssetMapper + [Stimulus](https://stimulus.hotwired.dev/) controllers, [Tom Select](https://tom-select.js.org/), [Tabler icons](https://tabler.io/icons) |
+| Ships | one hand-written module (`assets/pages/core-html-form.js`), ~30 lines of inline CSS | AssetMapper + [Stimulus](https://stimulus.hotwired.dev/) controllers, [Tom Select](https://tom-select.js.org/), [Tabler icons](https://tabler.io/icons) |
 | Needs | nothing — no vendor file, no import map | the vendored assets in `assets/vendor/` (committed) |
 | Skins | none | `default`, `material`, `flatly`, `lux` |
 | Best for | anywhere; a fallback that cannot break; forms nobody will style | forms somebody will look at for a while, and lists somebody will fill in |

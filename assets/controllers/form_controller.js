@@ -15,7 +15,11 @@ export default class extends Controller {
     // The sentence for a refusal that names no item comes from the page, which
     // got it from this application's own catalogue: a controller has no business
     // holding English.
-    static values = { id: String, page: String, version: Number, refused: String };
+    // `api` is where this form is written to — the four addresses the server
+    // generated, because a page that builds its own would stop being right the
+    // moment this service is mounted anywhere but the root of a host. `id` stays
+    // for what is nobody's address: the key this tab keeps unsaved answers under.
+    static values = { id: String, api: Object, page: String, version: Number, refused: String };
     static targets = ['saved', 'unsaved', 'problem', 'problemText', 'error', 'control'];
 
     // Looking at an earlier version means leaving this page, and leaving a page
@@ -63,7 +67,7 @@ export default class extends Controller {
     save(event) {
         event.preventDefault();
 
-        this.#send('/data', 'PUT', this.#collect()).then((ok) => {
+        this.#send(this.apiValue.data, 'PUT', this.#collect()).then((ok) => {
             if (!ok) return;
 
             this.#forgetUnsaved();
@@ -80,8 +84,8 @@ export default class extends Controller {
     async confirm(event) {
         event.preventDefault();
 
-        if (await this.#send('/data', 'PUT', this.#collect())) {
-            if (await this.#send('/confirm', 'POST')) window.location.reload();
+        if (await this.#send(this.apiValue.data, 'PUT', this.#collect())) {
+            if (await this.#send(this.apiValue.confirm, 'POST')) window.location.reload();
         }
     }
 
@@ -102,9 +106,9 @@ export default class extends Controller {
         event.preventDefault();
         this.#forgetUnsaved();
         const seq = event.currentTarget.dataset.historyRestore;
-        const response = await fetch(`/api/forms/${this.idValue}/history/${seq}`);
+        const response = await fetch(`${this.apiValue.history}/${seq}`);
 
-        if (response.ok && (await this.#send('/data', 'PUT', await response.json()))) {
+        if (response.ok && (await this.#send(this.apiValue.data, 'PUT', await response.json()))) {
             window.location.assign(this.pageValue);
         }
     }
@@ -182,10 +186,10 @@ export default class extends Controller {
         );
     }
 
-    async #send(path, method, body) {
+    async #send(url, method, body) {
         this.#clearMessages();
 
-        const response = await fetch(`/api/forms/${this.idValue}${path}`, {
+        const response = await fetch(url, {
             method,
             headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
             body: body === undefined ? undefined : JSON.stringify(body),

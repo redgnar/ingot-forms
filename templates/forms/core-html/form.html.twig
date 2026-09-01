@@ -147,7 +147,10 @@
         })();
     </script>
 </head>
-<body data-form="{{ id }}" data-page="{{ path('web_form_view', {id: id}) }}"
+{# Where this form is written to, and where the page itself lives. Both are the
+   server's answer rather than a shape this template knows: the addresses move
+   with the installation, the page does not have to. #}
+<body data-form="{{ id }}" data-api="{{ api|json_encode }}" data-page="{{ path('web_form_view', {id: id}) }}"
       {%- if version is not null %} data-version="{{ version }}"{% endif %}
       data-read-only="{{ readOnly ? 'yes' : 'no' }}" data-refused="{{ 'page.refused'|trans }}"
       data-file-uploading="{{ 'page.file.uploading'|trans }}" data-file-too-large="{{ 'page.file.too_large'|trans }}"
@@ -196,7 +199,7 @@
     <p class="error" id="form-error" hidden></p>
 </form>
 
-<script type="module" src="/js/core-html-form.js"></script>
+<script type="module" src="{{ asset('pages/core-html-form.js') }}"></script>
 </body>
 </html>
 

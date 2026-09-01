@@ -19,6 +19,7 @@ use App\Infrastructure\Persistence\FormRecord;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Uid\Uuid;
 
 /**
@@ -296,6 +297,91 @@ final class ViewFormActionTest extends WebTestCase
             content: $values,
         );
         self::assertResponseStatusCodeSame(204);
+    }
+
+    public function testThePageIsHandedEveryAddressItWillWriteTo(): void
+    {
+        // GIVEN a form drawn for each kit
+        foreach (['plain' => $this->plant(), 'rich' => $this->plantRich()] as $kit => $id) {
+            // WHEN the page is drawn
+            $crawler = $this->client->request('GET', \sprintf('/forms/%s', $id));
+            self::assertResponseIsSuccessful();
+
+            // THEN it carries the four addresses this form is written to, as the
+            // router generated them — a kit builds none of them itself, because a
+            // string like "/api/forms/{id}/data" is a claim about where this
+            // service is mounted and the kit is in no position to make it
+            $said = $kit === 'plain'
+                ? $crawler->filter('body')->attr('data-api')
+                : $crawler->filter('[data-controller="form"]')->attr('data-form-api-value');
+            self::assertIsString($said);
+
+            self::assertSame(
+                [
+                    'confirm' => \sprintf('/api/forms/%s/confirm', $id),
+                    'data' => \sprintf('/api/forms/%s/data', $id),
+                    'files' => \sprintf('/api/forms/%s/files', $id),
+                    'history' => \sprintf('/api/forms/%s/history', $id),
+                ],
+                self::sorted(json_decode($said, true, flags: \JSON_THROW_ON_ERROR)),
+                \sprintf('The %s kit was handed the wrong addresses.', $kit),
+            );
+        }
+    }
+
+    public function testEveryAddressOnThePageMovesWithThePrefixAGatewayAsserts(): void
+    {
+        // GIVEN a service reached through a gateway that answers on a path of its
+        // own, strips it, and says so — the runtime half of being installable
+        // anywhere ({@see \App\Kernel})
+        $id = $this->plant();
+        Request::setTrustedProxies(['127.0.0.1'], Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PREFIX);
+
+        // WHEN the page is drawn behind that prefix
+        $this->client->request('GET', \sprintf('/forms/%s', $id), server: [
+            'REMOTE_ADDR' => '127.0.0.1',
+            'HTTP_X_FORWARDED_PREFIX' => '/svc',
+        ]);
+
+        // THEN every address it carries begins with it: the page itself, the
+        // module that drives it, and the endpoints it was handed. A page half
+        // moved is worse than one that did not move at all — it draws perfectly
+        // and every save answers 404.
+        $response = $this->client->getResponse()->getContent();
+        self::assertIsString($response);
+        // The addresses inside the JSON attribute are escaped as `\/`; comparing
+        // them as text is only honest once they read the way they were written.
+        $page = str_replace('\\/', '/', $response);
+
+        self::assertStringContainsString(\sprintf('/svc/api/forms/%s/data', $id), $page);
+        self::assertStringContainsString(\sprintf('data-page="/svc/forms/%s"', $id), $page);
+        self::assertStringContainsString('src="/svc/assets/pages/core-html-form', $page);
+        self::assertStringNotContainsString(\sprintf('"/api/forms/%s', $id), $page);
+        self::assertStringNotContainsString('src="/assets/', $page);
+    }
+
+    protected function tearDown(): void
+    {
+        // Trusted proxies are process-wide, so a test that sets them puts them
+        // back: the next test in this process must not believe a header it was
+        // handed.
+        Request::setTrustedProxies([], Request::HEADER_X_FORWARDED_FOR);
+
+        parent::tearDown();
+    }
+
+    /**
+     * @param mixed $said
+     *
+     * @return array<string, mixed>
+     */
+    private static function sorted(mixed $said): array
+    {
+        self::assertIsArray($said);
+        /** @var array<string, mixed> $said */
+        ksort($said);
+
+        return $said;
     }
 
     private function plantRich(): string

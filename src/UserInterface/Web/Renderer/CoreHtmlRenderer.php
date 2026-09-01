@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\UserInterface\Web\Renderer;
 
 use App\Domain\Forms\FormStatus;
+use App\UserInterface\Web\FormApi;
 use Twig\Environment;
 
 /**
@@ -24,6 +25,7 @@ final class CoreHtmlRenderer implements FormRenderer
     public function __construct(
         private readonly Environment $twig,
         private readonly PresentedNodes $nodes,
+        private readonly FormApi $api,
     ) {}
 
     public function engine(): string
@@ -38,6 +40,10 @@ final class CoreHtmlRenderer implements FormRenderer
         return $this->twig->render('forms/core-html/form.html.twig', [
             'id' => (string) $request->form->id(),
             'locale' => $request->locale,
+            // Where this form is written to, handed to the page as data. The kit
+            // is a client of the API and clients are told addresses, never left
+            // to guess them from a shape somebody hardcoded.
+            'api' => $this->api->of((string) $request->form->id()),
             // Two different reasons a page cannot be changed, and the templates
             // need both: a confirmed form is closed for good, while an earlier
             // version is only being looked at — its restore is the way out.

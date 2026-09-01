@@ -58,6 +58,7 @@
 <body class="bg-body-tertiary">
 <main class="container py-5" style="max-width: 46rem;"
       {%- if not confirmed %} data-controller="form" data-form-id-value="{{ id }}"
+      data-form-api-value="{{ api|json_encode }}"
       data-form-page-value="{{ path('web_form_view', {id: id}) }}"
       data-form-version-value="{{ version ?? 0 }}"
       data-form-refused-value="{{ 'page.refused'|trans }}"
@@ -112,7 +113,7 @@
 
     {# What a panel needs and a node cannot carry: which form this is, whether it
        can still be changed at all, and where it lives. #}
-    {% set chrome = {id: id, confirmed: confirmed, version: version, page: path('web_form_view', {id: id})} %}
+    {% set chrome = {id: id, confirmed: confirmed, version: version, page: path('web_form_view', {id: id}), api: api} %}
 
     <form novalidate>
         {# Where the buttons go is the presentation's business, so nothing is
@@ -334,7 +335,7 @@
    of the template below. #}
 {% macro history(node, chrome) %}
     <details class="border rounded mb-4 bg-body"{{ chrome.version is not null ? ' open' : '' }} data-history data-controller="history"
-             data-history-id-value="{{ chrome.id }}" data-history-page-value="{{ chrome.page }}"
+             data-history-api-value="{{ chrome.api|json_encode }}" data-history-page-value="{{ chrome.page }}"
              data-action="toggle->history#opened form:saved@window->history#load">
         <summary class="px-3 py-2 fw-semibold">{{ node.label }}</summary>
         <div class="px-3 pb-3 small">

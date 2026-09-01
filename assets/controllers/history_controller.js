@@ -13,7 +13,9 @@ import { Controller } from '@hotwired/stimulus';
  * so this controller moves markup rather than writing it.
  */
 export default class extends Controller {
-    static values = { id: String, page: String };
+    // The same four addresses the form controller is given: this panel reads one
+    // of them and composes nothing but the revision number onto it.
+    static values = { api: Object, page: String };
     static targets = ['list', 'empty', 'failed', 'moment'];
 
     connect() {
@@ -34,7 +36,7 @@ export default class extends Controller {
         let revisions = null;
 
         try {
-            const response = await fetch(`/api/forms/${this.idValue}/history`);
+            const response = await fetch(this.apiValue.history);
 
             if (response.ok) revisions = (await response.json()).revisions ?? [];
         } catch {

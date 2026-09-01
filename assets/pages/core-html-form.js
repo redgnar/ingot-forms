@@ -5,6 +5,11 @@
 // control only ever holds text and the contract asks for JSON — a number is a
 // number and a tick is `true`.
 
+// Where this form is written to. The page hands it over — four addresses the
+// server generated — because a module that builds `/api/forms/...` itself is a
+// module that claims this service stands at the root of a host, and would go on
+// drawing perfectly while every save 404s the day it does not.
+const api = JSON.parse(document.body.dataset.api);
 const formId = document.body.dataset.form;
 const problem = (response) => response.json().catch(() => ({}));
 const saved = document.getElementById('form-saved');
@@ -232,10 +237,10 @@ function stand(slot) {
     if (list !== null) ownPart(list, '[data-action="add-entry"]')?.focus();
 }
 
-async function send(path, method, body) {
+async function send(url, method, body) {
     clearMessages();
 
-    const response = await fetch(`/api/forms/${formId}${path}`, {
+    const response = await fetch(url, {
         method,
         headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -259,7 +264,7 @@ for (const trigger of document.querySelectorAll('[data-action="save"]')) {
     trigger.addEventListener('click', async (event) => {
         event.preventDefault();
 
-        if (await send('/data', 'PUT', collect())) {
+        if (await send(api.data, 'PUT', collect())) {
             forgetUnsaved();
             asDrawn = JSON.stringify(collect());
             if (saved) saved.hidden = false;
@@ -444,7 +449,7 @@ async function upload(picker) {
     let reference = null;
 
     try {
-        const response = await fetch(`/api/forms/${formId}/files`, { method: 'POST', body });
+        const response = await fetch(api.files, { method: 'POST', body });
 
         if (response.ok) reference = await response.json();
         else say(control, (await problem(response)).detail || said.fileFailed);
@@ -482,7 +487,7 @@ function hold(control, reference) {
 
     if (reference !== null) {
         link.textContent = reference.name;
-        link.href = `/api/forms/${formId}/files/${reference.id}`;
+        link.href = `${api.files}/${reference.id}`;
     }
 
     line.hidden = reference === null;
@@ -497,7 +502,7 @@ function hold(control, reference) {
 // is what drops it — and the save is what throws it away.
 async function discard(file) {
     try {
-        await fetch(`/api/forms/${formId}/files/${file}`, { method: 'DELETE' });
+        await fetch(`${api.files}/${file}`, { method: 'DELETE' });
     } catch {
         // The file stays temporary, and the collector takes it later.
     }
@@ -659,7 +664,7 @@ async function loadVersions() {
     let revisions = null;
 
     try {
-        const response = await fetch(`/api/forms/${formId}/history`);
+        const response = await fetch(api.history);
         if (response.ok) revisions = (await response.json()).revisions ?? [];
     } catch {
         revisions = null;
@@ -811,9 +816,9 @@ if (document.body.dataset.version === undefined) {
 // is drawn again by the server, because every control on it has just changed.
 async function restoreVersion(seq) {
     forgetUnsaved();
-    const response = await fetch(`/api/forms/${formId}/history/${seq}`);
+    const response = await fetch(`${api.history}/${seq}`);
 
-    if (response.ok && (await send('/data', 'PUT', await response.json()))) window.location.assign(page);
+    if (response.ok && (await send(api.data, 'PUT', await response.json()))) window.location.assign(page);
 }
 
 document.addEventListener('click', (event) => {
@@ -846,8 +851,8 @@ for (const trigger of document.querySelectorAll('[data-action="confirm"]')) {
 
         // Confirming judges what the form holds, so what is on the page has to
         // be in it first.
-        if (await send('/data', 'PUT', collect())) {
-            if (await send('/confirm', 'POST')) window.location.reload();
+        if (await send(api.data, 'PUT', collect())) {
+            if (await send(api.confirm, 'POST')) window.location.reload();
         }
     });
 }

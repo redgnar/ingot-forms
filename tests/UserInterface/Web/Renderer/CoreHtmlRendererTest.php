@@ -13,6 +13,7 @@ use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Tests\Domain\Forms\Fake\StubValues;
+use App\UserInterface\Web\FormApi;
 use App\UserInterface\Web\Renderer\CoreHtmlRenderer;
 use App\UserInterface\Web\Renderer\PresentedNodes;
 use App\UserInterface\Web\Renderer\RenderedForm;
@@ -96,7 +97,12 @@ final class CoreHtmlRendererTest extends KernelTestCase
         // wiring.
         $twig = self::getContainer()->get('twig');
         self::assertInstanceOf(Environment::class, $twig);
-        $this->renderer = new CoreHtmlRenderer($twig, new PresentedNodes());
+        // The addresses come from the container's own router: a renderer that
+        // built them itself is the bug this collaborator exists to prevent, so a
+        // test may not hand it a shape of its own either.
+        $api = self::getContainer()->get(FormApi::class);
+        self::assertInstanceOf(FormApi::class, $api);
+        $this->renderer = new CoreHtmlRenderer($twig, new PresentedNodes($api), $api);
     }
 
     public function testItDrawsTheFormInTheOrderThePresentationGives(): void

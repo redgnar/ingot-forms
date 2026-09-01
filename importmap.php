@@ -67,4 +67,14 @@ return [
         'version' => '5.3.8',
         'type' => 'css',
     ],
+    // Nothing imports this one. It is the import-map polyfill AssetMapper puts on
+    // a page for a browser that has no import maps of its own, and it is here so
+    // that the file comes from this service like every other asset: with no entry
+    // in this map, AssetMapper falls back to a URL on somebody else's CDN, which
+    // an installation with no egress cannot fetch and a strict CSP will not
+    // allow. Same rule as the rest of assets/vendor/ — committed, served under
+    // FORMS_ASSETS_PREFIX, never fetched at runtime.
+    'es-module-shims' => [
+        'version' => '2.8.4',
+    ],
 ];

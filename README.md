@@ -87,6 +87,14 @@ the form, `/api/forms/` and `/forms/` are whoever it let through to one form, `/
 open to anybody. One rule each for whatever guards them, with the form's id always the segment
 straight after the prefix — `app:routes:groups` prints the table.
 
+Those four are written above as they read at the root of a host, which is where this service
+stands unless a deployment says otherwise. It does not have to: nothing here knows its own
+address, so a gateway may put it under a path of its own — asserting `X-Forwarded-Prefix`, or
+declaring `FORMS_BASE_PATH` — and the pages, their assets and the endpoints they write to all move
+with it. Static files sit under one prefix of their own (`FORMS_ASSETS_PREFIX`, `/assets/`), which
+is the one rule a gateway needs beyond the four. See
+[Where this service is installed](docs/architecture.md#where-this-service-is-installed).
+
 Every body is JSON, every error is RFC 9457 `application/problem+json`, and a validation
 problem carries one `{pointer, code, message}` per finding, pointed at the member that is
 wrong. The full table, with what each answers and when, is in

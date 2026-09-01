@@ -18,6 +18,14 @@ framework:
     # Rows written under a forgeable header can never be repaired or even told
     # apart from the good ones, which is why this one is not optional.
     trusted_proxies: '%env(default::FORMS_TRUSTED_PROXIES)%'
+    # The framework's own four, plus the one that says where this service was
+    # reached from: a gateway that answers on `/somewhere/forms/{id}`, strips
+    # `/somewhere` and sends it in `X-Forwarded-Prefix` gets every generated
+    # address — pages, assets, the endpoints the page hands its own JavaScript —
+    # under that prefix, with nothing configured here. Like the identity header it
+    # counts only from a trusted proxy, and for the same reason: it changes what
+    # this service says about itself.
+    trusted_headers: ['x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port', 'x-forwarded-prefix']
     handle_all_throwables: true
     # Request envelopes are mapped and validated by Symfony (#[MapRequestPayload],
     # #[MapQueryString] + Assert attributes on the DTOs in
@@ -41,6 +49,9 @@ framework:
     asset_mapper:
         paths:
             - assets/
+        # Not the default `/assets/` but the same value said once, so a deployment
+        # can move the static files without touching a template: FORMS_ASSETS_PREFIX.
+        public_prefix: '%forms.assets_prefix%'
     # What a page says in its own name — that a draft was stored, that a form is
     # closed, that something went wrong — in the language the request negotiated.
     # The form's own text is never here: it travels as codes in the presentation.

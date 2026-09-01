@@ -296,7 +296,7 @@ Rules that follow from it, and that the tooling checks:
 - **A kit is two halves in two layers**: `PresentationEngine` in the domain says what can be
   drawn (that is what a presentation is judged against), `FormRenderer` in the web layer draws
   it. HTML never reaches the domain, and the vocabulary never leaves it. Two kits ship:
-  `core-html` (plain controls, no machinery at all, one hand-written module in `public/js/`)
+  `core-html` (plain controls, no machinery at all, one hand-written module in `assets/pages/`)
   and `bootstrap` (Bootstrap 5 with `card`/`accordion`/`row`, `autocomplete`, `range`,
   `stepper`, `radio-buttons`; behaviour in Stimulus controllers under
   `assets/controllers/`, delivered by AssetMapper). What is shared is the *resolved tree* — `PresentedNodes::of()`
@@ -343,10 +343,25 @@ Rules that follow from it, and that the tooling checks:
   it and mark each entry it is inside (`entry-invalid` in the plain kit, `table-danger` in the
   richer one), so the row still says "look here" after somebody folds it back up. Clearing the
   messages clears the marks.
+- **A page never knows where this service is mounted.** Every address it carries is generated:
+  the page and the four endpoints a kit writes to come from the router (`FormApi` is the one
+  place naming those routes, handed over as `data-form-api-value` / `data-api`), and the module
+  and stylesheets from AssetMapper under `FORMS_ASSETS_PREFIX`. A literal like
+  `/api/forms/${id}/data` in a kit is a claim that this service stands at the root of a host —
+  and the day it does not, the page still draws and every save answers 404. Two mechanisms make
+  an installation movable and both are somebody else's deployment rather than our code:
+  `X-Forwarded-Prefix` from a trusted proxy (runtime, nothing configured) and `FORMS_BASE_PATH`
+  (build-time, because routes are declared when the container is compiled — so changing it means
+  clearing the cache). The four audience prefixes stay fixed: one base is enough to keep several
+  of these services apart behind one host, and four knobs would turn a gateway rule into a guess.
+  `RouteGroup::of()` takes the base and asks its questions about what follows it.
 - **Front-end assets are AssetMapper's, and only where a kit asked for them.** `importmap.php`
   names what the browser may import, `assets/vendor/` is committed (so a clone, CI and the
   browser suite need no network), `make assets` refreshes it and a deploy runs
-  `asset-map:compile`. Icons are UX Icons imported into `assets/icons/` with
+  `asset-map:compile`. The import-map polyfill is in that map for the same reason and nothing
+  imports it: without an entry AssetMapper serves it from a CDN, which an installation with no
+  egress cannot reach — and `importmap:require` rewrites `importmap.php` and drops its comments,
+  so check the diff. Icons are UX Icons imported into `assets/icons/` with
   `make console CMD="ux:icons:import tabler:…"` — in the repository, never fetched at runtime. No build step, no package manager, no CDN — and no new write path: a
   Stimulus controller is still nothing but a client of `/api`.
 - **A controller is one action.** `#[Route]` + `#[OA\…]` + `__invoke()` in a class named after

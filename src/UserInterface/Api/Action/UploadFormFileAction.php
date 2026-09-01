@@ -36,7 +36,7 @@ final class UploadFormFileAction
         private readonly UploadFormFile $uploadFormFile,
     ) {}
 
-    #[Route('/api/forms/{id}/files', methods: ['POST'], requirements: ['id' => Requirement::UUID])]
+    #[Route('/api/forms/{id}/files', name: 'api_form_files', methods: ['POST'], requirements: ['id' => Requirement::UUID])]
     #[OA\Post(
         operationId: 'uploadFormFile',
         summary: 'Upload a file for this form',

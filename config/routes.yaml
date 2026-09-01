@@ -1,12 +1,19 @@
 # One resource per adapter, and they answer failures differently: everything
 # under /api speaks JSON and reports problems as RFC 9457 documents, while a page
 # for a person answers with a page. `_errors` is how each side says which.
+#
+# Both are declared under the same prefix, which is empty unless a deployment set
+# FORMS_BASE_PATH ({@see App\Kernel}): a gateway that hands the whole path through
+# needs this service to own the segment it answers on, and pages and API have to
+# move together — the page's own JavaScript is a client of the API next to it.
 api:
     resource: ../src/UserInterface/Api/Action/
     type: attribute
+    prefix: '%forms.base_path%'
 
 web:
     resource: ../src/UserInterface/Web/Action/
     type: attribute
+    prefix: '%forms.base_path%'
     defaults:
         _errors: html

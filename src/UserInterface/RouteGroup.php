@@ -23,6 +23,13 @@ namespace App\UserInterface;
  * prints them, so a deployment reads the routes instead of remembering them —
  * a gateway holding a stale copy of the route table is the failure this whole
  * arrangement exists to prevent.
+ *
+ * The prefixes are written here as they read at the root of a host, which is
+ * where this service stands unless a deployment says otherwise. Where it stands
+ * somewhere else — `FORMS_BASE_PATH`, {@see \App\Kernel} — every address gains
+ * that base and the groups are asked about what follows it: the base belongs to
+ * the installation and the four prefixes belong to the service, and mixing the
+ * two would mean four values to configure where one will do.
  */
 enum RouteGroup: string
 {
@@ -42,9 +49,19 @@ enum RouteGroup: string
      * Which group an address belongs to, or null when it belongs to none — which
      * is a mistake rather than a fifth group, because an address in no group is
      * an address no rule in front covers.
+     *
+     * `$base` is where this installation put the service, and it is taken off
+     * before anything is asked: an address that does not begin with it is in no
+     * group at all, because it is not an address of this service.
      */
-    public static function of(string $path): ?self
+    public static function of(string $path, string $base = ''): ?self
     {
+        $path = self::under($base, $path);
+
+        if ($path === null) {
+            return null;
+        }
+
         foreach (self::cases() as $group) {
             if (str_starts_with($path, $group->value)) {
                 return $group;
@@ -52,6 +69,23 @@ enum RouteGroup: string
         }
 
         return null;
+    }
+
+    /**
+     * The address as the groups read it: without the base this installation
+     * serves under, or null when it does not begin with that base.
+     */
+    public static function under(string $base, string $path): ?string
+    {
+        if ($base === '') {
+            return $path;
+        }
+
+        if (!str_starts_with($path, $base . '/')) {
+            return null;
+        }
+
+        return substr($path, \strlen($base));
     }
 
     /**

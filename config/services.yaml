@@ -38,6 +38,18 @@ parameters:
     forms.default_skin: 'default'
     forms.skin: '%env(default:forms.default_skin:FORMS_SKIN)%'
 
+    # Where this deployment serves the pages' own JavaScript and CSS from. It is
+    # a prefix rather than a directory: AssetMapper writes the compiled files
+    # under it and generates every URL from it, so one value moves them together.
+    # Two reasons it is configurable at all, and both are somebody else's
+    # deployment rather than ours: several of these services behind one host need
+    # prefixes that do not collide, and a deployment serving its static files from
+    # a CDN or a bucket sets an absolute URL here (then the store needs CORS —
+    # a module fetched cross-origin without it is refused by the browser with a
+    # perfectly good 200).
+    forms.default_assets_prefix: '/assets/'
+    forms.assets_prefix: '%env(default:forms.default_assets_prefix:FORMS_ASSETS_PREFIX)%'
+
 when@test:
     parameters:
         # The suites need somebody to be. Every fixture creates its forms the way
@@ -85,6 +97,15 @@ services:
             # request DTOs and the attributes/constraints describing them
             - '../src/UserInterface/Api/Request/{CreateFormRequest,DataSchemaQuery,SaveFormDataRequest}.php'
             - '../src/UserInterface/Api/Request/Constraint/{ValidFormDefinition,ViolationPointer}.php'
+
+    # The two values that say where this installation put the service. Neither is
+    # knowledge the code may hold: an address written into a template or a script
+    # is an address that stops being true the moment somebody mounts this
+    # elsewhere.
+    App\UserInterface\Cli\RouteGroupsCommand:
+        arguments:
+            $basePath: '%forms.base_path%'
+            $assetsPrefix: '%forms.assets_prefix%'
 
     App\UserInterface\Web\Renderer\BootstrapRenderer:
         arguments:

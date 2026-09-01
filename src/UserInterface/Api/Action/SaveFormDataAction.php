@@ -25,7 +25,7 @@ final class SaveFormDataAction
         private readonly SaveFormData $saveFormData,
     ) {}
 
-    #[Route('/api/forms/{id}/data', methods: ['PUT'], requirements: ['id' => Requirement::UUID])]
+    #[Route('/api/forms/{id}/data', name: 'api_form_data', methods: ['PUT'], requirements: ['id' => Requirement::UUID])]
     #[OA\Put(
         operationId: 'saveFormData',
         summary: 'Save draft values',
