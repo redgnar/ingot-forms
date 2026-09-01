@@ -16,7 +16,7 @@ versioning and multi-submission forms are deliberately out of scope.
 | [docs/architecture.md](docs/architecture.md) | **work on the service**: layers, the model, storage, the validation gates, the pages, operations, testing |
 | [docs/api.md](docs/api.md) · [docs/openapi.yaml](docs/openapi.yaml) | the generated endpoint reference (`make docs` writes both — never edit them by hand) |
 | [tests/_requests/](tests/_requests) | working requests for every endpoint, one file per topic, with assertions |
-| [.claude/plan/](.claude/plan) | how it got here: the decisions, their reasons, and what each stage changed |
+| [.claude/plan/](.claude/plan) | how it got here: the decisions, their reasons, and what each stage changed — and, in [10](.claude/plan/10-what-a-vendor-offers.md), what a commercial platform offers and which of it we want |
 
 ## Domain model
 
