@@ -82,6 +82,7 @@ final class DoctrineFormRepository implements FormRepository
         $record->identityMode = $form->identityMode()->value;
         $record->authorSubject = self::subject($form->author());
         // Where this form reports itself, for the life of the form.
+        $record->webhookCreatedUrl = $form->webhooks()->created;
         $record->webhookSaveUrl = $form->webhooks()->save;
         $record->webhookConfirmUrl = $form->webhooks()->confirm;
         $record->webhookDeletedUrl = $form->webhooks()->deleted;
@@ -91,8 +92,16 @@ final class DoctrineFormRepository implements FormRepository
         // The one thing an insert cannot say as a column: a form born holding
         // values has a history, and it starts with those — and a form born a
         // draft has already had something happen to it, so whoever it names is
-        // told about that first save like any other.
+        // told about that first save like any other. The creation is announced
+        // here too, and first: a receiver that mirrors these forms should hear
+        // that one exists before it hears what it holds.
         foreach ($form->releaseEvents() as $event) {
+            if ($event instanceof FormCreated) {
+                $this->announce($event, $form->webhooks()->created);
+
+                continue;
+            }
+
             if ($event instanceof DraftSaved) {
                 $revision = $this->revision($event);
                 $this->entityManager->persist($revision);
@@ -283,7 +292,12 @@ final class DoctrineFormRepository implements FormRepository
             // holding an address this code would refuse is a row something else
             // wrote, and a form that would report itself there should refuse to
             // be read instead.
-            Webhooks::stored($record->webhookSaveUrl, $record->webhookConfirmUrl, $record->webhookDeletedUrl),
+            Webhooks::stored(
+                $record->webhookSaveUrl,
+                $record->webhookConfirmUrl,
+                $record->webhookDeletedUrl,
+                $record->webhookCreatedUrl,
+            ),
             $record->confirmNotifiedAt,
         );
     }
@@ -371,6 +385,7 @@ final class DoctrineFormRepository implements FormRepository
         }
 
         $this->announcements->announce(match (true) {
+            $event instanceof FormCreated => Announcement::created($event, $target),
             $event instanceof DraftSaved => Announcement::saved(
                 $event,
                 $revision ?? throw new \LogicException('A save is announced with the revision it became.'),

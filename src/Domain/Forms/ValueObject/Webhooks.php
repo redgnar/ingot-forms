@@ -16,18 +16,24 @@ use App\Domain\Forms\Exception\WebhookNotValid;
  * about who was told. Changing either means delete and recreate, which is the
  * same answer the definition gives.
  *
- * All three are optional and independent. Telling nobody is the default and
+ * All four are optional and independent. Telling nobody is the default and
  * costs nothing — a form that names no endpoint queues nothing at all, so a
  * deployment that does not use this pays for no table growth. Naming only
  * `confirm` is the common case: the system that owns the form usually cares that
  * somebody finished, not that they typed a line and stopped.
  *
  * `deleted` earns its place on the **expiry** path rather than on the delete
- * button. Whoever calls `DELETE /api/manage/forms/{id}` already knows it did —
- * that is the same argument that keeps `form.created` out of this — but
+ * button: whoever calls `DELETE /api/manage/forms/{id}` already knows it did, but
  * `app:forms:purge-expired` removes a form nobody asked about, and that is news
- * the owner cannot learn any other way: the form answers 410 and then stops
+ * the owner cannot learn any other way — the form answers 410 and then stops
  * existing. Both paths report, and the notification says which.
+ *
+ * `created` was refused on that same reasoning and then added, because the
+ * reasoning was about the wrong party. *The creator* learns nothing from being
+ * told what it just did — but the endpoint is named by the creator and need not
+ * be the creator: a downstream that mirrors these forms would otherwise meet a
+ * form for the first time as `form.saved` for an id it has never seen. So the
+ * lifecycle a receiver can follow now has no hole at the start.
  *
  * What is *sent* is a notification and never the values
  * ({@see \App\Application\Forms\Webhook\Announcement} is where that is argued),
@@ -39,6 +45,8 @@ final readonly class Webhooks
     public const int MAX_LENGTH = 2000;
 
     private function __construct(
+        /** Told when the form came into being, or null. */
+        public ?string $created,
         /** Told when a draft save was accepted, or null. */
         public ?string $save,
         /** Told when the form was confirmed, or null. */
@@ -49,15 +57,20 @@ final readonly class Webhooks
 
     public static function none(): self
     {
-        return new self(null, null, null);
+        return new self(null, null, null, null);
     }
 
     /**
      * @throws WebhookNotValid
      */
-    public static function of(?string $save, ?string $confirm, ?string $deleted = null): self
-    {
+    public static function of(
+        ?string $save,
+        ?string $confirm,
+        ?string $deleted = null,
+        ?string $created = null,
+    ): self {
         return new self(
+            self::url($created, 'created'),
             self::url($save, 'save'),
             self::url($confirm, 'confirm'),
             self::url($deleted, 'deleted'),
@@ -74,15 +87,22 @@ final readonly class Webhooks
      *
      * @throws WebhookNotValid
      */
-    public static function stored(?string $save, ?string $confirm, ?string $deleted = null): self
-    {
-        return self::of($save, $confirm, $deleted);
+    public static function stored(
+        ?string $save,
+        ?string $confirm,
+        ?string $deleted = null,
+        ?string $created = null,
+    ): self {
+        return self::of($save, $confirm, $deleted, $created);
     }
 
     /** Whether anybody is told anything at all. */
     public function any(): bool
     {
-        return $this->save !== null || $this->confirm !== null || $this->deleted !== null;
+        return $this->created !== null
+            || $this->save !== null
+            || $this->confirm !== null
+            || $this->deleted !== null;
     }
 
     /**

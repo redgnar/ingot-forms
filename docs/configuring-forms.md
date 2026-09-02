@@ -732,6 +732,7 @@ Two events, both optional and independent, given at creation and immutable after
 
 ```json
 "webhooks": {
+  "created": "https://your-system.example/forms/created",
   "save":    "https://your-system.example/forms/saved",
   "confirm": "https://your-system.example/forms/confirmed",
   "deleted": "https://your-system.example/forms/deleted"
@@ -740,6 +741,12 @@ Two events, both optional and independent, given at creation and immutable after
 
 Name only `confirm` and you hear when a form is finished; name only `save` and you hear about
 every accepted draft; name none — the default — and nothing is ever sent.
+
+`created` is for a receiver that is **not** whoever created the form. You get the id in the
+response to `POST /api/manage/forms`, so being told about your own call teaches you nothing — but
+the endpoint is yours to name, and a system that mirrors these forms would otherwise meet one for
+the first time as a `form.saved` for an id it has never seen. A form born a draft (`data` in the
+creation request) reports both, and a delivery run takes the creation first.
 
 `deleted` is worth a word, because half of it you already know. When *you* call
 `DELETE /api/manage/forms/{id}` the notification tells you nothing new (`"reason": "requested"`),
@@ -760,7 +767,7 @@ on has stopped existing.
 }
 ```
 
-`event` is `form.saved`, `form.confirmed` or `form.deleted`. `revision` is which save it was, and
+`event` is `form.created`, `form.saved`, `form.confirmed` or `form.deleted`. `revision` is which save it was, and
 is absent on a confirmation — confirming stores no values, so it is no revision. `actor` is who
 did it and is absent on a form that records nobody. `reason` appears on a deletion only, and says
 `requested` or `expired`. **The values are not in it on purpose**: read them with

@@ -7,6 +7,7 @@ namespace App\Tests\Infrastructure\Persistence;
 use App\Application\Forms\Port\Announcements;
 use App\Application\Forms\Port\FormDeliveries;
 use App\Application\Forms\Webhook\Announcement;
+use App\Application\Forms\Webhook\Delivery;
 use App\Application\Forms\Webhook\RecordedDelivery;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\FormDefinitionProcessor;
@@ -61,6 +62,63 @@ final class DoctrineAnnouncementsTest extends KernelTestCase
         $entityManager = self::getContainer()->get(EntityManagerInterface::class);
         self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
         $this->entityManager = $entityManager;
+    }
+
+    public function testAFormComingIntoBeingIsOwedToWhoeverItNamedForThat(): void
+    {
+        // GIVEN a form that reports its own existence to somebody who did not
+        // create it — the case this event was added for
+        $id = FormId::next();
+        $this->repository->add(new Form(
+            $id,
+            self::definition(),
+            ExpireDate::future(new \DateTimeImmutable('+1 day')),
+            identity: IdentityMode::Recorded,
+            author: Actor::of('u-1'),
+            webhooks: Webhooks::of(null, null, null, 'https://receiver.test/created'),
+        ));
+
+        // THEN one announcement, carrying who made it and no revision: a form
+        // that has just come into being holds nothing yet
+        $owed = $this->only($id);
+        self::assertSame(Announcement::CREATED, $owed->event);
+        self::assertSame('https://receiver.test/created', $owed->target);
+        self::assertNull($owed->revision);
+        self::assertSame('u-1', $owed->actorSubject);
+        self::assertNull($owed->reason);
+    }
+
+    public function testAFormBornADraftOwesBothItsExistenceAndItsFirstSave(): void
+    {
+        // GIVEN values a client knew before anybody opened the form, and a
+        // receiver listening for everything
+        $id = FormId::next();
+        $form = new Form(
+            $id,
+            self::definition(),
+            ExpireDate::future(new \DateTimeImmutable('+1 day')),
+            webhooks: Webhooks::of('https://receiver.test/saved', null, null, 'https://receiver.test/created'),
+        );
+        $form->saveDraft(json_decode('{"email":"ada@example.com"}'), new StubValues());
+
+        // WHEN the form is inserted whole
+        $this->repository->add($form);
+
+        // THEN both are owed, and a run takes the existence first: a receiver
+        // that mirrors these forms should hear that one exists before it hears
+        // what it holds. Asserted through the queue rather than through a query
+        // of this test's own, because the order that matters is the order a
+        // delivery run reads them in.
+        self::assertCount(2, $this->rows($id));
+        $due = array_values(array_filter(
+            $this->announcements->due(new \DateTimeImmutable(), 100),
+            static fn(Delivery $one): bool => (string) $one->what->formId === (string) $id,
+        ));
+        self::assertSame(
+            [Announcement::CREATED, Announcement::SAVED],
+            array_map(static fn(Delivery $one): string => $one->what->event, $due),
+        );
+        self::assertSame([null, 1], array_map(static fn(Delivery $one): ?int => $one->what->revision, $due));
     }
 
     public function testAnAcceptedSaveOwesTheEndpointTheFormNamedForIt(): void

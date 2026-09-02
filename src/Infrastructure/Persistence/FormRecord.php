@@ -74,6 +74,9 @@ class FormRecord
      * and costs nothing, because a form that names no endpoint queues no
      * announcement at all.
      */
+    #[ORM\Column(name: 'webhook_created_url', type: Types::TEXT, nullable: true)]
+    public ?string $webhookCreatedUrl = null;
+
     #[ORM\Column(name: 'webhook_save_url', type: Types::TEXT, nullable: true)]
     public ?string $webhookSaveUrl = null;
 

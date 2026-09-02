@@ -128,8 +128,12 @@ Both halves are built. What is still missing is the gateway itself, which is a d
 code here.
 
 **How a form reports itself.** A form may name where it is told about, per event
-(`webhooks: {save?, confirm?, deleted?}`), given at creation and immutable like everything else;
-naming none is the default and queues nothing. `deleted` carries a `reason` — `requested` or
+(`webhooks: {created?, save?, confirm?, deleted?}`), given at creation and immutable like
+everything else; naming none is the default and queues nothing. `created` was refused at first —
+whoever creates a form is handed its id — and added once the argument was seen to be about the
+wrong party: the endpoint is named by the creator and need not *be* the creator, and without it a
+downstream that mirrors these forms meets one for the first time as a `form.saved` for an id it
+has never seen. A form born a draft owes both, creation first. `deleted` carries a `reason` — `requested` or
 `expired` — and the second is the reason the event exists at all: nobody asks
 `app:forms:purge-expired` for anything, so an owner has no other way to learn a form it was
 waiting on has gone (the same argument keeps `form.created` out: whoever created it was handed the

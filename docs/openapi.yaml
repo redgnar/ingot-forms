@@ -724,6 +724,7 @@ components:
         event:
           type: string
           enum:
+            - form.created
             - form.saved
             - form.confirmed
             - form.deleted
@@ -884,10 +885,18 @@ components:
     FormWebhooks:
       description: "Where this form reports what happens to it, as it was given at creation and for the life of the form. The members are independent and any may be null, which means nobody is told about that event. What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — signed with this deployment's secret in `X-Forms-Signature`, and carrying `X-Forms-Delivery` so a receiver can recognise a retry of one it already acted on."
       required:
+        - created
         - save
         - confirm
         - deleted
       properties:
+        created:
+          description: 'Told when the form comes into being. Whoever creates a form is handed its id in the response, so this is for a receiver that is not the creator: without it, a downstream mirroring these forms meets one for the first time as a `form.saved` for an id it has never seen.'
+          type:
+            - string
+            - 'null'
+          format: uri
+          maxLength: 2000
         save:
           description: 'Told when a draft save is accepted, with the revision it became.'
           type:
@@ -1006,7 +1015,7 @@ components:
             - recorded
             - anonymous
         webhooks:
-          description: "Where this form reports what happens to it. All members are optional and independent: `save` is told when a draft save was accepted, `confirm` when the form was confirmed, `deleted` when it stops existing (deleted, or reaped for having expired — the notification says which in `reason`). What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — so a receiver reads the document through this API, signed with this deployment's secret in `X-Forms-Signature`. Immutable with the definition: changing where a form reports means deleting it and creating a new one. Omit it, or omit either member, and nobody is told."
+          description: "Where this form reports what happens to it. All members are optional and independent: `created` is told when the form comes into being (for a receiver that is not whoever created it), `save` when a draft save was accepted, `confirm` when the form was confirmed, `deleted` when it stops existing (deleted, or reaped for having expired — the notification says which in `reason`). What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — so a receiver reads the document through this API, signed with this deployment's secret in `X-Forms-Signature`. Immutable with the definition: changing where a form reports means deleting it and creating a new one. Omit it, or omit either member, and nobody is told."
           type:
             - object
             - 'null'

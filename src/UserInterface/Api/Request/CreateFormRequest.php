@@ -80,7 +80,7 @@ final readonly class CreateFormRequest
         )]
         public string $identity = 'recorded',
         #[OA\Property(
-            description: 'Where this form reports what happens to it. All members are optional and independent: `save` is told when a draft save was accepted, `confirm` when the form was confirmed, `deleted` when it stops existing (deleted, or reaped for having expired — the notification says which in `reason`). What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — so a receiver reads the document through this API, signed with this deployment\'s secret in `X-Forms-Signature`. Immutable with the definition: changing where a form reports means deleting it and creating a new one. Omit it, or omit either member, and nobody is told.',
+            description: 'Where this form reports what happens to it. All members are optional and independent: `created` is told when the form comes into being (for a receiver that is not whoever created it), `save` when a draft save was accepted, `confirm` when the form was confirmed, `deleted` when it stops existing (deleted, or reaped for having expired — the notification says which in `reason`). What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — so a receiver reads the document through this API, signed with this deployment\'s secret in `X-Forms-Signature`. Immutable with the definition: changing where a form reports means deleting it and creating a new one. Omit it, or omit either member, and nobody is told.',
             type: 'object',
             nullable: true,
             example: ['confirm' => 'https://example.test/forms/confirmed'],

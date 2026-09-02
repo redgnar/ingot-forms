@@ -531,14 +531,18 @@ A form can name where it reports itself, per event, at creation:
 
 ```json
 "webhooks": {
+  "created": "https://owner.test/forms/created",
   "save": "https://owner.test/forms/saved",
   "confirm": "https://owner.test/forms/confirmed",
   "deleted": "https://owner.test/forms/deleted"
 }
 ```
 
-All three are optional and independent, all are immutable with the rest of the form, and a form
-that names none — the default — costs nothing at all: **nothing is queued for it**. `deleted`
+All four are optional and independent, all are immutable with the rest of the form, and a form
+that names none — the default — costs nothing at all: **nothing is queued for it**. `created` is
+for a receiver that is not the creator: the creator was handed the id in the response, while a
+downstream mirroring these forms would otherwise meet one for the first time as a `form.saved` for
+an id it has never seen. `deleted`
 carries `reason`: `requested` when somebody called `DELETE`, `expired` when
 `app:forms:purge-expired` reaped it. The second is what the event is for — nobody asks the purge
 for anything, so an owner waiting on a form has no other way to learn it has gone.

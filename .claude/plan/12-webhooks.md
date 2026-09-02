@@ -239,3 +239,26 @@ nobody has asked for.
 What is worth doing if the split ever chafes: the history response can carry the *failure* as a
 derived member read from the queue, the way it now carries the stamp — no new column, no second
 copy, and it cannot drift. Offered, not built.
+
+## `form.created`, refused and then built
+
+Decision 2 in "What is deliberately not in it" said no `form.created`, because the system that
+created the form was handed the id in the response. The owner asked for it anyway, and the
+refusal turns out to have been about the wrong party.
+
+**The creator is not the receiver.** The endpoint is named *by* whoever creates the form, and
+what it names is usually something else: a downstream that mirrors these forms, an audit sink, a
+workflow that has to know the object exists. For any of those, the first thing this service ever
+told them about a form was `form.saved revision 1` — for an id they had never seen. A lifecycle a
+receiver can follow now has no hole at the start.
+
+It is announced from `FormCreated`, in `add()`, and **before** the first draft's announcement when
+a form is born holding one, so a receiver hears that a form exists before it hears what it holds.
+It carries the author and no revision (nothing is stored yet) and no reason (nothing has gone).
+Its `live_form_id` is set like the other two that describe a living form, so a creation nobody
+delivered before the form was deleted leaves with it — which is right: the deletion announcement
+says the rest.
+
+What has *not* changed is why `form.created` was refused in the first place. If your receiver is
+your own caller, name no endpoint: being told what you just did is a round trip that teaches
+nothing, and the queue stays empty for forms nobody asked to hear about.

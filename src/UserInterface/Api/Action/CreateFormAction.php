@@ -176,6 +176,7 @@ final class CreateFormAction
                         $request->webhooks->save,
                         $request->webhooks->confirm,
                         $request->webhooks->deleted,
+                        $request->webhooks->created,
                     ),
             );
         } catch (DefinitionNotValid $exception) {

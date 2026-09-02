@@ -179,7 +179,7 @@ nelmio_api_doc:
                                 same event.
                         event:
                             type: string
-                            enum: [form.saved, form.confirmed, form.deleted]
+                            enum: [form.created, form.saved, form.confirmed, form.deleted]
                         revision:
                             type: [integer, 'null']
                             minimum: 1
@@ -328,9 +328,19 @@ nelmio_api_doc:
                         actor?}` — signed with this deployment's secret in `X-Forms-Signature`, and
                         carrying `X-Forms-Delivery` so a receiver can recognise a retry of one it
                         already acted on.
-                    required: [save, confirm, deleted]
+                    required: [created, save, confirm, deleted]
                     additionalProperties: false
                     properties:
+                        created:
+                            type: [string, 'null']
+                            format: uri
+                            maxLength: 2000
+                            description: >-
+                                Told when the form comes into being. Whoever creates a form is
+                                handed its id in the response, so this is for a receiver that is
+                                not the creator: without it, a downstream mirroring these forms
+                                meets one for the first time as a `form.saved` for an id it has
+                                never seen.
                         save:
                             type: [string, 'null']
                             format: uri

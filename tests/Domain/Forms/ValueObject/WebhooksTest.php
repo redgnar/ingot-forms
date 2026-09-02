@@ -26,6 +26,7 @@ final class WebhooksTest extends TestCase
         // THEN both are absent, and the form knows it owes nobody anything —
         // which is what keeps the queue empty in a deployment that does not use
         // this at all
+        self::assertNull($none->created);
         self::assertNull($none->save);
         self::assertNull($none->confirm);
         self::assertNull($none->deleted);
@@ -52,17 +53,35 @@ final class WebhooksTest extends TestCase
         self::assertTrue($saveOnly->any());
     }
 
-    public function testAllAtOnceIsThreeAddresses(): void
+    public function testAllAtOnceIsFourAddresses(): void
     {
         // GIVEN
-        $all = Webhooks::of('https://a.test/saved', 'https://b.test/confirmed', 'https://c.test/deleted');
+        $all = Webhooks::of(
+            'https://a.test/saved',
+            'https://b.test/confirmed',
+            'https://c.test/deleted',
+            'https://d.test/created',
+        );
 
-        // THEN none is the other: a form may report its three events to three
+        // THEN none is the other: a form may report its four events to four
         // different systems
+        self::assertSame('https://d.test/created', $all->created);
         self::assertSame('https://a.test/saved', $all->save);
         self::assertSame('https://b.test/confirmed', $all->confirm);
         self::assertSame('https://c.test/deleted', $all->deleted);
         self::assertTrue($all->any());
+    }
+
+    public function testReportingOnlyThatItExistsIsEnoughToOweSomebody(): void
+    {
+        // GIVEN a form whose receiver only mirrors what exists — the case this
+        // endpoint was added for, since the creator learns nothing from it
+        $announced = Webhooks::of(null, null, null, 'https://d.test/created');
+
+        // THEN
+        self::assertSame('https://d.test/created', $announced->created);
+        self::assertNull($announced->save);
+        self::assertTrue($announced->any());
     }
 
     public function testReportingOnlyItsOwnDisappearanceIsEnoughToOweSomebody(): void
@@ -98,8 +117,11 @@ final class WebhooksTest extends TestCase
         // AND the same address is refused in the other members, pointed at each
         // of them: a rule that only held for one of the three would be a rule a
         // client could walk around
-        foreach (['confirm' => static fn(string $one): Webhooks => Webhooks::of(null, $one),
-            'deleted' => static fn(string $one): Webhooks => Webhooks::of(null, null, $one)] as $member => $offer) {
+        foreach ([
+            'confirm' => static fn(string $one): Webhooks => Webhooks::of(null, $one),
+            'deleted' => static fn(string $one): Webhooks => Webhooks::of(null, null, $one),
+            'created' => static fn(string $one): Webhooks => Webhooks::of(null, null, null, $one),
+        ] as $member => $offer) {
             try {
                 $offer($said);
                 self::fail(\sprintf('"%s" was accepted as the %s endpoint.', $said, $member));

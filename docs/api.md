@@ -461,7 +461,7 @@ One notification a form still owes, or could not deliver. A *delivered* one is n
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `delivery` | `string` (`uuid`) | yes | The id that went out as `X-Forms-Delivery`, the same across every retry — so this entry and a line in the receiver's own log are the same event. |
-| `event` | `string` (`form.saved` \| `form.confirmed` \| `form.deleted`) | yes |  |
+| `event` | `string` (`form.created` \| `form.saved` \| `form.confirmed` \| `form.deleted`) | yes |  |
 | `revision` | `integer \| null` (≥ 1) | yes | Which save this was about; null for a confirmation, which is no revision. |
 | `occurredAt` | `string` (`date-time`) | yes | When the thing happened, not when it was told. |
 | `target` | `string` (`uri`) | yes | Where it was to be told. Kept per delivery rather than read off the form, so what was actually used is what is served. |
@@ -524,6 +524,7 @@ Where this form reports what happens to it, as it was given at creation and for 
 
 | Property | Type | Required | Description |
 |---|---|---|---|
+| `created` | `string \| null` (`uri`, max length 2000) | yes | Told when the form comes into being. Whoever creates a form is handed its id in the response, so this is for a receiver that is not the creator: without it, a downstream mirroring these forms meets one for the first time as a `form.saved` for an id it has never seen. |
 | `save` | `string \| null` (`uri`, max length 2000) | yes | Told when a draft save is accepted, with the revision it became. |
 | `confirm` | `string \| null` (`uri`, max length 2000) | yes | Told when the form is confirmed. A confirmation is no revision, so it carries none. |
 | `deleted` | `string \| null` (`uri`, max length 2000) | yes | Told when the form stops existing, with `reason` saying which way: `requested` when somebody deleted it, `expired` when the purge reaped it. The second is what this endpoint is really for — nobody asks the purge for anything, so there is no other way to learn it. |
@@ -566,7 +567,7 @@ No other properties are allowed.
 | `presentation` | `object \| null` | no | How the form is shown, per the meta-schema this API serves at `GET /api/schemas/presentation`. Optional — a client that draws forms its own way needs none. May name a "skin" the engine offers, which changes how the page looks and never what the document may say; a deployment default dresses whatever names none. Immutable with the definition: changing either means deleting the form and creating a new one. |
 | `data` | `object \| null` | no | What the form already holds, keyed by item name — for values a client knows before anybody opens the form. Optional. Judged against this form's own definition under the *draft* contract, so an incomplete document is fine and `required` items may be left out; a value that breaks its item's rules is reported at `/data/<item>`. A form created with this is born a draft: it can be filled in further, and confirmed when it is complete. |
 | `identity` | `string` (`recorded` \| `anonymous`) | no | Whether this form records who fills it in. `recorded` (the default) stores the identity a gateway asserted with every accepted save, and refuses a save that can name nobody. `anonymous` stores nobody — and *discards* an asserted identity rather than refusing it, so a deployment whose proxy asserts on every request cannot build a record by accident. Immutable, like the definition. There is deliberately no third value: an "optional" mode would make one column mean both "nobody was there" and "somebody was and did not say". |
-| `webhooks` | `object \| null` | no | Where this form reports what happens to it. All members are optional and independent: `save` is told when a draft save was accepted, `confirm` when the form was confirmed, `deleted` when it stops existing (deleted, or reaped for having expired — the notification says which in `reason`). What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — so a receiver reads the document through this API, signed with this deployment's secret in `X-Forms-Signature`. Immutable with the definition: changing where a form reports means deleting it and creating a new one. Omit it, or omit either member, and nobody is told. |
+| `webhooks` | `object \| null` | no | Where this form reports what happens to it. All members are optional and independent: `created` is told when the form comes into being (for a receiver that is not whoever created it), `save` when a draft save was accepted, `confirm` when the form was confirmed, `deleted` when it stops existing (deleted, or reaped for having expired — the notification says which in `reason`). What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — so a receiver reads the document through this API, signed with this deployment's secret in `X-Forms-Signature`. Immutable with the definition: changing where a form reports means deleting it and creating a new one. Omit it, or omit either member, and nobody is told. |
 
 No other properties are allowed.
 

@@ -55,6 +55,7 @@ final class FormEnvelope
             // for. Nothing secret is in here — a notification is signed with the
             // deployment's secret, which is never part of a form.
             'webhooks' => self::document([
+                'created' => self::encoded($record->webhooks()->created),
                 'save' => self::encoded($record->webhooks()->save),
                 'confirm' => self::encoded($record->webhooks()->confirm),
                 'deleted' => self::encoded($record->webhooks()->deleted),

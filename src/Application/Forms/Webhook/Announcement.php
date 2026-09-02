@@ -6,6 +6,7 @@ namespace App\Application\Forms\Webhook;
 
 use App\Domain\Forms\Event\DraftSaved;
 use App\Domain\Forms\Event\FormConfirmed;
+use App\Domain\Forms\Event\FormCreated;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\FormId;
 
@@ -24,12 +25,11 @@ use App\Domain\Forms\ValueObject\FormId;
  * notifications arriving the wrong way round, which is what makes at-least-once
  * an honest promise instead of a caveat.
  *
- * Three things are told: an accepted save, a confirmation, and a form ceasing to
- * exist. Creating one is not among them — the system that created it was handed
- * the id in the response, so it already knows — and a save that stored what the
- * form already held is not either, because the aggregate records no event for it.
- * That is the second reason the first two are built from events rather than from
- * what a use case just did: only the event knows whether anything happened.
+ * Four things are told: a form coming into being, an accepted save, a
+ * confirmation, and a form ceasing to exist. A save that stored what the form
+ * already held is not among them, because the aggregate records no event for it —
+ * which is the second reason these are built from events rather than from what a
+ * use case just did: only the event knows whether anything happened.
  *
  * A deletion is the exception, and says so where it is made: there is no
  * aggregate left to record anything, so the write that removes the row is what
@@ -37,6 +37,17 @@ use App\Domain\Forms\ValueObject\FormId;
  */
 final readonly class Announcement
 {
+    /**
+     * The form now exists.
+     *
+     * Refused at first, on the grounds that whoever created it was handed the id
+     * in the response — which is true of the *creator* and says nothing about the
+     * *receiver*, who is whoever the creator named. Without this, a downstream
+     * that mirrors these forms meets one for the first time as a `form.saved`
+     * for an id it has never seen.
+     */
+    public const string CREATED = 'form.created';
+
     /** An accepted draft save. Carries the revision it became. */
     public const string SAVED = 'form.saved';
 
@@ -80,6 +91,11 @@ final readonly class Announcement
         /** Why the form is gone, for `DELETED`; null for the other two. */
         public ?string $reason = null,
     ) {}
+
+    public static function created(FormCreated $event, string $target): self
+    {
+        return new self($event->formId, $target, self::CREATED, $event->occurredAt, null, $event->author);
+    }
 
     public static function saved(DraftSaved $event, int $revision, string $target): self
     {
@@ -132,7 +148,7 @@ final readonly class Announcement
                 $revision ?? throw new \LogicException('A stored save announcement names no revision.'),
                 $actor,
             ),
-            self::CONFIRMED => new self($formId, $target, $event, $occurredAt, null, $actor),
+            self::CREATED, self::CONFIRMED => new self($formId, $target, $event, $occurredAt, null, $actor),
             self::DELETED => self::deleted(
                 $formId,
                 $target,

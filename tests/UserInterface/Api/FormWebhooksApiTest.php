@@ -32,6 +32,7 @@ final class FormWebhooksApiTest extends WebTestCase
     {
         // GIVEN a form that reports everything that can happen to it
         $id = $this->create([
+            'created' => 'https://receiver.test/created',
             'save' => 'https://receiver.test/saved',
             'confirm' => 'https://receiver.test/confirmed',
             'deleted' => 'https://receiver.test/deleted',
@@ -45,6 +46,7 @@ final class FormWebhooksApiTest extends WebTestCase
         // audience this envelope has, and nothing secret is in it
         self::assertSame(
             [
+                'created' => 'https://receiver.test/created',
                 'save' => 'https://receiver.test/saved',
                 'confirm' => 'https://receiver.test/confirmed',
                 'deleted' => 'https://receiver.test/deleted',
@@ -62,7 +64,7 @@ final class FormWebhooksApiTest extends WebTestCase
         // THEN the others are null rather than absent: the envelope's shape does
         // not depend on what a client happened to send
         self::assertSame(
-            ['save' => null, 'confirm' => 'https://receiver.test/confirmed', 'deleted' => null],
+            ['created' => null, 'save' => null, 'confirm' => 'https://receiver.test/confirmed', 'deleted' => null],
             $this->body()['webhooks'],
         );
 
@@ -71,7 +73,10 @@ final class FormWebhooksApiTest extends WebTestCase
         $this->client->request('GET', \sprintf('/api/manage/forms/%s', $silent));
 
         // THEN nobody is told anything about it
-        self::assertSame(['save' => null, 'confirm' => null, 'deleted' => null], $this->body()['webhooks']);
+        self::assertSame(
+            ['created' => null, 'save' => null, 'confirm' => null, 'deleted' => null],
+            $this->body()['webhooks'],
+        );
     }
 
     /**
@@ -104,9 +109,10 @@ final class FormWebhooksApiTest extends WebTestCase
 
     public function testAMemberNobodyDeclaredIsAClientBugWorthReporting(): void
     {
-        // GIVEN a request inventing an event
+        // GIVEN a request inventing an event — `expired` is not one, because a
+        // form going away is one event with a `reason`
         // WHEN
-        $this->create(['created' => 'https://receiver.test/created']);
+        $this->create(['expired' => 'https://receiver.test/expired']);
 
         // THEN the closed envelope refuses it, so a client learns about its
         // typo instead of quietly being told about nothing
@@ -159,7 +165,7 @@ final class FormWebhooksApiTest extends WebTestCase
 
     public function testOnceSomebodyHasBeenToldTheFactSitsOnWhatItWasAbout(): void
     {
-        // GIVEN a form that reports both events, saved and confirmed
+        // GIVEN a form that reports its saves and its confirmation
         $id = $this->create([
             'save' => 'https://receiver.test/saved',
             'confirm' => 'https://receiver.test/confirmed',

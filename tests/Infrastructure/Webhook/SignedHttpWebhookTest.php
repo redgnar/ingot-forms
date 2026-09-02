@@ -9,6 +9,7 @@ use App\Application\Forms\Webhook\Announcement;
 use App\Application\Forms\Webhook\Delivery;
 use App\Domain\Forms\Event\DraftSaved;
 use App\Domain\Forms\Event\FormConfirmed;
+use App\Domain\Forms\Event\FormCreated;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Values;
@@ -131,6 +132,41 @@ final class SignedHttpWebhookTest extends TestCase
             json_decode($body, true, flags: \JSON_THROW_ON_ERROR),
         );
         self::assertSame('form.confirmed', $headers['x-forms-event']);
+    }
+
+    public function testAFormComingIntoBeingCarriesWhoMadeItAndNothingElse(): void
+    {
+        // GIVEN a form that has just been created
+        $body = null;
+        $headers = [];
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$body, &$headers): MockResponse {
+            $body = self::body($options);
+            $headers = self::headers($options);
+
+            return new MockResponse('', ['http_code' => 200]);
+        });
+        $form = FormId::next();
+        $delivery = new Delivery(Uuid::v7(), Announcement::created(
+            new FormCreated($form, new \DateTimeImmutable('2026-03-01T08:00:00+00:00'), Actor::of('u-1')),
+            'https://receiver.test/created',
+        ), 0);
+
+        // WHEN
+        new SignedHttpWebhook($client, self::SECRET)->tell($delivery);
+
+        // THEN no revision and no reason: a form that has just come into being
+        // holds nothing and has gone nowhere
+        self::assertIsString($body);
+        self::assertSame(
+            [
+                'event' => 'form.created',
+                'form' => (string) $form,
+                'occurredAt' => '2026-03-01T08:00:00+00:00',
+                'actor' => 'u-1',
+            ],
+            json_decode($body, true, flags: \JSON_THROW_ON_ERROR),
+        );
+        self::assertSame('form.created', $headers['x-forms-event']);
     }
 
     public function testADeletionSaysWhichWayTheFormWentAndCarriesNoRevision(): void
