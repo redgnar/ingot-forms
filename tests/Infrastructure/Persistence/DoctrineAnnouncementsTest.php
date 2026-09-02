@@ -365,6 +365,69 @@ final class DoctrineAnnouncementsTest extends KernelTestCase
         self::assertSame($stamped?->getTimestamp(), $this->revision($id, 1)->notifiedAt?->getTimestamp());
     }
 
+    public function testDeletingAFormLeavesTheOneAnnouncementThatOutlivesIt(): void
+    {
+        // GIVEN a form that reports its own disappearance, having been filled in
+        $id = FormId::next();
+        $this->plant($id, Webhooks::of('https://receiver.test/saved', null, 'https://receiver.test/deleted'));
+        $this->saveOnce($id, '{"email":"ada@example.com"}');
+        self::assertCount(1, $this->rows($id));
+
+        // WHEN somebody deletes it
+        $this->repository->remove($id);
+
+        // THEN the save's announcement went with the form, and the deletion's
+        // stayed: it is the one notification whose subject no longer exists, so
+        // it hangs off no foreign key
+        $left = $this->rows($id);
+        self::assertCount(1, $left);
+        self::assertSame(Announcement::DELETED, $left[0]->event);
+        self::assertSame(Announcement::REQUESTED, $left[0]->reason);
+        self::assertSame('https://receiver.test/deleted', $left[0]->target);
+        self::assertSame((string) $id, (string) $left[0]->formId);
+        self::assertNull($left[0]->liveFormId);
+        self::assertNull($left[0]->revision);
+    }
+
+    public function testAFormReapedForHavingExpiredSaysThatIsWhyItWent(): void
+    {
+        // GIVEN a form nobody came back to, past its date
+        $id = FormId::next();
+        $this->repository->add(new Form(
+            $id,
+            self::definition(),
+            ExpireDate::at(new \DateTimeImmutable('-1 hour')),
+            webhooks: Webhooks::of(null, null, 'https://receiver.test/deleted'),
+        ));
+
+        // WHEN the purge takes it
+        $this->repository->removeExpired($id);
+
+        // THEN somebody is told, and told *why* — this is the path the event is
+        // for: nobody asked for this deletion, so an owner waiting on the form
+        // has no other way to learn that it has stopped existing
+        $left = $this->rows($id);
+        self::assertCount(1, $left);
+        self::assertSame(Announcement::DELETED, $left[0]->event);
+        self::assertSame(Announcement::EXPIRED, $left[0]->reason);
+        self::assertNull($left[0]->liveFormId);
+    }
+
+    public function testAFormThatNamesNoDeletionEndpointGoesQuietly(): void
+    {
+        // GIVEN a form that reports its saves and nothing else
+        $id = FormId::next();
+        $this->plant($id, Webhooks::of('https://receiver.test/saved', null));
+        $this->saveOnce($id, '{"email":"ada@example.com"}');
+
+        // WHEN it is deleted
+        $this->repository->remove($id);
+
+        // THEN nothing is left at all: the save's announcement left with the
+        // form, and no deletion was queued for an endpoint nobody named
+        self::assertSame([], $this->rows($id));
+    }
+
     public function testWhatIsOwedLeavesWithItsForm(): void
     {
         // GIVEN a form that owes somebody news about itself

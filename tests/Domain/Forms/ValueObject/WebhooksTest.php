@@ -28,6 +28,7 @@ final class WebhooksTest extends TestCase
         // this at all
         self::assertNull($none->save);
         self::assertNull($none->confirm);
+        self::assertNull($none->deleted);
         self::assertFalse($none->any());
     }
 
@@ -51,16 +52,30 @@ final class WebhooksTest extends TestCase
         self::assertTrue($saveOnly->any());
     }
 
-    public function testBothAtOnceIsTwoAddresses(): void
+    public function testAllAtOnceIsThreeAddresses(): void
     {
         // GIVEN
-        $both = Webhooks::of('https://a.test/saved', 'https://b.test/confirmed');
+        $all = Webhooks::of('https://a.test/saved', 'https://b.test/confirmed', 'https://c.test/deleted');
 
-        // THEN neither is the other: a form may report the two events to two
+        // THEN none is the other: a form may report its three events to three
         // different systems
-        self::assertSame('https://a.test/saved', $both->save);
-        self::assertSame('https://b.test/confirmed', $both->confirm);
-        self::assertTrue($both->any());
+        self::assertSame('https://a.test/saved', $all->save);
+        self::assertSame('https://b.test/confirmed', $all->confirm);
+        self::assertSame('https://c.test/deleted', $all->deleted);
+        self::assertTrue($all->any());
+    }
+
+    public function testReportingOnlyItsOwnDisappearanceIsEnoughToOweSomebody(): void
+    {
+        // GIVEN a form that says nothing about saves or confirmations — the case
+        // this endpoint exists for is the purge, which nobody asks for
+        $gone = Webhooks::of(null, null, 'https://c.test/deleted');
+
+        // THEN
+        self::assertNull($gone->save);
+        self::assertNull($gone->confirm);
+        self::assertSame('https://c.test/deleted', $gone->deleted);
+        self::assertTrue($gone->any());
     }
 
     /**
@@ -80,15 +95,18 @@ final class WebhooksTest extends TestCase
             self::assertSame($code, $refused->refusal);
         }
 
-        // AND the same address is refused in the other member, pointed at that
-        // one: a rule that only held for one of the two would be a rule a client
-        // could walk around
-        try {
-            Webhooks::of(null, $said);
-            self::fail(\sprintf('"%s" was accepted as the confirm endpoint.', $said));
-        } catch (WebhookNotValid $refused) {
-            self::assertSame('confirm', $refused->member);
-            self::assertSame($code, $refused->refusal);
+        // AND the same address is refused in the other members, pointed at each
+        // of them: a rule that only held for one of the three would be a rule a
+        // client could walk around
+        foreach (['confirm' => static fn(string $one): Webhooks => Webhooks::of(null, $one),
+            'deleted' => static fn(string $one): Webhooks => Webhooks::of(null, null, $one)] as $member => $offer) {
+            try {
+                $offer($said);
+                self::fail(\sprintf('"%s" was accepted as the %s endpoint.', $said, $member));
+            } catch (WebhookNotValid $refused) {
+                self::assertSame($member, $refused->member);
+                self::assertSame($code, $refused->refusal);
+            }
         }
     }
 

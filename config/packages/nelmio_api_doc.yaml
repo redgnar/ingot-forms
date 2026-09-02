@@ -167,7 +167,7 @@ nelmio_api_doc:
                         the thing it is about — `notifiedAt` on that save in
                         `GET /api/manage/forms/{id}/history`, or `confirmNotifiedAt` on the form
                         — and this row goes, because it has stopped being work.
-                    required: [delivery, event, revision, occurredAt, target, actor, state, attempts, nextAttemptAt, lastRefusal]
+                    required: [delivery, event, revision, occurredAt, target, actor, reason, state, attempts, nextAttemptAt, lastRefusal]
                     additionalProperties: false
                     properties:
                         delivery:
@@ -179,7 +179,7 @@ nelmio_api_doc:
                                 same event.
                         event:
                             type: string
-                            enum: [form.saved, form.confirmed]
+                            enum: [form.saved, form.confirmed, form.deleted]
                         revision:
                             type: [integer, 'null']
                             minimum: 1
@@ -198,6 +198,12 @@ nelmio_api_doc:
                             type: [string, 'null']
                             maxLength: 255
                             description: Who did the thing being reported. Null on a form that records nobody.
+                        reason:
+                            type: [string, 'null']
+                            enum: [requested, expired, null]
+                            description: >-
+                                Why the form is gone, for a `form.deleted`: `requested` or
+                                `expired`. Null for the other events, which have no such question.
                         state:
                             type: string
                             enum: [owed, abandoned]
@@ -316,13 +322,13 @@ nelmio_api_doc:
                     type: object
                     description: >-
                         Where this form reports what happens to it, as it was given at creation and
-                        for the life of the form. Both members are independent and either may be
+                        for the life of the form. The members are independent and any may be
                         null, which means nobody is told about that event. What arrives there is a
                         notification and never the values — `{event, form, occurredAt, revision?,
                         actor?}` — signed with this deployment's secret in `X-Forms-Signature`, and
                         carrying `X-Forms-Delivery` so a receiver can recognise a retry of one it
                         already acted on.
-                    required: [save, confirm]
+                    required: [save, confirm, deleted]
                     additionalProperties: false
                     properties:
                         save:
@@ -335,6 +341,15 @@ nelmio_api_doc:
                             format: uri
                             maxLength: 2000
                             description: Told when the form is confirmed. A confirmation is no revision, so it carries none.
+                        deleted:
+                            type: [string, 'null']
+                            format: uri
+                            maxLength: 2000
+                            description: >-
+                                Told when the form stops existing, with `reason` saying which way:
+                                `requested` when somebody deleted it, `expired` when the purge
+                                reaped it. The second is what this endpoint is really for — nobody
+                                asks the purge for anything, so there is no other way to learn it.
                 ProblemError:
                     type: object
                     description: One validation error, mapped 1:1 from the engine's report or a constraint violation.

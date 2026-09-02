@@ -31,9 +31,30 @@ class WebhookAnnouncementRecord
     #[ORM\Column(type: 'uuid')]
     public Uuid $id;
 
-    /** Whose form this is about. Foreign key to `forms.id`, ON DELETE CASCADE. */
+    /**
+     * Which form this is about. Always set, and **not** the foreign key — see the
+     * column below for why the two are separate.
+     */
     #[ORM\Column(name: 'form_id', type: 'uuid')]
     public Uuid $formId;
+
+    /**
+     * The same form, while it still exists: foreign key to `forms.id`,
+     * ON DELETE CASCADE.
+     *
+     * Two columns for one identity, because they answer different questions.
+     * `form_id` is *what this is about*; this one is *delete me with it*, and a
+     * notification about a form that no longer exists is worse than none — so
+     * every announcement carries it and leaves when its form does.
+     *
+     * Every announcement but one. A `form.deleted` is precisely the news that the
+     * form is gone, so it leaves this null and outlives the row it is about;
+     * a key cannot say "cascade all of these except that one", and the alternative
+     * — dropping the cascade and sweeping by hand — would trade a guarantee the
+     * database keeps for two statements somebody has to keep in the right order.
+     */
+    #[ORM\Column(name: 'live_form_id', type: 'uuid', nullable: true)]
+    public ?Uuid $liveFormId = null;
 
     /**
      * Where it goes. Copied from the form when the announcement was made, not
@@ -58,6 +79,13 @@ class WebhookAnnouncementRecord
     /** Who did it; null on a form that records nobody. */
     #[ORM\Column(name: 'actor_subject', type: Types::STRING, length: 255, nullable: true)]
     public ?string $actorSubject = null;
+
+    /**
+     * Why the form is gone, for a `form.deleted`: `requested` or `expired`. Null
+     * for every other event, which have no such question to answer.
+     */
+    #[ORM\Column(type: Types::STRING, length: 20, nullable: true)]
+    public ?string $reason = null;
 
     /** How many times a receiver has refused this. */
     #[ORM\Column(type: Types::INTEGER)]

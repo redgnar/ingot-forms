@@ -57,6 +57,7 @@ final class ReadFormDeliveriesAction
                     'occurredAt' => $delivery->occurredAt->format(\DateTimeInterface::ATOM),
                     'target' => $delivery->target,
                     'actor' => $delivery->actor,
+                    'reason' => $delivery->reason,
                     'state' => $delivery->state(),
                     'attempts' => $delivery->attempts,
                     // Meaningless once abandoned, and still served: a client

@@ -38,12 +38,13 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  *   X-Forms-Signature: sha256=<hmac(timestamp.body)> — over the timestamp *and*
  *                                                      the body, so neither can be
  *                                                      swapped for another's
- *   {"event":…,"form":…,"occurredAt":…,"revision":…,"actor":…}
+ *   {"event":…,"form":…,"occurredAt":…,"revision":…,"actor":…,"reason":…}
  *
  * The body is a notification and holds no values; {@see \App\Application\Forms\Webhook\Announcement}
- * is where that decision is written down. `revision` is absent on a confirmation
- * and `actor` on a form that records nobody — absent rather than null, because a
- * key that is never useful is a key a client has to learn to ignore.
+ * is where that decision is written down. `revision` is absent on a confirmation,
+ * `actor` on a form that records nobody, and `reason` on anything but a
+ * deletion — absent rather than null, because a key that is never useful is a key
+ * a client has to learn to ignore.
  */
 final class SignedHttpWebhook implements Webhook
 {
@@ -114,6 +115,13 @@ final class SignedHttpWebhook implements Webhook
 
         if ($announcement->actor !== null) {
             $payload['actor'] = (string) $announcement->actor;
+        }
+
+        // Only a deletion has one, and it is the difference between "you deleted
+        // this" and "this expired and we reaped it" — the second being the whole
+        // reason a receiver wants to hear about a form going away.
+        if ($announcement->reason !== null) {
+            $payload['reason'] = $announcement->reason;
         }
 
         return $payload;

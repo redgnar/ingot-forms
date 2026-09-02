@@ -42,8 +42,11 @@ final class RowsLeaveWithTheirForm
      * somebody is still owed about it.
      */
     private const array KEYS = [
-        'form_revisions' => 'fk_form_revisions_form',
-        'webhook_announcements' => 'fk_webhook_announcements_form',
+        'form_revisions' => ['fk_form_revisions_form', 'form_id'],
+        // Not `form_id`: an announcement about a form that was *deleted* has to
+        // outlive it, so the cascade hangs off a second, nullable column
+        // ({@see WebhookAnnouncementRecord} explains the split).
+        'webhook_announcements' => ['fk_webhook_announcements_live_form', 'live_form_id'],
     ];
 
     public function __invoke(GenerateSchemaEventArgs $event): void
@@ -57,7 +60,7 @@ final class RowsLeaveWithTheirForm
             return;
         }
 
-        foreach (self::KEYS as $table => $key) {
+        foreach (self::KEYS as $table => [$key, $column]) {
             if (!$schema->hasTable($table)) {
                 continue;
             }
@@ -74,7 +77,7 @@ final class RowsLeaveWithTheirForm
             // comparison was seeing.
             $rows->addForeignKeyConstraint(
                 'forms',
-                ['form_id'],
+                [$column],
                 ['id'],
                 ['onDelete' => 'CASCADE'],
                 $key,

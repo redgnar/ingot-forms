@@ -30,10 +30,11 @@ final class FormWebhooksApiTest extends WebTestCase
 
     public function testAFormMayNameAnEndpointPerEventAndTheEnvelopeSaysWhich(): void
     {
-        // GIVEN a form that reports both things that can happen to it
+        // GIVEN a form that reports everything that can happen to it
         $id = $this->create([
             'save' => 'https://receiver.test/saved',
             'confirm' => 'https://receiver.test/confirmed',
+            'deleted' => 'https://receiver.test/deleted',
         ]);
         self::assertResponseStatusCodeSame(201);
 
@@ -43,7 +44,11 @@ final class FormWebhooksApiTest extends WebTestCase
         // THEN it is told what it asked for — the management side is the only
         // audience this envelope has, and nothing secret is in it
         self::assertSame(
-            ['save' => 'https://receiver.test/saved', 'confirm' => 'https://receiver.test/confirmed'],
+            [
+                'save' => 'https://receiver.test/saved',
+                'confirm' => 'https://receiver.test/confirmed',
+                'deleted' => 'https://receiver.test/deleted',
+            ],
             $this->body()['webhooks'],
         );
     }
@@ -54,16 +59,19 @@ final class FormWebhooksApiTest extends WebTestCase
         $confirmOnly = $this->create(['confirm' => 'https://receiver.test/confirmed']);
         $this->client->request('GET', \sprintf('/api/manage/forms/%s', $confirmOnly));
 
-        // THEN the other member is null rather than absent: the envelope's shape
-        // does not depend on what a client happened to send
-        self::assertSame(['save' => null, 'confirm' => 'https://receiver.test/confirmed'], $this->body()['webhooks']);
+        // THEN the others are null rather than absent: the envelope's shape does
+        // not depend on what a client happened to send
+        self::assertSame(
+            ['save' => null, 'confirm' => 'https://receiver.test/confirmed', 'deleted' => null],
+            $this->body()['webhooks'],
+        );
 
         // GIVEN a form that says nothing about any of this — the default
         $silent = $this->create(null);
         $this->client->request('GET', \sprintf('/api/manage/forms/%s', $silent));
 
         // THEN nobody is told anything about it
-        self::assertSame(['save' => null, 'confirm' => null], $this->body()['webhooks']);
+        self::assertSame(['save' => null, 'confirm' => null, 'deleted' => null], $this->body()['webhooks']);
     }
 
     /**
@@ -98,7 +106,7 @@ final class FormWebhooksApiTest extends WebTestCase
     {
         // GIVEN a request inventing an event
         // WHEN
-        $this->create(['delete' => 'https://receiver.test/deleted']);
+        $this->create(['created' => 'https://receiver.test/created']);
 
         // THEN the closed envelope refuses it, so a client learns about its
         // typo instead of quietly being told about nothing

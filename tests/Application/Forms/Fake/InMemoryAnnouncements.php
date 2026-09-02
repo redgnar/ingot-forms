@@ -115,6 +115,7 @@ final class InMemoryAnnouncements implements Announcements, FormDeliveries
             $delivery->what->occurredAt,
             $delivery->what->target,
             $delivery->what->actor === null ? null : (string) $delivery->what->actor,
+            $delivery->what->reason,
             $delivery->attempts,
             $why === null ? null : new \DateTimeImmutable(),
             $delivery->what->occurredAt,

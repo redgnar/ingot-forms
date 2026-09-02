@@ -24,12 +24,16 @@ use App\Domain\Forms\ValueObject\FormId;
  * notifications arriving the wrong way round, which is what makes at-least-once
  * an honest promise instead of a caveat.
  *
- * Two things are told: an accepted save and a confirmation. Creating a form is
- * not one of them — the system that created it was handed the id in the response,
- * so it already knows — and a save that stored what the form already held is not
- * one either, because the aggregate records no event for it. That is the second
- * reason this is built from events rather than from what a use case just did:
- * only the event knows whether anything actually happened.
+ * Three things are told: an accepted save, a confirmation, and a form ceasing to
+ * exist. Creating one is not among them — the system that created it was handed
+ * the id in the response, so it already knows — and a save that stored what the
+ * form already held is not either, because the aggregate records no event for it.
+ * That is the second reason the first two are built from events rather than from
+ * what a use case just did: only the event knows whether anything happened.
+ *
+ * A deletion is the exception, and says so where it is made: there is no
+ * aggregate left to record anything, so the write that removes the row is what
+ * announces it.
  */
 final readonly class Announcement
 {
@@ -38,6 +42,23 @@ final readonly class Announcement
 
     /** The form was confirmed, and is closed for good. */
     public const string CONFIRMED = 'form.confirmed';
+
+    /**
+     * The form has ceased to exist. `reason` says which way: somebody asked
+     * (`requested`), or it expired and was reaped (`expired`).
+     *
+     * The second is why this event exists. A caller that deletes a form already
+     * knows it did — the same argument that keeps `form.created` out of here —
+     * but nobody asks `app:forms:purge-expired` for anything, so an owner has no
+     * other way to learn that a form it was waiting on is gone.
+     */
+    public const string DELETED = 'form.deleted';
+
+    /** Somebody called `DELETE /api/manage/forms/{id}`. */
+    public const string REQUESTED = 'requested';
+
+    /** The expiry date passed and the purge took it. */
+    public const string EXPIRED = 'expired';
 
     private function __construct(
         public FormId $formId,
@@ -56,6 +77,8 @@ final readonly class Announcement
         public ?int $revision,
         /** Who did it, or null on a form that records nobody. */
         public ?Actor $actor,
+        /** Why the form is gone, for `DELETED`; null for the other two. */
+        public ?string $reason = null,
     ) {}
 
     public static function saved(DraftSaved $event, int $revision, string $target): self
@@ -66,6 +89,19 @@ final readonly class Announcement
     public static function confirmed(FormConfirmed $event, string $target): self
     {
         return new self($event->formId, $target, self::CONFIRMED, $event->occurredAt, null, $event->confirmer);
+    }
+
+    /**
+     * The one announcement not made from an event, because there is no aggregate
+     * left to record one: what happened is that a form stopped existing, and the
+     * thing that knows it is the write that removed the row.
+     */
+    public static function deleted(FormId $formId, string $target, string $reason, \DateTimeImmutable $at): self
+    {
+        return new self($formId, $target, self::DELETED, $at, null, null, match ($reason) {
+            self::REQUESTED, self::EXPIRED => $reason,
+            default => throw new \LogicException(\sprintf('A form does not go away for the reason "%s".', $reason)),
+        });
     }
 
     /**
@@ -85,6 +121,7 @@ final readonly class Announcement
         \DateTimeImmutable $occurredAt,
         ?int $revision,
         ?Actor $actor,
+        ?string $reason = null,
     ): self {
         return match ($event) {
             self::SAVED => new self(
@@ -96,6 +133,12 @@ final readonly class Announcement
                 $actor,
             ),
             self::CONFIRMED => new self($formId, $target, $event, $occurredAt, null, $actor),
+            self::DELETED => self::deleted(
+                $formId,
+                $target,
+                $reason ?? throw new \LogicException('A stored deletion announcement says nothing about why.'),
+                $occurredAt,
+            ),
             default => throw new \LogicException(\sprintf('There is no way to tell anybody about "%s".', $event)),
         };
     }

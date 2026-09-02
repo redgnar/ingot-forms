@@ -11,7 +11,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 /**
  * Where a form is to report itself, as it arrives.
  *
- * Two members, both optional, both judged here so a client is told *which* of
+ * Three members, all optional, each judged here so a client is told *which* of
  * them is wrong (`/webhooks/save`) rather than that something about the request
  * was. The value object judges them again on the way into the model, which is
  * the same split `expireDate` and the definition already make: the envelope
@@ -56,5 +56,23 @@ final readonly class WebhooksRequest
             payload: ['code' => 'form.webhook.too_long'],
         )]
         public ?string $confirm = null,
+        #[OA\Property(
+            description: 'Told when the form stops existing — deleted, or reaped for having expired — as an absolute http(s) URL. The notification says which in `reason`.',
+            type: 'string',
+            format: 'uri',
+            nullable: true,
+            example: 'https://example.test/forms/deleted',
+        )]
+        #[Assert\Url(
+            protocols: ['http', 'https'],
+            message: 'A webhook must be an absolute http or https URL.',
+            payload: ['code' => 'form.webhook.not_a_url'],
+        )]
+        #[Assert\Length(
+            max: Webhooks::MAX_LENGTH,
+            maxMessage: 'A webhook URL may be at most {{ limit }} characters long.',
+            payload: ['code' => 'form.webhook.too_long'],
+        )]
+        public ?string $deleted = null,
     ) {}
 }

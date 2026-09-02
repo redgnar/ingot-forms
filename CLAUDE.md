@@ -128,8 +128,16 @@ Both halves are built. What is still missing is the gateway itself, which is a d
 code here.
 
 **How a form reports itself.** A form may name where it is told about, per event
-(`webhooks: {save?, confirm?}`), given at creation and immutable like everything else; naming
-neither is the default and queues nothing. What is sent is a **notification and never the
+(`webhooks: {save?, confirm?, deleted?}`), given at creation and immutable like everything else;
+naming none is the default and queues nothing. `deleted` carries a `reason` — `requested` or
+`expired` — and the second is the reason the event exists at all: nobody asks
+`app:forms:purge-expired` for anything, so an owner has no other way to learn a form it was
+waiting on has gone (the same argument keeps `form.created` out: whoever created it was handed the
+id). It is also **the one announcement made from a row rather than an event** (there is no
+aggregate left to record anything) and **the one that outlives its form**: every other cascades
+off `forms.id`, so the identity and the cascade are two columns — `form_id` is what it is about,
+`live_form_id` carries the key and is null for a deletion, because a key cannot say "all of these
+except that one". What is sent is a **notification and never the
 values** — `{event, form, occurredAt, revision?, actor?}` — because a write never answers with
 the thing it wrote, and because a receiver that reads current state cannot be confused by two
 notifications arriving out of order, which is what makes at-least-once honest. It is an

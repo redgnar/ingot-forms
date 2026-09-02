@@ -42,7 +42,11 @@ final class DoctrineAnnouncements implements Announcements, FormDeliveries
         $record = new WebhookAnnouncementRecord();
         $record->id = Uuid::v7();
         $record->formId = $what->formId->toUuid();
+        // Set for everything except a deletion, which is the one announcement
+        // that has to outlive the row it is about ({@see WebhookAnnouncementRecord}).
+        $record->liveFormId = $what->event === Announcement::DELETED ? null : $record->formId;
         $record->target = $what->target;
+        $record->reason = $what->reason;
         $record->event = $what->event;
         $record->occurredAt = $what->occurredAt;
         $record->revision = $what->revision;
@@ -99,6 +103,13 @@ final class DoctrineAnnouncements implements Announcements, FormDeliveries
     private function stamp(WebhookAnnouncementRecord $record): void
     {
         $told = new \DateTimeImmutable();
+
+        // A deleted form has nothing left to stamp, which is the whole content of
+        // the notification: the row it was about is gone, and the queue row goes
+        // with the telling.
+        if ($record->event === Announcement::DELETED) {
+            return;
+        }
 
         if ($record->event === Announcement::CONFIRMED) {
             $form = $this->entityManager->find(FormRecord::class, $record->formId);
@@ -172,6 +183,7 @@ final class DoctrineAnnouncements implements Announcements, FormDeliveries
             $record->occurredAt,
             $record->target,
             $record->actorSubject,
+            $record->reason,
             $record->attempts,
             $record->gaveUpAt,
             $record->nextAttemptAt,
@@ -201,6 +213,7 @@ final class DoctrineAnnouncements implements Announcements, FormDeliveries
             $record->occurredAt,
             $record->revision,
             $record->actorSubject === null ? null : Actor::stored($record->actorSubject),
+            $record->reason,
         );
     }
 }

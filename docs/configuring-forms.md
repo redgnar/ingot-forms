@@ -733,12 +733,20 @@ Two events, both optional and independent, given at creation and immutable after
 ```json
 "webhooks": {
   "save":    "https://your-system.example/forms/saved",
-  "confirm": "https://your-system.example/forms/confirmed"
+  "confirm": "https://your-system.example/forms/confirmed",
+  "deleted": "https://your-system.example/forms/deleted"
 }
 ```
 
 Name only `confirm` and you hear when a form is finished; name only `save` and you hear about
-every accepted draft; name neither — the default — and nothing is ever sent.
+every accepted draft; name none — the default — and nothing is ever sent.
+
+`deleted` is worth a word, because half of it you already know. When *you* call
+`DELETE /api/manage/forms/{id}` the notification tells you nothing new (`"reason": "requested"`),
+and that is why creating a form is reported to nobody either. The other half is the one you
+cannot see: `expire_date` passes, the form answers `410`, and `app:forms:purge-expired` removes
+it — nobody asked, so `"reason": "expired"` is the only way to learn that a form you were waiting
+on has stopped existing.
 
 **What arrives carries no answers.** A `POST` with this body and nothing else:
 
@@ -752,9 +760,10 @@ every accepted draft; name neither — the default — and nothing is ever sent.
 }
 ```
 
-`event` is `form.saved` or `form.confirmed`. `revision` is which save it was, and is absent on a
-confirmation — confirming stores no values, so it is no revision. `actor` is who did it and is
-absent on a form that records nobody. **The values are not in it on purpose**: read them with
+`event` is `form.saved`, `form.confirmed` or `form.deleted`. `revision` is which save it was, and
+is absent on a confirmation — confirming stores no values, so it is no revision. `actor` is who
+did it and is absent on a form that records nobody. `reason` appears on a deletion only, and says
+`requested` or `expired`. **The values are not in it on purpose**: read them with
 `GET /api/forms/{id}/data`, or read that exact save with `GET /api/forms/{id}/history/{seq}`. One
 document, one place — and it means a notification arriving out of order tells you nothing wrong,
 because you read the current state anyway.
@@ -790,6 +799,11 @@ minute. So a slow receiver should answer first and work afterwards.
 | was this save reported, and when | `notifiedAt` on that save — `GET /api/manage/forms/{id}/history` |
 | was the confirmation reported | `confirmNotifiedAt` — `GET /api/manage/forms/{id}` |
 | what is stuck | `GET /api/manage/forms/{id}/deliveries` |
+
+A deletion is the exception and cannot be otherwise: there is no form left to read, so its
+notification is visible only while it is owed — and only in the deployment's own log, since every
+address above needs a form that still exists. Whoever runs the service sees it; the receiver's
+own log is the other half.
 
 The first two are stamps on the thing they are about, so they answer "were you told?" without a
 second lookup. The third is the work list — what has not been delivered yet and what could not

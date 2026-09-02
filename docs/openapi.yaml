@@ -711,6 +711,7 @@ components:
         - occurredAt
         - target
         - actor
+        - reason
         - state
         - attempts
         - nextAttemptAt
@@ -725,6 +726,7 @@ components:
           enum:
             - form.saved
             - form.confirmed
+            - form.deleted
         revision:
           description: 'Which save this was about; null for a confirmation, which is no revision.'
           type:
@@ -745,6 +747,15 @@ components:
             - string
             - 'null'
           maxLength: 255
+        reason:
+          description: 'Why the form is gone, for a `form.deleted`: `requested` or `expired`. Null for the other events, which have no such question.'
+          type:
+            - string
+            - 'null'
+          enum:
+            - requested
+            - expired
+            - null
         state:
           description: '`owed` is nothing tried yet, or refused and waiting for `nextAttemptAt`; `abandoned` means refused too many times and never tried again. Derived from `gaveUpAt` rather than stored, so nothing can disagree with it.'
           type: string
@@ -871,10 +882,11 @@ components:
       type: object
       additionalProperties: false
     FormWebhooks:
-      description: "Where this form reports what happens to it, as it was given at creation and for the life of the form. Both members are independent and either may be null, which means nobody is told about that event. What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — signed with this deployment's secret in `X-Forms-Signature`, and carrying `X-Forms-Delivery` so a receiver can recognise a retry of one it already acted on."
+      description: "Where this form reports what happens to it, as it was given at creation and for the life of the form. The members are independent and any may be null, which means nobody is told about that event. What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — signed with this deployment's secret in `X-Forms-Signature`, and carrying `X-Forms-Delivery` so a receiver can recognise a retry of one it already acted on."
       required:
         - save
         - confirm
+        - deleted
       properties:
         save:
           description: 'Told when a draft save is accepted, with the revision it became.'
@@ -885,6 +897,13 @@ components:
           maxLength: 2000
         confirm:
           description: 'Told when the form is confirmed. A confirmation is no revision, so it carries none.'
+          type:
+            - string
+            - 'null'
+          format: uri
+          maxLength: 2000
+        deleted:
+          description: 'Told when the form stops existing, with `reason` saying which way: `requested` when somebody deleted it, `expired` when the purge reaped it. The second is what this endpoint is really for — nobody asks the purge for anything, so there is no other way to learn it.'
           type:
             - string
             - 'null'
@@ -987,7 +1006,7 @@ components:
             - recorded
             - anonymous
         webhooks:
-          description: "Where this form reports what happens to it. Both members are optional and independent: `save` is told when a draft save was accepted, `confirm` when the form was confirmed. What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — so a receiver reads the document through this API, signed with this deployment's secret in `X-Forms-Signature`. Immutable with the definition: changing where a form reports means deleting it and creating a new one. Omit it, or omit either member, and nobody is told."
+          description: "Where this form reports what happens to it. All members are optional and independent: `save` is told when a draft save was accepted, `confirm` when the form was confirmed, `deleted` when it stops existing (deleted, or reaped for having expired — the notification says which in `reason`). What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — so a receiver reads the document through this API, signed with this deployment's secret in `X-Forms-Signature`. Immutable with the definition: changing where a form reports means deleting it and creating a new one. Omit it, or omit either member, and nobody is told."
           type:
             - object
             - 'null'

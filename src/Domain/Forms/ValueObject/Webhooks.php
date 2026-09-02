@@ -16,11 +16,18 @@ use App\Domain\Forms\Exception\WebhookNotValid;
  * about who was told. Changing either means delete and recreate, which is the
  * same answer the definition gives.
  *
- * Both are optional and they are independent. Telling nobody is the default and
+ * All three are optional and independent. Telling nobody is the default and
  * costs nothing — a form that names no endpoint queues nothing at all, so a
  * deployment that does not use this pays for no table growth. Naming only
  * `confirm` is the common case: the system that owns the form usually cares that
  * somebody finished, not that they typed a line and stopped.
+ *
+ * `deleted` earns its place on the **expiry** path rather than on the delete
+ * button. Whoever calls `DELETE /api/manage/forms/{id}` already knows it did —
+ * that is the same argument that keeps `form.created` out of this — but
+ * `app:forms:purge-expired` removes a form nobody asked about, and that is news
+ * the owner cannot learn any other way: the form answers 410 and then stops
+ * existing. Both paths report, and the notification says which.
  *
  * What is *sent* is a notification and never the values
  * ({@see \App\Application\Forms\Webhook\Announcement} is where that is argued),
@@ -36,19 +43,25 @@ final readonly class Webhooks
         public ?string $save,
         /** Told when the form was confirmed, or null. */
         public ?string $confirm,
+        /** Told when the form ceased to exist — deleted, or reaped for having expired. */
+        public ?string $deleted,
     ) {}
 
     public static function none(): self
     {
-        return new self(null, null);
+        return new self(null, null, null);
     }
 
     /**
      * @throws WebhookNotValid
      */
-    public static function of(?string $save, ?string $confirm): self
+    public static function of(?string $save, ?string $confirm, ?string $deleted = null): self
     {
-        return new self(self::url($save, 'save'), self::url($confirm, 'confirm'));
+        return new self(
+            self::url($save, 'save'),
+            self::url($confirm, 'confirm'),
+            self::url($deleted, 'deleted'),
+        );
     }
 
     /**
@@ -61,15 +74,15 @@ final readonly class Webhooks
      *
      * @throws WebhookNotValid
      */
-    public static function stored(?string $save, ?string $confirm): self
+    public static function stored(?string $save, ?string $confirm, ?string $deleted = null): self
     {
-        return self::of($save, $confirm);
+        return self::of($save, $confirm, $deleted);
     }
 
     /** Whether anybody is told anything at all. */
     public function any(): bool
     {
-        return $this->save !== null || $this->confirm !== null;
+        return $this->save !== null || $this->confirm !== null || $this->deleted !== null;
     }
 
     /**

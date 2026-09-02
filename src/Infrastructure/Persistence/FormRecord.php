@@ -80,6 +80,10 @@ class FormRecord
     #[ORM\Column(name: 'webhook_confirm_url', type: Types::TEXT, nullable: true)]
     public ?string $webhookConfirmUrl = null;
 
+    /** Where this form reports that it has stopped existing — deleted, or reaped. */
+    #[ORM\Column(name: 'webhook_deleted_url', type: Types::TEXT, nullable: true)]
+    public ?string $webhookDeletedUrl = null;
+
     /**
      * When whoever owns this form was told it had been confirmed. Here rather
      * than on a revision because confirming writes no values and is no revision

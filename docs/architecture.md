@@ -530,11 +530,18 @@ so the skin keeps its shapes and fonts while the page a reader needs belongs to 
 A form can name where it reports itself, per event, at creation:
 
 ```json
-"webhooks": { "save": "https://owner.test/forms/saved", "confirm": "https://owner.test/forms/confirmed" }
+"webhooks": {
+  "save": "https://owner.test/forms/saved",
+  "confirm": "https://owner.test/forms/confirmed",
+  "deleted": "https://owner.test/forms/deleted"
+}
 ```
 
-Both members are optional and independent, both are immutable with the rest of the form, and a
-form that names neither — the default — costs nothing at all: **nothing is queued for it**.
+All three are optional and independent, all are immutable with the rest of the form, and a form
+that names none — the default — costs nothing at all: **nothing is queued for it**. `deleted`
+carries `reason`: `requested` when somebody called `DELETE`, `expired` when
+`app:forms:purge-expired` reaped it. The second is what the event is for — nobody asks the purge
+for anything, so an owner waiting on a form has no other way to learn it has gone.
 
 **What arrives is a notification, not the data.** `{event, form, occurredAt, revision?, actor?}`
 and no values, because a write never answers with the thing it wrote and this is the same rule
@@ -600,7 +607,18 @@ which are nobody's work. So the fact moved to where the thing it is about lives:
 | what is **stuck** | `GET /api/manage/forms/{id}/deliveries` — `owed`, or `abandoned` with the reason |
 
 `told()` writes the stamp and drops the queue row **in one flush**, so a stamped save can never
-sit beside a row still claiming somebody is owed the news about it. `webhook_announcements` is
+sit beside a row still claiming somebody is owed the news about it. A deletion stamps nothing —
+there is no row left to stamp, which is the whole content of the notification.
+
+**The one announcement that outlives its form.** Every other points at `forms.id` with
+ON DELETE CASCADE, because a notification about a form that is gone is worse than none — and a
+`form.deleted` *is* that notification. A foreign key cannot say "cascade all of these except that
+one", so the identity and the cascade are two columns: `form_id` is what the announcement is about
+and is always set, `live_form_id` carries the key and is null for a deletion. The alternative was
+dropping the cascade and sweeping announcements by hand on the way out, which trades a guarantee
+the database keeps for two statements somebody has to order correctly. It is also why a deletion's
+delivery cannot be read through `…/deliveries`: that endpoint reads the form first, and there is
+no form. While owed it is visible in the deployment's log and in the table; once told it is gone. `webhook_announcements` is
 therefore a work list: `gave_up_at` null is owed, set is abandoned, and nothing else is in there.
 `form_revisions.notified_at` is the one column of that table that is ever updated — what a
 revision *held* stays append-only, and this is about the telling rather than the document.

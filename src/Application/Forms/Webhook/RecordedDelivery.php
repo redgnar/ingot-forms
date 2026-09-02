@@ -35,6 +35,8 @@ final readonly class RecordedDelivery
         public string $target,
         /** Who did the thing being reported, or null on a form that records nobody. */
         public ?string $actor,
+        /** Why the form is gone, for a `form.deleted`; null for the other events. */
+        public ?string $reason,
         /** How many times a receiver refused this. */
         public int $attempts,
         /** When this service stopped trying, or null while it has not. */

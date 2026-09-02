@@ -57,6 +57,7 @@ final class FormEnvelope
             'webhooks' => self::document([
                 'save' => self::encoded($record->webhooks()->save),
                 'confirm' => self::encoded($record->webhooks()->confirm),
+                'deleted' => self::encoded($record->webhooks()->deleted),
             ]),
         ]);
     }

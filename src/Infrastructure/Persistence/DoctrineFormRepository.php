@@ -84,6 +84,7 @@ final class DoctrineFormRepository implements FormRepository
         // Where this form reports itself, for the life of the form.
         $record->webhookSaveUrl = $form->webhooks()->save;
         $record->webhookConfirmUrl = $form->webhooks()->confirm;
+        $record->webhookDeletedUrl = $form->webhooks()->deleted;
 
         $this->entityManager->persist($record);
 
@@ -130,6 +131,10 @@ final class DoctrineFormRepository implements FormRepository
     public function remove(FormId $id): void
     {
         $record = $this->liveRow($id, null);
+        // Whoever asked already knows, but a form may report its own
+        // disappearance to somebody else — queued before the row goes and in the
+        // same flush, so the notification and the deletion cannot disagree.
+        $this->announceGone($record, Announcement::REQUESTED);
         // The history leaves with it, and the database is what says so
         // (`fk_form_revisions_form`, ON DELETE CASCADE). One statement rather
         // than two: there is no window in which a form that still exists has
@@ -177,6 +182,10 @@ final class DoctrineFormRepository implements FormRepository
             return;
         }
 
+        // This is the path the event is really for: nobody asked for this
+        // deletion, so an owner waiting on the form has no other way to learn
+        // that it has stopped existing.
+        $this->announceGone($record, Announcement::EXPIRED);
         $this->entityManager->remove($record);
         $this->entityManager->flush();
 
@@ -274,7 +283,7 @@ final class DoctrineFormRepository implements FormRepository
             // holding an address this code would refuse is a row something else
             // wrote, and a form that would report itself there should refuse to
             // be read instead.
-            Webhooks::stored($record->webhookSaveUrl, $record->webhookConfirmUrl),
+            Webhooks::stored($record->webhookSaveUrl, $record->webhookConfirmUrl, $record->webhookDeletedUrl),
             $record->confirmNotifiedAt,
         );
     }
@@ -326,6 +335,28 @@ final class DoctrineFormRepository implements FormRepository
         $this->entityManager->persist($revision);
         $this->announce($event, $target, $revision->seq);
         $this->forgetBeyondTheLimit($event->formId, $revision->seq);
+    }
+
+    /**
+     * Queues the news that a form has stopped existing.
+     *
+     * The one announcement made from a row rather than from an event, and it
+     * cannot be otherwise: there is no aggregate left to record anything, and
+     * what happened is precisely that there is not. So the write that removes the
+     * row is what says so — in the same flush, so the two cannot disagree.
+     */
+    private function announceGone(FormRecord $record, string $reason): void
+    {
+        if ($record->webhookDeletedUrl === null) {
+            return;
+        }
+
+        $this->announcements->announce(Announcement::deleted(
+            FormId::of($record->id),
+            $record->webhookDeletedUrl,
+            $reason,
+            new \DateTimeImmutable(),
+        ));
     }
 
     /**

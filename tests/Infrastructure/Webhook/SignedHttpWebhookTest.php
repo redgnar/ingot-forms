@@ -133,6 +133,53 @@ final class SignedHttpWebhookTest extends TestCase
         self::assertSame('form.confirmed', $headers['x-forms-event']);
     }
 
+    public function testADeletionSaysWhichWayTheFormWentAndCarriesNoRevision(): void
+    {
+        // GIVEN a form reaped for having expired — the case a receiver cannot
+        // learn any other way
+        $body = null;
+        $headers = [];
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$body, &$headers): MockResponse {
+            $body = self::body($options);
+            $headers = self::headers($options);
+
+            return new MockResponse('', ['http_code' => 200]);
+        });
+        $form = FormId::next();
+        $delivery = new Delivery(Uuid::v7(), Announcement::deleted(
+            $form,
+            'https://receiver.test/deleted',
+            Announcement::EXPIRED,
+            new \DateTimeImmutable('2026-03-01T11:00:00+00:00'),
+        ), 0);
+
+        // WHEN
+        new SignedHttpWebhook($client, self::SECRET)->tell($delivery);
+
+        // THEN `reason` is what tells "you deleted this" from "this expired and
+        // we reaped it", and there is no revision or actor to speak of: a form
+        // that has gone stored nothing and nobody did it
+        self::assertIsString($body);
+        self::assertSame(
+            [
+                'event' => 'form.deleted',
+                'form' => (string) $form,
+                'occurredAt' => '2026-03-01T11:00:00+00:00',
+                'reason' => 'expired',
+            ],
+            json_decode($body, true, flags: \JSON_THROW_ON_ERROR),
+        );
+        self::assertSame('form.deleted', $headers['x-forms-event']);
+    }
+
+    public function testAFormDoesNotGoAwayForAReasonNobodyHasAWordFor(): void
+    {
+        // GIVEN / WHEN / THEN a deployment inventing a third way out stops here,
+        // rather than sending a receiver a word it was never told about
+        $this->expectException(\LogicException::class);
+        Announcement::deleted(FormId::next(), 'https://receiver.test/deleted', 'archived', new \DateTimeImmutable());
+    }
+
     /**
      * @param int $status the receiver's answer
      */

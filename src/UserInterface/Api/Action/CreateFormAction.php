@@ -172,7 +172,11 @@ final class CreateFormAction
                 // form exist reporting itself somewhere unusable.
                 $request->webhooks === null
                     ? null
-                    : Webhooks::of($request->webhooks->save, $request->webhooks->confirm),
+                    : Webhooks::of(
+                        $request->webhooks->save,
+                        $request->webhooks->confirm,
+                        $request->webhooks->deleted,
+                    ),
             );
         } catch (DefinitionNotValid $exception) {
             // Only reachable if the constraint and the aggregate ever disagree
