@@ -656,6 +656,16 @@ Rules that follow from it, and that the tooling checks:
   separate server process, so a fixture written inside the test's transaction is invisible to
   it — and going through the API is what makes the test take the same path a person does.
   Assertions wait for state (`eventually`) rather than assuming a click has landed.
+- **And it deletes what it planted** (`DeletesWhatItPlanted`), because the same separation means
+  **nothing it creates rolls back**: dama wraps the *test process's* connection, while the server
+  commits on its own. Left alone, every run added its fixtures for ever — four thousand forms
+  before anybody counted. The cleanup goes through `DELETE /api/manage/forms/{id}` for the reason
+  the fixture did (a delete through the container would be inside the transaction that rolls
+  back), so a fixture leaves the way a form leaves: revisions and announcements by foreign key,
+  bytes after the row. A fixture records its id by returning `$this->planted($body['id'])`, and a
+  case with a `tearDown()` of its own must **alias the trait's and call it** — a class's method
+  beats a trait's silently, which is exactly how the file suite went on leaking after the rest
+  had stopped.
 - **The item catalogue is tested by a battery, one class per type.** A new kind of item gets
   two subclasses and inherits everything else: `tests/Domain/Forms/Definition/Field/…Test`
   (which option combinations a definition may and may not carry, what the item contributes to

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Browser\Collection;
 
+use App\Tests\Browser\DeletesWhatItPlanted;
 use Facebook\WebDriver\Exception\WebDriverException;
 use Facebook\WebDriver\WebDriverBy;
 use Facebook\WebDriver\WebDriverElement;
@@ -24,6 +25,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 abstract class CollectionPageTestCase extends PantherTestCase
 {
+    use DeletesWhatItPlanted;
+
     protected Client $browser;
 
     private HttpClientInterface $api;
@@ -550,7 +553,9 @@ abstract class CollectionPageTestCase extends PantherTestCase
         self::assertIsArray($body);
         self::assertIsString($body['id']);
 
-        return $body['id'];
+        // Recorded so this test takes it away again: nothing a browser test
+        // creates rolls back ({@see DeletesWhatItPlanted}).
+        return $this->planted($body['id']);
     }
 
     final protected function click(string $selector): void
@@ -630,7 +635,9 @@ abstract class CollectionPageTestCase extends PantherTestCase
         self::assertIsArray($body);
         self::assertIsString($body['id']);
 
-        return $body['id'];
+        // Recorded so this test takes it away again: nothing a browser test
+        // creates rolls back ({@see DeletesWhatItPlanted}).
+        return $this->planted($body['id']);
     }
 
     /**

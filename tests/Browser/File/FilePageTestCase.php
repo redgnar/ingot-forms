@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Browser\File;
 
+use App\Tests\Browser\DeletesWhatItPlanted;
 use Facebook\WebDriver\Exception\WebDriverException;
 use Facebook\WebDriver\WebDriverBy;
 use Symfony\Component\HttpClient\HttpClient;
@@ -23,6 +24,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 abstract class FilePageTestCase extends PantherTestCase
 {
+    use DeletesWhatItPlanted;
+
     private const string SAVE = '[data-action="save"], [data-action="click->form#save"]';
 
     protected Client $browser;
@@ -55,6 +58,13 @@ abstract class FilePageTestCase extends PantherTestCase
                 rmdir(\dirname($path));
             }
         }
+
+        // Called by hand, because the `tearDown()` above overrides the trait's
+        // and a class's method beats a trait's silently: this suite went on
+        // leaving its forms behind after the rest had stopped. It takes their
+        // bytes with them, since a form leaves through the API the way any other
+        // client would delete it.
+        $this->deletePlantedForms();
 
         parent::tearDown();
     }
@@ -281,7 +291,9 @@ abstract class FilePageTestCase extends PantherTestCase
         self::assertIsArray($body);
         self::assertIsString($body['id']);
 
-        return $body['id'];
+        // Recorded so this test takes it away again: nothing a browser test
+        // creates rolls back ({@see DeletesWhatItPlanted}).
+        return $this->planted($body['id']);
     }
 
     /**

@@ -762,7 +762,12 @@ the method under test. Three habits are worth copying:
 - **A browser test sets up through the API, never the database** — the browser talks to a
   separate process, so a fixture written inside the test's transaction is invisible to it, and
   going through the API is what makes the test take the same path a person does. Assertions wait
-  for state (`eventually`) rather than assuming a click has landed.
+  for state (`eventually`) rather than assuming a click has landed. **It also deletes what it
+  planted** (`DeletesWhatItPlanted`): the same separation means nothing it creates rolls back —
+  dama wraps the test process's connection while the server commits on its own — so without that
+  every run leaves its fixtures behind for good. The cleanup is `DELETE /api/manage/forms/{id}`,
+  through HTTP for the reason the fixture was, and a case with its own `tearDown()` has to alias
+  the trait's and call it.
 - **The item catalogue is tested by a battery**, one class per type on each side of the boundary:
   what a definition may carry, and a table of values with the pointer and code each must produce.
   That table is also what proves the server never refuses what its published schema accepts.

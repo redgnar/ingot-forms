@@ -22,6 +22,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 final class FormPageTest extends PantherTestCase
 {
+    use DeletesWhatItPlanted;
+
     private Client $browser;
 
     private HttpClientInterface $api;
@@ -357,7 +359,9 @@ final class FormPageTest extends PantherTestCase
         self::assertIsArray($body);
         self::assertIsString($body['id']);
 
-        return $body['id'];
+        // Recorded so this test takes it away again: nothing a browser test
+        // creates rolls back ({@see DeletesWhatItPlanted}).
+        return $this->planted($body['id']);
     }
 
     private function plant(): string
@@ -406,7 +410,9 @@ final class FormPageTest extends PantherTestCase
         self::assertIsArray($body);
         self::assertIsString($body['id']);
 
-        return $body['id'];
+        // Recorded so this test takes it away again: nothing a browser test
+        // creates rolls back ({@see DeletesWhatItPlanted}).
+        return $this->planted($body['id']);
     }
 
     /**
