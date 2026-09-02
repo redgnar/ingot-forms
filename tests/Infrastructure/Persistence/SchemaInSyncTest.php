@@ -34,14 +34,18 @@ final class SchemaInSyncTest extends KernelTestCase
         $entityManager = self::getContainer()->get(EntityManagerInterface::class);
         self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
 
-        // Minus the migrations bundle's own bookkeeping table, which no mapping
-        // describes and none should. `doctrine:schema:validate` leaves it out the
-        // same way — its filter is only switched on while a console command runs,
-        // so a test has to say so itself.
+        // Minus the two tables no mapping describes and none should: the
+        // migrations bundle's bookkeeping, and the queue Messenger's transport
+        // owns. Both arrive with the migrations and neither is an entity, so a
+        // comparison that saw them would propose dropping them.
+        // `doctrine:schema:validate` leaves the first out the same way — its
+        // filter is only switched on while a console command runs, so a test has
+        // to say so itself.
+        $ours = ['doctrine_migration_versions', 'messenger_messages'];
         $configuration = $entityManager->getConnection()->getConfiguration();
         $previous = $configuration->getSchemaAssetsFilter();
         $configuration->setSchemaAssetsFilter(
-            static fn(AbstractAsset|string $asset): bool => (\is_string($asset) ? $asset : $asset->getName()) !== 'doctrine_migration_versions',
+            static fn(AbstractAsset|string $asset): bool => !\in_array(\is_string($asset) ? $asset : $asset->getName(), $ours, true),
         );
 
         $validator = new SchemaValidator($entityManager);

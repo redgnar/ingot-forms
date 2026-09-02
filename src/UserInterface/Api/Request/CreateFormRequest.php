@@ -79,5 +79,13 @@ final readonly class CreateFormRequest
             payload: ['code' => 'form.identity.unknown'],
         )]
         public string $identity = 'recorded',
+        #[OA\Property(
+            description: 'Where this form reports what happens to it. Both members are optional and independent: `save` is told when a draft save was accepted, `confirm` when the form was confirmed. What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — so a receiver reads the document through this API, signed with this deployment\'s secret in `X-Forms-Signature`. Immutable with the definition: changing where a form reports means deleting it and creating a new one. Omit it, or omit either member, and nobody is told.',
+            type: 'object',
+            nullable: true,
+            example: ['confirm' => 'https://example.test/forms/confirmed'],
+        )]
+        #[Assert\Valid]
+        public ?WebhooksRequest $webhooks = null,
     ) {}
 }

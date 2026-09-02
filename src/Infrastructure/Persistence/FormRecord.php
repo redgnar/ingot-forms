@@ -67,4 +67,16 @@ class FormRecord
 
     #[ORM\Column(name: 'confirmed_by_subject', type: Types::STRING, length: 255, nullable: true)]
     public ?string $confirmedBySubject = null;
+
+    /**
+     * Where this form reports an accepted save, and where it reports being
+     * confirmed. Null means nobody is told about that one — which is the default
+     * and costs nothing, because a form that names no endpoint queues no
+     * announcement at all.
+     */
+    #[ORM\Column(name: 'webhook_save_url', type: Types::TEXT, nullable: true)]
+    public ?string $webhookSaveUrl = null;
+
+    #[ORM\Column(name: 'webhook_confirm_url', type: Types::TEXT, nullable: true)]
+    public ?string $webhookConfirmUrl = null;
 }

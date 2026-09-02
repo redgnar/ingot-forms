@@ -23,6 +23,7 @@ use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Presentation;
+use App\Infrastructure\Persistence\DoctrineAnnouncements;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
 use App\Infrastructure\Persistence\DoctrineTransactions;
 use App\Infrastructure\Persistence\FormRecord;
@@ -591,6 +592,7 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
             $entityManager,
             new FormDefinitionProcessor($mapper),
             new PresentationProcessor($mapper),
+            new DoctrineAnnouncements($entityManager),
             $saves,
         );
     }

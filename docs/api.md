@@ -461,6 +461,18 @@ The canonical JSON shape of a form read back from the API.
 | `identity` | `string` (`recorded` \| `anonymous`) | yes | Whether this form records who fills it in. Given at creation and immutable. `anonymous` discards an asserted identity rather than refusing it, so a gateway asserting on every request cannot build a record by accident. |
 | `author` | `string \| null` (max length 255) | yes | Who created this form — an opaque subject as whatever authenticated the caller said it, never resolved into a person here. Null when nobody was asserted. Outside `identity` on purpose: an anonymous form still has an author, because somebody created it. |
 | `confirmedBy` | `string \| null` (max length 255) | yes | Who locked this form. Its own member because confirming writes no values and is therefore no revision — without it, the most consequential act on a form would be the one nobody attributed. Null while the form is open, and on an anonymous form. |
+| `webhooks` | [`FormWebhooks`](#formwebhooks) | yes |  |
+
+No other properties are allowed.
+
+### FormWebhooks
+
+Where this form reports what happens to it, as it was given at creation and for the life of the form. Both members are independent and either may be null, which means nobody is told about that event. What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — signed with this deployment's secret in `X-Forms-Signature`, and carrying `X-Forms-Delivery` so a receiver can recognise a retry of one it already acted on.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `save` | `string \| null` (`uri`, max length 2000) | yes | Told when a draft save is accepted, with the revision it became. |
+| `confirm` | `string \| null` (`uri`, max length 2000) | yes | Told when the form is confirmed. A confirmation is no revision, so it carries none. |
 
 No other properties are allowed.
 
@@ -500,6 +512,7 @@ No other properties are allowed.
 | `presentation` | `object \| null` | no | How the form is shown, per the meta-schema this API serves at `GET /api/schemas/presentation`. Optional — a client that draws forms its own way needs none. May name a "skin" the engine offers, which changes how the page looks and never what the document may say; a deployment default dresses whatever names none. Immutable with the definition: changing either means deleting the form and creating a new one. |
 | `data` | `object \| null` | no | What the form already holds, keyed by item name — for values a client knows before anybody opens the form. Optional. Judged against this form's own definition under the *draft* contract, so an incomplete document is fine and `required` items may be left out; a value that breaks its item's rules is reported at `/data/<item>`. A form created with this is born a draft: it can be filled in further, and confirmed when it is complete. |
 | `identity` | `string` (`recorded` \| `anonymous`) | no | Whether this form records who fills it in. `recorded` (the default) stores the identity a gateway asserted with every accepted save, and refuses a save that can name nobody. `anonymous` stores nobody — and *discards* an asserted identity rather than refusing it, so a deployment whose proxy asserts on every request cannot build a record by accident. Immutable, like the definition. There is deliberately no third value: an "optional" mode would make one column mean both "nobody was there" and "somebody was and did not say". |
+| `webhooks` | `object \| null` | no | Where this form reports what happens to it. Both members are optional and independent: `save` is told when a draft save was accepted, `confirm` when the form was confirmed. What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — so a receiver reads the document through this API, signed with this deployment's secret in `X-Forms-Signature`. Immutable with the definition: changing where a form reports means deleting it and creating a new one. Omit it, or omit either member, and nobody is told. |
 
 No other properties are allowed.
 

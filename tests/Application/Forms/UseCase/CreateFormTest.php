@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Application\Forms\UseCase;
 
+use App\Application\Forms\Exception\WebhooksNotSignable;
 use App\Application\Forms\UseCase\CreateForm;
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Exception\ValuesNotValid;
@@ -15,7 +16,10 @@ use App\Domain\Forms\Presentation\Engine\CoreHtmlEngine;
 use App\Domain\Forms\Presentation\Engine\Engines;
 use App\Domain\Forms\Presentation\PresentationRules;
 use App\Domain\Forms\ValueObject\ExpireDate;
+use App\Domain\Forms\ValueObject\Webhooks;
 use App\Tests\Application\Forms\Fake\InMemoryForms;
+use App\Tests\Application\Forms\Fake\RecordingAnnouncer;
+use App\Tests\Application\Forms\Fake\RecordingWebhook;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
 
@@ -104,13 +108,53 @@ final class CreateFormTest extends TestCase
         }
     }
 
-    private static function createForm(InMemoryForms $forms, StubValues $values): CreateForm
+    public function testAFormMayNotNameAnEndpointNothingCouldSignFor(): void
+    {
+        // GIVEN a deployment with no signing secret
+        $forms = new InMemoryForms();
+        $webhook = new RecordingWebhook();
+        $webhook->signing = false;
+
+        // WHEN a form is created naming where it reports itself
+        try {
+            self::createForm($forms, new StubValues(), $webhook)(
+                self::DEFINITION,
+                self::tomorrow(),
+                webhooks: Webhooks::of(null, 'https://receiver.test/confirmed'),
+            );
+            self::fail('Expected WebhooksNotSignable.');
+        } catch (WebhooksNotSignable) {
+            // THEN no form exists: one holding a promise nothing can keep would
+            // refuse every notification it owes for the rest of its life, and
+            // its author would find out from a column in a queue
+            self::assertSame(0, $forms->adds);
+        }
+    }
+
+    public function testAFormThatNamesNobodyIsFineWhereNothingCanBeSigned(): void
+    {
+        // GIVEN the same deployment
+        $forms = new InMemoryForms();
+        $webhook = new RecordingWebhook();
+        $webhook->signing = false;
+
+        // WHEN a form that reports itself nowhere is created
+        self::createForm($forms, new StubValues(), $webhook)(self::DEFINITION, self::tomorrow());
+
+        // THEN nothing is refused: the check is about a promise, and this form
+        // made none
+        self::assertSame(1, $forms->adds);
+    }
+
+    private static function createForm(InMemoryForms $forms, StubValues $values, ?RecordingWebhook $webhook = null): CreateForm
     {
         return new CreateForm(
             new FormDefinitionProcessor(new FormMapperFactory()->create()),
             $forms,
             new PresentationRules(new Engines([new CoreHtmlEngine(), new BootstrapEngine()])),
             $values,
+            new RecordingAnnouncer(),
+            $webhook ?? new RecordingWebhook(),
         );
     }
 

@@ -704,6 +704,7 @@ components:
         - identity
         - author
         - confirmedBy
+        - webhooks
       properties:
         id:
           type: string
@@ -752,6 +753,30 @@ components:
             - string
             - 'null'
           maxLength: 255
+        webhooks:
+          $ref: '#/components/schemas/FormWebhooks'
+      type: object
+      additionalProperties: false
+    FormWebhooks:
+      description: "Where this form reports what happens to it, as it was given at creation and for the life of the form. Both members are independent and either may be null, which means nobody is told about that event. What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — signed with this deployment's secret in `X-Forms-Signature`, and carrying `X-Forms-Delivery` so a receiver can recognise a retry of one it already acted on."
+      required:
+        - save
+        - confirm
+      properties:
+        save:
+          description: 'Told when a draft save is accepted, with the revision it became.'
+          type:
+            - string
+            - 'null'
+          format: uri
+          maxLength: 2000
+        confirm:
+          description: 'Told when the form is confirmed. A confirmation is no revision, so it carries none.'
+          type:
+            - string
+            - 'null'
+          format: uri
+          maxLength: 2000
       type: object
       additionalProperties: false
     ProblemError:
@@ -848,6 +873,14 @@ components:
           enum:
             - recorded
             - anonymous
+        webhooks:
+          description: "Where this form reports what happens to it. Both members are optional and independent: `save` is told when a draft save was accepted, `confirm` when the form was confirmed. What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — so a receiver reads the document through this API, signed with this deployment's secret in `X-Forms-Signature`. Immutable with the definition: changing where a form reports means deleting it and creating a new one. Omit it, or omit either member, and nobody is told."
+          type:
+            - object
+            - 'null'
+          example:
+            confirm: 'https://example.test/forms/confirmed'
+          default: null
       type: object
       additionalProperties: false
     DataSchemaQuery:

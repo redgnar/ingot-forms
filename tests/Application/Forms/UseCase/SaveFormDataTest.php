@@ -15,6 +15,7 @@ use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Tests\Application\Forms\Fake\ImmediateTransactions;
 use App\Tests\Application\Forms\Fake\InMemoryForms;
+use App\Tests\Application\Forms\Fake\RecordingAnnouncer;
 use App\Tests\Domain\Forms\Fake\SpyParser;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
@@ -83,12 +84,47 @@ final class SaveFormDataTest extends TestCase
         }
     }
 
+    public function testAWorkerIsAskedToGetOnWithItOnceTheSaveHasCommitted(): void
+    {
+        // GIVEN a form to fill in
+        $forms = new InMemoryForms();
+        $id = self::plant($forms);
+        $announcer = new RecordingAnnouncer();
+
+        // WHEN a draft is stored
+        new SaveFormData(new ImmediateTransactions(), $forms, new StubValues(), $announcer)($id, self::values('{"email": "ada@example.com"}'));
+
+        // THEN a worker is nudged — once, and after the write rather than inside
+        // it: a nudge handled before its transaction lands would find nothing
+        // owed
+        self::assertSame(1, $announcer->hurried);
+        self::assertSame(1, $forms->saves);
+    }
+
+    public function testNobodyIsNudgedWhenNothingWasStored(): void
+    {
+        // GIVEN values the form will refuse
+        $forms = new InMemoryForms();
+        $id = self::plant($forms);
+        $announcer = new RecordingAnnouncer();
+
+        // WHEN the save is refused
+        try {
+            new SaveFormData(new ImmediateTransactions(), $forms, new StubValues(refuse: true), $announcer)($id, self::values('{"email": "ada@example.com"}'));
+            self::fail('Expected ValuesNotValid.');
+        } catch (ValuesNotValid) {
+            // THEN nothing was asked of a worker: the refusal left the
+            // transaction, and nothing after it ran
+            self::assertSame(0, $announcer->hurried);
+        }
+    }
+
     private static function saveData(
         ImmediateTransactions $transactions,
         InMemoryForms $forms,
         StubValues $values,
     ): SaveFormData {
-        return new SaveFormData($transactions, $forms, $values);
+        return new SaveFormData($transactions, $forms, $values, new RecordingAnnouncer());
     }
 
     private static function plant(InMemoryForms $forms): FormId

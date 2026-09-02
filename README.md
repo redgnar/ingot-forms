@@ -63,6 +63,14 @@ versioning and multi-submission forms are deliberately out of scope.
   exposed without one: a form's UUID is the only credential it has of its own. See
   [Who may do what](docs/architecture.md#who-may-do-what), worked out in
   [`.claude/plan/09-access.md`](.claude/plan/09-access.md).
+- **A form can report itself.** `webhooks: {save?, confirm?}` at creation, both optional and
+  immutable with the rest of the form, and what arrives is a *notification* — `{event, form,
+  occurredAt, revision?, actor?}` — never the values, so the receiver reads the document through
+  the API it already has. Written as an outbox row in the same transaction as the save it is
+  about, delivered by a worker (`messenger:consume`) or by `app:webhooks:deliver` from cron, and
+  signed with `FORMS_WEBHOOK_SECRET` — without which a form naming an endpoint is refused rather
+  than told about unsigned. See
+  [Being told what happened](docs/configuring-forms.md#being-told-what-happened).
 - Definitions may contain **unknown (plugin) item types** — they round-trip losslessly
   (`GenericField` + `#[Extras]`), can be drafted, but a form containing one can never be
   confirmed: the server refuses to vouch for a value contract it does not know.

@@ -10,6 +10,7 @@ use App\Application\Forms\Exception\FileEmpty;
 use App\Application\Forms\Exception\FileMissing;
 use App\Application\Forms\Exception\FileTooLarge;
 use App\Application\Forms\Exception\RevisionNotFound;
+use App\Application\Forms\Exception\WebhooksNotSignable;
 use App\Domain\Forms\Exception\CarriesFindings;
 use App\Domain\Forms\Exception\DefinitionNotValid;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
@@ -22,6 +23,7 @@ use App\Domain\Forms\Exception\IdentityRequired;
 use App\Domain\Forms\Exception\PresentationNotSet;
 use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Exception\ValuesNotValid;
+use App\Domain\Forms\Exception\WebhookNotValid;
 use Ingot\Error\ErrorReport;
 use Ingot\Error\MappingError;
 use Ingot\JsonPointer;
@@ -82,6 +84,14 @@ final class ProblemExceptionListener
         // give — the caller may not do this on account of who they are not.
         IdentityRequired::class => [403, 'identity-required', 'This form records who fills it in, and nobody was asserted.'],
         FormGone::class => [410, 'form-gone', 'Form has expired.'],
+        // A form that would report itself somewhere this deployment cannot sign
+        // for. Not 422: the document is fine, and it is this installation that
+        // cannot honour it.
+        WebhooksNotSignable::class => [409, 'webhooks-not-signable', 'This deployment cannot sign notifications, so a form cannot name an endpoint.'],
+        // An endpoint that cannot be one. The envelope normally catches this and
+        // says which member is wrong; this is the backstop, so it says no more
+        // than that something did.
+        WebhookNotValid::class => [422, 'webhook-not-valid', 'A webhook must be an absolute http or https URL.'],
         FileTooLarge::class => [413, 'upload-too-large', 'The upload is larger than this deployment accepts.'],
         FileEmpty::class => [422, 'upload-empty', 'An empty file is not an upload.'],
     ];

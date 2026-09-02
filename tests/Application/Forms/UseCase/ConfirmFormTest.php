@@ -15,6 +15,7 @@ use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Tests\Application\Forms\Fake\ImmediateTransactions;
 use App\Tests\Application\Forms\Fake\InMemoryForms;
+use App\Tests\Application\Forms\Fake\RecordingAnnouncer;
 use App\Tests\Domain\Forms\Fake\SpyParser;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
@@ -36,7 +37,7 @@ final class ConfirmFormTest extends TestCase
         $forms->get($id)->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
 
         // WHEN
-        (new ConfirmForm(new ImmediateTransactions(), $forms, $values))($id);
+        (new ConfirmForm(new ImmediateTransactions(), $forms, $values, new RecordingAnnouncer()))($id);
 
         // THEN
         self::assertSame(FormStatus::Confirmed, $forms->get($id)->status());
@@ -52,7 +53,7 @@ final class ConfirmFormTest extends TestCase
         // WHEN / THEN
         $this->expectException(FormHasNoData::class);
 
-        (new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues()))($id);
+        (new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues(), new RecordingAnnouncer()))($id);
     }
 
     public function testConfirmingTwiceIsRefused(): void
@@ -66,7 +67,24 @@ final class ConfirmFormTest extends TestCase
         // WHEN / THEN
         $this->expectException(FormAlreadyConfirmed::class);
 
-        (new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues()))($id);
+        (new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues(), new RecordingAnnouncer()))($id);
+    }
+
+    public function testAWorkerIsAskedToGetOnWithItOnceTheFormIsClosed(): void
+    {
+        // GIVEN a form holding a complete draft
+        $forms = new InMemoryForms();
+        $id = self::plant($forms);
+        $forms->get($id)->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+        $announcer = new RecordingAnnouncer();
+
+        // WHEN it is confirmed
+        new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues(), $announcer)($id);
+
+        // THEN a worker is nudged, after the write: whoever owns this form is
+        // owed the news that somebody finished with it, which is the whole
+        // reason this exists
+        self::assertSame(1, $announcer->hurried);
     }
 
     private static function plant(InMemoryForms $forms): FormId

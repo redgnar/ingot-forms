@@ -166,7 +166,7 @@ nelmio_api_doc:
                 FormEnvelope:
                     type: object
                     description: The canonical JSON shape of a form read back from the API.
-                    required: [id, status, expireDate, createdAt, definition, data, dataSavedAt, confirmedAt, identity, author, confirmedBy]
+                    required: [id, status, expireDate, createdAt, definition, data, dataSavedAt, confirmedAt, identity, author, confirmedBy, webhooks]
                     additionalProperties: false
                     properties:
                         id:
@@ -216,6 +216,31 @@ nelmio_api_doc:
                                 values and is therefore no revision — without it, the most
                                 consequential act on a form would be the one nobody attributed.
                                 Null while the form is open, and on an anonymous form.
+                        webhooks:
+                            $ref: '#/components/schemas/FormWebhooks'
+                FormWebhooks:
+                    type: object
+                    description: >-
+                        Where this form reports what happens to it, as it was given at creation and
+                        for the life of the form. Both members are independent and either may be
+                        null, which means nobody is told about that event. What arrives there is a
+                        notification and never the values — `{event, form, occurredAt, revision?,
+                        actor?}` — signed with this deployment's secret in `X-Forms-Signature`, and
+                        carrying `X-Forms-Delivery` so a receiver can recognise a retry of one it
+                        already acted on.
+                    required: [save, confirm]
+                    additionalProperties: false
+                    properties:
+                        save:
+                            type: [string, 'null']
+                            format: uri
+                            maxLength: 2000
+                            description: Told when a draft save is accepted, with the revision it became.
+                        confirm:
+                            type: [string, 'null']
+                            format: uri
+                            maxLength: 2000
+                            description: Told when the form is confirmed. A confirmation is no revision, so it carries none.
                 ProblemError:
                     type: object
                     description: One validation error, mapped 1:1 from the engine's report or a constraint violation.

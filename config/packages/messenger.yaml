@@ -1,0 +1,41 @@
+# The queue that carries one nudge and nothing else.
+#
+# Messenger is here so this service has no opinion about which queue a
+# deployment runs: `doctrine://default` needs no broker at all (the transport's
+# table is created by a migration, like every other table here), and AMQP, Redis
+# or SQS is one DSN away. What travels on it is `AnnouncementsOwed`, which
+# carries no payload — the announcements themselves are rows written in the same
+# transaction as the save they are about, and this only says "go and look".
+#
+# So the transport is allowed to lose a message: `app:webhooks:deliver` sweeps
+# the same rows from cron, and a deployment that would rather not run a worker
+# needs only that.
+framework:
+    messenger:
+        transports:
+            forms_announcements:
+                dsn: '%env(default:messenger.default_dsn:MESSENGER_TRANSPORT_DSN)%'
+                options:
+                    # Nothing creates tables at runtime here. The Doctrine
+                    # transport contributes its own to `migrations:diff`, so the
+                    # table arrives with the migrations like the others — which is
+                    # what a deployment whose database user may not issue DDL
+                    # needs.
+                    auto_setup: false
+                # The nudge is about nothing, so retrying it is cheap and giving
+                # up on it costs a minute of latency at worst.
+                retry_strategy:
+                    max_retries: 3
+                    delay: 1000
+                    multiplier: 3
+        routing:
+            App\Application\Forms\Webhook\AnnouncementsOwed: forms_announcements
+
+when@test:
+    framework:
+        messenger:
+            transports:
+                # No broker and no table in the suites: a test asserts that the
+                # nudge was dispatched, and the delivery itself is tested against
+                # the use case directly.
+                forms_announcements: 'in-memory://'

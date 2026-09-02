@@ -14,6 +14,7 @@ service, [configuring-forms.md](configuring-forms.md) is the document you want.
 - [How values are judged](#how-values-are-judged)
 - [The published contract](#the-published-contract)
 - [The pages](#the-pages)
+- [Telling somebody what happened](#telling-somebody-what-happened)
 - [Where the bytes live](#where-the-bytes-live)
 - [Operations](#operations)
 - [Development](#development)
@@ -524,6 +525,73 @@ Dark and high contrast are painted by the application's own stylesheet rather th
 skin: Bootswatch themes support dark unevenly, and chasing each theme's exceptions is endless,
 so the skin keeps its shapes and fonts while the page a reader needs belongs to the reader.
 
+## Telling somebody what happened
+
+A form can name where it reports itself, per event, at creation:
+
+```json
+"webhooks": { "save": "https://owner.test/forms/saved", "confirm": "https://owner.test/forms/confirmed" }
+```
+
+Both members are optional and independent, both are immutable with the rest of the form, and a
+form that names neither — the default — costs nothing at all: **nothing is queued for it**.
+
+**What arrives is a notification, not the data.** `{event, form, occurredAt, revision?, actor?}`
+and no values, because a write never answers with the thing it wrote and this is the same rule
+seen from outside: the receiver reads `GET …/data` or `GET …/history/{seq}` through the API it
+already has. Three things follow, and they are the reason the shape is worth defending — nobody's
+answers end up in a queue, a log or a proxy; a delivery is small enough that retrying is free; and
+**order stops mattering**, since a receiver that reads current state cannot be confused by two
+notifications arriving the wrong way round. That is what makes at-least-once an honest promise
+rather than a caveat.
+
+**It is an outbox, and the transaction is the whole point.** `Announcements::announce()` persists a
+row *without flushing*, from inside the save it belongs to — so an announcement cannot exist for a
+save that rolled back, a save cannot be committed without it, and nobody's endpoint being down can
+slow a save down or refuse it. It is written in `DoctrineFormRepository`, beside the row and the
+revision, because that is where the events are: `saveDraft()` records nothing when the incoming
+document says what the form already holds, so **only the event knows whether anything happened**.
+
+**Delivery is somebody else's turn.** After the transaction commits, the use case asks a worker to
+get on with it (`Announcer::hurry()` → an `AnnouncementsOwed` message on
+`MESSENGER_TRANSPORT_DSN`, Doctrine by default so a plain installation needs no broker). That
+message **carries nothing**: the rows are the truth, and the nudge only says "go and look". Two
+consequences, both wanted — a lost nudge costs latency rather than a notification, and there is
+one retry policy instead of two that would have to be kept in agreement. `app:webhooks:deliver`
+(cron, beside the two purges) sweeps the same rows, which is what makes the worker optional: a
+deployment that would rather not run one pays a minute of latency and nothing else.
+
+| Piece | What it is |
+|---|---|
+| `Announcement`, `Delivery` | what happened, and one waiting to be told with its id and refusals |
+| `Announcements` | the queue: announce, what is due, told, again later, give up |
+| `Webhook` | the one call outward, and whether this deployment can sign at all |
+| `DeliverAnnouncements` | take what is owed, try it, write down what came of trying |
+| `WebhookAnnouncementRecord` + `DoctrineAnnouncements` | the rows |
+| `SignedHttpWebhook` | body, headers, signature, timeout |
+| `TellWhoeverIsOwed` | the worker's way in — one message, one use case |
+| `app:webhooks:deliver` | the sweep |
+
+**Signed, or refused before it exists.** `X-Forms-Signature: sha256=<hmac(timestamp.body)>` with
+`FORMS_WEBHOOK_SECRET`, beside `X-Forms-Delivery` (the same id across every retry, so a receiver
+can recognise one it already acted on) and `X-Forms-Timestamp` (which bounds a replay). With no
+secret configured, a form naming an endpoint is refused at creation (`409 webhooks-not-signable`)
+rather than accepted and discovered later: every notification it owed would be refused for the
+life of the form, and its author would find out from a column in a queue.
+
+**A refusal is not a failure.** Anything but 2xx, and anything that cannot be reached at all, is
+the same thing from here — nobody has been told yet — so the delivery goes back in the queue with
+a longer wait each time, doubling from two seconds to an hour, `FORMS_WEBHOOK_ATTEMPTS` (12)
+refusals before it is given up on. A 4xx is retried like the rest, deliberately: a receiver
+mid-deploy answers 404 for a minute. **A queue holds what is still owed**, so a delivery that
+succeeded is deleted; what outlives its telling is only what this service gave up on, kept with
+the last refusal so a broken endpoint is visible instead of implied. Rows leave with their form by
+foreign key, like revisions.
+
+**Run one deliverer at a time.** `due()` takes no lock, so two runs would each send what the other
+is sending. The promise is at-least-once and the delivery id is what makes a duplicate harmless,
+which is a cheaper answer than holding a row lock across an HTTP call.
+
 ## Where the bytes live
 
 **The store** is `league/flysystem` behind one port (`FileStore`): a directory in development,
@@ -577,6 +645,16 @@ needs it.
   the cache rebuilt. `app:routes:groups` prints what is actually being served, base path and static
   prefix included; diff that rather than trusting the variable.
   See [Where this service is installed](#where-this-service-is-installed).
+- **Deploy (webhooks):** set **`FORMS_WEBHOOK_SECRET`** if any form is to report itself — without
+  it such a form is refused at creation. Run a worker for the delivery nudge
+  (`bin/console messenger:consume forms_announcements`), or don't, and let cron do it: the rows are
+  the truth and the message is only a nudge. `MESSENGER_TRANSPORT_DSN` says which queue carries it
+  (`doctrine://default` needs no broker; its table comes with the migrations, because nothing here
+  creates tables at runtime).
+- **Cron:** `bin/console app:webhooks:deliver` — tells whoever is owed. It is the sweep for two
+  things a nudge cannot cover: a delivery whose endpoint asked to be tried later, and one whose
+  nudge was lost. What it prints is worth watching rather than filing: `told` and `retried` are a
+  service working, while `abandoned` is a notification nobody will ever get.
 - **Cron:** `bin/console app:forms:purge-expired` — expired forms are already invisible
   to the API (410); this fulfils the promise that expired data leaves the system. Next to it,
   `bin/console app:files:purge-temporary` collects uploads no stored document names

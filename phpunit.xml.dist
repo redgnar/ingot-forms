@@ -14,6 +14,13 @@
     <php>
         <env name="APP_ENV" value="test" force="true"/>
         <env name="KERNEL_CLASS" value="App\Kernel"/>
+        <!-- The suites create forms that report themselves somewhere, and a form
+             naming an endpoint is refused where nothing can sign the notification.
+             Here rather than in .env.test because the suites do not load dotenv
+             files at all: this file and the real environment are the whole of it.
+             Nothing is ever sent from a test — the transport is in-memory and the
+             HTTP client is a mock — so this is a value, not a secret. -->
+        <env name="FORMS_WEBHOOK_SECRET" value="not-a-secret-for-the-suites"/>
     </php>
     <testsuites>
         <testsuite name="unit">

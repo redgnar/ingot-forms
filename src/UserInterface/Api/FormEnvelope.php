@@ -45,6 +45,15 @@ final class FormEnvelope
             'identity' => self::encoded($record->identityMode()->value),
             'author' => self::encoded(self::subject($record->author())),
             'confirmedBy' => self::encoded(self::subject($record->confirmedBy())),
+            // Where this form reports itself. Served because the system that
+            // configured it is the only audience this envelope has, and a
+            // deployment reading its own form should be able to see what it asked
+            // for. Nothing secret is in here — a notification is signed with the
+            // deployment's secret, which is never part of a form.
+            'webhooks' => self::document([
+                'save' => self::encoded($record->webhooks()->save),
+                'confirm' => self::encoded($record->webhooks()->confirm),
+            ]),
         ]);
     }
 

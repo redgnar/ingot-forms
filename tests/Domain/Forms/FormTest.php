@@ -28,6 +28,7 @@ use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Presentation;
 use App\Domain\Forms\ValueObject\Values;
+use App\Domain\Forms\ValueObject\Webhooks;
 use App\Tests\Domain\Forms\Fake\SpyParser;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
@@ -577,12 +578,33 @@ final class FormTest extends TestCase
         self::assertSame([], $form->releaseEvents());
     }
 
+    public function testAFormTellsNobodyUnlessItWasGivenSomewhereToReportItself(): void
+    {
+        // GIVEN a form nobody said anything about
+        // THEN it reports itself nowhere, and says so as a value rather than as
+        // a null somebody has to check for
+        self::assertFalse(self::form()->webhooks()->any());
+        self::assertNull(self::form()->webhooks()->save);
+
+        // GIVEN a form told where to report a confirmation
+        $reporting = self::form(webhooks: Webhooks::of(null, 'https://receiver.test/confirmed'));
+
+        // THEN it keeps exactly that, for the life of the form: there is no
+        // transition that changes it, because a form that has already been
+        // reported to one endpoint cannot honestly change its mind about who
+        // was told
+        self::assertTrue($reporting->webhooks()->any());
+        self::assertSame('https://receiver.test/confirmed', $reporting->webhooks()->confirm);
+        self::assertNull($reporting->webhooks()->save);
+    }
+
     private static function form(
         ?\DateTimeImmutable $now = null,
         ?\DateTimeImmutable $expires = null,
         ?Presentation $presentation = null,
         IdentityMode $identity = IdentityMode::Anonymous,
         ?Actor $author = null,
+        ?Webhooks $webhooks = null,
     ): Form {
         return new Form(
             FormId::next(),
@@ -593,6 +615,7 @@ final class FormTest extends TestCase
             $now,
             $identity,
             $author,
+            $webhooks,
         );
     }
 

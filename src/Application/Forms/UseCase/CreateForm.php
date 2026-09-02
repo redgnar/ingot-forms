@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Application\Forms\UseCase;
 
+use App\Application\Forms\Exception\WebhooksNotSignable;
+use App\Application\Forms\Port\Announcer;
+use App\Application\Forms\Port\Webhook;
 use App\Domain\Forms\Exception\DefinitionNotValid;
 use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Form;
@@ -17,6 +20,7 @@ use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Presentation;
+use App\Domain\Forms\ValueObject\Webhooks;
 
 /**
  * Creates a form from the documents it is made of: what it asks, and — when
@@ -37,6 +41,14 @@ final class CreateForm
         private readonly FormRepository $forms,
         private readonly PresentationRules $rules,
         private readonly ValuesValidator $values,
+        private readonly Announcer $announcer,
+        /**
+         * Asked one question only: whether this deployment can sign what it
+         * sends. A form naming an endpoint while it cannot is refused here
+         * rather than created holding a promise nothing can keep — see
+         * {@see WebhooksNotSignable}.
+         */
+        private readonly Webhook $webhook,
     ) {}
 
     /**
@@ -46,6 +58,8 @@ final class CreateForm
      * @throws PresentationNotValid when the presentation does not fit the definition it came with
      * @throws \App\Domain\Forms\Exception\ValuesNotValid when the values it is born with do not fit it
      * @throws \App\Domain\Forms\Exception\IdentityRequired when it is born holding values it cannot attribute
+     * @throws \App\Domain\Forms\Exception\WebhookNotValid when an endpoint it would report itself to cannot be one
+     * @throws WebhooksNotSignable when it would report itself somewhere and this deployment cannot sign
      */
     public function __invoke(
         \stdClass|array $definitionDocument,
@@ -54,7 +68,12 @@ final class CreateForm
         ?\stdClass $data = null,
         IdentityMode $identity = IdentityMode::Anonymous,
         ?Actor $author = null,
+        ?Webhooks $webhooks = null,
     ): FormId {
+        if ($webhooks !== null && $webhooks->any() && !$this->webhook->canSign()) {
+            throw new WebhooksNotSignable();
+        }
+
         $definition = $this->processor->parse($definitionDocument);
 
         $form = new Form(
@@ -65,6 +84,7 @@ final class CreateForm
             $this->rules,
             identity: $identity,
             author: $author,
+            webhooks: $webhooks,
         );
 
         // A form born holding values is a form whose first save has an author
@@ -75,6 +95,12 @@ final class CreateForm
         }
 
         $this->forms->add($form);
+
+        // A form born a draft has already had a save happen to it, so it may owe
+        // somebody the news before anybody has opened it.
+        if ($data !== null) {
+            $this->announcer->hurry();
+        }
 
         return $form->id();
     }

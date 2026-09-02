@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Forms\UseCase;
 
+use App\Application\Forms\Port\Announcer;
 use App\Application\Forms\Port\Transactions;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormHasNoData;
@@ -23,6 +24,7 @@ final class ConfirmForm
         private readonly Transactions    $transactions,
         private readonly FormRepository  $forms,
         private readonly ValuesValidator $valuesValidator,
+        private readonly Announcer       $announcer,
     ) {}
 
     /**
@@ -38,5 +40,13 @@ final class ConfirmForm
             $form->confirm($this->valuesValidator, $confirmer);
             $this->forms->save($form);
         });
+
+        // Committed. Whatever this form owes is a row now, so a worker is asked
+        // to get on with it — after the commit, never inside it: a nudge handled
+        // before its transaction lands would find nothing owed, and one sent for
+        // a transaction that rolled back would be about something that never
+        // happened. Failing to nudge costs latency and nothing else
+        // ({@see \App\Application\Forms\Port\Announcer}).
+        $this->announcer->hurry();
     }
 }

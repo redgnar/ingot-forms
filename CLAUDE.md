@@ -127,6 +127,29 @@ fifth, "this caller for this form", is delegated rather than deferred.
 Both halves are built. What is still missing is the gateway itself, which is a deployment and not
 code here.
 
+**How a form reports itself.** A form may name where it is told about, per event
+(`webhooks: {save?, confirm?}`), given at creation and immutable like everything else; naming
+neither is the default and queues nothing. What is sent is a **notification and never the
+values** — `{event, form, occurredAt, revision?, actor?}` — because a write never answers with
+the thing it wrote, and because a receiver that reads current state cannot be confused by two
+notifications arriving out of order, which is what makes at-least-once honest. It is an
+**outbox**: `Announcements::announce()` persists a row without flushing, from inside the save's
+own transaction and **from the event** — `saveDraft()` records nothing when the document says
+what the form already holds, so only the event knows whether anything happened. Delivery is a
+separate turn: after the commit the use case nudges a worker (`Announcer::hurry()` → an
+`AnnouncementsOwed` message on `MESSENGER_TRANSPORT_DSN`, Doctrine by default), the message
+**carries nothing** because the rows are the truth, and `app:webhooks:deliver` sweeps the same
+rows from cron — so a lost nudge costs latency, one retry policy exists instead of two, and the
+worker is optional. Signed with `FORMS_WEBHOOK_SECRET` (`X-Forms-Signature` over
+timestamp + body, `X-Forms-Delivery` stable across retries); with no secret a form naming an
+endpoint is **refused at creation**, because a notification nobody can verify is forgeable by
+anything that can reach the receiver. A refusal is not a failure — anything but 2xx waits longer
+each time, doubling to an hour, `FORMS_WEBHOOK_ATTEMPTS` refusals before it is given up on and
+**kept** where somebody can see it, while everything told is deleted, because a queue holds what
+is still owed. Rows leave with their form by foreign key, like revisions. Deliberately absent: a
+deployment-wide endpoint, per-event subscriptions, `form.created` (the creator was handed the id),
+ordering guarantees, and any API for the queue.
+
 **How a file works.** A `file` item's value is not bytes but the **description** of them —
 `{id, name, size, type}`, all four measured by the server when the upload landed and echoed
 back by the client verbatim. That is the whole design, and everything else follows: values stay

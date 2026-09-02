@@ -12,6 +12,7 @@ use App\Domain\Forms\IdentityMode;
 use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\ExpireDate;
+use App\Domain\Forms\ValueObject\Webhooks;
 use App\UserInterface\Api\Problem\ProblemException;
 use App\UserInterface\Api\Request\CreateFormRequest;
 use Ingot\Error\ErrorReport;
@@ -166,6 +167,12 @@ final class CreateFormAction
                 $request->data,
                 IdentityMode::from($request->identity),
                 $author,
+                // Judged twice for the same reason the two documents are: the DTO
+                // says which member is wrong, the value object refuses to let a
+                // form exist reporting itself somewhere unusable.
+                $request->webhooks === null
+                    ? null
+                    : Webhooks::of($request->webhooks->save, $request->webhooks->confirm),
             );
         } catch (DefinitionNotValid $exception) {
             // Only reachable if the constraint and the aggregate ever disagree

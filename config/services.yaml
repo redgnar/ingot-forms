@@ -50,6 +50,25 @@ parameters:
     forms.default_assets_prefix: '/assets/'
     forms.assets_prefix: '%env(default:forms.default_assets_prefix:FORMS_ASSETS_PREFIX)%'
 
+    # Where the queue that carries the delivery nudge lives. Doctrine by default,
+    # so a plain installation needs no broker; a deployment with one changes the
+    # DSN and nothing else ({@see config/packages/messenger.yaml}).
+    messenger.default_dsn: 'doctrine://default'
+
+    # What signs a notification. There is no default and there cannot be one: an
+    # unsigned "this form was confirmed" is forgeable by anything that can reach
+    # the receiver, and a receiver cannot tell the forged ones apart afterwards.
+    # A form that names an endpoint while this is unset is refused rather than
+    # told about unsigned.
+    forms.webhook.secret: '%env(string:default::FORMS_WEBHOOK_SECRET)%'
+    # How long a receiver has to answer, and how many refusals one announcement
+    # gets before this service stops trying and leaves it where somebody can see
+    # it.
+    forms.webhook.default_timeout: 5
+    forms.webhook.timeout: '%env(int:default:forms.webhook.default_timeout:FORMS_WEBHOOK_TIMEOUT)%'
+    forms.webhook.default_attempts: 12
+    forms.webhook.attempts: '%env(int:default:forms.webhook.default_attempts:FORMS_WEBHOOK_ATTEMPTS)%'
+
 when@test:
     parameters:
         # The suites need somebody to be. Every fixture creates its forms the way
@@ -90,6 +109,9 @@ services:
             # values, unlike FormFiles beside them
             - '../src/Application/Forms/File/{IncomingFile,FileStream,CollectedFiles}.php'
             - '../src/Application/Forms/History/'
+            # what happened, one waiting to be told, and what a run did — values,
+            # not services
+            - '../src/Application/Forms/Webhook/'
             - '../src/Application/Forms/Exception/'
             - '../src/UserInterface/Web/Renderer/RenderedForm.php'
             # the resolved tree a template draws: value objects, not services
@@ -144,6 +166,9 @@ services:
     App\Domain\Forms\Port\PresentationParser: '@App\Domain\Forms\PresentationProcessor'
     App\Domain\Forms\Port\ValuesValidator: '@App\Infrastructure\Validation\StagedValuesValidator'
     App\Application\Forms\Port\Transactions: '@App\Infrastructure\Persistence\DoctrineTransactions'
+    App\Application\Forms\Port\Announcements: '@App\Infrastructure\Persistence\DoctrineAnnouncements'
+    App\Application\Forms\Port\Announcer: '@App\Infrastructure\Webhook\MessengerAnnouncer'
+    App\Application\Forms\Port\Webhook: '@App\Infrastructure\Webhook\SignedHttpWebhook'
     App\Application\Forms\Port\DataSchemas: '@App\Infrastructure\Cache\CachedDataSchemaProvider'
     App\Application\Forms\Port\FileStore: '@App\Infrastructure\Files\FlysystemFileStore'
     App\Application\Forms\Port\FormHistory: '@App\Infrastructure\Persistence\DoctrineFormHistory'
@@ -164,6 +189,15 @@ services:
     App\Application\Forms\UseCase\PurgeTemporaryFiles:
         arguments:
             $days: '%files.temporary_days%'
+
+    App\Application\Forms\UseCase\DeliverAnnouncements:
+        arguments:
+            $attempts: '%forms.webhook.attempts%'
+
+    App\Infrastructure\Webhook\SignedHttpWebhook:
+        arguments:
+            $secret: '%forms.webhook.secret%'
+            $timeout: '%forms.webhook.timeout%'
 
     App\Infrastructure\Cache\CachedDataSchemaProvider:
         arguments:

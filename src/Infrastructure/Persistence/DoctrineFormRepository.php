@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Persistence;
 
+use App\Application\Forms\Port\Announcements;
+use App\Application\Forms\Webhook\Announcement;
 use App\Domain\Forms\Event\DraftSaved;
 use App\Domain\Forms\Event\FormConfirmed;
 use App\Domain\Forms\Event\FormCreated;
@@ -22,6 +24,7 @@ use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Presentation;
 use App\Domain\Forms\ValueObject\Values;
+use App\Domain\Forms\ValueObject\Webhooks;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Ingot\Error\MappingFailed;
@@ -44,6 +47,18 @@ final class DoctrineFormRepository implements FormRepository
         private readonly EntityManagerInterface $entityManager,
         private readonly DefinitionParser $definitions,
         private readonly PresentationParser $presentations,
+        /**
+         * Where what happened is written down for somebody else to be told.
+         *
+         * It is here, next to the columns and the revision, for the reason the
+         * revision is: an announcement is written **from the event** and in the
+         * same transaction, so a save cannot be committed without it and it
+         * cannot exist for a save that rolled back. It also cannot be written
+         * anywhere else — `saveDraft()` records nothing when the incoming
+         * document says what the form already holds, so only the event knows
+         * whether anything happened at all.
+         */
+        private readonly Announcements $announcements,
         /** How many saves of one form are kept; 0 keeps every one of them. */
         private readonly int $historyLimit = 0,
     ) {}
@@ -66,14 +81,21 @@ final class DoctrineFormRepository implements FormRepository
         // definition: nothing has locked it yet.
         $record->identityMode = $form->identityMode()->value;
         $record->authorSubject = self::subject($form->author());
+        // Where this form reports itself, for the life of the form.
+        $record->webhookSaveUrl = $form->webhooks()->save;
+        $record->webhookConfirmUrl = $form->webhooks()->confirm;
 
         $this->entityManager->persist($record);
 
         // The one thing an insert cannot say as a column: a form born holding
-        // values has a history, and it starts with those.
+        // values has a history, and it starts with those — and a form born a
+        // draft has already had something happen to it, so whoever it names is
+        // told about that first save like any other.
         foreach ($form->releaseEvents() as $event) {
             if ($event instanceof DraftSaved) {
-                $this->entityManager->persist($this->revision($event));
+                $revision = $this->revision($event);
+                $this->entityManager->persist($revision);
+                $this->announce($event, $form->webhooks()->save, $revision->seq);
             }
         }
 
@@ -124,7 +146,7 @@ final class DoctrineFormRepository implements FormRepository
         $record = $this->row($form->id(), null);
 
         foreach ($form->releaseEvents() as $event) {
-            $this->apply($event, $record);
+            $this->apply($event, $record, $form->webhooks());
         }
 
         $this->entityManager->flush();
@@ -248,6 +270,11 @@ final class DoctrineFormRepository implements FormRepository
             IdentityMode::from($record->identityMode),
             self::actor($record->authorSubject),
             self::actor($record->confirmedBySubject),
+            // Judged again on the way out, like the two documents are: a row
+            // holding an address this code would refuse is a row something else
+            // wrote, and a form that would report itself there should refuse to
+            // be read instead.
+            Webhooks::stored($record->webhookSaveUrl, $record->webhookConfirmUrl),
         );
     }
 
@@ -265,11 +292,11 @@ final class DoctrineFormRepository implements FormRepository
      * default refuses rather than shrugs: a new transition nothing here knows
      * how to store must stop the write instead of disappearing from it.
      */
-    private function apply(FormEvent $event, FormRecord $record): void
+    private function apply(FormEvent $event, FormRecord $record, Webhooks $webhooks): void
     {
         match (true) {
-            $event instanceof DraftSaved => $this->store($record, $event),
-            $event instanceof FormConfirmed => $this->lock($record, $event),
+            $event instanceof DraftSaved => $this->store($record, $event, $webhooks->save),
+            $event instanceof FormConfirmed => $this->lock($record, $event, $webhooks->confirm),
             // A form is inserted as a whole; nothing about its creation is an
             // update to an existing row.
             $event instanceof FormCreated => null,
@@ -277,24 +304,49 @@ final class DoctrineFormRepository implements FormRepository
         };
     }
 
-    private function lock(FormRecord $record, FormConfirmed $event): void
+    private function lock(FormRecord $record, FormConfirmed $event, ?string $target): void
     {
         $record->confirmedAt = $event->occurredAt;
         // Confirming writes no values, so it is no revision — which is exactly
         // why the person who did it needs a column of its own.
         $record->confirmedBySubject = self::subject($event->confirmer);
+        $this->announce($event, $target);
     }
 
-    private function store(FormRecord $record, DraftSaved $event): void
+    private function store(FormRecord $record, DraftSaved $event, ?string $target): void
     {
         $record->data = (string) $event->values;
         $record->dataSavedAt = $event->occurredAt;
         // The row keeps what the form holds now; the history keeps what it held
-        // then. Both come from the same event, so neither can be written without
-        // the other.
+        // then, and the queue keeps that somebody is owed the news. All three
+        // come from the same event, so none of them can be written without the
+        // others.
         $revision = $this->revision($event);
         $this->entityManager->persist($revision);
+        $this->announce($event, $target, $revision->seq);
         $this->forgetBeyondTheLimit($event->formId, $revision->seq);
+    }
+
+    /**
+     * Queues what happened, for the endpoint this form named for it — and
+     * nothing at all when it named none, which is what keeps the queue empty for
+     * every form nobody asked to hear about.
+     */
+    private function announce(FormEvent $event, ?string $target, ?int $revision = null): void
+    {
+        if ($target === null) {
+            return;
+        }
+
+        $this->announcements->announce(match (true) {
+            $event instanceof DraftSaved => Announcement::saved(
+                $event,
+                $revision ?? throw new \LogicException('A save is announced with the revision it became.'),
+                $target,
+            ),
+            $event instanceof FormConfirmed => Announcement::confirmed($event, $target),
+            default => throw new \LogicException(\sprintf('There is no way to tell anybody about %s.', $event::class)),
+        });
     }
 
     /**

@@ -30,6 +30,7 @@ answered is a form whose answers were given to the questions it had.
 - [The presentation: how it is shown](#the-presentation-how-it-is-shown)
 - [Widget reference](#widget-reference)
 - [Accessibility: what the reader controls, and what you can default](#accessibility-what-the-reader-controls-and-what-you-can-default)
+- [Being told what happened](#being-told-what-happened)
 - [History](#history)
 - [Talking to the API](#talking-to-the-api)
 - [When something is refused](#when-something-is-refused)
@@ -77,13 +78,14 @@ Content-Type: application/json
   "expireDate": "2030-01-31T23:59:59+00:00",
   "definition":   { "items": [ … ] },
   "presentation": { "engine": "core-html", "items": [ … ] },
-  "data":         { "email": "ada@example.com" }
+  "data":         { "email": "ada@example.com" },
+  "webhooks":     { "confirm": "https://your-system.example/forms/confirmed" }
 }
 ```
 
 `201 Created`, a `Location` header, and a body carrying **only the id** — everything else in
 that response would be a copy of what you just sent. `expireDate` is required and must be in
-the future. `presentation` and `data` are optional.
+the future. `presentation`, `data` and `webhooks` are optional.
 
 The id is a UUID and the form's only name. **The definition has no name of its own**: with no
 templates and no versioning there is nothing for a second name to group or look up, so it would
@@ -722,6 +724,70 @@ them:
   since a document being put back onto the page asked for nothing.
 
 [kits.md](kits.md#what-both-kits-do-without-being-asked) says the same from the kit's side.
+
+## Being told what happened
+
+A form can report itself, so your system learns that somebody filled it in without asking.
+Two events, both optional and independent, given at creation and immutable afterwards:
+
+```json
+"webhooks": {
+  "save":    "https://your-system.example/forms/saved",
+  "confirm": "https://your-system.example/forms/confirmed"
+}
+```
+
+Name only `confirm` and you hear when a form is finished; name only `save` and you hear about
+every accepted draft; name neither — the default — and nothing is ever sent.
+
+**What arrives carries no answers.** A `POST` with this body and nothing else:
+
+```json
+{
+  "event": "form.saved",
+  "form": "0192f1c4-…",
+  "occurredAt": "2026-03-01T14:30:00+00:00",
+  "revision": 4,
+  "actor": "u-317"
+}
+```
+
+`event` is `form.saved` or `form.confirmed`. `revision` is which save it was, and is absent on a
+confirmation — confirming stores no values, so it is no revision. `actor` is who did it and is
+absent on a form that records nobody. **The values are not in it on purpose**: read them with
+`GET /api/forms/{id}/data`, or read that exact save with `GET /api/forms/{id}/history/{seq}`. One
+document, one place — and it means a notification arriving out of order tells you nothing wrong,
+because you read the current state anyway.
+
+**Check the signature before you act on it.** Four headers come with the body:
+
+| Header | What to do with it |
+|---|---|
+| `X-Forms-Event` | route it without parsing the body |
+| `X-Forms-Delivery` | the same id across every retry — if you have acted on it, do nothing |
+| `X-Forms-Timestamp` | how old this is; refuse anything older than you are willing to accept |
+| `X-Forms-Signature` | `sha256=` + HMAC-SHA256 of `<timestamp>.<body>` with the deployment's secret |
+
+```
+expected = "sha256=" + hmac_sha256(timestamp + "." + raw_body, FORMS_WEBHOOK_SECRET)
+```
+
+Compare it with a constant-time comparison, against the **raw** body rather than one you
+re-encoded. A deployment with no secret configured cannot sign, and there a form naming an
+endpoint is refused when you create it (`409`, `webhooks-not-signable`) — rather than accepted
+and never delivered.
+
+**Answer `2xx` and answer quickly.** Anything else — and anything unreachable — is a refusal, and
+the notification comes back with a longer wait each time, doubling from two seconds to an hour,
+twelve refusals before this service gives up on it and leaves it where the deployment can see it.
+A `4xx` is retried like the rest, because a receiver in the middle of a deploy answers `404` for a
+minute. So a slow receiver should answer first and work afterwards.
+
+**Refusals when you name one:** `/webhooks/save` or `/webhooks/confirm` with
+`form.webhook.not_a_url` (it must be an absolute `http`/`https` URL),
+`form.webhook.too_long` (2000 characters), `form.webhook.empty` (say nothing rather than `""`),
+and `request.unexpected_key` for a third event nobody has. Changing where a form reports itself
+means deleting it and creating a new one, like everything else about a form.
 
 ## History
 

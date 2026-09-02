@@ -22,6 +22,7 @@ use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Presentation;
 use App\Domain\Forms\ValueObject\Values;
+use App\Domain\Forms\ValueObject\Webhooks;
 
 /**
  * One row = one fillable form: an immutable definition, at most one data set,
@@ -80,6 +81,12 @@ final class Form
     private ?Actor $confirmedBy = null;
 
     /**
+     * Who is told what happens to this form. Immutable with everything else, and
+     * empty by default: a form reports itself nowhere unless somebody said where.
+     */
+    private Webhooks $webhooks;
+
+    /**
      * Everything a form is made of arrives here, and none of it changes
      * afterwards: the definition because the values are judged against it, and
      * the presentation because there is no reason for the description of a
@@ -110,6 +117,7 @@ final class Form
         ?\DateTimeImmutable $now = null,
         IdentityMode $identity = IdentityMode::Anonymous,
         ?Actor $author = null,
+        ?Webhooks $webhooks = null,
     ) {
         $this->id = $id;
         $this->definition = $definition;
@@ -117,6 +125,9 @@ final class Form
         $this->createdAt = self::utc($now ?? new \DateTimeImmutable());
         $this->identity = $identity;
         $this->author = $author;
+        // Nobody, unless somebody said otherwise — and said it now, because this
+        // is the only moment it can be said.
+        $this->webhooks = $webhooks ?? Webhooks::none();
 
         if ($presentation !== null) {
             $report = ($rules ?? throw new \LogicException('A presentation cannot be accepted without the rules that judge it.'))
@@ -150,8 +161,9 @@ final class Form
         IdentityMode $identity = IdentityMode::Anonymous,
         ?Actor $author = null,
         ?Actor $confirmedBy = null,
+        ?Webhooks $webhooks = null,
     ): self {
-        $form = new self($id, $definition, $expireDate, now: $createdAt, identity: $identity, author: $author);
+        $form = new self($id, $definition, $expireDate, now: $createdAt, identity: $identity, author: $author, webhooks: $webhooks);
         $form->confirmedBy = $confirmedBy;
         $form->data = $values;
         $form->dataSavedAt = $dataSavedAt;
@@ -274,6 +286,12 @@ final class Form
     public function confirmedBy(): ?Actor
     {
         return $this->confirmedBy;
+    }
+
+    /** Who is told what happens to this form. Never null: telling nobody is a value. */
+    public function webhooks(): Webhooks
+    {
+        return $this->webhooks;
     }
 
     /** How this form is shown, or null while nobody has said. */
