@@ -565,7 +565,7 @@ deployment that would rather not run one pays a minute of latency and nothing el
 |---|---|
 | `Announcement`, `Delivery` | what happened, and one waiting to be told with its id and refusals |
 | `Announcements` | the queue: announce, what is due, told, again later, give up |
-| `FormDeliveries` + `RecordedDelivery` | one form's tellings and what came of each, read-only |
+| `FormDeliveries` + `RecordedDelivery` | what one form still owes or could not deliver, read-only |
 | `ReadFormDeliveries` + `ReadFormDeliveriesAction` | `GET /api/manage/forms/{id}/deliveries` |
 | `Webhook` | the one call outward, and whether this deployment can sign at all |
 | `DeliverAnnouncements` | take what is owed, try it, write down what came of trying |
@@ -587,22 +587,29 @@ a longer wait each time, doubling from two seconds to an hour, `FORMS_WEBHOOK_AT
 refusals before it is given up on. A 4xx is retried like the rest, deliberately: a receiver
 mid-deploy answers 404 for a minute. Rows leave with their form by foreign key, like revisions.
 
-**Nothing is deleted for having succeeded**, and that is a correction. The first design was a
-queue: a told row went away, so what outlived a delivery was only what this service gave up on —
-which left the table able to prove a notification had been *lost* and unable to prove one had
-*arrived*. Now a telling is marked. Three states out of two moments, with no state column to
-disagree with them:
+**A success is stamped on the thing it was about; the queue keeps only work.** Two corrections
+led here and both are worth knowing. The first design deleted a told row, which left the table
+able to prove a notification had been *lost* and unable to prove one had *arrived*. Marking the
+row instead answered that, but made a queue that never drains and that holds three states, two of
+which are nobody's work. So the fact moved to where the thing it is about lives:
 
-| `delivered_at` | `gave_up_at` | state |
-|---|---|---|
-| null | null | `owed` — nothing tried yet, or refused and waiting for `next_attempt_at` |
-| set | null | `told` — and it says when |
-| null | set | `abandoned` — refused `attempts` times, never tried again, `last_refusal` says what was said |
+| Question | Where it is answered |
+|---|---|
+| was this **save** reported, and when | `notifiedAt` on that save — `GET /api/manage/forms/{id}/history` |
+| was the **confirmation** reported | `confirmNotifiedAt` on the form — `GET /api/manage/forms/{id}` |
+| what is **stuck** | `GET /api/manage/forms/{id}/deliveries` — `owed`, or `abandoned` with the reason |
 
-A run filters on both, so a told row costs the queue nothing. Two things read them: the owner,
-through `GET /api/manage/forms/{id}/deliveries` (newest first, on the management prefix because it
-names the endpoints a form reports to and who did the thing being reported), and a deployment's
-log collector.
+`told()` writes the stamp and drops the queue row **in one flush**, so a stamped save can never
+sit beside a row still claiming somebody is owed the news about it. `webhook_announcements` is
+therefore a work list: `gave_up_at` null is owed, set is abandoned, and nothing else is in there.
+`form_revisions.notified_at` is the one column of that table that is ever updated — what a
+revision *held* stays append-only, and this is about the telling rather than the document.
+
+One consequence, accepted deliberately: **a stamp leaves when its row leaves.**
+`FORMS_HISTORY_LIMIT` evicts old revisions and with them the record that those saves were
+reported, which is the same rule the rest of the service follows — a document nobody can restore
+is a document whose files stopped mattering. And a save reported *after* its revision was evicted
+stamps nothing rather than recreating anything.
 
 **Every delivery writes a record as it happens**, not only the failures: `info` for a telling,
 `warning` for a refusal that will be tried again, `error` for one given up on. Each carries the

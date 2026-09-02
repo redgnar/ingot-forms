@@ -783,24 +783,33 @@ twelve refusals before this service gives up on it and leaves it where the deplo
 A `4xx` is retried like the rest, because a receiver in the middle of a deploy answers `404` for a
 minute. So a slow receiver should answer first and work afterwards.
 
-**Checking what was sent.** `GET /api/manage/forms/{id}/deliveries` lists every notification the
-form made, newest first, and what came of each:
+**Checking what was sent.** Three questions, three places, one fact in each:
+
+| You want to know | Read |
+|---|---|
+| was this save reported, and when | `notifiedAt` on that save — `GET /api/manage/forms/{id}/history` |
+| was the confirmation reported | `confirmNotifiedAt` — `GET /api/manage/forms/{id}` |
+| what is stuck | `GET /api/manage/forms/{id}/deliveries` |
+
+The first two are stamps on the thing they are about, so they answer "were you told?" without a
+second lookup. The third is the work list — what has not been delivered yet and what could not
+be:
 
 ```json
 { "deliveries": [
   { "delivery": "01a0…", "event": "form.confirmed", "revision": null,
     "occurredAt": "2026-03-01T14:31:00+00:00", "target": "https://…/confirmed",
-    "actor": "u-317", "state": "told", "attempts": 0,
-    "deliveredAt": "2026-03-01T14:31:01+00:00", "nextAttemptAt": "2026-03-01T14:31:00+00:00",
-    "lastRefusal": null }
+    "actor": "u-317", "state": "owed", "attempts": 0,
+    "nextAttemptAt": "2026-03-01T14:31:00+00:00", "lastRefusal": null }
 ] }
 ```
 
-`state` is `owed` (nothing tried yet, or refused and waiting for `nextAttemptAt`), `told`
-(`deliveredAt` says when) or `abandoned` (refused `attempts` times and never tried again, with
-`lastRefusal` saying what your endpoint answered). `delivery` is the id that arrived in
-`X-Forms-Delivery`, so an entry here and a line in your own log are the same event. A form that
-names no endpoint has an empty list: nothing is queued for it.
+`state` is `owed` (nothing tried yet, or refused and waiting for `nextAttemptAt`) or `abandoned`
+(refused `attempts` times and never tried again, with `lastRefusal` saying what your endpoint
+answered). A delivered one is **not** here — it stops being work the moment somebody has been
+told, and its fact moves to the stamp. So an empty list means either a form that reports nowhere
+or one with nothing outstanding. `delivery` is the id that arrived in `X-Forms-Delivery`, so an
+entry here and a line in your own log are the same event.
 
 Read-only, deliberately — there is no way to retry or cancel one. What is owed will be tried by
 the next run, and a receiver that was broken and is now fixed is the deployment's business

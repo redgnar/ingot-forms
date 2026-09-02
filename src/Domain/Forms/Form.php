@@ -87,6 +87,16 @@ final class Form
     private Webhooks $webhooks;
 
     /**
+     * When whoever owns this form was told it had been confirmed.
+     *
+     * Recorded, never consulted — like the actor, and for the same reason: no
+     * rule of this model depends on it, and no transition sets it. It is written
+     * where the telling happens and read back with everything else, so that the
+     * envelope can answer "did you tell them?" without a second way in.
+     */
+    private ?\DateTimeImmutable $confirmNotifiedAt = null;
+
+    /**
      * Everything a form is made of arrives here, and none of it changes
      * afterwards: the definition because the values are judged against it, and
      * the presentation because there is no reason for the description of a
@@ -162,9 +172,11 @@ final class Form
         ?Actor $author = null,
         ?Actor $confirmedBy = null,
         ?Webhooks $webhooks = null,
+        ?\DateTimeImmutable $confirmNotifiedAt = null,
     ): self {
         $form = new self($id, $definition, $expireDate, now: $createdAt, identity: $identity, author: $author, webhooks: $webhooks);
         $form->confirmedBy = $confirmedBy;
+        $form->confirmNotifiedAt = $confirmNotifiedAt;
         $form->data = $values;
         $form->dataSavedAt = $dataSavedAt;
         $form->confirmedAt = $confirmedAt;
@@ -292,6 +304,12 @@ final class Form
     public function webhooks(): Webhooks
     {
         return $this->webhooks;
+    }
+
+    /** When whoever owns this form was told it had been confirmed, or null. */
+    public function confirmNotifiedAt(): ?\DateTimeImmutable
+    {
+        return $this->confirmNotifiedAt;
     }
 
     /** How this form is shown, or null while nobody has said. */

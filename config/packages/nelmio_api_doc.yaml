@@ -102,8 +102,9 @@ nelmio_api_doc:
                     type: object
                     description: >-
                         One accepted save, as the management side sees it: the same
-                        thing a filler is shown, plus who entered it.
-                    required: [seq, savedAt, confirmed, actor]
+                        thing a filler is shown, plus who entered it and when the form
+                        reported it.
+                    required: [seq, savedAt, confirmed, actor, notifiedAt]
                     additionalProperties: false
                     properties:
                         seq:
@@ -123,6 +124,17 @@ nelmio_api_doc:
                                 said it, never parsed or resolved into a person by this service.
                                 Null on a form created as `anonymous`, which records nobody
                                 whatever a gateway asserted.
+                        notifiedAt:
+                            type: [string, 'null']
+                            format: date-time
+                            description: >-
+                                When whoever owns this form was told about this save. Null covers
+                                three things on purpose — not told yet, given up on, and a form
+                                that reports nowhere; `GET /api/manage/forms/{id}/deliveries`
+                                tells those apart, because that is where the work is. Stamped on
+                                the save itself when somebody was told about it — so it leaves
+                                with the revision when the history limit evicts it, the way
+                                everything else about that save does.
                 FormHistoryWithActors:
                     type: object
                     description: Every accepted save of one form, newest first, with who entered each.
@@ -136,8 +148,10 @@ nelmio_api_doc:
                 FormDeliveries:
                     type: object
                     description: >-
-                        Every notification one form made, newest first, and what came of each.
-                        Empty for a form that names no endpoint: nothing is queued for one.
+                        What one form still owes and what it could not deliver, newest first.
+                        Empty for a form that names no endpoint — nothing is queued for one —
+                        and empty again once everything has been told, because a delivered
+                        notification is stamped on the thing it was about instead.
                     required: [deliveries]
                     additionalProperties: false
                     properties:
@@ -148,10 +162,12 @@ nelmio_api_doc:
                 FormDelivery:
                     type: object
                     description: >-
-                        One thing that happened to a form and what came of telling somebody
-                        about it. A failure was always durable; this exists so that a success
-                        is too — the question it answers is "were you told, and when".
-                    required: [delivery, event, revision, occurredAt, target, actor, state, attempts, deliveredAt, nextAttemptAt, lastRefusal]
+                        One notification a form still owes, or could not deliver. A *delivered*
+                        one is not here: the moment somebody has been told, the fact moves to
+                        the thing it is about — `notifiedAt` on that save in
+                        `GET /api/manage/forms/{id}/history`, or `confirmNotifiedAt` on the form
+                        — and this row goes, because it has stopped being work.
+                    required: [delivery, event, revision, occurredAt, target, actor, state, attempts, nextAttemptAt, lastRefusal]
                     additionalProperties: false
                     properties:
                         delivery:
@@ -184,19 +200,16 @@ nelmio_api_doc:
                             description: Who did the thing being reported. Null on a form that records nobody.
                         state:
                             type: string
-                            enum: [owed, told, abandoned]
+                            enum: [owed, abandoned]
                             description: >-
-                                `owed` is nothing tried yet or refused and waiting; `told` means
-                                somebody was told and `deliveredAt` says when; `abandoned` means
-                                refused too many times and never tried again. Derived from the two
-                                moments rather than stored, so nothing can disagree with them.
+                                `owed` is nothing tried yet, or refused and waiting for
+                                `nextAttemptAt`; `abandoned` means refused too many times and
+                                never tried again. Derived from `gaveUpAt` rather than stored, so
+                                nothing can disagree with it.
                         attempts:
                             type: integer
                             minimum: 0
                             description: How many times a receiver refused this.
-                        deliveredAt:
-                            type: [string, 'null']
-                            format: date-time
                         nextAttemptAt:
                             type: string
                             format: date-time
@@ -239,7 +252,7 @@ nelmio_api_doc:
                 FormEnvelope:
                     type: object
                     description: The canonical JSON shape of a form read back from the API.
-                    required: [id, status, expireDate, createdAt, definition, data, dataSavedAt, confirmedAt, identity, author, confirmedBy, webhooks]
+                    required: [id, status, expireDate, createdAt, definition, data, dataSavedAt, confirmedAt, confirmNotifiedAt, identity, author, confirmedBy, webhooks]
                     additionalProperties: false
                     properties:
                         id:
@@ -265,6 +278,14 @@ nelmio_api_doc:
                         confirmedAt:
                             type: [string, 'null']
                             format: date-time
+                        confirmNotifiedAt:
+                            type: [string, 'null']
+                            format: date-time
+                            description: >-
+                                When this form told whoever owns it that it had been confirmed.
+                                Null while it has not been told — not yet, given up on, or a form
+                                that reports nowhere. On the form rather than on a revision
+                                because confirming writes no values and is no revision.
                         identity:
                             type: string
                             enum: [recorded, anonymous]

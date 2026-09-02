@@ -58,9 +58,7 @@ final class DoctrineAnnouncements implements Announcements, FormDeliveries
         /** @var list<WebhookAnnouncementRecord> $records */
         $records = $this->entityManager
             ->createQuery(\sprintf(
-                'SELECT a FROM %s a'
-                . ' WHERE a.deliveredAt IS NULL AND a.gaveUpAt IS NULL AND a.nextAttemptAt <= :now'
-                . ' ORDER BY a.occurredAt ASC, a.id ASC',
+                'SELECT a FROM %s a WHERE a.gaveUpAt IS NULL AND a.nextAttemptAt <= :now ORDER BY a.occurredAt ASC, a.id ASC',
                 WebhookAnnouncementRecord::class,
             ))
             ->setParameter('now', $now)
@@ -74,19 +72,52 @@ final class DoctrineAnnouncements implements Announcements, FormDeliveries
     {
         $record = $this->entityManager->find(WebhookAnnouncementRecord::class, $delivery);
 
-        // Told twice is the promise this port makes, so a row that is gone — or
-        // one somebody else has already marked — is not an error: it is the other
-        // runner having got there first.
-        if ($record === null || $record->deliveredAt !== null) {
+        // Told twice is the promise this port makes, so a row that is already
+        // gone is not an error: it is the other runner having got there first.
+        if ($record === null) {
             return;
         }
 
-        // Marked rather than deleted. A failure used to be durable while a
-        // success left no trace, so the one question an owner asks — were you
-        // told, and when — had no answer; now it does, and a run skips these
-        // because `due()` filters on this column.
-        $record->deliveredAt = new \DateTimeImmutable();
+        // The fact moves to the thing it is about, and the work goes away. Both
+        // in one flush, so a stamped save can never sit next to a row still
+        // claiming somebody is owed the news about it.
+        $this->stamp($record);
+        $this->entityManager->remove($record);
         $this->entityManager->flush();
+    }
+
+    /**
+     * Writes "somebody was told about this" where the thing it is about lives: on
+     * the revision for a save, on the form for a confirmation — which has no
+     * revision, because confirming writes no values.
+     *
+     * A row that is not there any more is not an error. `FORMS_HISTORY_LIMIT`
+     * evicts old revisions, so a save can be reported after the record of it has
+     * gone; there is then nothing to stamp, and nothing that should be recreated
+     * — a save nobody keeps is a save whose telling stopped mattering.
+     */
+    private function stamp(WebhookAnnouncementRecord $record): void
+    {
+        $told = new \DateTimeImmutable();
+
+        if ($record->event === Announcement::CONFIRMED) {
+            $form = $this->entityManager->find(FormRecord::class, $record->formId);
+
+            if ($form !== null) {
+                $form->confirmNotifiedAt = $told;
+            }
+
+            return;
+        }
+
+        $revision = $this->entityManager->find(FormRevisionRecord::class, [
+            'formId' => $record->formId,
+            'seq' => $record->revision,
+        ]);
+
+        if ($revision !== null) {
+            $revision->notifiedAt = $told;
+        }
     }
 
     public function tellAgainAt(Uuid $delivery, \DateTimeImmutable $when, string $why): void
@@ -142,7 +173,6 @@ final class DoctrineAnnouncements implements Announcements, FormDeliveries
             $record->target,
             $record->actorSubject,
             $record->attempts,
-            $record->deliveredAt,
             $record->gaveUpAt,
             $record->nextAttemptAt,
             $record->lastRefusal,

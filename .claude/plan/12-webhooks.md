@@ -189,3 +189,53 @@ test that counted what is due was really asserting something about every other f
 database — it passed while the table happened to be empty and went red the moment a demo form was
 left owing something. Tests here ask about *their own* rows (`owedIdsAmong()`), which is the right
 discipline regardless of which database they run on.
+
+## And where the success actually belongs
+
+"Chodziło mi raczej o przechowywanie sukcesu — bo rozumiem że sama obsługa powinna zostać jak
+jest, ale tam powinny być tylko rzeczy do zrobienia albo z błędem." Right, and better than what
+the correction above did: marking a told row answered the question but left a queue that never
+drains, holding three states of which two are nobody's work.
+
+So the fact moved to the thing it is about. `told()` writes `form_revisions.notified_at` for a
+save, `forms.confirm_notified_at` for a confirmation — which has no revision, because confirming
+writes no values — **and drops the queue row in the same flush**, so a stamped save can never sit
+beside a row still claiming somebody is owed the news. `webhook_announcements` is now what its
+name always suggested: work. `gave_up_at` null is owed, set is abandoned, nothing else lives
+there.
+
+Three questions, one home each, which is the part worth keeping:
+
+| Question | Answered by |
+|---|---|
+| was this save reported, and when | the save's own `notifiedAt` (management history) |
+| was the confirmation reported | the form's `confirmNotifiedAt` (envelope) |
+| what is stuck | `GET /api/manage/forms/{id}/deliveries` — `owed` or `abandoned` with the reason |
+
+Costs, both accepted:
+
+- **A stamp leaves when its row leaves.** `FORMS_HISTORY_LIMIT` evicts old revisions and with them
+  the record that those saves were reported. That is the rule this service already follows
+  elsewhere — a document nobody can restore is a document whose files stopped mattering — and a
+  save told about *after* its revision was evicted stamps nothing rather than recreating anything.
+- **`form_revisions` gained its first updatable column.** What a revision *held* stays
+  append-only; `notified_at` is about the telling, and it is written once. Said in the record's
+  own docblock, because "append-only" was a claim somebody would otherwise read too widely.
+
+## On putting the failure there too, as JSON
+
+Asked, and worth an answer rather than a change: **no, and not as JSON.**
+
+A failure is not a fact about a save the way a telling is — it is *work in a bad state*, and
+what makes it actionable is exactly what a stamp cannot hold: `attempts`, `next_attempt_at`,
+`last_refusal`, and the fact that a run has to be able to *find* it. `select … where gave_up_at is
+not null` is one indexed scan on a small table; the same question against a JSON member on
+`form_revisions` is a JSON path predicate over the largest table in the schema, and this codebase
+stores documents as JSON text only where they are *opaque payloads* (a definition, a values
+document, a presentation). A delivery outcome has a known shape, and known shapes are columns
+here: a JSON blob would give up type checking and portable querying to buy an extensibility
+nobody has asked for.
+
+What is worth doing if the split ever chafes: the history response can carry the *failure* as a
+derived member read from the queue, the way it now carries the stamp — no new column, no second
+copy, and it cannot drift. Offered, not built.

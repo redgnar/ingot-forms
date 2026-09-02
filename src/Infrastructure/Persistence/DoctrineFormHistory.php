@@ -28,9 +28,12 @@ final class DoctrineFormHistory implements FormHistory
 
     public function revisionsOf(FormId $form): array
     {
-        /** @var list<array{seq: int, savedAt: \DateTimeImmutable, actorSubject: string|null}> $rows */
+        /** @var list<array{seq: int, savedAt: \DateTimeImmutable, actorSubject: string|null, notifiedAt: \DateTimeImmutable|null}> $rows */
         $rows = $this->entityManager
-            ->createQuery(\sprintf('SELECT r.seq, r.savedAt, r.actorSubject FROM %s r WHERE r.formId = :form ORDER BY r.seq DESC', FormRevisionRecord::class))
+            ->createQuery(\sprintf(
+                'SELECT r.seq, r.savedAt, r.actorSubject, r.notifiedAt FROM %s r WHERE r.formId = :form ORDER BY r.seq DESC',
+                FormRevisionRecord::class,
+            ))
             ->setParameter('form', $form->toUuid())
             ->getArrayResult();
 
@@ -41,6 +44,10 @@ final class DoctrineFormHistory implements FormHistory
                 $row['seq'],
                 $row['savedAt'],
                 actor: $row['actorSubject'] === null ? null : Actor::stored($row['actorSubject']),
+                // When whoever owns the form was told about this save. Read from
+                // the row it is about rather than from the queue, which by then
+                // holds only what is still owed or was given up on.
+                notifiedAt: $row['notifiedAt'],
             ),
             $rows,
         );

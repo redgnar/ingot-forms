@@ -275,6 +275,7 @@ final class DoctrineFormRepository implements FormRepository
             // wrote, and a form that would report itself there should refuse to
             // be read instead.
             Webhooks::stored($record->webhookSaveUrl, $record->webhookConfirmUrl),
+            $record->confirmNotifiedAt,
         );
     }
 

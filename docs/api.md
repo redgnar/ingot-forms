@@ -22,7 +22,7 @@ this reference cannot drift from the implementation.
 | [`DELETE /api/forms/{id}/files/{fileId}`](#delete-apiformsidfilesfileid) | `discardFormFile` | Throw away an uploaded file this form has not saved | `204`, `404`, `409`, `410` |
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
 | [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `415`, `410`, `422` |
-| [`GET /api/manage/forms/{id}/deliveries`](#get-apimanageformsiddeliveries) | `getFormDeliveries` | List every notification this form made, and what came of each | `200`, `404`, `410` |
+| [`GET /api/manage/forms/{id}/deliveries`](#get-apimanageformsiddeliveries) | `getFormDeliveries` | List what this form still owes, and what it could not deliver | `200`, `404`, `410` |
 | [`GET /api/forms/{id}/history`](#get-apiformsidhistory) | `getFormHistory` | List every accepted save of this form | `200`, `404`, `410` |
 | [`GET /api/manage/forms/{id}/history`](#get-apimanageformsidhistory) | `getManagedFormHistory` | List every accepted save of this form, with who entered it | `200`, `404`, `410` |
 | [`GET /api/forms/{id}/presentation`](#get-apiformsidpresentation) | `getFormPresentation` | Read how the form is shown | `200`, `404`, `410` |
@@ -200,9 +200,9 @@ Repeatable; overwrites the previous draft. Values are validated against the draf
 
 ### GET /api/manage/forms/{id}/deliveries
 
-`operationId: getFormDeliveries` — List every notification this form made, and what came of each
+`operationId: getFormDeliveries` — List what this form still owes, and what it could not deliver
 
-Newest first, and empty for a form that names no endpoint — nothing is queued for one. Each entry is one thing that happened to the form (`form.saved` with the revision it became, or `form.confirmed`), the endpoint it was to be told to, and its state: `owed` (nothing tried yet, or refused and waiting for `nextAttemptAt`), `told` (`deliveredAt` says when) or `abandoned` (refused `attempts` times and never tried again, with `lastRefusal` saying what the receiver said). `delivery` is the id that went out as `X-Forms-Delivery`, so an entry here and a line in the receiver's own log are the same event.
+Newest first. A *delivered* notification is not here — the moment somebody has been told, the fact moves to the thing it was about (`notifiedAt` on that save in `GET /api/manage/forms/{id}/history`, `confirmNotifiedAt` on the form) and the row goes, because it has stopped being work. So this is the work list: each entry is one thing that happened to the form (`form.saved` with the revision it became, or `form.confirmed`), the endpoint it is to be told to, and its state — `owed` (nothing tried yet, or refused and waiting for `nextAttemptAt`) or `abandoned` (refused `attempts` times and never tried again, `lastRefusal` saying what the receiver said). Empty for a form that names no endpoint, and empty again once everything has been told. `delivery` is the id that went out as `X-Forms-Delivery`, so an entry here and a line in the receiver's own log are the same event.
 
 **Parameters**
 
@@ -214,7 +214,7 @@ Newest first, and empty for a form that names no endpoint — nothing is queued 
 
 | Status | Content type | Body | Description |
 |---|---|---|---|
-| `200` | `application/json` | [`FormDeliveries`](#formdeliveries) | The deliveries, newest first. |
+| `200` | `application/json` | [`FormDeliveries`](#formdeliveries) | What is outstanding, newest first. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 
@@ -242,7 +242,7 @@ Newest first, because that is what somebody looking for an earlier version is us
 
 `operationId: getManagedFormHistory` — List every accepted save of this form, with who entered it
 
-The management side of `GET /api/forms/{id}/history`: the same saves, newest first, each carrying the identity that was asserted when it was accepted. `actor` is null on a form created as `anonymous` — that form records nobody, whatever a gateway asserted. It is served here and not on the fill side so that one person who was let through to a form learns nothing about who else filled it in. The subject is opaque: it is whatever authenticated the caller said, never resolved into a person by this service.
+The management side of `GET /api/forms/{id}/history`: the same saves, newest first, each carrying the identity that was asserted when it was accepted and the moment the form reported that save to whoever owns it (`notifiedAt`, null when it has not been told, was given up on, or the form reports nowhere — `GET /api/manage/forms/{id}/deliveries` tells those three apart). `actor` is null on a form created as `anonymous` — that form records nobody, whatever a gateway asserted. It is served here and not on the fill side so that one person who was let through to a form learns nothing about who else filled it in. The subject is opaque: it is whatever authenticated the caller said, never resolved into a person by this service.
 
 **Parameters**
 
@@ -422,7 +422,7 @@ No other properties are allowed.
 
 ### FormRevisionWithActor
 
-One accepted save, as the management side sees it: the same thing a filler is shown, plus who entered it.
+One accepted save, as the management side sees it: the same thing a filler is shown, plus who entered it and when the form reported it.
 
 | Property | Type | Required | Description |
 |---|---|---|---|
@@ -430,6 +430,7 @@ One accepted save, as the management side sees it: the same thing a filler is sh
 | `savedAt` | `string` (`date-time`) | yes |  |
 | `confirmed` | `boolean` | yes |  |
 | `actor` | `string \| null` (max length 255) | yes | The identity that was asserted when this save was accepted — an opaque subject, exactly as whatever authenticated the caller said it, never parsed or resolved into a person by this service. Null on a form created as `anonymous`, which records nobody whatever a gateway asserted. |
+| `notifiedAt` | `string \| null` (`date-time`) | yes | When whoever owns this form was told about this save. Null covers three things on purpose — not told yet, given up on, and a form that reports nowhere; `GET /api/manage/forms/{id}/deliveries` tells those apart, because that is where the work is. Stamped on the save itself when somebody was told about it — so it leaves with the revision when the history limit evicts it, the way everything else about that save does. |
 
 No other properties are allowed.
 
@@ -445,7 +446,7 @@ No other properties are allowed.
 
 ### FormDeliveries
 
-Every notification one form made, newest first, and what came of each. Empty for a form that names no endpoint: nothing is queued for one.
+What one form still owes and what it could not deliver, newest first. Empty for a form that names no endpoint — nothing is queued for one — and empty again once everything has been told, because a delivered notification is stamped on the thing it was about instead.
 
 | Property | Type | Required | Description |
 |---|---|---|---|
@@ -455,7 +456,7 @@ No other properties are allowed.
 
 ### FormDelivery
 
-One thing that happened to a form and what came of telling somebody about it. A failure was always durable; this exists so that a success is too — the question it answers is "were you told, and when".
+One notification a form still owes, or could not deliver. A *delivered* one is not here: the moment somebody has been told, the fact moves to the thing it is about — `notifiedAt` on that save in `GET /api/manage/forms/{id}/history`, or `confirmNotifiedAt` on the form — and this row goes, because it has stopped being work.
 
 | Property | Type | Required | Description |
 |---|---|---|---|
@@ -465,9 +466,8 @@ One thing that happened to a form and what came of telling somebody about it. A 
 | `occurredAt` | `string` (`date-time`) | yes | When the thing happened, not when it was told. |
 | `target` | `string` (`uri`) | yes | Where it was to be told. Kept per delivery rather than read off the form, so what was actually used is what is served. |
 | `actor` | `string \| null` (max length 255) | yes | Who did the thing being reported. Null on a form that records nobody. |
-| `state` | `string` (`owed` \| `told` \| `abandoned`) | yes | `owed` is nothing tried yet or refused and waiting; `told` means somebody was told and `deliveredAt` says when; `abandoned` means refused too many times and never tried again. Derived from the two moments rather than stored, so nothing can disagree with them. |
+| `state` | `string` (`owed` \| `abandoned`) | yes | `owed` is nothing tried yet, or refused and waiting for `nextAttemptAt`; `abandoned` means refused too many times and never tried again. Derived from `gaveUpAt` rather than stored, so nothing can disagree with it. |
 | `attempts` | `integer` (≥ 0) | yes | How many times a receiver refused this. |
-| `deliveredAt` | `string \| null` (`date-time`) | yes |  |
 | `nextAttemptAt` | `string` (`date-time`) | yes | When it will be tried again. Meaningless once told or abandoned, which is what `state` is for. |
 | `lastRefusal` | `string \| null` | yes | What the receiver said the last time it refused. |
 
@@ -509,6 +509,7 @@ The canonical JSON shape of a form read back from the API.
 | `data` | [`FormValues`](#formvalues) or `null` | yes |  |
 | `dataSavedAt` | `string \| null` (`date-time`) | yes |  |
 | `confirmedAt` | `string \| null` (`date-time`) | yes |  |
+| `confirmNotifiedAt` | `string \| null` (`date-time`) | yes | When this form told whoever owns it that it had been confirmed. Null while it has not been told — not yet, given up on, or a form that reports nowhere. On the form rather than on a revision because confirming writes no values and is no revision. |
 | `identity` | `string` (`recorded` \| `anonymous`) | yes | Whether this form records who fills it in. Given at creation and immutable. `anonymous` discards an asserted identity rather than refusing it, so a gateway asserting on every request cannot build a record by accident. |
 | `author` | `string \| null` (max length 255) | yes | Who created this form — an opaque subject as whatever authenticated the caller said it, never resolved into a person here. Null when nobody was asserted. Outside `identity` on purpose: an anonymous form still has an author, because somebody created it. |
 | `confirmedBy` | `string \| null` (max length 255) | yes | Who locked this form. Its own member because confirming writes no values and is therefore no revision — without it, the most consequential act on a form would be the one nobody attributed. Null while the form is open, and on an anonymous form. |

@@ -36,6 +36,10 @@ final class FormEnvelope
             'data' => $record->valuesJson() ?? 'null',
             'dataSavedAt' => self::encoded($record->dataSavedAt()?->format(\DateTimeInterface::ATOM)),
             'confirmedAt' => self::encoded($record->confirmedAt()?->format(\DateTimeInterface::ATOM)),
+            // When this form told whoever owns it that it had been confirmed.
+            // Beside `confirmedAt` because that is what it is about, and on the
+            // form rather than on a revision because confirming writes no values.
+            'confirmNotifiedAt' => self::encoded($record->confirmNotifiedAt()?->format(\DateTimeInterface::ATOM)),
             // Whether this form records who fills it in, and the two people it
             // knows by name. Who filled it in is per save and is read from the
             // management side's history instead: "who last changed this form" is

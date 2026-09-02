@@ -145,13 +145,18 @@ timestamp + body, `X-Forms-Delivery` stable across retries); with no secret a fo
 endpoint is **refused at creation**, because a notification nobody can verify is forgeable by
 anything that can reach the receiver. A refusal is not a failure — anything but 2xx waits longer
 each time, doubling to an hour, `FORMS_WEBHOOK_ATTEMPTS` refusals before it is given up on. Rows
-leave with their form by foreign key, like revisions. **Nothing is deleted for having succeeded**,
-which corrected the first design: a told row used to go away, so a lost notification was provable
-and an arrived one was not. A telling is marked instead — three states out of two moments
-(`delivered_at`, `gave_up_at`: neither is `owed`, the first is `told`, the second `abandoned`),
-with no state column to disagree with them — a run filters on both so a told row costs the queue
-nothing, and the owner reads all three at `GET /api/manage/forms/{id}/deliveries` (management
-prefix: it names the endpoints and the actor). Beside it, **every delivery writes a log record as
+leave with their form by foreign key, like revisions. **A success is stamped on the thing it was
+about and the queue keeps only work**, which took two corrections: deleting a told row left a lost
+notification provable and an arrived one not, and marking the row instead made a queue that never
+drains and holds two states that are nobody's work. So `told()` writes
+`form_revisions.notified_at` (a save) or `forms.confirm_notified_at` (a confirmation — no values,
+no revision) **and drops the row in the same flush**, `webhook_announcements` means owed or
+abandoned, and three questions have one home each: was this save reported (the history's
+`notifiedAt`), was the confirmation (the envelope's `confirmNotifiedAt`), what is stuck
+(`GET /api/manage/forms/{id}/deliveries`, management prefix: it names the endpoints and the
+actor). A stamp leaves when its row leaves — `FORMS_HISTORY_LIMIT` evicting a revision takes the
+record that it was reported, the same way a document nobody can restore takes its files — and a
+save told about after its revision is gone stamps nothing rather than recreating it. Beside it, **every delivery writes a log record as
 it happens** — `info` told, `warning` refused-will-retry, `error` gave-up — each carrying the
 delivery id that went out as `X-Forms-Delivery`, so our line and the receiver's line are the same
 event. Deliberately absent: a

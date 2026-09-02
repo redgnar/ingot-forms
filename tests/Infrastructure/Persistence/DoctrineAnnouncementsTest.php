@@ -19,6 +19,7 @@ use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Webhooks;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
+use App\Infrastructure\Persistence\FormRevisionRecord;
 use App\Infrastructure\Persistence\WebhookAnnouncementRecord;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use Doctrine\ORM\EntityManagerInterface;
@@ -193,7 +194,7 @@ final class DoctrineAnnouncementsTest extends KernelTestCase
         self::assertSame(1, $this->only($id)->revision);
     }
 
-    public function testWhatIsOwedIsWhatHasNeitherBeenToldNorGivenUpOn(): void
+    public function testWhatIsOwedIsWhatIsLeftAfterTellingAndGivingUp(): void
     {
         // GIVEN three announcements of one form, settled three different ways
         $id = FormId::next();
@@ -209,34 +210,33 @@ final class DoctrineAnnouncementsTest extends KernelTestCase
         $this->announcements->tellAgainAt($rows[1]->id, $now->modify('+1 hour'), 'The receiver answered 503.');
 
         // WHEN a run asks what is owed
-        // THEN of this form's three, only the last: one has been told and one is
-        // waiting out its refusal. Asked about *these* rows rather than counted,
-        // because the queue is one queue for every form in the deployment.
-        $due = $this->owedIdsAmong($now, $rows);
-        self::assertSame([(string) $rows[2]->id], $due);
+        // THEN of this form's three, only the last: one has been told — and is
+        // gone from the queue altogether — and one is waiting out its refusal.
+        // Asked about *these* rows rather than counted, because the queue is one
+        // queue for every form in the deployment.
+        self::assertSame([(string) $rows[2]->id], $this->owedIdsAmong($now, $rows));
+        self::assertCount(2, $this->rows($id));
 
         // AND the one that was refused says so, where a deployment can read it
-        $refused = $this->rows($id)[1];
+        $refused = $this->rows($id)[0];
         self::assertSame(1, $refused->attempts);
         self::assertSame('The receiver answered 503.', $refused->lastRefusal);
         self::assertNull($refused->gaveUpAt);
-        self::assertNull($refused->deliveredAt);
 
         // WHEN the last one is given up on
         $this->announcements->giveUp($rows[2]->id, 'Could not resolve host.');
 
-        // THEN this form owes nothing, and the row is kept rather than deleted:
-        // a row that is still there was owed, told, or lost, and those three are
-        // worth telling apart
+        // THEN this form owes nothing, and that row is *kept*: what is left in
+        // this table is work — waiting, or lost and worth somebody's attention
         self::assertSame([], $this->owedIdsAmong($now, $rows));
-        $abandoned = $this->rows($id)[2];
+        $abandoned = $this->rows($id)[1];
         self::assertNotNull($abandoned->gaveUpAt);
         self::assertSame('Could not resolve host.', $abandoned->lastRefusal);
     }
 
-    public function testWhatOneFormHasToldAnybodyReadsBackNewestFirstWithItsState(): void
+    public function testWhatOneFormStillOwesReadsBackNewestFirstWithItsState(): void
     {
-        // GIVEN a form that made three announcements, one of each state
+        // GIVEN a form that made three announcements, settled three ways
         $id = FormId::next();
         $this->plant($id, Webhooks::of('https://receiver.test/saved', null), IdentityMode::Recorded);
         $this->saveOnce($id, '{"email":"first@example.com"}', Actor::of('u-1'));
@@ -246,23 +246,21 @@ final class DoctrineAnnouncementsTest extends KernelTestCase
         $this->announcements->told($rows[0]->id);
         $this->announcements->giveUp($rows[1]->id, 'Could not resolve host.');
 
-        // WHEN the system that owns the form asks what it has told anybody
+        // WHEN the system that owns the form asks what is still outstanding
         $deliveries = $this->deliveries->ofForm($id);
 
-        // THEN newest first, each in the state its two moments say it is in —
-        // and no state column anywhere, so nothing can disagree with them
-        self::assertCount(3, $deliveries);
+        // THEN the told one is not among them at all — its fact moved to the
+        // save it was about — and the other two say which state they are in,
+        // newest first
+        self::assertCount(2, $deliveries);
         self::assertSame(
-            [RecordedDelivery::OWED, RecordedDelivery::ABANDONED, RecordedDelivery::TOLD],
+            [RecordedDelivery::OWED, RecordedDelivery::ABANDONED],
             array_map(static fn(RecordedDelivery $one): string => $one->state(), $deliveries),
         );
-        self::assertSame([3, 2, 1], array_map(static fn(RecordedDelivery $one): ?int => $one->revision, $deliveries));
-        self::assertSame(['u-3', 'u-2', 'u-1'], array_map(static fn(RecordedDelivery $one): ?string => $one->actor, $deliveries));
-
-        // AND each one says the things a deployment can act on
+        self::assertSame([3, 2], array_map(static fn(RecordedDelivery $one): ?int => $one->revision, $deliveries));
+        self::assertSame(['u-3', 'u-2'], array_map(static fn(RecordedDelivery $one): ?string => $one->actor, $deliveries));
         self::assertSame('Could not resolve host.', $deliveries[1]->lastRefusal);
         self::assertSame(1, $deliveries[1]->attempts);
-        self::assertNotNull($deliveries[2]->deliveredAt);
         self::assertSame('https://receiver.test/saved', $deliveries[0]->target);
         self::assertSame((string) $rows[2]->id, $deliveries[0]->id);
     }
@@ -290,7 +288,7 @@ final class DoctrineAnnouncementsTest extends KernelTestCase
         self::assertCount(1, $this->announcements->due(new \DateTimeImmutable(), 1));
     }
 
-    public function testTellingSomebodyIsRecordedRatherThanForgotten(): void
+    public function testTellingSomebodyAboutASaveStampsThatSaveAndDrainsTheQueue(): void
     {
         // GIVEN one owed
         $id = FormId::next();
@@ -300,16 +298,51 @@ final class DoctrineAnnouncementsTest extends KernelTestCase
         // WHEN somebody has been told
         $this->announcements->told($this->only($id)->id);
 
-        // THEN the row stays, marked with when. A failure was always durable and
-        // a success used to leave nothing at all, so the only provable state was
-        // the bad one — which is exactly what nobody wanted to hear.
-        $record = $this->only($id);
-        self::assertNotNull($record->deliveredAt);
-        self::assertNull($record->gaveUpAt);
-        self::assertSame(0, $record->attempts);
+        // THEN the fact is on the save it was about, and the queue has nothing
+        // left to do: a told notification is not work, and the row would only be
+        // a second place to keep one fact
+        self::assertSame([], $this->rows($id));
+        self::assertNotNull($this->revision($id, 1)->notifiedAt);
     }
 
-    public function testSettlingTheSameDeliveryTwiceChangesNothing(): void
+    public function testTellingSomebodyAboutAConfirmationStampsTheFormItself(): void
+    {
+        // GIVEN a form that reports being finished, and is
+        $id = FormId::next();
+        $this->plant($id, Webhooks::of(null, 'https://receiver.test/confirmed'));
+        $this->saveOnce($id, '{"email":"ada@example.com"}');
+        $form = $this->repository->get($id);
+        $form->confirm(new StubValues());
+        $this->repository->save($form);
+
+        // WHEN somebody has been told
+        $this->announcements->told($this->only($id)->id);
+
+        // THEN the form carries it, because confirming writes no values and is
+        // no revision — the same reason its confirmer has a column of its own
+        self::assertSame([], $this->rows($id));
+        self::assertNotNull($this->repository->get($id)->confirmNotifiedAt());
+    }
+
+    public function testASaveTheHistoryHasForgottenIsToldAboutAndStampsNothing(): void
+    {
+        // GIVEN an announcement about a save whose revision is gone — which is
+        // what a history limit does to old saves
+        $id = FormId::next();
+        $this->plant($id, Webhooks::of('https://receiver.test/saved', null));
+        $this->saveOnce($id, '{"email":"ada@example.com"}');
+        $delivery = $this->only($id)->id;
+        $this->forgetRevisions($id);
+
+        // WHEN it is finally told
+        $this->announcements->told($delivery);
+
+        // THEN nothing throws and nothing is recreated: a save nobody keeps is a
+        // save whose telling stopped mattering
+        self::assertSame([], $this->rows($id));
+    }
+
+    public function testTellingTheSameDeliveryTwiceIsNotAnError(): void
     {
         // GIVEN one that has been told — two runners, and the other one got
         // there first
@@ -318,16 +351,18 @@ final class DoctrineAnnouncementsTest extends KernelTestCase
         $this->saveOnce($id, '{"email":"ada@example.com"}');
         $delivery = $this->only($id)->id;
         $this->announcements->told($delivery);
-        $told = $this->only($id)->deliveredAt;
+        $stamped = $this->revision($id, 1)->notifiedAt;
 
-        // WHEN the same one is settled again, every way there is
+        // WHEN the same one is settled again
         $this->announcements->told($delivery);
+        $this->announcements->tellAgainAt($delivery, new \DateTimeImmutable('+1 hour'), 'gone');
+        $this->announcements->giveUp($delivery, 'gone');
 
-        // THEN the moment it was told is untouched: at-least-once means a
-        // duplicate has to be harmless on this side too, and a second `told`
-        // must not move the record of the first
-        self::assertSame($told?->getTimestamp(), $this->only($id)->deliveredAt?->getTimestamp());
-        self::assertSame(0, $this->only($id)->attempts);
+        // THEN nothing happens and nothing throws: at-least-once means a
+        // duplicate has to be harmless on this side too, and the moment of the
+        // first telling is untouched
+        self::assertSame([], $this->rows($id));
+        self::assertSame($stamped?->getTimestamp(), $this->revision($id, 1)->notifiedAt?->getTimestamp());
     }
 
     public function testWhatIsOwedLeavesWithItsForm(): void
@@ -389,6 +424,25 @@ final class DoctrineAnnouncementsTest extends KernelTestCase
         }
 
         return $owed;
+    }
+
+    /** One stored revision, to read what a telling stamped on it. */
+    private function revision(FormId $id, int $seq): FormRevisionRecord
+    {
+        $record = $this->entityManager->find(FormRevisionRecord::class, ['formId' => $id->toUuid(), 'seq' => $seq]);
+        self::assertInstanceOf(FormRevisionRecord::class, $record);
+
+        return $record;
+    }
+
+    /** What a history limit does to old saves, done to all of them. */
+    private function forgetRevisions(FormId $id): void
+    {
+        $this->entityManager
+            ->createQuery(\sprintf('DELETE FROM %s r WHERE r.formId = :form', FormRevisionRecord::class))
+            ->setParameter('form', $id->toUuid())
+            ->execute();
+        $this->entityManager->clear();
     }
 
     /** The one row this form owes, when a test expects exactly one. */

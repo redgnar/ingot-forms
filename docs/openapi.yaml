@@ -317,8 +317,8 @@ paths:
                   value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /age, code: schema.type, message: 'The data (string) must match the type: number' }] }
   '/api/manage/forms/{id}/deliveries':
     get:
-      summary: 'List every notification this form made, and what came of each'
-      description: "Newest first, and empty for a form that names no endpoint — nothing is queued for one. Each entry is one thing that happened to the form (`form.saved` with the revision it became, or `form.confirmed`), the endpoint it was to be told to, and its state: `owed` (nothing tried yet, or refused and waiting for `nextAttemptAt`), `told` (`deliveredAt` says when) or `abandoned` (refused `attempts` times and never tried again, with `lastRefusal` saying what the receiver said). `delivery` is the id that went out as `X-Forms-Delivery`, so an entry here and a line in the receiver's own log are the same event."
+      summary: 'List what this form still owes, and what it could not deliver'
+      description: "Newest first. A *delivered* notification is not here — the moment somebody has been told, the fact moves to the thing it was about (`notifiedAt` on that save in `GET /api/manage/forms/{id}/history`, `confirmNotifiedAt` on the form) and the row goes, because it has stopped being work. So this is the work list: each entry is one thing that happened to the form (`form.saved` with the revision it became, or `form.confirmed`), the endpoint it is to be told to, and its state — `owed` (nothing tried yet, or refused and waiting for `nextAttemptAt`) or `abandoned` (refused `attempts` times and never tried again, `lastRefusal` saying what the receiver said). Empty for a form that names no endpoint, and empty again once everything has been told. `delivery` is the id that went out as `X-Forms-Delivery`, so an entry here and a line in the receiver's own log are the same event."
       operationId: getFormDeliveries
       parameters:
         -
@@ -330,7 +330,7 @@ paths:
             pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
       responses:
         '200':
-          description: 'The deliveries, newest first.'
+          description: 'What is outstanding, newest first.'
           content:
             application/json:
               schema:
@@ -366,7 +366,7 @@ paths:
   '/api/manage/forms/{id}/history':
     get:
       summary: 'List every accepted save of this form, with who entered it'
-      description: 'The management side of `GET /api/forms/{id}/history`: the same saves, newest first, each carrying the identity that was asserted when it was accepted. `actor` is null on a form created as `anonymous` — that form records nobody, whatever a gateway asserted. It is served here and not on the fill side so that one person who was let through to a form learns nothing about who else filled it in. The subject is opaque: it is whatever authenticated the caller said, never resolved into a person by this service.'
+      description: 'The management side of `GET /api/forms/{id}/history`: the same saves, newest first, each carrying the identity that was asserted when it was accepted and the moment the form reported that save to whoever owns it (`notifiedAt`, null when it has not been told, was given up on, or the form reports nowhere — `GET /api/manage/forms/{id}/deliveries` tells those three apart). `actor` is null on a form created as `anonymous` — that form records nobody, whatever a gateway asserted. It is served here and not on the fill side so that one person who was let through to a form learns nothing about who else filled it in. The subject is opaque: it is whatever authenticated the caller said, never resolved into a person by this service.'
       operationId: getManagedFormHistory
       parameters:
         -
@@ -650,12 +650,13 @@ components:
       type: object
       additionalProperties: false
     FormRevisionWithActor:
-      description: 'One accepted save, as the management side sees it: the same thing a filler is shown, plus who entered it.'
+      description: 'One accepted save, as the management side sees it: the same thing a filler is shown, plus who entered it and when the form reported it.'
       required:
         - seq
         - savedAt
         - confirmed
         - actor
+        - notifiedAt
       properties:
         seq:
           type: integer
@@ -671,6 +672,12 @@ components:
             - string
             - 'null'
           maxLength: 255
+        notifiedAt:
+          description: 'When whoever owns this form was told about this save. Null covers three things on purpose — not told yet, given up on, and a form that reports nowhere; `GET /api/manage/forms/{id}/deliveries` tells those apart, because that is where the work is. Stamped on the save itself when somebody was told about it — so it leaves with the revision when the history limit evicts it, the way everything else about that save does.'
+          type:
+            - string
+            - 'null'
+          format: date-time
       type: object
       additionalProperties: false
     FormHistoryWithActors:
@@ -685,7 +692,7 @@ components:
       type: object
       additionalProperties: false
     FormDeliveries:
-      description: 'Every notification one form made, newest first, and what came of each. Empty for a form that names no endpoint: nothing is queued for one.'
+      description: 'What one form still owes and what it could not deliver, newest first. Empty for a form that names no endpoint — nothing is queued for one — and empty again once everything has been told, because a delivered notification is stamped on the thing it was about instead.'
       required:
         - deliveries
       properties:
@@ -696,7 +703,7 @@ components:
       type: object
       additionalProperties: false
     FormDelivery:
-      description: 'One thing that happened to a form and what came of telling somebody about it. A failure was always durable; this exists so that a success is too — the question it answers is "were you told, and when".'
+      description: 'One notification a form still owes, or could not deliver. A *delivered* one is not here: the moment somebody has been told, the fact moves to the thing it is about — `notifiedAt` on that save in `GET /api/manage/forms/{id}/history`, or `confirmNotifiedAt` on the form — and this row goes, because it has stopped being work.'
       required:
         - delivery
         - event
@@ -706,7 +713,6 @@ components:
         - actor
         - state
         - attempts
-        - deliveredAt
         - nextAttemptAt
         - lastRefusal
       properties:
@@ -740,21 +746,15 @@ components:
             - 'null'
           maxLength: 255
         state:
-          description: '`owed` is nothing tried yet or refused and waiting; `told` means somebody was told and `deliveredAt` says when; `abandoned` means refused too many times and never tried again. Derived from the two moments rather than stored, so nothing can disagree with them.'
+          description: '`owed` is nothing tried yet, or refused and waiting for `nextAttemptAt`; `abandoned` means refused too many times and never tried again. Derived from `gaveUpAt` rather than stored, so nothing can disagree with it.'
           type: string
           enum:
             - owed
-            - told
             - abandoned
         attempts:
           description: 'How many times a receiver refused this.'
           type: integer
           minimum: 0
-        deliveredAt:
-          type:
-            - string
-            - 'null'
-          format: date-time
         nextAttemptAt:
           description: 'When it will be tried again. Meaningless once told or abandoned, which is what `state` is for.'
           type: string
@@ -807,6 +807,7 @@ components:
         - data
         - dataSavedAt
         - confirmedAt
+        - confirmNotifiedAt
         - identity
         - author
         - confirmedBy
@@ -837,6 +838,12 @@ components:
             - 'null'
           format: date-time
         confirmedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        confirmNotifiedAt:
+          description: 'When this form told whoever owns it that it had been confirmed. Null while it has not been told — not yet, given up on, or a form that reports nowhere. On the form rather than on a revision because confirming writes no values and is no revision.'
           type:
             - string
             - 'null'

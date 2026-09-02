@@ -79,4 +79,12 @@ class FormRecord
 
     #[ORM\Column(name: 'webhook_confirm_url', type: Types::TEXT, nullable: true)]
     public ?string $webhookConfirmUrl = null;
+
+    /**
+     * When whoever owns this form was told it had been confirmed. Here rather
+     * than on a revision because confirming writes no values and is no revision
+     * — the same reason `confirmed_by_subject` is a column of its own.
+     */
+    #[ORM\Column(name: 'confirm_notified_at', type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    public ?\DateTimeImmutable $confirmNotifiedAt = null;
 }

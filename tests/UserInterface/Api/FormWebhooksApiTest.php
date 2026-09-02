@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\UserInterface\Api;
 
+use App\Application\Forms\Port\Announcements;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
@@ -105,7 +106,7 @@ final class FormWebhooksApiTest extends WebTestCase
         self::assertSame('request.unexpected_key', $this->firstError()['code']);
     }
 
-    public function testTheOwnerCanReadWhatTheFormHasToldAnybody(): void
+    public function testTheOwnerCanReadWhatTheFormStillOwes(): void
     {
         // GIVEN a form that reports both events, filled in and finished
         $id = $this->create([
@@ -121,8 +122,9 @@ final class FormWebhooksApiTest extends WebTestCase
         $this->client->request('GET', \sprintf('/api/manage/forms/%s/deliveries', $id));
 
         // THEN both, newest first, and each still owed because nothing has
-        // delivered them yet — which is the answer that used to be unavailable:
-        // a failure was durable and a success was not
+        // delivered them yet. There is no `deliveredAt` here at all: a told
+        // notification stops being work and its fact moves to the thing it was
+        // about — the save's own `notifiedAt`, or the form's `confirmNotifiedAt`
         self::assertResponseIsSuccessful();
         $deliveries = $this->body()['deliveries'];
         self::assertIsArray($deliveries);
@@ -137,14 +139,51 @@ final class FormWebhooksApiTest extends WebTestCase
         self::assertSame('https://receiver.test/confirmed', $confirmation['target']);
         self::assertSame('owed', $confirmation['state']);
         self::assertSame(0, $confirmation['attempts']);
-        self::assertNull($confirmation['deliveredAt']);
         self::assertNull($confirmation['lastRefusal']);
+        self::assertArrayNotHasKey('deliveredAt', $confirmation);
         self::assertSame('form.saved', $save['event']);
         self::assertSame(1, $save['revision']);
         // The id that goes out as X-Forms-Delivery, so this entry and the
         // receiver's own log line are the same event
         self::assertIsString($save['delivery']);
         self::assertNotSame($save['delivery'], $confirmation['delivery']);
+    }
+
+    public function testOnceSomebodyHasBeenToldTheFactSitsOnWhatItWasAbout(): void
+    {
+        // GIVEN a form that reports both events, saved and confirmed
+        $id = $this->create([
+            'save' => 'https://receiver.test/saved',
+            'confirm' => 'https://receiver.test/confirmed',
+        ]);
+        $this->client->request('PUT', \sprintf('/api/forms/%s/data', $id), server: ['CONTENT_TYPE' => 'application/json'], content: '{"email":"ada@example.com"}');
+        $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
+        self::assertResponseStatusCodeSame(204);
+
+        // WHEN both notifications have been delivered
+        $queue = self::getContainer()->get(Announcements::class);
+        self::assertInstanceOf(Announcements::class, $queue);
+
+        foreach ($queue->due(new \DateTimeImmutable(), 10) as $delivery) {
+            $queue->told($delivery->id);
+        }
+
+        // THEN the work list is empty — a told notification is not work
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s/deliveries', $id));
+        self::assertSame([], $this->body()['deliveries'] ?? null);
+
+        // AND the save says when it was reported, on the save itself
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s/history', $id));
+        $revisions = $this->body()['revisions'] ?? null;
+        self::assertIsArray($revisions);
+        $first = $revisions[0];
+        self::assertIsArray($first);
+        self::assertIsString($first['notifiedAt']);
+
+        // AND the form says when its confirmation was reported, because
+        // confirming writes no values and is no revision
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s', $id));
+        self::assertIsString($this->body()['confirmNotifiedAt']);
     }
 
     public function testAFormThatReportsNowhereHasNothingToShow(): void
