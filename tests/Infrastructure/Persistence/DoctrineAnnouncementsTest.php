@@ -25,6 +25,7 @@ use App\Infrastructure\Persistence\WebhookAnnouncementRecord;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * The outbox: what a save puts in it, what it refuses to put in it, and what
@@ -568,6 +569,108 @@ final class DoctrineAnnouncementsTest extends KernelTestCase
         }
 
         return $owed;
+    }
+
+    public function testEveryEventThereIsCanBeToldAndSettled(): void
+    {
+        // GIVEN every event this service knows how to announce, read off the
+        // announcement itself rather than listed here — a new one joins this
+        // test by existing
+        foreach (self::everyEvent() as $event) {
+            $id = FormId::next();
+            $this->plant($id, Webhooks::of(
+                'https://receiver.test/saved',
+                'https://receiver.test/confirmed',
+                'https://receiver.test/deleted',
+                'https://receiver.test/created',
+            ), IdentityMode::Recorded);
+
+            // WHEN one of that kind is owed and somebody has been told
+            $delivery = $this->owe($id, $event);
+            $this->announcements->told($delivery);
+
+            // THEN it left the queue. This is the assertion that was missing when
+            // `form.created` shipped: `stamp()` fell through to the revision
+            // branch, looked for the save numbered null, threw — and the
+            // transport redelivered the same notification five times while the
+            // row stayed exactly where it was.
+            self::assertSame(
+                [],
+                array_values(array_filter(
+                    $this->rows($id),
+                    static fn(WebhookAnnouncementRecord $one): bool => (string) $one->id === (string) $delivery,
+                )),
+                \sprintf('A told "%s" did not leave the queue.', $event),
+            );
+        }
+    }
+
+    /**
+     * Every event, from the announcement's own constants. Reflection rather than
+     * a list, so adding one cannot quietly skip this test — and the `match`
+     * below fails loudly rather than silently ignoring what it does not know.
+     *
+     * @return list<non-falsy-string>
+     */
+    private static function everyEvent(): array
+    {
+        /** @var list<non-falsy-string> $events */
+        $events = array_values(array_filter(
+            new \ReflectionClass(Announcement::class)->getConstants(),
+            static fn(mixed $value): bool => \is_string($value) && str_starts_with($value, 'form.'),
+        ));
+        self::assertGreaterThanOrEqual(4, \count($events));
+
+        return $events;
+    }
+
+    /** Puts one announcement of the given kind in the queue, and says which. */
+    private function owe(FormId $id, string $event): Uuid
+    {
+        $before = array_map(static fn(WebhookAnnouncementRecord $one): string => (string) $one->id, $this->rows($id));
+
+        match ($event) {
+            Announcement::CREATED => $this->announcements->announce(Announcement::stored(
+                $id,
+                'https://receiver.test/created',
+                $event,
+                new \DateTimeImmutable(),
+                null,
+                null,
+            )),
+            Announcement::SAVED => $this->saveOnce($id, '{"email":"ada@example.com"}', Actor::of('u-1')),
+            Announcement::CONFIRMED => $this->confirmOnce($id),
+            Announcement::DELETED => $this->announcements->announce(Announcement::deleted(
+                $id,
+                'https://receiver.test/deleted',
+                Announcement::REQUESTED,
+                new \DateTimeImmutable(),
+            )),
+            default => self::fail(\sprintf(
+                'This test cannot make a "%s" yet. Teach it — and check that DoctrineAnnouncements::stamp() knows where to record one.',
+                $event,
+            )),
+        };
+
+        $this->entityManager->flush();
+
+        foreach ($this->rows($id) as $row) {
+            if (!\in_array((string) $row->id, $before, true)) {
+                return $row->id;
+            }
+        }
+
+        self::fail(\sprintf('Nothing was queued for "%s".', $event));
+    }
+
+    private function confirmOnce(FormId $id): void
+    {
+        $form = $this->repository->get($id);
+        $form->saveDraft(json_decode('{"email":"ada@example.com"}'), new StubValues(), Actor::of('u-1'));
+        $this->repository->save($form);
+        $form = $this->repository->get($id);
+        $form->confirm(new StubValues(), Actor::of('u-1'));
+        $this->repository->save($form);
     }
 
     /** One stored revision, to read what a telling stamped on it. */

@@ -262,3 +262,36 @@ says the rest.
 What has *not* changed is why `form.created` was refused in the first place. If your receiver is
 your own caller, name no endpoint: being told what you just did is a round trip that teaches
 nothing, and the queue stays empty for forms nobody asked to hear about.
+
+## Three bugs of one shape, and the two tests that close it
+
+`form.created` shipped, and then shipped twice more. Every failure was the same shape: **an event
+was added and a place that has to act on it was not.**
+
+1. **The nudge was gated on `$data`.** It was written when the only thing a creation could owe was
+   the first draft's announcement. With `form.created` queued for every creation, the gate left it
+   waiting for the sweep. Fixed by asking unconditionally — the queue is what knows whether
+   anything is owed.
+2. **`stamp()` was not total.** A creation fell through to the revision branch, looked for the save
+   numbered `null`, threw, killed the handler, and Messenger retried the message: a receiver got
+   the same notification **five times** and the row never left the queue. Fixed as a `match` with
+   `default => throw`, and it exposed a third thing — a delivered `form.created` had nowhere to be
+   recorded, so `forms.created_notified_at` joined `confirm_notified_at`.
+3. **`DeleteForm` and `PurgeExpiredForms` had no announcer.** A deletion queued its row and nobody
+   told a worker, so `form.deleted` waited for cron. The purge nudges once per *run*, not per form:
+   a worker asked to look drains everything owed.
+
+All three were found by **running it**, and none of the unit tests written beside those changes
+could have caught any of them — which is the interesting part, and the reason for two invariants
+rather than three more cases:
+
+- `NoWritePathIsSilentTest` walks every path that reaches the repository with a write — create,
+  create-with-data, save, confirm, delete, purge — and asserts each asks a worker to look. A sixth
+  write path means a sixth case, and the docblock says so.
+- `testEveryEventThereIsCanBeToldAndSettled` reads the events off `Announcement`'s own constants by
+  **reflection**, queues one of each, tells it, and asserts it leaves the queue. An event it cannot
+  build fails the test with a message naming the other place to teach (`stamp()`). Checked against
+  the bug rather than trusted: with the `CREATED` arm removed it fails.
+
+The lesson worth carrying: when a list grows (events), the tests that matter are the ones that
+*enumerate* it rather than sample it.

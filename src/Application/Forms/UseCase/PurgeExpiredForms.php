@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Forms\UseCase;
 
+use App\Application\Forms\Port\Announcer;
 use App\Application\Forms\Port\FileStore;
 use App\Domain\Forms\Port\FormRepository;
 
@@ -29,6 +30,7 @@ final class PurgeExpiredForms
     public function __construct(
         private readonly FormRepository $forms,
         private readonly FileStore $files,
+        private readonly Announcer $announcer,
     ) {}
 
     /** How many forms were removed. */
@@ -49,6 +51,14 @@ final class PurgeExpiredForms
             if (\count($expired) < self::BATCH) {
                 break;
             }
+        }
+
+        // Once for the run rather than once per form: a form reaped here may owe
+        // somebody the news, and a worker asked to look drains everything owed —
+        // so a thousand reaped forms are one nudge. Nothing at all is the one
+        // case worth skipping, since a run that purged nothing queued nothing.
+        if ($purged > 0) {
+            $this->announcer->hurry();
         }
 
         return $purged;

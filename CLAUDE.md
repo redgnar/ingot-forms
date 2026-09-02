@@ -664,6 +664,17 @@ Rules that follow from it, and that the tooling checks:
   content as ordinary nodes; a browser does not, which is what makes "every name this page
   points at exists" a real test there and a tautology here. Cloning bugs — ids, radio groups,
   `aria-*` references — belong in the browser battery for that reason.
+- **Two invariants guard the webhook queue, because the same mistake was made three times in one
+  afternoon**: an event was added and the place that has to act on it was not. `form.created`
+  waited for the next sweep (the nudge was gated on a form being born a draft), then arrived five
+  times over (`stamp()` fell through to the revision branch and threw, so the transport retried),
+  and `form.deleted` waited because `DeleteForm` and `PurgeExpiredForms` had no announcer at all.
+  Every one of those passed the tests written beside it. So: `NoWritePathIsSilentTest` walks every
+  path that reaches the repository with a write and asserts each nudges a worker, and
+  `testEveryEventThereIsCanBeToldAndSettled` reads the events off `Announcement`'s own constants
+  by reflection and asserts each can be told and leaves the queue — failing loudly on one it does
+  not know how to make, which is the same reminder to teach `stamp()`. **A new event means a line
+  in both.**
 - **A browser test sets up through the API, never the database.** The browser talks to a
   separate server process, so a fixture written inside the test's transaction is invisible to
   it — and going through the API is what makes the test take the same path a person does.

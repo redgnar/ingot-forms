@@ -13,6 +13,7 @@ use App\Domain\Forms\ValueObject\FileId;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Tests\Application\Forms\Fake\InMemoryFileStore;
 use App\Tests\Application\Forms\Fake\InMemoryForms;
+use App\Tests\Application\Forms\Fake\RecordingAnnouncer;
 use App\Tests\Domain\Forms\Fake\SpyParser;
 use PHPUnit\Framework\TestCase;
 
@@ -36,7 +37,7 @@ final class PurgeExpiredFormsTest extends TestCase
         $live = self::plant($forms, $files, '+1 day');
 
         // WHEN
-        $purged = new PurgeExpiredForms($forms, $files)();
+        $purged = new PurgeExpiredForms($forms, $files, new RecordingAnnouncer())();
 
         // THEN both expired ones are gone from both places, and the live one is
         // untouched in both
@@ -58,7 +59,7 @@ final class PurgeExpiredFormsTest extends TestCase
         self::plant($forms, $files, '+1 day');
 
         // WHEN / THEN
-        self::assertSame(0, new PurgeExpiredForms($forms, $files)());
+        self::assertSame(0, new PurgeExpiredForms($forms, $files, new RecordingAnnouncer())());
     }
 
     public function testAStoreThatCannotDeleteStopsTheRunAfterTheRowIsGone(): void
@@ -71,7 +72,7 @@ final class PurgeExpiredFormsTest extends TestCase
 
         // WHEN
         try {
-            new PurgeExpiredForms($forms, $files)();
+            new PurgeExpiredForms($forms, $files, new RecordingAnnouncer())();
             self::fail('Expected the store to refuse.');
         } catch (\RuntimeException) {
             // THEN it is loud rather than silent, the row is already gone, and
@@ -96,5 +97,28 @@ final class PurgeExpiredFormsTest extends TestCase
         $files->hold($id, FileId::next(), 'invoice.pdf', 'bytes', 'application/pdf');
 
         return $id;
+    }
+
+    public function testOneRunIsOneNudgeAndAnEmptyRunIsNone(): void
+    {
+        // GIVEN two expired forms, either of which may owe somebody the news
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        self::plant($forms, $files, '-1 hour');
+        self::plant($forms, $files, '-2 hours');
+        $announcer = new RecordingAnnouncer();
+
+        // WHEN they are purged
+        self::assertSame(2, new PurgeExpiredForms($forms, $files, $announcer)());
+
+        // THEN one nudge for the run, not one per form: a worker asked to look
+        // drains everything owed, so a thousand reaped forms are still one look
+        self::assertSame(1, $announcer->hurried);
+
+        // AND a run that purged nothing asks for nothing, because it queued
+        // nothing
+        $quiet = new RecordingAnnouncer();
+        self::assertSame(0, new PurgeExpiredForms(new InMemoryForms(), $files, $quiet)());
+        self::assertSame(0, $quiet->hurried);
     }
 }

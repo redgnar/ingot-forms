@@ -14,6 +14,7 @@ use App\Domain\Forms\ValueObject\FileId;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Tests\Application\Forms\Fake\InMemoryFileStore;
 use App\Tests\Application\Forms\Fake\InMemoryForms;
+use App\Tests\Application\Forms\Fake\RecordingAnnouncer;
 use App\Tests\Domain\Forms\Fake\SpyParser;
 use PHPUnit\Framework\TestCase;
 
@@ -37,7 +38,7 @@ final class DeleteFormTest extends TestCase
         $files->hold($id, $file, 'invoice.pdf', 'bytes', 'application/pdf');
 
         // WHEN
-        new DeleteForm($forms, $files)($id);
+        new DeleteForm($forms, $files, new RecordingAnnouncer())($id);
 
         // THEN nothing of it is left in either place
         self::assertSame(0, $files->countFor($id));
@@ -56,7 +57,7 @@ final class DeleteFormTest extends TestCase
 
         // WHEN
         try {
-            new DeleteForm($forms, $files)($id);
+            new DeleteForm($forms, $files, new RecordingAnnouncer())($id);
             self::fail('Expected the store to refuse.');
         } catch (\RuntimeException) {
             // THEN the row went first, so what is left over is a directory
@@ -81,7 +82,7 @@ final class DeleteFormTest extends TestCase
         // WHEN / THEN deletion sees what every read sees, and the files stay for
         // the purge
         try {
-            new DeleteForm($forms, $files)($id);
+            new DeleteForm($forms, $files, new RecordingAnnouncer())($id);
             self::fail('Expected FormGone.');
         } catch (FormGone) {
             self::assertSame(1, $files->countFor($id));
@@ -93,7 +94,7 @@ final class DeleteFormTest extends TestCase
         // GIVEN / WHEN / THEN
         $this->expectException(FormNotFound::class);
 
-        new DeleteForm(new InMemoryForms(), new InMemoryFileStore())(FormId::next());
+        new DeleteForm(new InMemoryForms(), new InMemoryFileStore(), new RecordingAnnouncer())(FormId::next());
     }
 
     private static function plant(InMemoryForms $forms): FormId
@@ -107,5 +108,22 @@ final class DeleteFormTest extends TestCase
     private static function definition(): Definition
     {
         return Definition::stored('{"items":[{"type":"text","name":"email"}]}', new SpyParser());
+    }
+
+    public function testAWorkerIsAskedToGetOnWithItOnceTheFormIsGone(): void
+    {
+        // GIVEN a form that may have reported its own disappearance
+        $forms = new InMemoryForms();
+        $files = new InMemoryFileStore();
+        $id = self::plant($forms);
+        $announcer = new RecordingAnnouncer();
+
+        // WHEN it is deleted
+        new DeleteForm($forms, $files, $announcer)($id);
+
+        // THEN a worker is nudged. The list of things that nudge one has to grow
+        // with the list of things that queue one, and it did not: a deletion sat
+        // in the queue until the next sweep.
+        self::assertSame(1, $announcer->hurried);
     }
 }
