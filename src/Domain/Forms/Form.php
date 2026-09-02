@@ -94,6 +94,8 @@ final class Form
      * where the telling happens and read back with everything else, so that the
      * envelope can answer "did you tell them?" without a second way in.
      */
+    private ?\DateTimeImmutable $createdNotifiedAt = null;
+
     private ?\DateTimeImmutable $confirmNotifiedAt = null;
 
     /**
@@ -173,10 +175,12 @@ final class Form
         ?Actor $confirmedBy = null,
         ?Webhooks $webhooks = null,
         ?\DateTimeImmutable $confirmNotifiedAt = null,
+        ?\DateTimeImmutable $createdNotifiedAt = null,
     ): self {
         $form = new self($id, $definition, $expireDate, now: $createdAt, identity: $identity, author: $author, webhooks: $webhooks);
         $form->confirmedBy = $confirmedBy;
         $form->confirmNotifiedAt = $confirmNotifiedAt;
+        $form->createdNotifiedAt = $createdNotifiedAt;
         $form->data = $values;
         $form->dataSavedAt = $dataSavedAt;
         $form->confirmedAt = $confirmedAt;
@@ -304,6 +308,12 @@ final class Form
     public function webhooks(): Webhooks
     {
         return $this->webhooks;
+    }
+
+    /** When whoever owns this form was told that it exists, or null. */
+    public function createdNotifiedAt(): ?\DateTimeImmutable
+    {
+        return $this->createdNotifiedAt;
     }
 
     /** When whoever owns this form was told it had been confirmed, or null. */

@@ -167,6 +167,7 @@ final class FormWebhooksApiTest extends WebTestCase
     {
         // GIVEN a form that reports its saves and its confirmation
         $id = $this->create([
+            'created' => 'https://receiver.test/created',
             'save' => 'https://receiver.test/saved',
             'confirm' => 'https://receiver.test/confirmed',
         ]);
@@ -195,9 +196,12 @@ final class FormWebhooksApiTest extends WebTestCase
         self::assertIsString($first['notifiedAt']);
 
         // AND the form says when its confirmation was reported, because
-        // confirming writes no values and is no revision
+        // confirming writes no values and is no revision — beside the moment it
+        // reported that it existed at all, which is the same kind of fact
         $this->client->request('GET', \sprintf('/api/manage/forms/%s', $id));
-        self::assertIsString($this->body()['confirmNotifiedAt']);
+        $envelope = $this->body();
+        self::assertIsString($envelope['confirmNotifiedAt']);
+        self::assertIsString($envelope['createdNotifiedAt']);
     }
 
     public function testAFormThatReportsNowhereHasNothingToShow(): void

@@ -88,6 +88,13 @@ class FormRecord
     public ?string $webhookDeletedUrl = null;
 
     /**
+     * When whoever owns this form was told that it exists. On the form for the
+     * same reason as the one below: a creation is no revision either.
+     */
+    #[ORM\Column(name: 'created_notified_at', type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    public ?\DateTimeImmutable $createdNotifiedAt = null;
+
+    /**
      * When whoever owns this form was told it had been confirmed. Here rather
      * than on a revision because confirming writes no values and is no revision
      * — the same reason `confirmed_by_subject` is a column of its own.

@@ -91,9 +91,14 @@ final class DoctrineAnnouncements implements Announcements, FormDeliveries
     }
 
     /**
-     * Writes "somebody was told about this" where the thing it is about lives: on
-     * the revision for a save, on the form for a confirmation — which has no
-     * revision, because confirming writes no values.
+     * Writes "somebody was told about this" where the thing it is about lives.
+     *
+     * Total on purpose, and it was not: a `form.created` fell through to the
+     * revision branch and looked for the save numbered `null`, which threw,
+     * which killed the handler, which made the transport retry — so a receiver
+     * got the same notification five times and the row never left the queue. A
+     * `match` with no default is what stops the next event from doing that
+     * quietly.
      *
      * A row that is not there any more is not an error. `FORMS_HISTORY_LIMIT`
      * evicts old revisions, so a save can be reported after the record of it has
@@ -104,23 +109,35 @@ final class DoctrineAnnouncements implements Announcements, FormDeliveries
     {
         $told = new \DateTimeImmutable();
 
-        // A deleted form has nothing left to stamp, which is the whole content of
-        // the notification: the row it was about is gone, and the queue row goes
-        // with the telling.
-        if ($record->event === Announcement::DELETED) {
-            return;
-        }
-
-        if ($record->event === Announcement::CONFIRMED) {
-            $form = $this->entityManager->find(FormRecord::class, $record->formId);
-
-            if ($form !== null) {
+        match ($record->event) {
+            Announcement::CREATED => $this->stampForm($record, static function (FormRecord $form) use ($told): void {
+                $form->createdNotifiedAt = $told;
+            }),
+            Announcement::CONFIRMED => $this->stampForm($record, static function (FormRecord $form) use ($told): void {
                 $form->confirmNotifiedAt = $told;
-            }
+            }),
+            Announcement::SAVED => $this->stampRevision($record, $told),
+            // Nothing to stamp, and that is the whole content of the
+            // notification: the row it was about is gone.
+            Announcement::DELETED => null,
+            default => throw new \LogicException(\sprintf('Nothing knows where to record a told "%s".', $record->event)),
+        };
+    }
 
-            return;
+    /**
+     * @param callable(FormRecord): void $write
+     */
+    private function stampForm(WebhookAnnouncementRecord $record, callable $write): void
+    {
+        $form = $this->entityManager->find(FormRecord::class, $record->formId);
+
+        if ($form !== null) {
+            $write($form);
         }
+    }
 
+    private function stampRevision(WebhookAnnouncementRecord $record, \DateTimeImmutable $told): void
+    {
         $revision = $this->entityManager->find(FormRevisionRecord::class, [
             'formId' => $record->formId,
             'seq' => $record->revision,
@@ -144,6 +161,20 @@ final class DoctrineAnnouncements implements Announcements, FormDeliveries
         $this->settle($delivery, $why, $now, $now);
     }
 
+    public function ofForm(FormId $form): array
+    {
+        /** @var list<WebhookAnnouncementRecord> $records */
+        $records = $this->entityManager
+            ->createQuery(\sprintf(
+                'SELECT a FROM %s a WHERE a.formId = :form ORDER BY a.occurredAt DESC, a.id DESC',
+                WebhookAnnouncementRecord::class,
+            ))
+            ->setParameter('form', $form->toUuid())
+            ->getResult();
+
+        return array_map(self::toRecorded(...), $records);
+    }
+
     private function settle(Uuid $delivery, string $why, \DateTimeImmutable $when, ?\DateTimeImmutable $gaveUpAt): void
     {
         $record = $this->entityManager->find(WebhookAnnouncementRecord::class, $delivery);
@@ -158,20 +189,6 @@ final class DoctrineAnnouncements implements Announcements, FormDeliveries
         $record->gaveUpAt = $gaveUpAt;
 
         $this->entityManager->flush();
-    }
-
-    public function ofForm(FormId $form): array
-    {
-        /** @var list<WebhookAnnouncementRecord> $records */
-        $records = $this->entityManager
-            ->createQuery(\sprintf(
-                'SELECT a FROM %s a WHERE a.formId = :form ORDER BY a.occurredAt DESC, a.id DESC',
-                WebhookAnnouncementRecord::class,
-            ))
-            ->setParameter('form', $form->toUuid())
-            ->getResult();
-
-        return array_map(self::toRecorded(...), $records);
     }
 
     private static function toRecorded(WebhookAnnouncementRecord $record): RecordedDelivery

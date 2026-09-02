@@ -108,6 +108,30 @@ final class CreateFormTest extends TestCase
         }
     }
 
+    public function testAWorkerIsAskedToGetOnWithItWhateverTheFormWasBornHolding(): void
+    {
+        // GIVEN a form created with nothing in it — the ordinary case
+        $forms = new InMemoryForms();
+        $announcer = new RecordingAnnouncer();
+
+        // WHEN
+        new CreateForm(
+            new FormDefinitionProcessor(new FormMapperFactory()->create()),
+            $forms,
+            new PresentationRules(new Engines([new CoreHtmlEngine(), new BootstrapEngine()])),
+            new StubValues(),
+            $announcer,
+            new RecordingWebhook(),
+        )(self::DEFINITION, self::tomorrow());
+
+        // THEN a worker is still nudged. It was gated on `$data` while the only
+        // thing a creation could owe was the first draft's announcement, and
+        // that gate left `form.created` sitting in the queue until the next
+        // sweep — the queue is what knows whether anything is owed, and a nudge
+        // about nothing costs one empty look.
+        self::assertSame(1, $announcer->hurried);
+    }
+
     public function testAFormMayNotNameAnEndpointNothingCouldSignFor(): void
     {
         // GIVEN a deployment with no signing secret

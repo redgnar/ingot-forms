@@ -363,6 +363,29 @@ final class DoctrineAnnouncementsTest extends KernelTestCase
         self::assertNotNull($this->revision($id, 1)->notifiedAt);
     }
 
+    public function testTellingSomebodyAFormExistsStampsTheFormAndDrainsTheQueue(): void
+    {
+        // GIVEN a form that reports its own existence
+        $id = FormId::next();
+        $this->repository->add(new Form(
+            $id,
+            self::definition(),
+            ExpireDate::future(new \DateTimeImmutable('+1 day')),
+            webhooks: Webhooks::of(null, null, null, 'https://receiver.test/created'),
+        ));
+
+        // WHEN somebody has been told
+        $this->announcements->told($this->only($id)->id);
+
+        // THEN the form carries it and the queue is empty. This is the case that
+        // shipped broken: a creation fell through to the revision branch, looked
+        // for the save numbered null, threw, and the transport redelivered the
+        // same notification five times over.
+        self::assertSame([], $this->rows($id));
+        self::assertNotNull($this->repository->get($id)->createdNotifiedAt());
+        self::assertNull($this->repository->get($id)->confirmNotifiedAt());
+    }
+
     public function testTellingSomebodyAboutAConfirmationStampsTheFormItself(): void
     {
         // GIVEN a form that reports being finished, and is

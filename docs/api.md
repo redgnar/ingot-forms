@@ -510,6 +510,7 @@ The canonical JSON shape of a form read back from the API.
 | `data` | [`FormValues`](#formvalues) or `null` | yes |  |
 | `dataSavedAt` | `string \| null` (`date-time`) | yes |  |
 | `confirmedAt` | `string \| null` (`date-time`) | yes |  |
+| `createdNotifiedAt` | `string \| null` (`date-time`) | yes | When this form told whoever it names that it exists. Null while it has not been told — not yet, given up on, or a form that reports nowhere. On the form because a creation is no revision. |
 | `confirmNotifiedAt` | `string \| null` (`date-time`) | yes | When this form told whoever owns it that it had been confirmed. Null while it has not been told — not yet, given up on, or a form that reports nowhere. On the form rather than on a revision because confirming writes no values and is no revision. |
 | `identity` | `string` (`recorded` \| `anonymous`) | yes | Whether this form records who fills it in. Given at creation and immutable. `anonymous` discards an asserted identity rather than refusing it, so a gateway asserting on every request cannot build a record by accident. |
 | `author` | `string \| null` (max length 255) | yes | Who created this form — an opaque subject as whatever authenticated the caller said it, never resolved into a person here. Null when nobody was asserted. Outside `identity` on purpose: an anonymous form still has an author, because somebody created it. |

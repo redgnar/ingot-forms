@@ -819,6 +819,7 @@ components:
         - data
         - dataSavedAt
         - confirmedAt
+        - createdNotifiedAt
         - confirmNotifiedAt
         - identity
         - author
@@ -850,6 +851,12 @@ components:
             - 'null'
           format: date-time
         confirmedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        createdNotifiedAt:
+          description: 'When this form told whoever it names that it exists. Null while it has not been told — not yet, given up on, or a form that reports nowhere. On the form because a creation is no revision.'
           type:
             - string
             - 'null'

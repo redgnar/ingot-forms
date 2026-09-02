@@ -299,6 +299,7 @@ final class DoctrineFormRepository implements FormRepository
                 $record->webhookCreatedUrl,
             ),
             $record->confirmNotifiedAt,
+            $record->createdNotifiedAt,
         );
     }
 

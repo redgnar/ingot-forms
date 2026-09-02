@@ -96,11 +96,13 @@ final class CreateForm
 
         $this->forms->add($form);
 
-        // A form born a draft has already had a save happen to it, so it may owe
-        // somebody the news before anybody has opened it.
-        if ($data !== null) {
-            $this->announcer->hurry();
-        }
+        // A form that has just come into being may already owe somebody two
+        // pieces of news: that it exists, and — when it was born a draft — what
+        // it was born holding. Asked for unconditionally, because the queue is
+        // what knows whether anything is owed and a nudge about nothing costs a
+        // worker one empty look. Gating this on `$data` is exactly the bug that
+        // left `form.created` waiting for the next sweep.
+        $this->announcer->hurry();
 
         return $form->id();
     }

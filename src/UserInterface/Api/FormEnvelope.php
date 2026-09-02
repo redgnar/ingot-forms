@@ -40,6 +40,9 @@ final class FormEnvelope
             // Beside `confirmedAt` because that is what it is about, and on the
             // form rather than on a revision because confirming writes no values.
             'confirmNotifiedAt' => self::encoded($record->confirmNotifiedAt()?->format(\DateTimeInterface::ATOM)),
+            // And when it told them it exists at all, which is the same kind of
+            // fact about the same row.
+            'createdNotifiedAt' => self::encoded($record->createdNotifiedAt()?->format(\DateTimeInterface::ATOM)),
             // Whether this form records who fills it in, and the two people it
             // knows by name. Who filled it in is per save and is read from the
             // management side's history instead: "who last changed this form" is

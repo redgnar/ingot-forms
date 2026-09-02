@@ -258,7 +258,7 @@ nelmio_api_doc:
                 FormEnvelope:
                     type: object
                     description: The canonical JSON shape of a form read back from the API.
-                    required: [id, status, expireDate, createdAt, definition, data, dataSavedAt, confirmedAt, confirmNotifiedAt, identity, author, confirmedBy, webhooks]
+                    required: [id, status, expireDate, createdAt, definition, data, dataSavedAt, confirmedAt, createdNotifiedAt, confirmNotifiedAt, identity, author, confirmedBy, webhooks]
                     additionalProperties: false
                     properties:
                         id:
@@ -284,6 +284,13 @@ nelmio_api_doc:
                         confirmedAt:
                             type: [string, 'null']
                             format: date-time
+                        createdNotifiedAt:
+                            type: [string, 'null']
+                            format: date-time
+                            description: >-
+                                When this form told whoever it names that it exists. Null while it
+                                has not been told — not yet, given up on, or a form that reports
+                                nowhere. On the form because a creation is no revision.
                         confirmNotifiedAt:
                             type: [string, 'null']
                             format: date-time
