@@ -144,9 +144,17 @@ worker is optional. Signed with `FORMS_WEBHOOK_SECRET` (`X-Forms-Signature` over
 timestamp + body, `X-Forms-Delivery` stable across retries); with no secret a form naming an
 endpoint is **refused at creation**, because a notification nobody can verify is forgeable by
 anything that can reach the receiver. A refusal is not a failure — anything but 2xx waits longer
-each time, doubling to an hour, `FORMS_WEBHOOK_ATTEMPTS` refusals before it is given up on and
-**kept** where somebody can see it, while everything told is deleted, because a queue holds what
-is still owed. Rows leave with their form by foreign key, like revisions. Deliberately absent: a
+each time, doubling to an hour, `FORMS_WEBHOOK_ATTEMPTS` refusals before it is given up on. Rows
+leave with their form by foreign key, like revisions. **Nothing is deleted for having succeeded**,
+which corrected the first design: a told row used to go away, so a lost notification was provable
+and an arrived one was not. A telling is marked instead — three states out of two moments
+(`delivered_at`, `gave_up_at`: neither is `owed`, the first is `told`, the second `abandoned`),
+with no state column to disagree with them — a run filters on both so a told row costs the queue
+nothing, and the owner reads all three at `GET /api/manage/forms/{id}/deliveries` (management
+prefix: it names the endpoints and the actor). Beside it, **every delivery writes a log record as
+it happens** — `info` told, `warning` refused-will-retry, `error` gave-up — each carrying the
+delivery id that went out as `X-Forms-Delivery`, so our line and the receiver's line are the same
+event. Deliberately absent: a
 deployment-wide endpoint, per-event subscriptions, `form.created` (the creator was handed the id),
 ordering guarantees, and any API for the queue.
 

@@ -783,6 +783,29 @@ twelve refusals before this service gives up on it and leaves it where the deplo
 A `4xx` is retried like the rest, because a receiver in the middle of a deploy answers `404` for a
 minute. So a slow receiver should answer first and work afterwards.
 
+**Checking what was sent.** `GET /api/manage/forms/{id}/deliveries` lists every notification the
+form made, newest first, and what came of each:
+
+```json
+{ "deliveries": [
+  { "delivery": "01a0…", "event": "form.confirmed", "revision": null,
+    "occurredAt": "2026-03-01T14:31:00+00:00", "target": "https://…/confirmed",
+    "actor": "u-317", "state": "told", "attempts": 0,
+    "deliveredAt": "2026-03-01T14:31:01+00:00", "nextAttemptAt": "2026-03-01T14:31:00+00:00",
+    "lastRefusal": null }
+] }
+```
+
+`state` is `owed` (nothing tried yet, or refused and waiting for `nextAttemptAt`), `told`
+(`deliveredAt` says when) or `abandoned` (refused `attempts` times and never tried again, with
+`lastRefusal` saying what your endpoint answered). `delivery` is the id that arrived in
+`X-Forms-Delivery`, so an entry here and a line in your own log are the same event. A form that
+names no endpoint has an empty list: nothing is queued for it.
+
+Read-only, deliberately — there is no way to retry or cancel one. What is owed will be tried by
+the next run, and a receiver that was broken and is now fixed is the deployment's business
+(`app:webhooks:deliver`), not the form's.
+
 **Refusals when you name one:** `/webhooks/save` or `/webhooks/confirm` with
 `form.webhook.not_a_url` (it must be an absolute `http`/`https` URL),
 `form.webhook.too_long` (2000 characters), `form.webhook.empty` (say nothing rather than `""`),

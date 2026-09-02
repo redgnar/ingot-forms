@@ -565,6 +565,8 @@ deployment that would rather not run one pays a minute of latency and nothing el
 |---|---|
 | `Announcement`, `Delivery` | what happened, and one waiting to be told with its id and refusals |
 | `Announcements` | the queue: announce, what is due, told, again later, give up |
+| `FormDeliveries` + `RecordedDelivery` | one form's tellings and what came of each, read-only |
+| `ReadFormDeliveries` + `ReadFormDeliveriesAction` | `GET /api/manage/forms/{id}/deliveries` |
 | `Webhook` | the one call outward, and whether this deployment can sign at all |
 | `DeliverAnnouncements` | take what is owed, try it, write down what came of trying |
 | `WebhookAnnouncementRecord` + `DoctrineAnnouncements` | the rows |
@@ -583,10 +585,31 @@ life of the form, and its author would find out from a column in a queue.
 the same thing from here — nobody has been told yet — so the delivery goes back in the queue with
 a longer wait each time, doubling from two seconds to an hour, `FORMS_WEBHOOK_ATTEMPTS` (12)
 refusals before it is given up on. A 4xx is retried like the rest, deliberately: a receiver
-mid-deploy answers 404 for a minute. **A queue holds what is still owed**, so a delivery that
-succeeded is deleted; what outlives its telling is only what this service gave up on, kept with
-the last refusal so a broken endpoint is visible instead of implied. Rows leave with their form by
-foreign key, like revisions.
+mid-deploy answers 404 for a minute. Rows leave with their form by foreign key, like revisions.
+
+**Nothing is deleted for having succeeded**, and that is a correction. The first design was a
+queue: a told row went away, so what outlived a delivery was only what this service gave up on —
+which left the table able to prove a notification had been *lost* and unable to prove one had
+*arrived*. Now a telling is marked. Three states out of two moments, with no state column to
+disagree with them:
+
+| `delivered_at` | `gave_up_at` | state |
+|---|---|---|
+| null | null | `owed` — nothing tried yet, or refused and waiting for `next_attempt_at` |
+| set | null | `told` — and it says when |
+| null | set | `abandoned` — refused `attempts` times, never tried again, `last_refusal` says what was said |
+
+A run filters on both, so a told row costs the queue nothing. Two things read them: the owner,
+through `GET /api/manage/forms/{id}/deliveries` (newest first, on the management prefix because it
+names the endpoints a form reports to and who did the thing being reported), and a deployment's
+log collector.
+
+**Every delivery writes a record as it happens**, not only the failures: `info` for a telling,
+`warning` for a refusal that will be tried again, `error` for one given up on. Each carries the
+delivery id that went out as `X-Forms-Delivery`, so a line here and a line in the receiver's own
+log are the same event; production logs at `info`, so the successful ones are there too. That is
+the other half of the same correction — the queue says *that* somebody was told, the log says it
+where somebody is already watching.
 
 **Run one deliverer at a time.** `due()` takes no lock, so two runs would each send what the other
 is sending. The promise is at-least-once and the delivery id is what makes a duplicate harmless,

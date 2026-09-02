@@ -315,6 +315,30 @@ paths:
                 form-data-not-valid:
                   summary: 'A value the derived schema refuses'
                   value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /age, code: schema.type, message: 'The data (string) must match the type: number' }] }
+  '/api/manage/forms/{id}/deliveries':
+    get:
+      summary: 'List every notification this form made, and what came of each'
+      description: "Newest first, and empty for a form that names no endpoint — nothing is queued for one. Each entry is one thing that happened to the form (`form.saved` with the revision it became, or `form.confirmed`), the endpoint it was to be told to, and its state: `owed` (nothing tried yet, or refused and waiting for `nextAttemptAt`), `told` (`deliveredAt` says when) or `abandoned` (refused `attempts` times and never tried again, with `lastRefusal` saying what the receiver said). `delivery` is the id that went out as `X-Forms-Delivery`, so an entry here and a line in the receiver's own log are the same event."
+      operationId: getFormDeliveries
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      responses:
+        '200':
+          description: 'The deliveries, newest first.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormDeliveries'
+        '404':
+          $ref: '#/components/responses/FormNotFound'
+        '410':
+          $ref: '#/components/responses/FormGone'
   '/api/forms/{id}/history':
     get:
       summary: 'List every accepted save of this form'
@@ -658,6 +682,88 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FormRevisionWithActor'
+      type: object
+      additionalProperties: false
+    FormDeliveries:
+      description: 'Every notification one form made, newest first, and what came of each. Empty for a form that names no endpoint: nothing is queued for one.'
+      required:
+        - deliveries
+      properties:
+        deliveries:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormDelivery'
+      type: object
+      additionalProperties: false
+    FormDelivery:
+      description: 'One thing that happened to a form and what came of telling somebody about it. A failure was always durable; this exists so that a success is too — the question it answers is "were you told, and when".'
+      required:
+        - delivery
+        - event
+        - revision
+        - occurredAt
+        - target
+        - actor
+        - state
+        - attempts
+        - deliveredAt
+        - nextAttemptAt
+        - lastRefusal
+      properties:
+        delivery:
+          description: "The id that went out as `X-Forms-Delivery`, the same across every retry — so this entry and a line in the receiver's own log are the same event."
+          type: string
+          format: uuid
+        event:
+          type: string
+          enum:
+            - form.saved
+            - form.confirmed
+        revision:
+          description: 'Which save this was about; null for a confirmation, which is no revision.'
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+        occurredAt:
+          description: 'When the thing happened, not when it was told.'
+          type: string
+          format: date-time
+        target:
+          description: 'Where it was to be told. Kept per delivery rather than read off the form, so what was actually used is what is served.'
+          type: string
+          format: uri
+        actor:
+          description: 'Who did the thing being reported. Null on a form that records nobody.'
+          type:
+            - string
+            - 'null'
+          maxLength: 255
+        state:
+          description: '`owed` is nothing tried yet or refused and waiting; `told` means somebody was told and `deliveredAt` says when; `abandoned` means refused too many times and never tried again. Derived from the two moments rather than stored, so nothing can disagree with them.'
+          type: string
+          enum:
+            - owed
+            - told
+            - abandoned
+        attempts:
+          description: 'How many times a receiver refused this.'
+          type: integer
+          minimum: 0
+        deliveredAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        nextAttemptAt:
+          description: 'When it will be tried again. Meaningless once told or abandoned, which is what `state` is for.'
+          type: string
+          format: date-time
+        lastRefusal:
+          description: 'What the receiver said the last time it refused.'
+          type:
+            - string
+            - 'null'
       type: object
       additionalProperties: false
     FormRevision:

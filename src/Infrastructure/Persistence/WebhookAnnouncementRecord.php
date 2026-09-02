@@ -9,8 +9,8 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
 /**
- * One row of `webhook_announcements` — one thing that happened to a form and has
- * not been told yet. Like {@see FormRecord} and {@see FormRevisionRecord}: public
+ * One row of `webhook_announcements` — one thing that happened to a form and what
+ * came of telling somebody about it. Like {@see FormRecord} and {@see FormRevisionRecord}: public
  * fields, no behaviour, no idea a form exists.
  *
  * It holds **no values**, only which form and which save, because that is what a
@@ -68,13 +68,23 @@ class WebhookAnnouncementRecord
     public \DateTimeImmutable $nextAttemptAt;
 
     /**
-     * Set once this service stopped trying. A row with this set is the only kind
-     * that outlives its telling: everything told is deleted, so what is left in
-     * this table is either owed or lost, and those two are worth telling apart at
-     * a glance.
+     * Set once this service stopped trying.
+     *
+     * Three states out of two columns, and each one is a question somebody asks:
+     * `delivered_at` and `gave_up_at` both null is **owed**, `delivered_at` set is
+     * **told**, `gave_up_at` set is **abandoned**. A row is never deleted for
+     * having been told — what was told cannot be untold, and the owner of the
+     * form is entitled to ask when it was.
      */
     #[ORM\Column(name: 'gave_up_at', type: Types::DATETIME_IMMUTABLE, nullable: true)]
     public ?\DateTimeImmutable $gaveUpAt = null;
+
+    /**
+     * When somebody was told. Null while this is still owed — which is also what
+     * a delivery run filters on, so a told row costs a run nothing.
+     */
+    #[ORM\Column(name: 'delivered_at', type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    public ?\DateTimeImmutable $deliveredAt = null;
 
     /** What the receiver said last time, kept so a deployment can read it. */
     #[ORM\Column(name: 'last_refusal', type: Types::TEXT, nullable: true)]

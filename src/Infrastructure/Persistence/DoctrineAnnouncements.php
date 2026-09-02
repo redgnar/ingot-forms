@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Infrastructure\Persistence;
 
 use App\Application\Forms\Port\Announcements;
+use App\Application\Forms\Port\FormDeliveries;
 use App\Application\Forms\Webhook\Announcement;
 use App\Application\Forms\Webhook\Delivery;
+use App\Application\Forms\Webhook\RecordedDelivery;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\FormId;
 use Doctrine\ORM\EntityManagerInterface;
@@ -25,7 +27,7 @@ use Symfony\Component\Uid\Uuid;
  * and flushes as it goes: a run that dies half way has told what it told and
  * still owes the rest.
  */
-final class DoctrineAnnouncements implements Announcements
+final class DoctrineAnnouncements implements Announcements, FormDeliveries
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -56,7 +58,9 @@ final class DoctrineAnnouncements implements Announcements
         /** @var list<WebhookAnnouncementRecord> $records */
         $records = $this->entityManager
             ->createQuery(\sprintf(
-                'SELECT a FROM %s a WHERE a.gaveUpAt IS NULL AND a.nextAttemptAt <= :now ORDER BY a.occurredAt ASC, a.id ASC',
+                'SELECT a FROM %s a'
+                . ' WHERE a.deliveredAt IS NULL AND a.gaveUpAt IS NULL AND a.nextAttemptAt <= :now'
+                . ' ORDER BY a.occurredAt ASC, a.id ASC',
                 WebhookAnnouncementRecord::class,
             ))
             ->setParameter('now', $now)
@@ -70,13 +74,18 @@ final class DoctrineAnnouncements implements Announcements
     {
         $record = $this->entityManager->find(WebhookAnnouncementRecord::class, $delivery);
 
-        // Told twice is the promise this port makes, so a row that is already
-        // gone is not an error: it is the other runner having got there first.
-        if ($record === null) {
+        // Told twice is the promise this port makes, so a row that is gone — or
+        // one somebody else has already marked — is not an error: it is the other
+        // runner having got there first.
+        if ($record === null || $record->deliveredAt !== null) {
             return;
         }
 
-        $this->entityManager->remove($record);
+        // Marked rather than deleted. A failure used to be durable while a
+        // success left no trace, so the one question an owner asks — were you
+        // told, and when — had no answer; now it does, and a run skips these
+        // because `due()` filters on this column.
+        $record->deliveredAt = new \DateTimeImmutable();
         $this->entityManager->flush();
     }
 
@@ -107,6 +116,37 @@ final class DoctrineAnnouncements implements Announcements
         $record->gaveUpAt = $gaveUpAt;
 
         $this->entityManager->flush();
+    }
+
+    public function ofForm(FormId $form): array
+    {
+        /** @var list<WebhookAnnouncementRecord> $records */
+        $records = $this->entityManager
+            ->createQuery(\sprintf(
+                'SELECT a FROM %s a WHERE a.formId = :form ORDER BY a.occurredAt DESC, a.id DESC',
+                WebhookAnnouncementRecord::class,
+            ))
+            ->setParameter('form', $form->toUuid())
+            ->getResult();
+
+        return array_map(self::toRecorded(...), $records);
+    }
+
+    private static function toRecorded(WebhookAnnouncementRecord $record): RecordedDelivery
+    {
+        return new RecordedDelivery(
+            (string) $record->id,
+            $record->event,
+            $record->revision,
+            $record->occurredAt,
+            $record->target,
+            $record->actorSubject,
+            $record->attempts,
+            $record->deliveredAt,
+            $record->gaveUpAt,
+            $record->nextAttemptAt,
+            $record->lastRefusal,
+        );
     }
 
     private static function toDelivery(WebhookAnnouncementRecord $record): Delivery

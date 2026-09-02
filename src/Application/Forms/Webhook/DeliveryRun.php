@@ -11,7 +11,7 @@ namespace App\Application\Forms\Webhook;
  * `retried` are a service working (a receiver is allowed to be down for a
  * minute), while `abandoned` is a notification nobody will ever get.
  */
-final readonly class Deliveries
+final readonly class DeliveryRun
 {
     public function __construct(
         public int $told,

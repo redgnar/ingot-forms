@@ -105,6 +105,71 @@ final class FormWebhooksApiTest extends WebTestCase
         self::assertSame('request.unexpected_key', $this->firstError()['code']);
     }
 
+    public function testTheOwnerCanReadWhatTheFormHasToldAnybody(): void
+    {
+        // GIVEN a form that reports both events, filled in and finished
+        $id = $this->create([
+            'save' => 'https://receiver.test/saved',
+            'confirm' => 'https://receiver.test/confirmed',
+        ]);
+        $this->client->request('PUT', \sprintf('/api/forms/%s/data', $id), server: ['CONTENT_TYPE' => 'application/json'], content: '{"email":"ada@example.com"}');
+        self::assertResponseStatusCodeSame(204);
+        $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
+        self::assertResponseStatusCodeSame(204);
+
+        // WHEN the system that owns it asks what it has told anybody
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s/deliveries', $id));
+
+        // THEN both, newest first, and each still owed because nothing has
+        // delivered them yet — which is the answer that used to be unavailable:
+        // a failure was durable and a success was not
+        self::assertResponseIsSuccessful();
+        $deliveries = $this->body()['deliveries'];
+        self::assertIsArray($deliveries);
+        self::assertCount(2, $deliveries);
+
+        $confirmation = $deliveries[0];
+        $save = $deliveries[1];
+        self::assertIsArray($confirmation);
+        self::assertIsArray($save);
+        self::assertSame('form.confirmed', $confirmation['event']);
+        self::assertNull($confirmation['revision']);
+        self::assertSame('https://receiver.test/confirmed', $confirmation['target']);
+        self::assertSame('owed', $confirmation['state']);
+        self::assertSame(0, $confirmation['attempts']);
+        self::assertNull($confirmation['deliveredAt']);
+        self::assertNull($confirmation['lastRefusal']);
+        self::assertSame('form.saved', $save['event']);
+        self::assertSame(1, $save['revision']);
+        // The id that goes out as X-Forms-Delivery, so this entry and the
+        // receiver's own log line are the same event
+        self::assertIsString($save['delivery']);
+        self::assertNotSame($save['delivery'], $confirmation['delivery']);
+    }
+
+    public function testAFormThatReportsNowhereHasNothingToShow(): void
+    {
+        // GIVEN a form that names no endpoint, filled in
+        $id = $this->create(null);
+        $this->client->request('PUT', \sprintf('/api/forms/%s/data', $id), server: ['CONTENT_TYPE' => 'application/json'], content: '{"email":"ada@example.com"}');
+
+        // WHEN / THEN the list is empty rather than absent: nothing was queued
+        // for it, which is what naming nobody costs
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s/deliveries', $id));
+        self::assertResponseIsSuccessful();
+        self::assertSame(['deliveries' => []], $this->body());
+    }
+
+    public function testTheDeliveriesOfAFormNobodyHasAreNotFound(): void
+    {
+        // GIVEN / WHEN an id nobody created
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s/deliveries', '01920000-0000-7000-8000-000000000000'));
+
+        // THEN the same answer every other address gives for it
+        self::assertResponseStatusCodeSame(404);
+        self::assertSame('urn:problem:ingot-forms:form-not-found', $this->body()['type']);
+    }
+
     /**
      * @param array<string, string>|null $webhooks
      */

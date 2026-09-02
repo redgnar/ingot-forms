@@ -6,7 +6,6 @@ namespace App\UserInterface\Messenger;
 
 use App\Application\Forms\UseCase\DeliverAnnouncements;
 use App\Application\Forms\Webhook\AnnouncementsOwed;
-use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 /**
@@ -29,23 +28,14 @@ final class TellWhoeverIsOwed
 {
     public function __construct(
         private readonly DeliverAnnouncements $deliver,
-        private readonly LoggerInterface $logger,
         private readonly int $limit = 100,
     ) {}
 
     public function __invoke(AnnouncementsOwed $owed): void
     {
-        $done = ($this->deliver)($this->limit);
-
-        // Two of the three numbers are a service working; the third is a
-        // notification nobody will ever get, so it is said out loud where a
-        // deployment's log collector can see it rather than left in a table.
-        if ($done->abandoned > 0) {
-            $this->logger->error('Gave up telling somebody what happened to their form.', [
-                'abandoned' => $done->abandoned,
-                'told' => $done->told,
-                'retried' => $done->retried,
-            ]);
-        }
+        // Nothing is done with the counts here on purpose: every delivery writes
+        // its own record as it happens, so a summary at this level would be a
+        // second, vaguer version of the same log.
+        ($this->deliver)($this->limit);
     }
 }

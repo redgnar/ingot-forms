@@ -7,7 +7,9 @@ namespace App\Application\Forms\UseCase;
 use App\Application\Forms\Exception\WebhookRefused;
 use App\Application\Forms\Port\Announcements;
 use App\Application\Forms\Port\Webhook;
-use App\Application\Forms\Webhook\Deliveries;
+use App\Application\Forms\Webhook\Delivery;
+use App\Application\Forms\Webhook\DeliveryRun;
+use Psr\Log\LoggerInterface;
 
 /**
  * Tells whoever owns these forms what has happened to them.
@@ -40,11 +42,23 @@ final class DeliverAnnouncements
     public function __construct(
         private readonly Announcements $announcements,
         private readonly Webhook $webhook,
+        /**
+         * Every delivery is written down as it happens, and not only the ones
+         * that failed.
+         *
+         * Until this was here, a failure was durable — a row with a reason on it
+         * — and a success left nothing at all, so "did they get it?" had no
+         * answer anywhere. The row now says *that* somebody was told
+         * ({@see \App\Application\Forms\Port\FormDeliveries}); this says it
+         * where a deployment's log collector can see it, with the delivery id, so
+         * a line here and a line in the receiver's own log are the same event.
+         */
+        private readonly LoggerInterface $logger,
         /** How many refusals one announcement gets before it is given up on. */
         private readonly int $attempts = 12,
     ) {}
 
-    public function __invoke(int $limit, ?\DateTimeImmutable $now = null): Deliveries
+    public function __invoke(int $limit, ?\DateTimeImmutable $now = null): DeliveryRun
     {
         $now ??= new \DateTimeImmutable();
         $told = 0;
@@ -56,6 +70,7 @@ final class DeliverAnnouncements
                 $this->webhook->tell($delivery);
                 $this->announcements->told($delivery->id);
                 ++$told;
+                $this->logger->info('Told somebody what happened to their form.', self::about($delivery));
 
                 continue;
             } catch (WebhookRefused $refused) {
@@ -67,15 +82,48 @@ final class DeliverAnnouncements
             if ($refusals >= $this->attempts) {
                 $this->announcements->giveUp($delivery->id, $why);
                 ++$abandoned;
+                // The one record here worth an alert: nobody will ever be told
+                // this, and no later run will try.
+                $this->logger->error('Gave up telling somebody what happened to their form.', [
+                    'refusals' => $refusals,
+                    'refused' => $why,
+                ] + self::about($delivery));
 
                 continue;
             }
 
-            $this->announcements->tellAgainAt($delivery->id, $now->modify(\sprintf('+%d seconds', self::wait($refusals))), $why);
+            $when = $now->modify(\sprintf('+%d seconds', self::wait($refusals)));
+            $this->announcements->tellAgainAt($delivery->id, $when, $why);
             ++$retried;
+            // A receiver is allowed to be down, so this is not an error — and it
+            // is not silence either: a queue that keeps retrying without saying
+            // so is how a broken endpoint stays unnoticed for a week.
+            $this->logger->warning('A receiver refused what happened to a form; it will be told again.', [
+                'refusals' => $refusals,
+                'refused' => $why,
+                'nextAttemptAt' => $when->format(\DateTimeInterface::ATOM),
+            ] + self::about($delivery));
         }
 
-        return new Deliveries($told, $retried, $abandoned);
+        return new DeliveryRun($told, $retried, $abandoned);
+    }
+
+    /**
+     * What every one of those records says about the delivery it is about. The
+     * delivery id is the point: it went out as `X-Forms-Delivery`, so this line
+     * and the receiver's own line are the same event seen from both ends.
+     *
+     * @return array<string, string|int|null>
+     */
+    private static function about(Delivery $delivery): array
+    {
+        return [
+            'delivery' => (string) $delivery->id,
+            'form' => (string) $delivery->what->formId,
+            'event' => $delivery->what->event,
+            'revision' => $delivery->what->revision,
+            'target' => $delivery->what->target,
+        ];
     }
 
     /**

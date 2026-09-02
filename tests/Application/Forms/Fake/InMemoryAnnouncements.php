@@ -53,6 +53,9 @@ final class InMemoryAnnouncements implements Announcements
 
     public function told(Uuid $delivery): void
     {
+        // Kept in `told` rather than thrown away, the way the real one keeps the
+        // row: what was told cannot be untold, and a test about that has to be
+        // able to look.
         $this->told[] = (string) $delivery;
         unset($this->owed[(string) $delivery]);
     }

@@ -133,6 +133,79 @@ nelmio_api_doc:
                             type: array
                             items:
                                 $ref: '#/components/schemas/FormRevisionWithActor'
+                FormDeliveries:
+                    type: object
+                    description: >-
+                        Every notification one form made, newest first, and what came of each.
+                        Empty for a form that names no endpoint: nothing is queued for one.
+                    required: [deliveries]
+                    additionalProperties: false
+                    properties:
+                        deliveries:
+                            type: array
+                            items:
+                                $ref: '#/components/schemas/FormDelivery'
+                FormDelivery:
+                    type: object
+                    description: >-
+                        One thing that happened to a form and what came of telling somebody
+                        about it. A failure was always durable; this exists so that a success
+                        is too — the question it answers is "were you told, and when".
+                    required: [delivery, event, revision, occurredAt, target, actor, state, attempts, deliveredAt, nextAttemptAt, lastRefusal]
+                    additionalProperties: false
+                    properties:
+                        delivery:
+                            type: string
+                            format: uuid
+                            description: >-
+                                The id that went out as `X-Forms-Delivery`, the same across every
+                                retry — so this entry and a line in the receiver's own log are the
+                                same event.
+                        event:
+                            type: string
+                            enum: [form.saved, form.confirmed]
+                        revision:
+                            type: [integer, 'null']
+                            minimum: 1
+                            description: Which save this was about; null for a confirmation, which is no revision.
+                        occurredAt:
+                            type: string
+                            format: date-time
+                            description: When the thing happened, not when it was told.
+                        target:
+                            type: string
+                            format: uri
+                            description: >-
+                                Where it was to be told. Kept per delivery rather than read off the
+                                form, so what was actually used is what is served.
+                        actor:
+                            type: [string, 'null']
+                            maxLength: 255
+                            description: Who did the thing being reported. Null on a form that records nobody.
+                        state:
+                            type: string
+                            enum: [owed, told, abandoned]
+                            description: >-
+                                `owed` is nothing tried yet or refused and waiting; `told` means
+                                somebody was told and `deliveredAt` says when; `abandoned` means
+                                refused too many times and never tried again. Derived from the two
+                                moments rather than stored, so nothing can disagree with them.
+                        attempts:
+                            type: integer
+                            minimum: 0
+                            description: How many times a receiver refused this.
+                        deliveredAt:
+                            type: [string, 'null']
+                            format: date-time
+                        nextAttemptAt:
+                            type: string
+                            format: date-time
+                            description: >-
+                                When it will be tried again. Meaningless once told or abandoned,
+                                which is what `state` is for.
+                        lastRefusal:
+                            type: [string, 'null']
+                            description: What the receiver said the last time it refused.
                 FormRevision:
                     type: object
                     description: >-

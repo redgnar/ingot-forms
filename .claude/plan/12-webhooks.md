@@ -145,3 +145,47 @@ Built as described, with these details worth keeping:
   `.env.test`.
 - **Composer resolved `symfony/messenger` to 8.0** next to a framework pinned at `^7.4`, exactly
   the trap CLAUDE.md warns about. Pinned to `^7.4` by hand; the lock now holds 7.4.18.
+
+## The correction the owner asked for, an hour later
+
+"Czyli nie będę miał potwierdzenia wysłania webhooka?" — and no, not as built. Decision 6 said a
+queue holds what is still owed, so a told row was deleted and only the given-up ones survived.
+Stated plainly, that meant **a lost notification was provable and an arrived one was not**, which
+is the wrong way round: the failure case already had a durable record and the success case, which
+somebody actually needs to point at, had none.
+
+Both halves were added:
+
+- **A log record per delivery**, in `DeliverAnnouncements` rather than in the handler: `info` for a
+  telling, `warning` for a refusal that will be tried again, `error` for one given up on. Each
+  carries the delivery id that went out as `X-Forms-Delivery`, so a line here and a line in the
+  receiver's log are the same event. Production logs at `info`, so the successful ones are there
+  too. The handler's own summary log went away — a count at that level would have been a second,
+  vaguer version of the same records.
+- **The row is marked, not deleted.** `delivered_at` joins `gave_up_at`, and the two moments make
+  three states with no state column to disagree with them: neither set is `owed`, the first is
+  `told`, the second `abandoned`. `due()` filters on both, so a told row costs a run nothing.
+- **`GET /api/manage/forms/{id}/deliveries`**, newest first, read through a read-only port
+  (`FormDeliveries`) declared apart from the queue for the reason `FormHistory` is declared apart
+  from the forms repository: a delivery run has no business holding a per-form reader, and a
+  reader has no business settling anything. Management prefix, like the actor-carrying history and
+  for the same reason — it names the endpoints a form reports to and who did the reported thing.
+
+Read-only on purpose: no retry-now and no cancel. What is owed will be tried by the next run, and
+a receiver that was broken and is now fixed is a deployment's business rather than a form's — a
+button here would be a second thing deciding when an endpoint is called, next to the backoff that
+already decides it.
+
+**What it cost:** the table now grows by one row per save of a form that reports itself, where
+before it drained. They still leave with the form (cascade) and with the expiry purge, and they
+hold no values — but `FORMS_HISTORY_LIMIT` does **not** prune them, deliberately: what was told
+cannot be untold, and evicting the record of a telling would be evicting the only proof of it.
+
+## One test lesson worth keeping
+
+`due()` is a queue for the whole deployment, and the suite runs against the **dev** database
+(compose's `DATABASE_URL` outranks `.env.test`, and the suites load no dotenv files at all). So a
+test that counted what is due was really asserting something about every other form in that
+database — it passed while the table happened to be empty and went red the moment a demo form was
+left owing something. Tests here ask about *their own* rows (`owedIdsAmong()`), which is the right
+discipline regardless of which database they run on.

@@ -167,6 +167,7 @@ services:
     App\Domain\Forms\Port\ValuesValidator: '@App\Infrastructure\Validation\StagedValuesValidator'
     App\Application\Forms\Port\Transactions: '@App\Infrastructure\Persistence\DoctrineTransactions'
     App\Application\Forms\Port\Announcements: '@App\Infrastructure\Persistence\DoctrineAnnouncements'
+    App\Application\Forms\Port\FormDeliveries: '@App\Infrastructure\Persistence\DoctrineAnnouncements'
     App\Application\Forms\Port\Announcer: '@App\Infrastructure\Webhook\MessengerAnnouncer'
     App\Application\Forms\Port\Webhook: '@App\Infrastructure\Webhook\SignedHttpWebhook'
     App\Application\Forms\Port\DataSchemas: '@App\Infrastructure\Cache\CachedDataSchemaProvider'

@@ -344,6 +344,18 @@ final class OpenApiComplianceTest extends WebTestCase
             ['GET', '/api/manage/forms/{id}/history', 410, true, '', static function (self $test): void {
                 $test->client->request('GET', \sprintf('/api/manage/forms/%s/history', $test->expiredForm()));
             }],
+            // What the form has told anybody, and what came of each telling.
+            // Management-side only, like the actor-carrying history and for the
+            // same reason: it names the endpoints a form reports to.
+            ['GET', '/api/manage/forms/{id}/deliveries', 200, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s/deliveries', $test->savedForm()));
+            }],
+            ['GET', '/api/manage/forms/{id}/deliveries', 404, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s/deliveries', Uuid::v7()->toRfc4122()));
+            }],
+            ['GET', '/api/manage/forms/{id}/deliveries', 410, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s/deliveries', $test->expiredForm()));
+            }],
             ['GET', '/api/forms/{id}/history/{seq}', 200, true, '', static function (self $test): void {
                 $test->client->request('GET', \sprintf('/api/forms/%s/history/1', $test->savedForm()));
             }],

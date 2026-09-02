@@ -19,10 +19,13 @@ use Symfony\Component\Uid\Uuid;
  * a save cannot be committed without the delivery — which is exactly the bargain
  * `form_revisions` already makes with the row it belongs to.
  *
- * A queue holds what is still owed, so a delivery that succeeded is **removed**
- * rather than marked: the only rows that outlive their telling are the ones this
- * service gave up on, kept because a deployment should be able to see them. They
- * leave with the form, by foreign key, like every other record of it.
+ * **Nothing is deleted for having succeeded.** That was the first design — a
+ * queue holds what is owed, so a told row went away — and it left the table able
+ * to prove a notification had been lost and unable to prove one had arrived. A
+ * telling is marked instead ({@see told()}), the queue is what has neither been
+ * told nor given up on, and {@see FormDeliveries} reads all three states for the
+ * system that owns the form. They leave with it, by foreign key, like every other
+ * record of it.
  *
  * Read side is deliberately blunt — `due()` takes no lock. Run one deliverer at a
  * time; two of them would each send what the other is sending, and the promise
@@ -45,7 +48,7 @@ interface Announcements
      */
     public function due(\DateTimeImmutable $now, int $limit): array;
 
-    /** Told, and therefore no longer owed. */
+    /** Told: no longer owed, and kept as the record that it was. */
     public function told(Uuid $delivery): void;
 
     /** Refused, to be tried again then — with why, so a deployment can read it. */

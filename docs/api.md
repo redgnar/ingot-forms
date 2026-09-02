@@ -22,6 +22,7 @@ this reference cannot drift from the implementation.
 | [`DELETE /api/forms/{id}/files/{fileId}`](#delete-apiformsidfilesfileid) | `discardFormFile` | Throw away an uploaded file this form has not saved | `204`, `404`, `409`, `410` |
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
 | [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `415`, `410`, `422` |
+| [`GET /api/manage/forms/{id}/deliveries`](#get-apimanageformsiddeliveries) | `getFormDeliveries` | List every notification this form made, and what came of each | `200`, `404`, `410` |
 | [`GET /api/forms/{id}/history`](#get-apiformsidhistory) | `getFormHistory` | List every accepted save of this form | `200`, `404`, `410` |
 | [`GET /api/manage/forms/{id}/history`](#get-apimanageformsidhistory) | `getManagedFormHistory` | List every accepted save of this form, with who entered it | `200`, `404`, `410` |
 | [`GET /api/forms/{id}/presentation`](#get-apiformsidpresentation) | `getFormPresentation` | Read how the form is shown | `200`, `404`, `410` |
@@ -196,6 +197,26 @@ Repeatable; overwrites the previous draft. Values are validated against the draf
 | `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | The body is not a JSON object, or the values break the form-s own contract. |
+
+### GET /api/manage/forms/{id}/deliveries
+
+`operationId: getFormDeliveries` — List every notification this form made, and what came of each
+
+Newest first, and empty for a form that names no endpoint — nothing is queued for one. Each entry is one thing that happened to the form (`form.saved` with the revision it became, or `form.confirmed`), the endpoint it was to be told to, and its state: `owed` (nothing tried yet, or refused and waiting for `nextAttemptAt`), `told` (`deliveredAt` says when) or `abandoned` (refused `attempts` times and never tried again, with `lastRefusal` saying what the receiver said). `delivery` is the id that went out as `X-Forms-Delivery`, so an entry here and a line in the receiver's own log are the same event.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | `application/json` | [`FormDeliveries`](#formdeliveries) | The deliveries, newest first. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
+| `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 
 ### GET /api/forms/{id}/history
 
@@ -419,6 +440,36 @@ Every accepted save of one form, newest first, with who entered each.
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `revisions` | `array` of [`FormRevisionWithActor`](#formrevisionwithactor) | yes |  |
+
+No other properties are allowed.
+
+### FormDeliveries
+
+Every notification one form made, newest first, and what came of each. Empty for a form that names no endpoint: nothing is queued for one.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `deliveries` | `array` of [`FormDelivery`](#formdelivery) | yes |  |
+
+No other properties are allowed.
+
+### FormDelivery
+
+One thing that happened to a form and what came of telling somebody about it. A failure was always durable; this exists so that a success is too — the question it answers is "were you told, and when".
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `delivery` | `string` (`uuid`) | yes | The id that went out as `X-Forms-Delivery`, the same across every retry — so this entry and a line in the receiver's own log are the same event. |
+| `event` | `string` (`form.saved` \| `form.confirmed`) | yes |  |
+| `revision` | `integer \| null` (≥ 1) | yes | Which save this was about; null for a confirmation, which is no revision. |
+| `occurredAt` | `string` (`date-time`) | yes | When the thing happened, not when it was told. |
+| `target` | `string` (`uri`) | yes | Where it was to be told. Kept per delivery rather than read off the form, so what was actually used is what is served. |
+| `actor` | `string \| null` (max length 255) | yes | Who did the thing being reported. Null on a form that records nobody. |
+| `state` | `string` (`owed` \| `told` \| `abandoned`) | yes | `owed` is nothing tried yet or refused and waiting; `told` means somebody was told and `deliveredAt` says when; `abandoned` means refused too many times and never tried again. Derived from the two moments rather than stored, so nothing can disagree with them. |
+| `attempts` | `integer` (≥ 0) | yes | How many times a receiver refused this. |
+| `deliveredAt` | `string \| null` (`date-time`) | yes |  |
+| `nextAttemptAt` | `string` (`date-time`) | yes | When it will be tried again. Meaningless once told or abandoned, which is what `state` is for. |
+| `lastRefusal` | `string \| null` | yes | What the receiver said the last time it refused. |
 
 No other properties are allowed.
 

@@ -69,7 +69,9 @@ versioning and multi-submission forms are deliberately out of scope.
   the API it already has. Written as an outbox row in the same transaction as the save it is
   about, delivered by a worker (`messenger:consume`) or by `app:webhooks:deliver` from cron, and
   signed with `FORMS_WEBHOOK_SECRET` — without which a form naming an endpoint is refused rather
-  than told about unsigned. See
+  than told about unsigned. Every telling is kept and readable at
+  `GET /api/manage/forms/{id}/deliveries` (`owed`, `told`, `abandoned`), because a failure that is
+  provable while a success is not is not an answer to "were you told". See
   [Being told what happened](docs/configuring-forms.md#being-told-what-happened).
 - Definitions may contain **unknown (plugin) item types** — they round-trip losslessly
   (`GenericField` + `#[Extras]`), can be drafted, but a form containing one can never be
