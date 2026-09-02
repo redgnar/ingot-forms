@@ -131,14 +131,26 @@ nav.language {
     z-index: 20;
 }
 
-/* An empty field has to look like a field. Some skins draw one as a box, others
-   as an underline — Materia does it with an inset shadow rather than a border —
-   and tom-select, which draws its own control, ends up with neither: a
-   full-width nothing that only appears once somebody has picked something. An
-   inset line along the bottom is the underline where a skin uses one, and sits
-   invisibly on the border where a skin draws a box. */
+/* The height of an autocomplete is on its wrapper, which is what carries the
+   border and therefore what somebody sees; the control inside it takes the whole
+   of that height rather than sitting short inside it. One line, because the
+   wrapper is a flex container — a second copy of the measure would be a second
+   thing to keep in step. */
+.ts-wrapper > .ts-control {
+    align-self: stretch;
+}
+
+/* An empty field has to look like a field. Where a skin draws a box, the
+   wrapper's own border is that box and there is nothing to add. Where a skin
+   draws an *underline* instead — Materia paints one with a shadow on a
+   borderless control — tom-select ends up with neither, and an empty
+   autocomplete is a full-width nothing until somebody picks something. So such a
+   skin declares the line it wants (`--kit-control-underline`) and this paints it.
+   Said this way round because it used to be painted for everybody: on a skin
+   with a border it was a second bottom edge a pixel inside the first, and an
+   empty autocomplete read as a flatter box than the input beside it. */
 .ts-control {
-    box-shadow: inset 0 -1px 0 0 var(--bs-border-color);
+    box-shadow: var(--kit-control-underline, none);
 }
 
 /* Two buttons this kit composed itself, so their proportions are its own to
@@ -170,15 +182,6 @@ nav.language {
 [data-controller="stepper"] .btn:focus-visible {
     outline: 2px solid currentColor;
     outline-offset: -2px;
-}
-
-/* tom-select measures its own box with `calc(1.5em + .75rem + var(--bs-border-width) * 2)`.
-   A skin is free to say `--bs-border-width: 0` — a *unitless* zero, which makes
-   that sum "length + number", which is invalid arithmetic, which throws the whole
-   declaration away and collapses the control to a 12px line. Lux does exactly
-   that. So the height is stated here without asking a variable what a border is. */
-.ts-wrapper {
-    min-height: calc(1.5em + 0.75rem + 2px);
 }
 
 /* A list is a table of answers, not a data grid. `table-sm` is what keeps it
@@ -373,13 +376,30 @@ input.form-control[type="file"]:active {
     margin: 0;
 }
 
-/* Controls of one page are one height, where a skin says what that height is.
+/* Controls of one page are one height, and this is what that height is.
    Bootstrap publishes no variable for it — the measure is compiled into the
-   padding of `.form-control` — so a skin whose controls are not the stock size
-   declares it (`assets/styles/skins/`), and the ones that are say nothing and
-   are left alone. Without it a `select`, a group of buttons and an autocomplete
-   in the same row are three different heights, because each is sized by rules
-   that never met.
+   padding of `.form-control` — so it is stated here as the sum Bootstrap arrives
+   at, and a skin whose controls are not the stock size overrides it
+   (`assets/styles/skins/`). Without one height, a `select`, a group of buttons
+   and an autocomplete in the same row are three heights, because each is sized
+   by rules that never met.
+
+   **The stock size is the fallback in the `var()`, not a `:root` of its own.**
+   A skin's stylesheet is imported *before* this one, so declaring the variable
+   here would override the skin that declared it rather than fill in for the ones
+   that did not. The fallback belongs where it is read.
+
+   Leaving it with no fallback was a bug worth remembering: `var()` with no value
+   and none to fall back on is invalid at computed-value time, so `min-height`
+   became its initial value — which not only failed to set a height but *deleted*
+   the `.ts-wrapper` rule this file used to carry above it, and an empty
+   autocomplete sat 2px shorter than the input beside it. A variable that is
+   sometimes defined is a rule that sometimes removes another one.
+
+   Stated as the sum rather than as 38px, so it still holds for a reader who
+   asked for larger text — and stated here rather than left to tom-select, which
+   computes its own box with `var(--bs-border-width)` and collapses to a 12px line
+   under a skin that sets that to a unitless zero (Lux does).
 
    `min-height` and not `height`: this lifts what a skin left short and never
    crops what it made tall, and a textarea keeps the size its `rows` asked for. */
@@ -387,5 +407,5 @@ input.form-control[type="file"]:active {
 .form-select,
 .ts-wrapper,
 .btn-group[data-name] > .btn {
-    min-height: var(--kit-control-height);
+    min-height: var(--kit-control-height, calc(1.5em + 0.75rem + 2px));
 }

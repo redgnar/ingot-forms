@@ -40,3 +40,19 @@
 :root {
     --kit-control-height: calc(1.5em + 1.25rem);
 }
+
+/* An empty field has to look like a field, and here that means an underline.
+   This skin draws a control with `border: 0` and paints its own line with a
+   shadow — so tom-select, which draws its own box inside a wrapper, would end up
+   with neither: a full-width nothing that only appears once somebody has picked
+   something.
+
+   Declared as a variable the kit reads, for two reasons. This file is imported
+   *before* tom-select's own stylesheet, which sets `box-shadow: none` on that
+   control and would win — and on a skin that draws a *box*, the same line is a
+   second bottom edge a pixel inside the border, which is what made an empty
+   autocomplete read as a flatter box than the input beside it. So the kit paints
+   what a skin asks for, and a skin that draws boxes asks for nothing. */
+:root {
+    --kit-control-underline: inset 0 -1px 0 0 var(--bs-border-color);
+}

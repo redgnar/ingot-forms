@@ -223,6 +223,61 @@ final class BootstrapFormPageTest extends PantherTestCase
         self::assertSame('draft', $this->formStatus($id));
     }
 
+    public function testAnEmptyAutocompleteIsTheSameBoxAsTheControlsAroundIt(): void
+    {
+        // GIVEN the kit's own controls and one built by a widget library, on a
+        // skin that draws boxes and on one that draws underlines
+        foreach ([null, 'material'] as $skin) {
+            $id = $this->plant($skin);
+            $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+            // WHEN the page has drawn, with nothing chosen yet
+            $measured = $this->eventually(function (): ?array {
+                /** @var array{input: int, autocomplete: int, underline: string}|null $said */
+                $said = $this->browser->executeScript(
+                    'const found = document.querySelector(".ts-wrapper");'
+                    . ' if (found === null) return null;'
+                    . ' const box = (el) => Math.round(el.getBoundingClientRect().height);'
+                    . ' return {'
+                    . '   input: box(document.querySelector("#item-email")),'
+                    . '   autocomplete: box(found),'
+                    . '   underline: getComputedStyle(document.querySelector(".ts-control")).boxShadow,'
+                    . ' };'
+                );
+
+                return $said;
+            });
+
+            self::assertIsArray($measured);
+            $input = $measured['input'];
+            $autocomplete = $measured['autocomplete'];
+            $underline = $measured['underline'];
+            self::assertIsInt($input);
+            self::assertIsInt($autocomplete);
+            self::assertIsString($underline);
+
+            // THEN it is exactly as tall as the text input beside it. This is
+            // pinned because it was wrong in a way nothing else could catch: the
+            // shared height is `var(--kit-control-height)`, a skin that keeps the
+            // stock size declares nothing, and a `var()` with no fallback is
+            // invalid at computed-value time — so the declaration not only failed
+            // but *deleted* the rule above it, leaving an empty autocomplete two
+            // pixels short of everything around it.
+            self::assertSame(
+                $input,
+                $autocomplete,
+                \sprintf('An empty autocomplete is not the height of an input on skin "%s".', $skin ?? 'default'),
+            );
+
+            // AND the extra bottom line only where the skin asked for one: on a
+            // skin that draws a box it is a second bottom edge a pixel inside the
+            // first, which is what made the box read as flatter.
+            $skin === 'material'
+                ? self::assertStringContainsString('inset', $underline)
+                : self::assertSame('none', $underline);
+        }
+    }
+
     public function testAReaderTurnsUpTheContrastAndThePageRemembersItNext(): void
     {
         // GIVEN a form drawn for somebody who finds it hard to read

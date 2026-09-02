@@ -361,6 +361,15 @@ Rules that follow from it, and that the tooling checks:
   a person asked for it (`event.isTrusted`), because a document being put back asked for nothing.
   Cloning an entry rewrites every reference along with the ids and the radio group: a caption or
   a message is a name too.
+- **A skin asks nothing of the markup, and the kit asks the skin.** Two variables carry what
+  differs: `--kit-control-height` (one height for every control on a page, because a `select`, a
+  button group and an autocomplete are otherwise sized by rules that never met) and
+  `--kit-control-underline` (the line an empty autocomplete needs where a skin draws underlines
+  instead of boxes). Both are read **with a fallback**, and that is not politeness: a `var()` with
+  neither value nor fallback is invalid at computed-value time, so the declaration does not merely
+  fail — it *deletes* whatever rule it was overriding. That is how an empty autocomplete came to
+  sit short of every control beside it, and it is pinned in the browser battery now, because a
+  height nothing measures is a height nothing notices.
 - **A skin's literal colours beat an indirection.** Overriding `--bs-*` is not enough on its
   own: Bootswatch repaints `color` and `background-color` outright hundreds of rules later, and
   its dark rules are `[data-bs-theme=dark] .btn-…` — one specificity point above a bare class.

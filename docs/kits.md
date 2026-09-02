@@ -494,6 +494,18 @@ below). A document names one with a top-level `"skin"`; a document that names no
 whatever the deployment sets (`FORMS_SKIN`). Everything is vendored and committed — no CDN, no
 runtime download.
 
+**Adding one is a stylesheet and, where it draws differently, two variables.** The kit asks the
+skin rather than the other way round, so nothing about a skin reaches the markup:
+
+| Variable | What the kit does with it |
+|---|---|
+| `--kit-control-height` | one height for every control on the page — a `select`, a group of buttons and an autocomplete are otherwise sized by rules that never met. Declared by a skin whose controls are not the stock size; the fallback in the kit is Bootstrap's own measure. |
+| `--kit-control-underline` | the bottom line an empty autocomplete needs on a skin that draws controls as underlines rather than boxes (Materia). Unset means the skin draws a box and needs nothing — painting it anyway puts a second bottom edge a pixel inside the first. |
+
+Both are read with a fallback, deliberately: a `var()` with neither a value nor a fallback is
+invalid at computed-value time, which does not merely fail — it *deletes* the declaration and
+whatever rule it was overriding.
+
 ## What this kit deliberately does not have
 
 No floating labels, no styling knobs beyond the ones listed above, no way for a document to
