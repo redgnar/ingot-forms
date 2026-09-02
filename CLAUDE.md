@@ -598,6 +598,27 @@ Rules that follow from it, and that the tooling checks:
 
 ## Testing (PHPUnit)
 
+- **While working, run the narrowest thing that covers the change.** The full chain is the
+  *final* gate (see below), not the loop: re-running 1200 tests and a browser battery after every
+  edit spends minutes proving what the edit could not have touched. Pick by what was changed:
+
+  | Changed | Run |
+  |---|---|
+  | a use case, an aggregate rule, a value object | `make test-unit` (a second, no DB) |
+  | one area — the webhook queue, files, history, identity | `make test-file FILE=…` on that area's tests, or `make test-filter FILTER=…` |
+  | an adapter, an endpoint, a request DTO | `make test-integration`, or one file of it |
+  | a template, a kit's JavaScript, a widget | `make test-browser` — and **only** then: it starts a browser and costs ~40s |
+  | a field type | that type's two batteries (`tests/Domain/…/Field`, `tests/Infrastructure/Validation/Field`) |
+  | the mapping or a migration | `make test-filter FILTER=SchemaInSyncTest` |
+  | only Markdown or comments | nothing |
+
+  The rule of thumb is the inverse too: a new field type does not need the webhook tests, and a
+  webhook change does not need a browser. When a change turns out to reach further than expected
+  (a constructor gains an argument, a port grows a method), widen once to the suite that covers
+  the callers rather than re-running everything each time.
+- **`make ci` once, at the end.** That is the hard rule and it does not move: a task is not done
+  until the whole chain is green — cs, stan, deptrac, every suite, mutation, audit. The point of
+  the table above is to stop running it *iteratively*, not to skip it.
 - Every functionality gets a test; bodies follow **GIVEN / WHEN / THEN** comments; method
   names describe behavior; error-path tests assert JSON Pointer + error code.
 - Suites: `unit` (tests/Domain, tests/Application — no kernel, no DB), `integration`
