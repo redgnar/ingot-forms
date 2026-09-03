@@ -8,6 +8,7 @@ use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\GenericField;
+use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
@@ -31,6 +32,10 @@ final class BootstrapEngineTest extends TestCase
     {
         yield 'text' => [new TextField('email'), ['text', 'textarea', 'hidden']];
         yield 'select' => [new SelectField('country', ['pl', 'de']), ['select', 'radio', 'radio-buttons', 'autocomplete']];
+        // Three ways of asking for several, and no `multi-select`: that is the
+        // plain kit's answer, and a fourth name for a question this kit already
+        // asks better would be a restyling rather than a vocabulary.
+        yield 'multiselect' => [new MultiSelectField('tags', ['urgent', 'legal']), ['checkboxes', 'checkbox-buttons', 'autocomplete']];
         yield 'number' => [new NumberField('seats'), ['number', 'range', 'stepper']];
         yield 'date' => [new DateField('starts'), ['date']];
         yield 'checkbox' => [new CheckboxField('terms'), ['checkbox', 'switch']];
@@ -121,10 +126,15 @@ final class BootstrapEngineTest extends TestCase
             }
         }
 
+        // The same control can be brought for two kinds of value — an
+        // autocomplete asks a single choice and a multiple one — and what is
+        // being counted is the vocabulary, not how often it applies.
+        $added = array_values(array_unique($added));
+
         // THEN the plain controls are deliberately the same names in both — a
         // text field is a text field — and what is left is what this kit brought:
         // ways of asking the other one has no markup for at all
-        self::assertSame(['radio-buttons', 'autocomplete', 'range', 'stepper'], $added);
+        self::assertSame(['radio-buttons', 'autocomplete', 'checkbox-buttons', 'range', 'stepper'], $added);
 
         // AND the ways of grouping share nothing: a fieldset is not a card
         self::assertSame([], array_intersect($plain->containers(), $rich->containers()));

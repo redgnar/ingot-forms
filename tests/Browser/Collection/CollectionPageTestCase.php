@@ -283,7 +283,9 @@ abstract class CollectionPageTestCase extends PantherTestCase
         });
 
         self::assertIsString($message);
-        self::assertStringContainsString('sku', $message);
+        // The page's own sentence, not the API's: which answer is missing is
+        // said by where the message stands, so the words do not name the item.
+        self::assertSame('This answer is needed.', $message);
         self::assertSame('', $this->browser->findElements(WebDriverBy::cssSelector('[data-entry] [data-error="sku"]'))[0]->getText());
         self::assertSame('draft', $this->formStatus($id));
     }
@@ -308,7 +310,7 @@ abstract class CollectionPageTestCase extends PantherTestCase
         });
 
         self::assertIsString($message);
-        self::assertStringContainsString('code', $message);
+        self::assertSame('This answer is needed.', $message);
         self::assertSame(
             '',
             $this->browser->findElements(WebDriverBy::cssSelector('[data-collection="parts"] [data-entry] [data-error="code"]'))[0]->getText(),

@@ -101,6 +101,7 @@ widget to draw.
 |---|---|---|
 | `text` | JSON string (non-empty when required) | `maxLength`, `pattern` |
 | `select` | one of the declared options | `options` — at least one, no repeats |
+| `multiselect` | JSON array of the declared options, each at most once | `options` — at least one, no repeats; `min`, `max` — how many ticks |
 | `number` | JSON number | `min`, `max`, `decimals` |
 | `date` | `YYYY-MM-DD`, a day that exists | `min`, `max` — calendar dates, `min` no later than `max` |
 | `datetime` | RFC 3339 with an offset: `2026-03-01T14:30:00+01:00` | `min`, `max` — moments, `min` no later than `max` |
@@ -109,7 +110,7 @@ widget to draw.
 | `file` | the description of an uploaded file: `{id, name, size, type}` | `accept` (media types, at least one, no repeats), `maxSize` — both required |
 | anything else | whatever it came as | the plugin's own keys, kept in `extras` |
 
-Five of those say something worth spelling out:
+Six of those say something worth spelling out:
 
 - **`decimals` bounds precision.** `0` means whole numbers and is published as JSON Schema's
   `integer`. Above zero it is the one rule this API enforces without publishing it as a rule:
@@ -144,6 +145,21 @@ Five of those say something worth spelling out:
   is required of the values document, since an absent member has none of them. A collection may
   hold a collection, and both kits draw that: a list inside the form of an entry, with its own
   add, its own remove and its own counts.
+- **A `multiselect` is several of one list, as one value.** Its answer is
+  `["urgent", "legal"]` — a set, so no option twice, and that is the first of the two rules
+  that make it a type rather than a way of drawing a `select`. The second is counting, and it
+  works exactly as a collection's does and for the same reason: `min: 1` says "tick at least
+  one", `required` is refused (an empty list would satisfy it while answering nothing), `max`
+  holds in both contracts because it is a rule about the value, and `min` waits for
+  confirmation because it is an obligation to finish. An item owing ticks is required of the
+  values document, since an absent member has none of them. A `min` above the number of
+  options is refused (`form.multiselect.impossible-minimum`) — nobody could finish that form;
+  a `max` above it is not, because "as many as you like" is a reasonable thing to write. The
+  whole contract is published: `type: array`, `items: {enum: […]}`, `uniqueItems`, `minItems`,
+  `maxItems`. **Before this existed** the only way to ask it was a `collection` holding a
+  `select`, which answered the question and lied about the shape — a list of one-member
+  documents, entries that could be reordered and duplicated, and a page that drew a table with
+  an *Add* button where somebody wanted three ticks.
 - **A `file` holds a description, not bytes.** The bytes are uploaded first
   (`POST /api/forms/{id}/files`) and the answer to that is exactly what the values document
   may hold — id, name, size and media type, all four measured by the server. That is what lets
@@ -558,6 +574,7 @@ for its type — the first in each row below.
 |---|---|---|
 | `text` | `text`, `textarea`, `hidden` | `text`, `textarea`, `hidden` |
 | `select` | `select`, `radio` | `select`, `radio`, `radio-buttons`, `autocomplete` |
+| `multiselect` | `checkboxes`, `multi-select` | `checkboxes`, `checkbox-buttons`, `autocomplete` |
 | `number` | `number` | `number`, `range`, `stepper` |
 | `date` | `date` | `date` |
 | `checkbox` | `checkbox`, `switch` | `checkbox`, `switch` |
@@ -592,7 +609,8 @@ document that places no `comfort` still gets them, at the top.
 | `width` | any item that is a direct child of a `row` | `1`–`12`, or `"auto"` (as wide as its own content); omit it and the item shares what is left |
 | `align` | `row` | `"start"`, `"center"`, `"end"`, `"between"`, `"around"` — the five Bootstrap packs columns with; omit it for `start` |
 | `tone` | `alert` | `"primary"`, `"secondary"`, `"success"`, `"danger"`, `"warning"`, `"info"`, `"light"`, `"dark"` — Bootstrap's eight; **`info`** when omitted, and a word that is not one of them draws an alert with no colour at all |
-| `columns` | `radio` | `true` or `false`; **false** when omitted |
+| `columns` | `radio`, `checkboxes` | `true` or `false`; **false** when omitted |
+| `rows` | `multi-select` | how many options are visible at once; **as many as there are, up to 6** when omitted |
 
 And the four members that are not options, with their values:
 
@@ -1026,6 +1044,17 @@ Every error is an RFC 9457 `application/problem+json` document. Validation probl
 `errors` array with one entry per finding: `{pointer, code, message, input?}`. **A pointer names
 the thing that is wrong**, never what surrounds it — `/email`, or `/lines/1/sku` inside a list —
 so a page can mark the control instead of announcing that the document is incomplete.
+
+**`message` is for you; a page says something else.** The message is written for whoever is
+calling the API — `Array should have at most 2 items, 3 found` is exactly right in a log and no
+use to somebody who has ticked one box too many — so the **code** is the part meant to be acted
+on. Both kits word the codes a person can reach into sentences of their own, in the language the
+page negotiated (*Choose at most 2.*, *This answer is needed.*), and fall back to `message` for
+anything they have no words for. Those sentences are this application's, in `translations/`, and
+no presentation document carries them: an author writes the questions, not the refusals. A page
+also holds every ceiling it can before a save is even attempted — the third tick of a `max: 2`
+multiple choice cannot be ticked, exactly as a text box will not take a character past
+`maxLength` — so most refusals a person could meet never happen.
 
 ```json
 {

@@ -15,6 +15,7 @@ use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use App\UserInterface\Web\FormApi;
+use App\UserInterface\Web\RefusalWords;
 use App\UserInterface\Web\Renderer\BootstrapRenderer;
 use App\UserInterface\Web\Renderer\PresentedNodes;
 use App\UserInterface\Web\Renderer\RenderedForm;
@@ -124,6 +125,8 @@ final class BootstrapRendererTest extends KernelTestCase
 
     private FormApi $api;
 
+    private RefusalWords $refusals;
+
     protected function setUp(): void
     {
         self::bootKernel();
@@ -133,13 +136,18 @@ final class BootstrapRendererTest extends KernelTestCase
         $api = self::getContainer()->get(FormApi::class);
         self::assertInstanceOf(FormApi::class, $api);
         $this->api = $api;
-        $this->renderer = new BootstrapRenderer($twig, new PresentedNodes($api), new BootstrapEngine(), $api);
+        // And the words a refused answer is told in come from the container's
+        // own catalogue, for the same reason: a test may not invent them either.
+        $refusals = self::getContainer()->get(RefusalWords::class);
+        self::assertInstanceOf(RefusalWords::class, $refusals);
+        $this->refusals = $refusals;
+        $this->renderer = new BootstrapRenderer($twig, new PresentedNodes($api), new BootstrapEngine(), $api, $refusals);
     }
 
     /** The same kit, dressing what a document leaves undressed in something else. */
     private function dressedIn(string $skin): BootstrapRenderer
     {
-        return new BootstrapRenderer($this->twig, new PresentedNodes($this->api), new BootstrapEngine(), $this->api, $skin);
+        return new BootstrapRenderer($this->twig, new PresentedNodes($this->api), new BootstrapEngine(), $this->api, $this->refusals, $skin);
     }
 
     /** Everything from `<body` on: the page itself, without what it loads. */
@@ -1036,6 +1044,185 @@ final class BootstrapRendererTest extends KernelTestCase
         $presentation['items'][] = ['widget' => 'history', 'label' => 't.history'];
 
         return self::formFrom($presentation);
+    }
+
+    public function testAMultipleChoiceIsDrawnAsATickPerOption(): void
+    {
+        // GIVEN a form asking for several of a list, two of them answered
+        $page = $this->drawn('checkboxes', ['urgent', 'legal']);
+        $group = $page->filter('[data-name="tags"]');
+
+        // THEN every option is a check with a label of its own, and what was
+        // stored is ticked
+        self::assertCount(3, $group->filter('.form-check input.form-check-input'));
+        self::assertSame(['urgent', 'legal'], $group->filter('input[checked]')->each(
+            static fn(Crawler $tick): string => (string) $tick->attr('value'),
+        ));
+
+        // AND it is a group rather than one control: these do not exclude each
+        // other, so the caption names the group and each tick has its own label
+        self::assertSame('group', $group->attr('role'));
+        self::assertSame('item-tags-label', $group->attr('aria-labelledby'));
+        self::assertSame('true', $group->attr('aria-required'));
+        self::assertSame(['Urgent', 'Billing', 'Legal'], $group->filter('label')->each(
+            static fn(Crawler $label): string => trim($label->text()),
+        ));
+    }
+
+    public function testEveryTickIsNamedByItsOwnLabelAndScopedToItsEntry(): void
+    {
+        // GIVEN
+        $page = $this->drawn('checkboxes', []);
+
+        // THEN a label points at the tick beside it, which is what makes the
+        // words clickable and what a screen reader reads with the box
+        $pairs = $page->filter('[data-name="tags"] .form-check')->each(static fn(Crawler $check): array => [
+            (string) $check->filter('input')->attr('id'),
+            (string) $check->filter('label')->attr('for'),
+        ]);
+
+        self::assertSame([['item-tags-1', 'item-tags-1'], ['item-tags-2', 'item-tags-2'], ['item-tags-3', 'item-tags-3']], $pairs);
+    }
+
+    public function testABarOfTogglesIsTheSameQuestionAskedInLessSpace(): void
+    {
+        // GIVEN
+        $page = $this->drawn('checkbox-buttons', ['billing']);
+        $group = $page->filter('[data-name="tags"]');
+
+        // THEN the ticks are buttons, and each one still carries its value
+        self::assertSame('btn-group', $group->attr('class'));
+        self::assertCount(3, $group->filter('input.btn-check'));
+        self::assertSame(['billing'], $group->filter('input[checked]')->each(
+            static fn(Crawler $tick): string => (string) $tick->attr('value'),
+        ));
+        // AND the browser is told not to remember them: a toggle restored from
+        // a reload would disagree with the document the server drew
+        self::assertSame('off', $group->filter('input')->attr('autocomplete'));
+    }
+
+    public function testAnAutocompleteAskedForSeveralIsOneSelectBehindTheSameController(): void
+    {
+        // GIVEN
+        $page = $this->drawn('autocomplete', ['legal']);
+        $control = $page->filter('select[data-name="tags"]');
+
+        // THEN it is the same control the single choice uses, saying `multiple`
+        // — which is the one place that fact lives, and what the controller
+        // reads to draw chips instead of one value
+        self::assertNotNull($control->attr('multiple'));
+        self::assertSame('autocomplete', $control->attr('data-controller'));
+        self::assertSame(['legal'], $control->filter('option[selected]')->each(
+            static fn(Crawler $option): string => (string) $option->attr('value'),
+        ));
+
+        // AND there is no empty option: a multiple choice says "none" by having
+        // nothing picked, so an option meaning it would be one more thing to pick
+        self::assertCount(3, $control->filter('option'));
+    }
+
+    public function testTheAnswerIsCollectedFromTheMarkupRatherThanFromAValue(): void
+    {
+        // GIVEN each of this kit's three ways of asking for several
+        foreach (['checkboxes', 'checkbox-buttons', 'autocomplete'] as $widget) {
+            $control = $this->drawn($widget, ['urgent'])->filter('[data-name="tags"]');
+
+            // THEN each says the answer is a list of strings, and each is a
+            // control the form controller collects
+            self::assertSame('strings', $control->attr('data-type'), $widget);
+            self::assertSame('control', $control->attr('data-form-target'), $widget);
+        }
+    }
+
+    public function testAGroupOfTicksAsksTheControllerToHoldItsCeiling(): void
+    {
+        // GIVEN a form asking for at most two ticks
+        $group = $this->drawn('checkboxes', [])->filter('[data-name="tags"]');
+
+        // THEN the bounds are in the markup and something is asked to keep them
+        // — every other maximum in this kit is enforced by the browser, and a
+        // group of checkboxes is the one that has to be done by hand
+        self::assertSame('1', $group->attr('data-min'));
+        self::assertSame('2', $group->attr('data-max'));
+        self::assertSame('ticks', $group->attr('data-controller'));
+        self::assertSame('change->ticks#guard', $group->attr('data-action'));
+    }
+
+    public function testASearchableChoiceIsToldItsCeilingRatherThanKeepingItItself(): void
+    {
+        // GIVEN the same question drawn as a box somebody types into
+        $control = $this->drawn('autocomplete', [])->filter('select[data-name="tags"]');
+
+        // THEN the number goes to the library that draws the chips: it owns what
+        // a person can add, so the ceiling belongs where the adding happens
+        self::assertSame('2', $control->attr('data-max'));
+        self::assertSame('autocomplete', $control->attr('data-controller'));
+        self::assertNull($control->attr('data-action'));
+    }
+
+    public function testThePageBringsItsOwnWordsForARefusedAnswer(): void
+    {
+        // GIVEN any page
+        $words = json_decode(
+            (string) $this->drawn('checkboxes', [])->filter('main')->attr('data-form-refusals-value'),
+            true,
+            flags: \JSON_THROW_ON_ERROR,
+        );
+        self::assertIsArray($words);
+
+        // THEN the sentences travel with the page, because the refusal itself
+        // arrives in the browser — and they are sentences rather than the API's
+        // own message, which is written for whoever is calling the API
+        self::assertSame('This answer is needed.', $words['schema.required'] ?? null);
+        self::assertSame('Choose at most {n}.', $words['schema.maxItems'] ?? null);
+    }
+
+    /**
+     * A form asking for several of a list, drawn with one widget and one answer.
+     *
+     * @param list<string> $picked
+     */
+    private function drawn(string $widget, array $picked): Crawler
+    {
+        $definitions = new FormDefinitionProcessor(self::mapper());
+        $presentations = new PresentationProcessor(self::mapper());
+        $form = new Form(
+            FormId::next(),
+            $definitions->document($definitions->parse(['items' => [
+                ['type' => 'multiselect', 'name' => 'tags', 'options' => ['urgent', 'billing', 'legal'], 'min' => 1, 'max' => 2],
+            ]])),
+            ExpireDate::future(new \DateTimeImmutable('+1 day')),
+            $presentations->document($presentations->parse([
+                'engine' => 'bootstrap',
+                'defaultLocale' => 'en',
+                'items' => [
+                    [
+                        'name' => 'tags',
+                        'widget' => $widget,
+                        'label' => 'ticket.tags',
+                        'choices' => ['urgent' => 'ticket.urgent', 'billing' => 'ticket.billing', 'legal' => 'ticket.legal'],
+                    ],
+                    ['widget' => 'confirm', 'label' => 'ticket.send'],
+                ],
+                'translations' => ['en' => [
+                    'ticket.tags' => 'Tags',
+                    'ticket.urgent' => 'Urgent',
+                    'ticket.billing' => 'Billing',
+                    'ticket.legal' => 'Legal',
+                    'ticket.send' => 'Send it',
+                ]],
+            ])),
+            new PresentationRules(new Engines([new BootstrapEngine()])),
+        );
+
+        if ($picked !== []) {
+            $form->saveDraft(
+                json_decode(json_encode(['tags' => $picked], \JSON_THROW_ON_ERROR), false, flags: \JSON_THROW_ON_ERROR),
+                new StubValues(),
+            );
+        }
+
+        return new Crawler($this->renderer->render(new RenderedForm($form, 'en')));
     }
 
     /**

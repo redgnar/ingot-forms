@@ -17,7 +17,7 @@ final readonly class ValueNode extends PresentedNode
 {
     /**
      * @param ?string                                     $scope which entry this belongs to, if any: what makes an id unique when the same form is drawn once per entry, and what keeps one entry's radios out of another's group
-     * @param 'string'|'number'|'boolean'|'json'          $type  what the API expects on the wire, since a control only ever holds text
+     * @param 'string'|'strings'|'number'|'boolean'|'json' $type what the API expects on the wire, since a control only ever holds text
      * @param array<string, mixed>                        $options
      * @param list<array{value: string, text: string}>    $choices each option as the person picking it sees it; empty unless the item offers a choice
      * @param list<string>                                $accept

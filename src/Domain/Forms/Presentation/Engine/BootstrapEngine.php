@@ -10,6 +10,7 @@ use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateTimeField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileField;
+use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
@@ -53,6 +54,12 @@ final class BootstrapEngine implements PresentationEngine
     private const array CONTROLS = [
         TextField::class => ['text', 'textarea', 'hidden'],
         SelectField::class => ['select', 'radio', 'radio-buttons', 'autocomplete'],
+        // The same three ways this kit offers a single choice, asked of several:
+        // ticks, a bar of toggles, and a box you type into. `multi-select` is
+        // deliberately absent — a `select multiple` is what the plain kit has,
+        // and reproducing it here would be a fourth name for a question this kit
+        // already asks better.
+        MultiSelectField::class => ['checkboxes', 'checkbox-buttons', 'autocomplete'],
         NumberField::class => ['number', 'range', 'stepper'],
         DateField::class => ['date'],
         DateTimeField::class => ['datetime'],

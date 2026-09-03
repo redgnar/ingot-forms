@@ -9,6 +9,7 @@ use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateTimeField;
 use App\Domain\Forms\Definition\FormDefinition;
+use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
@@ -46,6 +47,14 @@ final class FormValuesType extends AbstractType
             [$type, $fieldOptions] = match (true) {
                 $field instanceof TextField => [TextType::class, self::textOptions($field, $strict)],
                 $field instanceof SelectField => [ChoiceType::class, self::selectOptions($field, $strict)],
+                // Several of the same list. Everything about it is in the
+                // published schema — what may be picked, that nothing may be
+                // picked twice, and how many ticks are owed — and that schema
+                // answers first, so this stage takes the array as it came. A
+                // ChoiceType with `multiple` would judge membership a second
+                // time, in a stage whose refusals cannot be stated in the
+                // contract clients were given.
+                $field instanceof MultiSelectField => [RawValueType::class, ['required' => false]],
                 $field instanceof NumberField => [NumberType::class, self::numberOptions($field, $strict)],
                 // What a date is and which period it falls in is said in the
                 // published schema, and enforced there; here it is the text it

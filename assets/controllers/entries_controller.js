@@ -116,6 +116,18 @@ export default class extends Controller {
             return control.value === '' ? '' : JSON.parse(control.value).name;
         }
 
+        // Several answers read as the words they were offered under, joined: a
+        // cell says what the entry holds, and a list of codes would not.
+        if (control.dataset.type === 'strings') {
+            const picked = control.tagName === 'SELECT'
+                ? [...control.selectedOptions].map((option) => option.textContent.trim())
+                : [...control.querySelectorAll('input:checked')].map(
+                    (tick) => tick.labels?.[0]?.textContent.trim() ?? tick.value,
+                );
+
+            return picked.join(', ');
+        }
+
         if (control.dataset.choice !== undefined) {
             const picked = control.querySelector('input:checked');
 

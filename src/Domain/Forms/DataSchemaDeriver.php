@@ -11,6 +11,7 @@ use App\Domain\Forms\Definition\DateTimeField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\FormDefinition;
+use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
@@ -54,7 +55,7 @@ final class DataSchemaDeriver
         foreach ($items as $field) {
             $properties[$field->name] = $this->fieldSchema($field, $mode);
 
-            if (self::mustBeAnswered($field)) {
+            if ($field->mustBeAnswered()) {
                 $required[] = $field->name;
             }
         }
@@ -70,18 +71,6 @@ final class DataSchemaDeriver
         }
 
         return $schema;
-    }
-
-    /**
-     * A collection asks for entries rather than for a member, and a member that
-     * is not there has none of them — so a minimum is what makes it required.
-     * Every other kind of item says so itself.
-     */
-    private static function mustBeAnswered(Field $field): bool
-    {
-        return $field instanceof CollectionField
-            ? $field->min !== null && $field->min > 0
-            : $field->required;
     }
 
     /**
@@ -188,6 +177,29 @@ final class DataSchemaDeriver
 
         if ($field instanceof SelectField) {
             return ['enum' => $field->options];
+        }
+
+        if ($field instanceof MultiSelectField) {
+            // A set of the options, and the whole contract is statable: what may
+            // be picked, that nothing may be picked twice, and how many ticks
+            // are owed. The two bounds part company the way a collection's do —
+            // a maximum is a rule about the value, a minimum is an obligation to
+            // finish — so a draft may still be short and may never be too long.
+            $schema = [
+                'type' => 'array',
+                'items' => ['enum' => $field->options],
+                'uniqueItems' => true,
+            ];
+
+            if ($field->min !== null && $mode === DeriveMode::Strict) {
+                $schema['minItems'] = $field->min;
+            }
+
+            if ($field->max !== null) {
+                $schema['maxItems'] = $field->max;
+            }
+
+            return $schema;
         }
 
         if ($field instanceof NumberField) {

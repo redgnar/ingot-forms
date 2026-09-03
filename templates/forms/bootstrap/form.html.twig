@@ -62,6 +62,11 @@
       data-form-page-value="{{ path('web_form_view', {id: id}) }}"
       data-form-version-value="{{ version ?? 0 }}"
       data-form-refused-value="{{ 'page.refused'|trans }}"
+      {# What a refused answer is told to a person. The refusal arrives in the
+         browser from the API, whose own message is written for whoever is
+         *calling* it, so the page brings its own words and keeps that message as
+         the fallback. #}
+      data-form-refusals-value="{{ refusals|json_encode }}"
       data-action="input->form#touched click->form#leaving"{% endif %}>
 
     {# The reader's own switches. Where they sit is the document's business (the
@@ -371,7 +376,7 @@
                at one: each option's own label does that. It still has to be read
                as the question, so the group names it instead — a caption pointing
                at nothing is a question a screen reader never asks. #}
-            <label class="form-label" id="{{ id }}-label"{% if node.widget not in ['radio', 'radio-buttons'] %} for="{{ id }}"{% endif %}>{{ node.label }}{% if node.required %}<span aria-hidden="true"> *</span>{% endif %}</label>
+            <label class="form-label" id="{{ id }}-label"{% if node.widget not in ['radio', 'radio-buttons', 'checkboxes', 'checkbox-buttons'] %} for="{{ id }}"{% endif %}>{{ node.label }}{% if node.required %}<span aria-hidden="true"> *</span>{% endif %}</label>
         {% endif %}
         {{ _self.control(node, readOnly, id) }}
 
@@ -414,7 +419,7 @@
                 'rows': node.options.rows|default(4),
                 'maxlength': node.maxLength,
             }))|raw }}>{{ node.value }}</textarea>
-        {% elseif node.widget == 'select' or node.widget == 'autocomplete' %}
+        {% elseif node.widget == 'select' or (node.widget == 'autocomplete' and node.type != 'strings') %}
             <select{{ html.attributes(common|merge({
                 'class': 'form-select',
                 'data-controller': node.widget == 'autocomplete' ? 'autocomplete' : null,
@@ -422,6 +427,24 @@
                 <option value="">{{ node.placeholder }}</option>
                 {% for choice in node.choices %}
                     <option value="{{ choice.value }}"{% if node.value == choice.value %} selected{% endif %}>{{ choice.text }}</option>
+                {% endfor %}
+            </select>
+        {% elseif node.widget == 'autocomplete' %}
+            {# The same control asked for several: one `select multiple` behind
+               the same controller, which reads `multiple` off the element rather
+               than being told twice. No empty option — a placeholder is what an
+               empty box shows here, and an option that means "none" would be one
+               more thing to pick. #}
+            <select{{ html.attributes(common|merge({
+                'class': 'form-select',
+                'multiple': true,
+                'data-controller': 'autocomplete',
+                'data-placeholder': node.placeholder,
+                'data-min': node.min,
+                'data-max': node.max,
+            }))|raw }}>
+                {% for choice in node.choices %}
+                    <option value="{{ choice.value }}"{% if choice.value in (node.value ?? []) %} selected{% endif %}>{{ choice.text }}</option>
                 {% endfor %}
             </select>
         {% elseif node.widget == 'radio' %}
@@ -470,6 +493,62 @@
                         'autocomplete': 'off',
                     })|raw }}>
                     <label class="btn btn-outline-primary" for="{{ id }}-{{ loop.index }}">{{ choice.text }}</label>
+                {% endfor %}
+            </div>
+        {% elseif node.widget == 'checkboxes' or node.widget == 'checkbox-buttons' %}
+            {# Several answers, so several controls. `role="group"` rather than
+               `radiogroup`: these do not exclude each other, and the caption
+               names the group because no single tick is the question.
+
+               `data-type="strings"` is the contract with the controller — the
+               answer is what is checked inside this element, not its `value` —
+               and the name still carries the entry's scope, which is what keeps
+               a cloned entry's ticks its own. #}
+            {# The bounds are in the markup for the reason `maxlength` is on a
+               text box: a ceiling holds while somebody is still filling the form
+               in, so a page that lets them past it has produced a state its own
+               save will refuse. The controller disables what is left once the
+               ceiling is reached; the server is still the one that decides. #}
+            <div{{ html.attributes(common|merge({
+                'id': null,
+                'name': null,
+                'disabled': null,
+                'class': node.widget == 'checkbox-buttons' ? 'btn-group' : null,
+                'role': 'group',
+                'aria-labelledby': id ~ '-label',
+                'data-choice': true,
+                'data-min': node.min,
+                'data-max': node.max,
+                'data-controller': node.max ? 'ticks' : null,
+                'data-action': node.max ? 'change->ticks#guard' : null,
+            }))|raw }}>
+                {% for choice in node.choices %}
+                    {% if node.widget == 'checkbox-buttons' %}
+                        <input{{ html.attributes({
+                            'type': 'checkbox',
+                            'class': 'btn-check',
+                            'id': id ~ '-' ~ loop.index,
+                            'name': group,
+                            'value': choice.value,
+                            'checked': choice.value in (node.value ?? []),
+                            'disabled': readOnly,
+                            'autocomplete': 'off',
+                        })|raw }}>
+                        <label class="btn btn-outline-primary" for="{{ id }}-{{ loop.index }}">{{ choice.text }}</label>
+                    {% else %}
+                        <div class="form-check{{ node.options.columns|default(false) ? ' form-check-inline' : '' }}">
+                            <input{{ html.attributes({
+                                'type': 'checkbox',
+                                'class': 'form-check-input',
+                                'id': id ~ '-' ~ loop.index,
+                                'name': group,
+                                'value': choice.value,
+                                'checked': choice.value in (node.value ?? []),
+                                'disabled': readOnly,
+                            })|raw }}>
+                            <label class="form-check-label" for="{{ id }}-{{ loop.index }}">{{ choice.text }}</label>
+                        </div>
+                    {% endif %}
                 {% endfor %}
             </div>
         {% elseif node.widget == 'checkbox' or node.widget == 'switch' %}

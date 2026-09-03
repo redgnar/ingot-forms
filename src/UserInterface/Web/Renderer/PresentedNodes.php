@@ -10,6 +10,7 @@ use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateTimeField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileField;
+use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
@@ -174,20 +175,21 @@ final class PresentedNodes
                 $scope,
                 self::wireType($field),
                 self::text($item->placeholder, $translations, $locale, $default),
-                $field->required,
+                // Whether an answer is owed, which is the item's own question:
+                // an item that counts is answered by ticking or by adding, not
+                // by being present ({@see \App\Domain\Forms\Definition\Field::mustBeAnswered()}).
+                $field->mustBeAnswered(),
                 $values[$item->name] ?? null,
                 // Each option as the person picking it sees it: the value it
                 // sends, and the words this document gave it — falling back to
                 // the value, which is at least honest about what will be sent.
-                $field instanceof SelectField
-                    ? array_map(
-                        static fn(string $value): array => [
-                            'value' => $value,
-                            'text' => self::text($item->choices[$value] ?? null, $translations, $locale, $default) ?? $value,
-                        ],
-                        $field->options,
-                    )
-                    : [],
+                array_map(
+                    static fn(string $value): array => [
+                        'value' => $value,
+                        'text' => self::text($item->choices[$value] ?? null, $translations, $locale, $default) ?? $value,
+                    ],
+                    self::optionsOf($field),
+                ),
                 self::lowerBound($field),
                 self::upperBound($field),
                 $field instanceof NumberField && $field->decimals !== null ? 10 ** -$field->decimals : null,
@@ -518,6 +520,9 @@ final class PresentedNodes
     {
         return match (true) {
             $field instanceof SelectField => 'select',
+            // Every option in front of the person answering, which is what a
+            // multiple choice is for; the alternatives trade that for space.
+            $field instanceof MultiSelectField => 'checkboxes',
             $field instanceof DateTimeField => 'datetime',
             $field instanceof NumberField => 'number',
             $field instanceof DateField => 'date',
@@ -533,6 +538,12 @@ final class PresentedNodes
         return match (true) {
             $field instanceof NumberField => $field->min,
             $field instanceof DateField, $field instanceof DateTimeField => $field->min,
+            // How many ticks are owed and how many are allowed. The ceiling is
+            // the one a page has to hold — it refuses a draft, so a page that
+            // lets somebody past it has produced a state its own save rejects —
+            // and the floor rides along because a message about it says the
+            // number ({@see \App\UserInterface\Web\RefusalWords}).
+            $field instanceof MultiSelectField => $field->min,
             default => null,
         };
     }
@@ -543,7 +554,21 @@ final class PresentedNodes
         return match (true) {
             $field instanceof NumberField => $field->max,
             $field instanceof DateField, $field instanceof DateTimeField => $field->max,
+            $field instanceof MultiSelectField => $field->max,
             default => null,
+        };
+    }
+
+    /**
+     * What an item offers to pick from, and nothing for one that offers nothing.
+     *
+     * @return list<string>
+     */
+    private static function optionsOf(Field $field): array
+    {
+        return match (true) {
+            $field instanceof SelectField, $field instanceof MultiSelectField => $field->options,
+            default => [],
         };
     }
 
@@ -551,13 +576,18 @@ final class PresentedNodes
      * What the API expects this value to be on the wire — the page sends JSON,
      * so a control's string has to become a number or a boolean before it goes.
      *
-     * @return 'string'|'number'|'boolean'|'json'
+     * @return 'string'|'strings'|'number'|'boolean'|'json'
      */
     private static function wireType(Field $field): string
     {
         return match (true) {
             $field instanceof NumberField => 'number',
             $field instanceof CheckboxField => 'boolean',
+            // A list of the picked values, which is one thing the control is
+            // never a single reading of: a group of ticks and a `select
+            // multiple` both hold several answers, so the collector reads them
+            // out of the markup rather than off `value`.
+            $field instanceof MultiSelectField => 'strings',
             // A file's value is a whole document — the description the upload
             // answered with — so the control carries it as text that is JSON, and
             // both kits' collectors parse it rather than sending it as a string.

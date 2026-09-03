@@ -19,7 +19,7 @@ export default class extends Controller {
     // generated, because a page that builds its own would stop being right the
     // moment this service is mounted anywhere but the root of a host. `id` stays
     // for what is nobody's address: the key this tab keeps unsaved answers under.
-    static values = { id: String, api: Object, page: String, version: Number, refused: String };
+    static values = { id: String, api: Object, page: String, version: Number, refused: String, refusals: Object };
     static targets = ['saved', 'unsaved', 'problem', 'problemText', 'error', 'control'];
 
     // Looking at an earlier version means leaving this page, and leaving a page
@@ -127,6 +127,23 @@ export default class extends Controller {
 
         for (const control of this.#ownControls(scope)) {
             const name = control.dataset.name;
+
+            // Several answers out of one control: a group of ticks, or a
+            // `select multiple` (which is what an autocomplete asked for
+            // several is underneath). Read from the markup rather than off
+            // `value`, which for either of them says one thing or nothing.
+            // Nothing picked leaves the member out, exactly as an unanswered
+            // choice does — and since a save replaces the whole document,
+            // unticking everything and saving is how somebody takes their
+            // answer back.
+            if (control.dataset.type === 'strings') {
+                const picked = control.tagName === 'SELECT'
+                    ? [...control.selectedOptions].map((option) => option.value)
+                    : [...control.querySelectorAll('input:checked')].map((tick) => tick.value);
+
+                if (picked.length > 0) values[name] = picked;
+                continue;
+            }
 
             if (control.dataset.choice !== undefined) {
                 const picked = control.querySelector('input:checked');
@@ -241,7 +258,18 @@ export default class extends Controller {
     }
 
     #place(control, value) {
-        if (control.dataset.choice !== undefined) {
+        if (control.dataset.type === 'strings') {
+            const picked = Array.isArray(value) ? value.map(String) : [];
+
+            if (control.tagName === 'SELECT') {
+                for (const option of control.options) option.selected = picked.includes(option.value);
+                // An autocomplete draws its own chips off the select it wraps,
+                // and does not watch it: `sync()` is how it is told.
+                control.tomselect?.sync();
+            } else {
+                for (const tick of control.querySelectorAll('input')) tick.checked = picked.includes(tick.value);
+            }
+        } else if (control.dataset.choice !== undefined) {
             for (const option of control.querySelectorAll('input')) {
                 option.checked = value !== null && option.value === String(value);
             }
@@ -380,17 +408,73 @@ export default class extends Controller {
             }
 
             if (steps.length > 0) {
-                scope = this.#ownLists(scope).find((list) => list.dataset.collection === step);
-                if (scope === undefined) return null;
+                const list = this.#ownLists(scope).find((candidate) => candidate.dataset.collection === step);
+
+                // Not a list, so what follows is inside one value rather than
+                // inside an entry: a multiple choice names the member it refused
+                // (`/tags/1`). The message belongs on the control holding all of
+                // them — it is the only thing on the page the person can be
+                // shown.
+                if (list === undefined) return this.#slotIn(scope, step);
+
+                scope = list;
                 continue;
             }
 
-            return this.errorTargets.find(
-                (slot) => scope.contains(slot) && this.#listOwning(slot, scope) === null && slot.dataset.error === step,
-            ) ?? null;
+            return this.#slotIn(scope, step);
         }
 
         return null;
+    }
+
+    // What a refused answer is told to a person. The API's own message is
+    // written for whoever is calling it — "Array should have at most 2 items, 3
+    // found" is right in a log and no use to somebody who ticked one box too
+    // many — so the page words the code itself and keeps that message for
+    // anything it has no words for. `{n}` is the number the rule is about, and
+    // the control is where that number already is.
+    #refusalText(error, slot) {
+        const name = slot.dataset.error;
+        // Beside the slot, which is where the template puts both: a list
+        // wrapper, or the control holding the value. Which of the two it is
+        // decides the words — "at least 2 of these" is entries, "choose at least
+        // 2" is ticks.
+        const beside = slot.parentElement;
+        const list = beside?.querySelector(`[data-collection="${name}"]`) ?? null;
+        const carrier = list ?? beside?.querySelector(`[data-name="${name}"][data-type]`) ?? null;
+        const words = this.refusalsValue[`${list ? 'list.' : ''}${error.code}`] ?? this.refusalsValue[error.code];
+
+        if (words === undefined) return error.message;
+
+        if (!words.includes('{n}')) return words;
+
+        const number = this.#boundFor(error.code, carrier);
+
+        return number === null ? error.message : words.replace('{n}', number);
+    }
+
+    // Which number a message about this rule is about, read off the thing that
+    // carries it: the same attribute the browser itself enforces where it can.
+    #boundFor(code, element) {
+        if (element === null) return null;
+
+        const held = {
+            'schema.maxLength': element.getAttribute('maxlength'),
+            'schema.minItems': element.dataset.min,
+            'schema.maxItems': element.dataset.max,
+            'schema.minimum': element.getAttribute('min'),
+            'schema.maximum': element.getAttribute('max'),
+            'schema.formatMinimum': element.dataset.momentMin ?? element.getAttribute('min'),
+            'schema.formatMaximum': element.dataset.momentMax ?? element.getAttribute('max'),
+        }[code];
+
+        return held === undefined || held === null || held === '' ? null : held;
+    }
+
+    #slotIn(scope, name) {
+        return this.errorTargets.find(
+            (slot) => scope.contains(slot) && this.#listOwning(slot, scope) === null && slot.dataset.error === name,
+        ) ?? null;
     }
 
     #showErrors(body) {
@@ -405,7 +489,7 @@ export default class extends Controller {
                 continue;
             }
 
-            slot.textContent = error.message;
+            slot.textContent = this.#refusalText(error, slot);
             slot.classList.remove('d-none');
             this.#reveal(slot);
             refused ??= slot;

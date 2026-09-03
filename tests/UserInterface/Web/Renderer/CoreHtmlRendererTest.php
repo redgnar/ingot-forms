@@ -14,6 +14,7 @@ use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use App\UserInterface\Web\FormApi;
+use App\UserInterface\Web\RefusalWords;
 use App\UserInterface\Web\Renderer\CoreHtmlRenderer;
 use App\UserInterface\Web\Renderer\PresentedNodes;
 use App\UserInterface\Web\Renderer\RenderedForm;
@@ -102,7 +103,11 @@ final class CoreHtmlRendererTest extends KernelTestCase
         // test may not hand it a shape of its own either.
         $api = self::getContainer()->get(FormApi::class);
         self::assertInstanceOf(FormApi::class, $api);
-        $this->renderer = new CoreHtmlRenderer($twig, new PresentedNodes($api), $api);
+        // And the words a refused answer is told in come from the container's
+        // own catalogue, for the same reason: a test may not invent them either.
+        $refusals = self::getContainer()->get(RefusalWords::class);
+        self::assertInstanceOf(RefusalWords::class, $refusals);
+        $this->renderer = new CoreHtmlRenderer($twig, new PresentedNodes($api), $api, $refusals);
     }
 
     public function testItDrawsTheFormInTheOrderThePresentationGives(): void
@@ -967,6 +972,169 @@ final class CoreHtmlRendererTest extends KernelTestCase
     }
 
     /** The same form, presented without the panel — which is the default shape. */
+    public function testAMultipleChoiceIsDrawnAsATickPerOption(): void
+    {
+        // GIVEN a form asking for several of a list, with two of them answered
+        $page = self::drawn($this->renderer, 'checkboxes', ['urgent', 'legal']);
+
+        // THEN every option is in front of the person answering, and what was
+        // stored is ticked
+        $ticks = $page->filter('[data-name="tags"] input[type="checkbox"]');
+        self::assertCount(3, $ticks);
+
+        $state = [];
+
+        foreach ($ticks->each(static fn(Crawler $tick): array => [(string) $tick->attr('value'), $tick->attr('checked') !== null]) as [$option, $checked]) {
+            $state[$option] = $checked;
+        }
+
+        self::assertSame(['urgent' => true, 'billing' => false, 'legal' => true], $state);
+
+        // AND each tick reads as the words the document gave it
+        self::assertSame(['Urgent', 'Billing', 'Legal'], $page->filter('[data-name="tags"] label')->each(
+            static fn(Crawler $label): string => trim($label->text()),
+        ));
+    }
+
+    public function testAGroupOfTicksIsAGroupAndTheCaptionNamesIt(): void
+    {
+        // GIVEN
+        $page = self::drawn($this->renderer, 'checkboxes', []);
+        $group = $page->filter('[data-name="tags"]');
+
+        // THEN it is not one control, so the caption cannot point at one — it
+        // names the group instead, and the group says an answer is owed
+        self::assertSame('group', $group->attr('role'));
+        self::assertSame('item-tags-label', $group->attr('aria-labelledby'));
+        self::assertSame('true', $group->attr('aria-required'));
+        self::assertNull($page->filter('#item-tags-label')->attr('for'));
+
+        // AND both lines under it are tied to the group while still empty
+        self::assertSame('item-tags-hint item-tags-error', $group->attr('aria-describedby'));
+    }
+
+    public function testTheAnswerIsCollectedFromTheMarkupRatherThanFromAValue(): void
+    {
+        // GIVEN either way of asking for several
+        foreach (['checkboxes', 'multi-select'] as $widget) {
+            $page = self::drawn($this->renderer, $widget, ['urgent']);
+
+            // THEN the control says the answer is a list of strings, which is
+            // the whole contract with the module: read what is picked inside,
+            // never this element's own value
+            self::assertSame('strings', $page->filter('[data-name="tags"]')->attr('data-type'), $widget);
+        }
+    }
+
+    public function testTheBrowsersOwnListIsDrawnAsOneAndKeepsWhatWasStored(): void
+    {
+        // GIVEN the other way of asking
+        $page = self::drawn($this->renderer, 'multi-select', ['billing']);
+        $control = $page->filter('select[data-name="tags"]');
+
+        // THEN it is a list rather than a box hiding all but one option, and it
+        // takes several answers
+        self::assertNotNull($control->attr('multiple'));
+        self::assertSame('3', $control->attr('size'));
+        self::assertSame(['billing'], $control->filter('option[selected]')->each(
+            static fn(Crawler $option): string => (string) $option->attr('value'),
+        ));
+
+        // AND nothing in it means "none": that is what picking nothing says
+        self::assertCount(3, $control->filter('option'));
+    }
+
+    public function testAGroupOfTicksCarriesTheCeilingThePageHasToHold(): void
+    {
+        // GIVEN a form asking for at least one tick and no more than two
+        $page = self::drawn($this->renderer, 'checkboxes', []);
+
+        // THEN both bounds are in the markup, for the reason `maxlength` is on a
+        // text box: the ceiling refuses a draft, so a page that lets somebody
+        // past it has produced a state its own save rejects
+        self::assertSame('1', $page->filter('[data-name="tags"]')->attr('data-min'));
+        self::assertSame('2', $page->filter('[data-name="tags"]')->attr('data-max'));
+
+        // AND the browser's own list carries them too
+        self::assertSame('2', self::drawn($this->renderer, 'multi-select', [])->filter('[data-name="tags"]')->attr('data-max'));
+    }
+
+    public function testThePageBringsItsOwnWordsForARefusedAnswer(): void
+    {
+        // GIVEN any page
+        $page = new Crawler($this->renderer->render(new RenderedForm(self::form(), 'en')));
+        $words = json_decode((string) $page->filter('body')->attr('data-refusals'), true, flags: \JSON_THROW_ON_ERROR);
+        self::assertIsArray($words);
+
+        // THEN the sentences travel with the page, because the refusal itself
+        // arrives in the browser — and they are sentences rather than the API's
+        // own message, which is written for whoever is calling the API
+        self::assertSame('This answer is needed.', $words['schema.required'] ?? null);
+        self::assertSame('Choose at most {n}.', $words['schema.maxItems'] ?? null);
+
+        // AND they are the reader's language, negotiated like everything else
+        $polish = json_decode(
+            (string) new Crawler($this->renderer->render(new RenderedForm(self::form(), 'pl')))->filter('body')->attr('data-refusals'),
+            true,
+            flags: \JSON_THROW_ON_ERROR,
+        );
+        self::assertIsArray($polish);
+        self::assertSame('Ta odpowiedź jest wymagana.', $polish['schema.required'] ?? null);
+    }
+
+    /**
+     * A form asking for several of a list, drawn with one widget and one answer.
+     *
+     * @param list<string> $picked
+     */
+    private static function drawn(CoreHtmlRenderer $renderer, string $widget, array $picked): Crawler
+    {
+        $definition = ['items' => [
+            ['type' => 'multiselect', 'name' => 'tags', 'options' => ['urgent', 'billing', 'legal'], 'min' => 1, 'max' => 2],
+        ]];
+        $presentation = [
+            'engine' => 'core-html',
+            'defaultLocale' => 'en',
+            'items' => [
+                [
+                    'name' => 'tags',
+                    'widget' => $widget,
+                    'label' => 'ticket.tags',
+                    'hint' => 'ticket.tags.hint',
+                    'choices' => ['urgent' => 'ticket.urgent', 'billing' => 'ticket.billing', 'legal' => 'ticket.legal'],
+                ],
+                ['widget' => 'confirm', 'label' => 'ticket.send'],
+            ],
+            'translations' => ['en' => [
+                'ticket.tags' => 'Tags',
+                'ticket.tags.hint' => 'As many as apply',
+                'ticket.urgent' => 'Urgent',
+                'ticket.billing' => 'Billing',
+                'ticket.legal' => 'Legal',
+                'ticket.send' => 'Send it',
+            ]],
+        ];
+
+        $definitions = new FormDefinitionProcessor(self::mapper());
+        $presentations = new PresentationProcessor(self::mapper());
+        $form = new Form(
+            FormId::next(),
+            $definitions->document($definitions->parse($definition)),
+            ExpireDate::future(new \DateTimeImmutable('+1 day')),
+            $presentations->document($presentations->parse($presentation)),
+            new PresentationRules(new Engines([new CoreHtmlEngine()])),
+        );
+
+        if ($picked !== []) {
+            $form->saveDraft(
+                json_decode(json_encode(['tags' => $picked], \JSON_THROW_ON_ERROR), false, flags: \JSON_THROW_ON_ERROR),
+                new StubValues(),
+            );
+        }
+
+        return new Crawler($renderer->render(new RenderedForm($form, 'en')));
+    }
+
     private static function formWithoutHistory(): Form
     {
         return self::formPresentedAs(self::PRESENTATION);

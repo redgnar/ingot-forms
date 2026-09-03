@@ -153,6 +153,11 @@
 <body data-form="{{ id }}" data-api="{{ api|json_encode }}" data-page="{{ path('web_form_view', {id: id}) }}"
       {%- if version is not null %} data-version="{{ version }}"{% endif %}
       data-read-only="{{ readOnly ? 'yes' : 'no' }}" data-refused="{{ 'page.refused'|trans }}"
+      {# What a refused answer is told to a person. The refusal arrives in the
+         browser from the API, whose own message is written for whoever is
+         *calling* it, so the page brings its own words and keeps that message as
+         the fallback. #}
+      data-refusals="{{ refusals|json_encode }}"
       data-file-uploading="{{ 'page.file.uploading'|trans }}" data-file-too-large="{{ 'page.file.too_large'|trans }}"
       data-file-rejected="{{ 'page.file.rejected_type'|trans }}" data-file-failed="{{ 'page.file.failed'|trans }}">
 {% if version is not null %}
@@ -398,7 +403,7 @@
                at one: each option's own label does that. It still has to be read
                as the question, so the group names it instead — a caption pointing
                at nothing is a question a screen reader never asks. #}
-            <label id="{{ id }}-label"{% if node.widget != 'radio' %} for="{{ id }}"{% endif %}>{{ node.label }}{% if node.required %}<span aria-hidden="true"> *</span>{% endif %}</label>
+            <label id="{{ id }}-label"{% if node.widget not in ['radio', 'checkboxes'] %} for="{{ id }}"{% endif %}>{{ node.label }}{% if node.required %}<span aria-hidden="true"> *</span>{% endif %}</label>
             {% if node.hint %}<p class="hint" id="{{ id }}-hint">{{ node.hint }}</p>{% endif %}
         {% endif %}
         {{ _self.control(node, readOnly, id) }}
@@ -463,6 +468,59 @@
                     </label>
                 {% endfor %}
             </div>
+        {% elseif node.widget == 'checkboxes' %}
+            {# Several answers, so several controls — and like a radio group this
+               is not one control: the caption names the group and each tick
+               carries its own label. `group` is unnecessary for checkboxes (they
+               do not exclude each other) and is still used, because a name that
+               differs per entry is what keeps a cloned entry's ticks its own.
+
+               `data-type="strings"` is the whole contract with the module: the
+               answer is not this element's `value` but the values of whatever
+               is checked inside it. #}
+            {# The bounds are in the markup for the reason `maxlength` is on a
+               text box: a ceiling holds while somebody is still filling the form
+               in, so a page that lets them past it has produced a state its own
+               save will refuse. The module disables what is left once the
+               ceiling is reached; the server is still the one that decides. #}
+            <div{{ html.attributes({
+                'class': 'choice',
+                'role': 'group',
+                'aria-labelledby': id ~ '-label',
+                'aria-describedby': (node.hint ? id ~ '-hint ' : '') ~ id ~ '-error',
+                'aria-required': node.required ? 'true' : null,
+                'data-name': node.name,
+                'data-type': node.type,
+                'data-min': node.min,
+                'data-max': node.max,
+            })|raw }}>
+                {% for choice in node.choices %}
+                    <label>
+                        <input{{ html.attributes({
+                            'type': 'checkbox',
+                            'name': group,
+                            'value': choice.value,
+                            'checked': choice.value in (node.value ?? []),
+                            'disabled': readOnly,
+                        })|raw }}>
+                        {{ choice.text }}
+                    </label>
+                {% endfor %}
+            </div>
+        {% elseif node.widget == 'multi-select' %}
+            {# The browser's own way of asking for several, and the only control
+               here that needs a modifier key to answer. `size` is what makes it
+               a list rather than a one-line box that hides every option but one. #}
+            <select{{ html.attributes(common|merge({
+                'multiple': true,
+                'size': node.options.rows|default(min(node.choices|length, 6)),
+                'data-min': node.min,
+                'data-max': node.max,
+            }))|raw }}>
+                {% for choice in node.choices %}
+                    <option value="{{ choice.value }}"{% if choice.value in (node.value ?? []) %} selected{% endif %}>{{ choice.text }}</option>
+                {% endfor %}
+            </select>
         {% elseif node.widget == 'checkbox' or node.widget == 'switch' %}
             <input{{ html.attributes(common|merge({'type': 'checkbox', 'checked': node.value ? true : false}))|raw }}>
         {% elseif node.widget == 'number' %}

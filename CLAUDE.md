@@ -20,7 +20,15 @@ value is an array of objects and an entry is a document answering them. It count
 requires (`min`/`max`; `required` on a collection is refused, because an empty list would satisfy
 it while answering nothing), `max` holds in both contracts and `min` only in strict, and a
 collection owing entries is required of the values document. A collection may hold a collection, and both kits
-draw that — a list inside the form of an entry, as deep as the definition goes. Lifecycle: empty → draft (`PUT …/data`, repeatable, lenient validation without
+draw that — a list inside the form of an entry, as deep as the definition goes. **`multiselect` counts the
+same way**: several of one closed list as *one* value (`["urgent","legal"]`, a set — `uniqueItems` and
+`min`/`max` on the ticks being the two rules that make it a type rather than a way of drawing a `select`),
+`required` refused for the collection's reason, `min` above the number of options refused because nobody
+could finish it, `max` above it allowed because "as many as you like" is a reasonable thing to write. It
+replaces asking this with a `collection` holding a `select`, which answered the question and lied about the
+shape. Which item is *owed an answer* is the item's own question (`Field::mustBeAnswered()`), asked by the
+derived schema and by a page alike, so nothing outside the model knows which types count instead of
+requiring. Lifecycle: empty → draft (`PUT …/data`, repeatable, lenient validation without
 `required`) → confirmed (`POST …/confirm`, strict validation, locked forever). A form can be
 **born a draft**: `data` in the creation request is its first draft, not a third document — the
 aggregate's own `saveDraft()` judges it under the same lenient contract, the insert writes it
@@ -333,6 +341,23 @@ Rules that follow from it, and that the tooling checks:
   that sentence either: a template asks the catalogue (`|trans`), and what the browser needs
   is handed to it as a value (`data-form-refused-value`, `data-refused`). Two catalogues, and
   the split is the point: the form's text is the author's, these words are ours.
+  **A refused answer is worded by the page too.** The API's `errors[].message` is written for
+  whoever is *calling* it — "Array should have at most 2 items, 3 found" belongs in a log — so
+  the page words the **code** (`RefusalWords`, `page.refusal.*`, handed over as one value) and
+  keeps that message as the fallback for a code it has no words for. `{n}` in a sentence is
+  filled in by the kit from what the control already carries (`maxlength`, `data-max`, `min`),
+  because the page is where that number is; a list gets its own sentences (`page.refusal.list.*`),
+  since `minItems` means ticks on a multiple choice and entries on a collection. Only codes a
+  person can reach on a page are worded — `schema.type` on a control that cannot hold the wrong
+  type is for whoever hand-wrote the request.
+- **A ceiling a page can hold, it holds.** Every maximum that refuses a *draft* is in the
+  markup — `maxlength` on a text box, `max` on a number, a dead *add* button at a list's `max`,
+  and unticked options disabled at a multiple choice's `max` (the searchable one hands the
+  number to TomSelect instead). A page that lets somebody past a ceiling has produced a state
+  its own save refuses and tells them so only afterwards. **The floor is never guarded**: too
+  few is allowed while filling in, so there is nothing to stop, and stopping somebody from
+  unticking their own answer is a trap rather than a form. The server still decides — this only
+  saves a person from being told no for a reason the page could see coming.
 - **A skin is how a page looks; it may never change what a document may say.** The engine
   declares its skins beside its widgets (`skins()`), a presentation may name one (`skin`, judged
   at `/skin`: `presentation.skin.unknown`, or `presentation.skin.unsupported` for a kit that has

@@ -8,6 +8,7 @@ use App\Domain\Forms\DataSchemaDeriver;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\GenericField;
+use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
@@ -123,6 +124,59 @@ final class DataSchemaDeriverTest extends TestCase
             'additionalProperties' => false,
             'required' => ['sku'],
         ]], $strict['properties']['lines']);
+    }
+
+    public function testAMultipleChoiceOwedTicksIsRequiredOfTheDocumentItself(): void
+    {
+        // GIVEN three ways of counting ticks: some owed, none owed, nothing said
+        $definition = new FormDefinition([
+            new MultiSelectField('tags', ['urgent', 'legal'], min: 1),
+            new MultiSelectField('teams', ['sales', 'legal'], min: 0),
+            new MultiSelectField('rooms', ['a', 'b']),
+        ]);
+
+        // WHEN
+        $strict = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Strict));
+
+        // THEN only the one that asks to be answered is required of the values
+        // document, for the reason a collection is: a member that is absent has
+        // no ticks at all, and zero is a minimum nothing has to meet
+        self::assertSame(['tags'], $strict['required']);
+
+        // AND nothing is owed while the form is still being filled in
+        $draft = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Draft));
+        self::assertArrayNotHasKey('required', $draft);
+    }
+
+    public function testWhatAMultipleChoicePublishesAboutItself(): void
+    {
+        // GIVEN one asking for one or two of three
+        $definition = new FormDefinition([new MultiSelectField('tags', ['urgent', 'billing', 'legal'], min: 1, max: 2)]);
+
+        // WHEN
+        $strict = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Strict));
+        $draft = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Draft));
+
+        // THEN the whole contract is statable: what may be picked, that nothing
+        // may be picked twice, and how many are wanted
+        self::assertIsArray($strict['properties']);
+        self::assertSame([
+            'type' => 'array',
+            'items' => ['enum' => ['urgent', 'billing', 'legal']],
+            'uniqueItems' => true,
+            'minItems' => 1,
+            'maxItems' => 2,
+        ], $strict['properties']['tags']);
+
+        // AND the ceiling holds while filling in, while the ticks it owes wait
+        // for confirmation — a draft may be short and may never be too long
+        self::assertIsArray($draft['properties']);
+        self::assertSame([
+            'type' => 'array',
+            'items' => ['enum' => ['urgent', 'billing', 'legal']],
+            'uniqueItems' => true,
+            'maxItems' => 2,
+        ], $draft['properties']['tags']);
     }
 
     public function testStrictIsTheDefaultMode(): void

@@ -70,6 +70,21 @@ function collect(scope = document.getElementById('form')) {
         const name = control.dataset.name;
         const type = control.dataset.type;
 
+        // Several answers out of one control: a group of ticks or a
+        // `select multiple`. Read from the markup rather than off `value`,
+        // which for either of them says one thing or nothing. Nothing picked
+        // leaves the member out, exactly as an unanswered choice does — and
+        // since a save replaces the whole document, unticking everything and
+        // saving is how somebody takes their answer back.
+        if (type === 'strings') {
+            const picked = control.tagName === 'SELECT'
+                ? [...control.selectedOptions].map((option) => option.value)
+                : [...control.querySelectorAll('input:checked')].map((tick) => tick.value);
+
+            if (picked.length > 0) values[name] = picked;
+            continue;
+        }
+
         if (control.classList.contains('choice')) {
             const picked = control.querySelector('input:checked');
             if (picked) values[name] = picked.value;
@@ -177,17 +192,71 @@ function slotFor(pointer) {
         }
 
         if (steps.length > 0) {
-            scope = ownLists(scope).find((list) => list.dataset.collection === step);
-            if (!scope) return null;
+            const list = ownLists(scope).find((candidate) => candidate.dataset.collection === step);
+
+            // Not a list, so what follows is inside one value rather than inside
+            // an entry: a multiple choice names the member it refused
+            // (`/tags/1`). The message belongs on the control holding all of
+            // them — it is the only thing on the page the person can be shown.
+            if (!list) return slotIn(scope, step);
+
+            scope = list;
             continue;
         }
 
-        return [...scope.querySelectorAll(`[data-error="${step}"]`)].find(
-            (slot) => listOwning(slot, scope) === null,
-        ) ?? null;
+        return slotIn(scope, step);
     }
 
     return null;
+}
+
+function slotIn(scope, name) {
+    return [...scope.querySelectorAll(`[data-error="${name}"]`)].find((slot) => listOwning(slot, scope) === null) ?? null;
+}
+
+// What a refused answer is told to a person. The API's own message is written
+// for whoever is calling it — "Array should have at most 2 items, 3 found" is
+// right in a log and no use to somebody who ticked one box too many — so the
+// page words the code itself and keeps that message for anything it has no
+// words for. `{n}` is the number the rule is about, and the control is where
+// that number already is.
+const refusalWords = JSON.parse(document.body.dataset.refusals ?? '{}');
+
+function refusalText(error, slot) {
+    const name = slot.dataset.error;
+    // Beside the slot, which is where the template puts both: a list wrapper, or
+    // the control holding the value. Which of the two it is decides the words —
+    // "at least 2 of these" is entries, "choose at least 2" is ticks.
+    const beside = slot.parentElement;
+    const list = beside?.querySelector(`[data-collection="${name}"]`) ?? null;
+    const carrier = list ?? beside?.querySelector(`[data-name="${name}"][data-type]`) ?? null;
+    const words = refusalWords[`${list ? 'list.' : ''}${error.code}`] ?? refusalWords[error.code];
+
+    if (words === undefined) return error.message;
+
+    if (!words.includes('{n}')) return words;
+
+    const number = boundFor(error.code, carrier);
+
+    return number === null ? error.message : words.replace('{n}', number);
+}
+
+// Which number a message about this rule is about, read off the thing that
+// carries it: the same attribute the browser itself enforces where it can.
+function boundFor(code, element) {
+    if (element === null) return null;
+
+    const held = {
+        'schema.maxLength': element.getAttribute('maxlength'),
+        'schema.minItems': element.dataset.min,
+        'schema.maxItems': element.dataset.max,
+        'schema.minimum': element.getAttribute('min'),
+        'schema.maximum': element.getAttribute('max'),
+        'schema.formatMinimum': element.dataset.momentMin ?? element.getAttribute('min'),
+        'schema.formatMaximum': element.dataset.momentMax ?? element.getAttribute('max'),
+    }[code];
+
+    return held === undefined || held === null || held === '' ? null : held;
 }
 
 function showErrors(body) {
@@ -198,7 +267,7 @@ function showErrors(body) {
         const slot = slotFor(error.pointer ?? '');
 
         if (slot) {
-            slot.textContent = error.message;
+            slot.textContent = refusalText(error, slot);
             slot.hidden = false;
             reveal(slot);
             // The message stands under the control; this is what says the control
@@ -288,6 +357,19 @@ function refreshCells(entry) {
         const control = ownControls(entry).find((candidate) => candidate.dataset.name === cell.dataset.cell);
 
         if (!control) continue;
+
+        // Several answers read as the words they were offered under, joined —
+        // a cell says what the entry holds, and a list of codes would not.
+        if (control.dataset.type === 'strings') {
+            const picked = control.tagName === 'SELECT'
+                ? [...control.selectedOptions].map((option) => option.textContent.trim())
+                : [...control.querySelectorAll('input:checked')].map(
+                    (tick) => tick.labels?.[0]?.textContent.trim() ?? tick.value,
+                );
+
+            cell.textContent = picked.join(', ');
+            continue;
+        }
 
         if (control.classList.contains('choice')) {
             const picked = control.querySelector('input:checked');
@@ -535,7 +617,17 @@ function say(control, text, kind = 'error') {
 
 document.getElementById('form').addEventListener('change', (event) => {
     if (event.target.matches('[data-upload]')) upload(event.target);
+
+    // Delegated rather than bound per group, because a group of ticks can
+    // arrive inside an entry somebody just added.
+    const ticks = event.target.closest('[data-type="strings"][data-max]');
+
+    if (ticks !== null) guardTicks(ticks);
 });
+
+// What the server drew may already be at the ceiling — a document put back, or
+// one somebody saved earlier — so the guard runs before anybody touches it.
+guardEveryGroupOfTicks();
 
 document.getElementById('form').addEventListener('click', (event) => {
     const trigger = event.target.closest('[data-action="remove-file"]');
@@ -730,8 +822,49 @@ function fill(scope, values) {
     }
 }
 
+// A ceiling a page can hold, held. Every other maximum in this kit is in the
+// markup — `maxlength` on a text box, `max` on a number — so the browser keeps
+// somebody out of a state their own save would refuse; a group of ticks is the
+// one that needed doing by hand. The floor is not guarded: too few is allowed
+// in a draft, and there would be nothing to stop.
+function guardTicks(control) {
+    const max = Number(control.dataset.max ?? 0);
+
+    if (!max) return;
+
+    if (control.tagName === 'SELECT') {
+        const picked = [...control.selectedOptions].map((option) => option.value);
+
+        for (const option of control.options) option.disabled = picked.length >= max && !picked.includes(option.value);
+
+        return;
+    }
+
+    const ticks = [...control.querySelectorAll('input')];
+    const picked = ticks.filter((tick) => tick.checked).length;
+
+    for (const tick of ticks) tick.disabled = picked >= max && !tick.checked;
+}
+
+function guardEveryGroupOfTicks(scope = document) {
+    for (const control of scope.querySelectorAll('[data-type="strings"][data-max]')) guardTicks(control);
+}
+
 function place(control, value) {
-    if (control.classList.contains('choice')) {
+    if (control.dataset.type === 'strings') {
+        const picked = Array.isArray(value) ? value.map(String) : [];
+
+        if (control.tagName === 'SELECT') {
+            for (const option of control.options) option.selected = picked.includes(option.value);
+        } else {
+            for (const tick of control.querySelectorAll('input')) tick.checked = picked.includes(tick.value);
+        }
+
+        // Whatever was put back may already be at the ceiling, and the guard is
+        // what the person meets next — so it is answered from what is now
+        // ticked rather than from what was.
+        guardTicks(control);
+    } else if (control.classList.contains('choice')) {
         for (const option of control.querySelectorAll('input')) {
             option.checked = value !== null && option.value === String(value);
         }

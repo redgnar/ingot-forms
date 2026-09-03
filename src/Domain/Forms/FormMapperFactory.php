@@ -16,6 +16,8 @@ use App\Domain\Forms\Definition\FileAcceptValidator;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\GenericField;
+use App\Domain\Forms\Definition\MultiSelectCountValidator;
+use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\NumberRangeValidator;
 use App\Domain\Forms\Definition\UniqueFieldNamesValidator;
@@ -57,6 +59,7 @@ final class FormMapperFactory
             // declares items too.
             ->withValidator(CollectionField::class, new UniqueFieldNamesValidator())
             ->withValidator(CollectionField::class, new CollectionCountValidator())
+            ->withValidator(MultiSelectField::class, new MultiSelectCountValidator())
             // How deep a list may sit inside a list, asked of the whole document:
             // the finding has to point at where the nesting went too far.
             ->withValidator(FormDefinition::class, new CollectionDepthValidator())

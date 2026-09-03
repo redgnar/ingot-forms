@@ -424,6 +424,28 @@ final class PresentationRulesTest extends TestCase
         self::assertTrue(self::rules()->check(self::definition(), $presentation)->isEmpty());
     }
 
+    public function testAMultipleChoiceMayWordItsOptionsLikeAnyOtherChoice(): void
+    {
+        // GIVEN a form asking for several of a list, every option worded
+        $definition = self::tagsDefinition();
+
+        // WHEN / THEN "offers a choice" is a question about the item and not
+        // about which type it happens to be: the second one that offers options
+        // words them the same way the first does
+        self::assertTrue(self::rules()->check($definition, self::tagsPresentedWith(['urgent' => 't.u', 'legal' => 't.l']))->isEmpty());
+
+        // AND every rule that holds for a single choice holds here: a word for
+        // a value nobody can pick is still a promise about nothing
+        $report = self::rules()->check($definition, self::tagsPresentedWith(['urgent' => 't.u', 'legal' => 't.l', 'spam' => 't.s']));
+        self::assertSame('presentation.choice.unknown', $report->errors[0]->code);
+        self::assertSame('spam', $report->errors[0]->input);
+
+        // ...and so is wording some of them and not the rest
+        $report = self::rules()->check($definition, self::tagsPresentedWith(['urgent' => 't.u']));
+        self::assertSame('presentation.choice.missing', $report->errors[0]->code);
+        self::assertSame('legal', $report->errors[0]->input);
+    }
+
     public function testWordingAnOptionTheItemDoesNotOfferIsRefused(): void
     {
         // GIVEN a word for a value nobody can pick
@@ -918,6 +940,29 @@ final class PresentationRulesTest extends TestCase
                 ['type' => 'signature', 'name' => 'sig'],
             ],
         ];
+    }
+
+    private static function tagsDefinition(): Definition
+    {
+        $processor = new FormDefinitionProcessor(new FormMapperFactory()->create());
+
+        return $processor->document($processor->parse(['items' => [
+            ['type' => 'multiselect', 'name' => 'tags', 'options' => ['urgent', 'legal']],
+        ]]));
+    }
+
+    /**
+     * @param array<string, string> $choices
+     */
+    private static function tagsPresentedWith(array $choices): \App\Domain\Forms\Presentation\PresentationDocument
+    {
+        return new PresentationProcessor(new FormMapperFactory()->create())->parse([
+            'engine' => 'core-html',
+            'items' => [
+                ['name' => 'tags', 'widget' => 'checkboxes', 'choices' => $choices],
+                ['widget' => 'confirm'],
+            ],
+        ]);
     }
 
     private static function rules(): PresentationRules

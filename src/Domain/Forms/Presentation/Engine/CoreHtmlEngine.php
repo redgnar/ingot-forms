@@ -10,6 +10,7 @@ use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateTimeField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileField;
+use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
@@ -30,6 +31,12 @@ final class CoreHtmlEngine implements PresentationEngine
     private const array CONTROLS = [
         TextField::class => ['text', 'textarea', 'hidden'],
         SelectField::class => ['select', 'radio'],
+        // Two ways of asking for several: a list of ticks, and the browser's own
+        // multiple-choice list. They are different questions to answer — one
+        // shows every option at once, the other trades that for a small box and
+        // asks for a modifier key — which is why both are here and neither is a
+        // restyling of the other.
+        MultiSelectField::class => ['checkboxes', 'multi-select'],
         NumberField::class => ['number'],
         DateField::class => ['date'],
         DateTimeField::class => ['datetime'],

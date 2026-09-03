@@ -7,6 +7,7 @@ namespace App\UserInterface\Web\Renderer;
 use App\Domain\Forms\FormStatus;
 use App\Domain\Forms\Presentation\Engine\BootstrapEngine;
 use App\UserInterface\Web\FormApi;
+use App\UserInterface\Web\RefusalWords;
 use Twig\Environment;
 
 /**
@@ -31,6 +32,7 @@ final class BootstrapRenderer implements FormRenderer
         private readonly PresentedNodes $nodes,
         private readonly BootstrapEngine $engine,
         private readonly FormApi $api,
+        private readonly RefusalWords $refusals,
         /** What a form is dressed in when its own document names nothing. */
         private readonly string $defaultSkin = 'default',
     ) {
@@ -58,6 +60,10 @@ final class BootstrapRenderer implements FormRenderer
         return $this->twig->render('forms/bootstrap/form.html.twig', [
             'id' => (string) $request->form->id(),
             'locale' => $request->locale,
+            // What a refused answer is told to a person, in their language. The
+            // refusal itself arrives in the browser, so these go with it as data
+            // ({@see RefusalWords}).
+            'refusals' => $this->refusals->of($request->locale),
             // Where this form is written to, handed to the page as data. The kit
             // is a client of the API and clients are told addresses, never left
             // to guess them from a shape somebody hardcoded.

@@ -6,6 +6,7 @@ namespace App\Domain\Forms\Presentation;
 
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\Field;
+use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Presentation\Engine\Engines;
 use App\Domain\Forms\Presentation\Engine\PresentationEngine;
@@ -349,7 +350,9 @@ final class PresentationRules
             return null;
         }
 
-        if (!$item instanceof SelectField) {
+        $options = self::optionsOf($item);
+
+        if ($options === null) {
             return self::error(
                 $path . '/choices',
                 'presentation.choice.not-allowed',
@@ -359,7 +362,7 @@ final class PresentationRules
         }
 
         foreach (array_keys($shown->choices) as $value) {
-            if (!\in_array($value, $item->options, true)) {
+            if (!\in_array($value, $options, true)) {
                 return self::error(
                     $path . '/choices/' . $value,
                     'presentation.choice.unknown',
@@ -369,7 +372,7 @@ final class PresentationRules
             }
         }
 
-        foreach ($item->options as $value) {
+        foreach ($options as $value) {
             if (!\array_key_exists($value, $shown->choices)) {
                 return self::error(
                     $path . '/choices',
@@ -477,6 +480,21 @@ final class PresentationRules
         }
 
         return $byName;
+    }
+
+    /**
+     * What an item offers to pick from, or null when it offers nothing — which
+     * is the whole question `choices` is allowed to be asked about. One place,
+     * because "offers a choice" is now two types and will not stay two.
+     *
+     * @return list<string>|null
+     */
+    private static function optionsOf(Field $item): ?array
+    {
+        return match (true) {
+            $item instanceof SelectField, $item instanceof MultiSelectField => $item->options,
+            default => null,
+        };
     }
 
     private static function typeOf(Field $item): string

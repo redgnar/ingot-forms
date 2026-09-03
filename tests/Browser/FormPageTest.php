@@ -196,7 +196,9 @@ final class FormPageTest extends PantherTestCase
             return $slot->isDisplayed() ? $slot->getText() : null;
         });
 
-        self::assertSame('The value must be true.', $message);
+        // The page's own words for it, in the reader's language — the API's
+        // "The value must be true." is a sentence about a boolean
+        self::assertSame('This has to be agreed to.', $message);
         self::assertSame('draft', $this->formStatus($id));
         self::assertFalse($this->browser->findElement(WebDriverBy::cssSelector('[data-error="email"]'))->isDisplayed());
         self::assertFalse($this->browser->findElement(WebDriverBy::cssSelector('[data-error="country"]'))->isDisplayed());

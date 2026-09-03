@@ -45,4 +45,13 @@ final readonly class CollectionField extends Field
     ) {
         parent::__construct($name, $required);
     }
+
+    /**
+     * `min` is how this item asks to be answered; `required` is refused
+     * ({@see CollectionCountValidator}).
+     */
+    public function mustBeAnswered(): bool
+    {
+        return $this->min !== null && $this->min > 0;
+    }
 }

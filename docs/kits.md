@@ -88,6 +88,29 @@ for when a form is a form rather than a product.
   a question a screen reader never asks. Inside a list, the radio group's `name` carries the
   entry's own scope, so two entries never unpick each other.
 
+### `checkboxes` — the natural control for a `multiselect` item
+
+- **Draws:** a `role="group"` wrapper, one `<label><input type="checkbox"> text</label>` per
+  option
+- **From the definition:** the options, in the order the definition declares them
+- **Options:** `columns` — `true` or `false` (false when omitted)
+- **Notes:** the group carries the question's name and each tick its own label, for the reason
+  a radio group does: no single tick is the question. The answer is **what is checked inside
+  it**, not the element's own value — which is what `data-type="strings"` says to the module.
+  Inside a list the ticks' `name` carries the entry's own scope, so two entries stay separate.
+  Owing ticks (`min`) is what draws the star, `required` on the item being refused.
+
+### `multi-select`
+
+- **Draws:** `<select multiple size="…">`, one option per declared value
+- **From the definition:** the options
+- **Options:** `rows` — how many are visible at once (as many as there are, up to 6, when
+  omitted)
+- **Notes:** the browser's own multiple choice, and the one control here that asks for a
+  modifier key. It is a different question to answer rather than a smaller `checkboxes`: it
+  trades every option being visible for a fixed amount of space, which is the trade worth
+  making for a long list. Nothing in it means "none" — that is what picking nothing says.
+
 ### `number` — the natural control for a `number` item
 
 - **Draws:** `<input type="number">`
@@ -282,6 +305,40 @@ that the plain kit has no markup for.
   joined into one segmented bar: how wide a button is belongs to the skin, so a set that fits on
   one line under one skin wraps under another, and a joined bar wraps into square corners and
   stubs. Separate buttons wrap onto another line and look the same either way.
+
+### `checkboxes` — the natural control for a `multiselect` item
+
+- **Draws:** `role="group"` wrapper with `.form-check` rows —
+  [Checks and radios](https://getbootstrap.com/docs/5.3/forms/checks-radios/)
+- **From the definition:** the declared options
+- **Options:** `columns` — `true` or `false` (false when omitted): the ticks sit side by side
+  (`.form-check-inline`)
+- **Notes:** a group rather than one control, so the caption names the group and every tick has
+  a label pointing at it. The answer is what is checked inside the wrapper
+  (`data-type="strings"`), and the star comes from `min`, `required` being refused on the item.
+
+### `checkbox-buttons`
+
+- **Draws:** a group of toggles: `<input type="checkbox" class="btn-check">` +
+  `<label class="btn">` per option —
+  [Checkbox toggle buttons](https://getbootstrap.com/docs/5.3/forms/checks-radios/#checkbox-toggle-buttons),
+  [Button group](https://getbootstrap.com/docs/5.3/components/button-group/)
+- **From the definition:** the declared options
+- **Options:** —
+- **Notes:** `radio-buttons` asked of several, and the same reasoning applies to it — separate
+  buttons rather than a joined bar, because how wide a button is belongs to the skin.
+
+### `autocomplete` (a `multiselect` item)
+
+- **Draws:** the same `<select multiple>`, turned by [Tom Select](https://tom-select.js.org/)
+  into a searchable control whose picks are chips
+- **From the definition:** the declared options
+- **Options:** —
+- **From the item:** `placeholder` — what the empty box shows
+- **Notes:** one control and one Stimulus controller for both kinds of choice; nothing is told
+  which, because the element says `multiple` when the item does. Each chip carries a way to
+  take it off, a chip nobody can remove being an answer somebody cannot change. There is no
+  empty option: a multiple choice says "none" by having nothing picked.
 
 ### `number`
 
@@ -520,6 +577,21 @@ are not here either — they belong to the reader.
 and then `POST …/confirm`, `history` reads `GET …/history`, "Restore" is an ordinary
 `PUT …/data` of a document the page happened to read. There is no privileged path: whatever a
 page can do, any client can.
+
+**A refusal is worded by the page.** The API answers with a code and a message; the message is
+written for whoever is *calling* it (`Array should have at most 2 items, 3 found`), so both kits
+look the code up in their own catalogue — `page.refusal.*`, handed to the browser as one value
+with the page — and show that instead, with the number filled in from what the control already
+carries. A code neither kit has words for keeps the API's own message, which is the right one for
+whoever hand-wrote that request.
+
+**A ceiling is held before it is met.** Every maximum that would refuse a *draft* is enforced in
+the page: `maxlength` on text, `max` on a number, a dead *add* button at a list's `max`, and
+unticked options disabled at a multiple choice's `max` (the searchable one hands the number to
+Tom Select, which owns the adding). Floors are never enforced — too few is allowed while somebody
+is still filling the form in, and blocking them from unticking their own answer would be a trap.
+The server still decides; this only saves a person from being told no for a reason the page could
+see coming.
 
 **A refusal lands where it belongs.** The `errors[]` pointer names an item, so the message goes
 under that control, the entry it is in unfolds, every row on the way is marked, the control says
