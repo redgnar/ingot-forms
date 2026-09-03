@@ -50,6 +50,26 @@ even for the width of a crash between two statements. A history has an end:
 arrives, in the same statement, because `seq` only grows and "at or below newest minus the
 limit" *is* the surplus. That is a deployment's number and not a document's: unbounded history
 is unbounded cost on every question about what a form has **ever** named.
+
+**A save may be conditional, and nothing is forced to make one.** A form counts its accepted
+saves (`revision`, `0` for one nobody has filled in, and the `seq` of the newest revision), serves
+it as the `ETag` of `GET …/data` and as a member of the envelope, and both write transitions take
+an optional `ExpectedRevision` — `If-Match: "7"` — refusing with `FormMovedOn` (412) when the
+caller was looking at an older form than the one it is writing to. That closes the one case where
+two people lose work: without it the second save wins silently and the first person's answers are
+gone. It is the aggregate's own check, asked **first** and inside the transaction that holds the
+row, because a precondition with a gap between the question and the write protects nothing; and
+it is **optional on purpose** — a client that says nothing saves unconditionally, since a
+precondition nobody asked for would break every existing caller to protect a case they do not
+have. Confirming takes it too and needs it more: a form locked on a document nobody read cannot be
+put back. `"0"` is a legal expectation ("only if nobody has filled this in yet") and is the one
+question a client cannot ask by holding a validator, there being no document to read one off; a
+header that is neither that, a list, nor `*` is `400 precondition-not-readable` rather than a save
+that quietly went through unconditionally. The number is a **count of saves and not a hash of the
+document**, because the question is "has anybody saved since" and two saves may store the same
+answers — which is also why it lives on `forms.revision` rather than being counted over a history
+the limit evicts from.
+
 **Restoring is not an operation**: a client reads a revision (`GET …/history/{seq}`) and sends it
 back through `PUT …/data`, where it meets the same three gates and is recorded as a *new* revision.
 No `POST …/restore` — a privileged path would be a second way in, and an old document is not more

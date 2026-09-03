@@ -273,6 +273,17 @@ final class OpenApiComplianceTest extends WebTestCase
             ['PUT', '/api/forms/{id}/data', 409, true, '', static function (self $test): void {
                 $test->putJson(\sprintf('/api/forms/%s/data', $test->confirmedForm()), self::PARTIAL_DATA);
             }],
+            ['PUT', '/api/forms/{id}/data', 412, true, '', static function (self $test): void {
+                // A save holding a revision the form has left behind.
+                $id = $test->createForm();
+                $test->putJson(\sprintf('/api/forms/%s/data', $id), self::PARTIAL_DATA);
+                $test->client->request(
+                    'PUT',
+                    \sprintf('/api/forms/%s/data', $id),
+                    server: ['CONTENT_TYPE' => 'application/json', 'HTTP_IF_MATCH' => '"0"'],
+                    content: self::PARTIAL_DATA,
+                );
+            }],
             ['PUT', '/api/forms/{id}/data', 415, false, '', static function (self $test): void {
                 $test->client->request('PUT', \sprintf('/api/forms/%s/data', $test->createForm()), server: ['CONTENT_TYPE' => 'text/plain'], content: self::PARTIAL_DATA);
             }],
@@ -304,6 +315,12 @@ final class OpenApiComplianceTest extends WebTestCase
             }],
             ['POST', '/api/forms/{id}/confirm', 409, true, '', static function (self $test): void {
                 $test->client->request('POST', \sprintf('/api/forms/%s/confirm', $test->createForm()));
+            }],
+            ['POST', '/api/forms/{id}/confirm', 412, true, '', static function (self $test): void {
+                // Confirming a form that has been saved since it was read.
+                $id = $test->createForm();
+                $test->putJson(\sprintf('/api/forms/%s/data', $id), self::COMPLETE_DATA);
+                $test->client->request('POST', \sprintf('/api/forms/%s/confirm', $id), server: ['HTTP_IF_MATCH' => '"0"']);
             }],
             ['POST', '/api/forms/{id}/confirm', 410, true, '', static function (self $test): void {
                 $test->client->request('POST', \sprintf('/api/forms/%s/confirm', $test->expiredForm()));

@@ -14,14 +14,14 @@ this reference cannot drift from the implementation.
 
 | Method & path | Operation | Purpose | Responses |
 |---|---|---|---|
-| [`POST /api/forms/{id}/confirm`](#post-apiformsidconfirm) | `confirmForm` | Confirm the stored values | `204`, `404`, `409`, `410`, `422` |
+| [`POST /api/forms/{id}/confirm`](#post-apiformsidconfirm) | `confirmForm` | Confirm the stored values | `204`, `404`, `409`, `412`, `410`, `422` |
 | [`POST /api/manage/forms`](#post-apimanageforms) | `createForm` | Create a form | `201`, `400`, `415`, `422` |
 | [`GET /api/manage/forms/{id}`](#get-apimanageformsid) | `getForm` | Read a form | `200`, `404`, `409`, `410` |
 | [`DELETE /api/manage/forms/{id}`](#delete-apimanageformsid) | `deleteForm` | Delete a form | `204`, `404`, `410` |
 | [`GET /api/forms/{id}/files/{fileId}`](#get-apiformsidfilesfileid) | `readFormFile` | Download a file this form holds | `200`, `404`, `410` |
 | [`DELETE /api/forms/{id}/files/{fileId}`](#delete-apiformsidfilesfileid) | `discardFormFile` | Throw away an uploaded file this form has not saved | `204`, `404`, `409`, `410` |
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
-| [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `415`, `410`, `422` |
+| [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `412`, `415`, `410`, `422` |
 | [`GET /api/manage/forms/{id}/deliveries`](#get-apimanageformsiddeliveries) | `getFormDeliveries` | List what this form still owes, and what it could not deliver | `200`, `404`, `410` |
 | [`GET /api/forms/{id}/history`](#get-apiformsidhistory) | `getFormHistory` | List every accepted save of this form | `200`, `404`, `410` |
 | [`GET /api/manage/forms/{id}/history`](#get-apimanageformsidhistory) | `getManagedFormHistory` | List every accepted save of this form, with who entered it | `200`, `404`, `410` |
@@ -43,6 +43,7 @@ Validates the stored data against the full strict schema and locks the form fore
 
 | Name | In | Required | Type | Description |
 |---|---|---|---|---|
+| `If-Match` | header | no | `string` | Optional. The revision the caller read, as its entity tag — `"7"`, several of them (`"7", "8"`), or `*` for any. When it names a revision the form has left behind, nothing is locked and the answer is `412`; when it is absent, whatever is stored is confirmed. The tag comes from the `ETag` of `GET /api/forms/{id}/data`, and `"0"` means "only if nobody has filled this in yet". |
 | `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
 
 **Responses**
@@ -52,6 +53,7 @@ Validates the stored data against the full strict schema and locks the form fore
 | `204` | — | empty | Form confirmed and locked. No body. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
 | `409` | `application/problem+json` | [`Problem`](#problem) | Nothing to confirm, or already confirmed. |
+| `412` | `application/problem+json` | [`Problem`](#problem) | The caller said which revision it read and the form has moved on since. Nothing was locked. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | The stored data fails the strict contract. |
 
@@ -168,7 +170,7 @@ For an upload that was replaced or picked by mistake. A file the stored values n
 
 | Status | Content type | Body | Description |
 |---|---|---|---|
-| `200` | `application/json` | [`FormValues`](#formvalues) | The stored values (draft or confirmed). |
+| `200` | `application/json` | [`FormValues`](#formvalues) | The stored values (draft or confirmed). The `ETag` is the number of the save these values are — hand it back in `If-Match` on `PUT` or `POST …/confirm` to be refused rather than overwrite whatever somebody saved in between. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | Unknown form, or a form that has no data yet. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 
@@ -182,6 +184,7 @@ Repeatable; overwrites the previous draft. Values are validated against the draf
 
 | Name | In | Required | Type | Description |
 |---|---|---|---|---|
+| `If-Match` | header | no | `string` | Optional. The revision the caller read, as its entity tag — `"7"`, several of them (`"7", "8"`), or `*` for any. When it names a revision the form has left behind, nothing is stored and the answer is `412`; when it is absent, the save is unconditional. The tag comes from the `ETag` of `GET /api/forms/{id}/data`, and `"0"` means "only if nobody has filled this in yet". |
 | `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
 
 **Request body** (`application/json`, required): [`FormValues`](#formvalues)
@@ -194,6 +197,7 @@ Repeatable; overwrites the previous draft. Values are validated against the draf
 | `400` | `application/problem+json` | [`Problem`](#problem) | The request body is not valid JSON, or its media type is missing. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
 | `409` | `application/problem+json` | [`Problem`](#problem) | The form is confirmed and locked. |
+| `412` | `application/problem+json` | [`Problem`](#problem) | The caller said which revision it read and the form has moved on since. Nothing was stored. |
 | `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | The body is not a JSON object, or the values break the form-s own contract. |
@@ -509,6 +513,7 @@ The canonical JSON shape of a form read back from the API.
 | `definition` | [`FormDefinition`](#formdefinition) | yes |  |
 | `data` | [`FormValues`](#formvalues) or `null` | yes |  |
 | `dataSavedAt` | `string \| null` (`date-time`) | yes |  |
+| `revision` | `integer` (≥ 0) | yes | How many saves this form has accepted, which is the number of its newest one; 0 for a form nobody has filled in. Hand it back in `If-Match` on `PUT /api/forms/{id}/data` or `POST /api/forms/{id}/confirm` to be refused with 412 rather than replace a document somebody saved in between. The same number is the `ETag` of `GET /api/forms/{id}/data`. |
 | `confirmedAt` | `string \| null` (`date-time`) | yes |  |
 | `createdNotifiedAt` | `string \| null` (`date-time`) | yes | When this form told whoever it names that it exists. Null while it has not been told — not yet, given up on, or a form that reports nowhere. On the form because a creation is no revision. |
 | `confirmNotifiedAt` | `string \| null` (`date-time`) | yes | When this form told whoever owns it that it had been confirmed. Null while it has not been told — not yet, given up on, or a form that reports nowhere. On the form rather than on a revision because confirming writes no values and is no revision. |

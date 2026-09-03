@@ -11,6 +11,7 @@ use App\Domain\Forms\Event\FormCreated;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
+use App\Domain\Forms\Exception\FormMovedOn;
 use App\Domain\Forms\Exception\IdentityRequired;
 use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Exception\ValuesNotValid;
@@ -24,6 +25,7 @@ use App\Domain\Forms\Presentation\PresentationRules;
 use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\Definition;
+use App\Domain\Forms\ValueObject\ExpectedRevision;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Presentation;
@@ -596,6 +598,214 @@ final class FormTest extends TestCase
         self::assertTrue($reporting->webhooks()->any());
         self::assertSame('https://receiver.test/confirmed', $reporting->webhooks()->confirm);
         self::assertNull($reporting->webhooks()->save);
+    }
+
+    public function testAFormReadBackFromARowThatCountedNoSavesIsAtZero(): void
+    {
+        // GIVEN / WHEN a form restored from state that says nothing about saves
+        $form = Form::fromState(
+            FormId::next(),
+            Definition::stored(self::DEFINITION, new SpyParser()),
+            ExpireDate::future(new \DateTimeImmutable('+1 day')),
+            null,
+            null,
+            null,
+            new \DateTimeImmutable(),
+        );
+
+        // THEN reading invents nothing: no saves counted means no saves
+        self::assertSame(0, $form->revision());
+    }
+
+    public function testAFormNobodyHasFilledInIsAtRevisionZero(): void
+    {
+        // GIVEN / WHEN a form with nothing in it
+        $form = self::form();
+
+        // THEN there is a number to hold, and holding it means "still empty"
+        self::assertSame(0, $form->revision());
+    }
+
+    public function testEveryAcceptedSaveIsANewRevision(): void
+    {
+        // GIVEN
+        $form = self::form();
+
+        // WHEN two different documents are stored
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+        $form->saveDraft(self::values('{"email": "grace@example.com"}'), new StubValues());
+
+        // THEN the form counts what happened to it
+        self::assertSame(2, $form->revision());
+    }
+
+    public function testASaveThatStoresNothingIsNoRevision(): void
+    {
+        // GIVEN a form holding a draft
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+
+        // WHEN it is sent what it already holds
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+
+        // THEN the number did not move, because a save that changes nothing is
+        // not a version anybody can go back to
+        self::assertSame(1, $form->revision());
+    }
+
+    public function testASaveHoldingTheCurrentRevisionIsStored(): void
+    {
+        // GIVEN a form at revision 1
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+
+        // WHEN somebody who read that one writes back
+        $form->saveDraft(
+            self::values('{"email": "grace@example.com"}'),
+            new StubValues(),
+            expected: ExpectedRevision::of(1),
+        );
+
+        // THEN it is an ordinary save
+        self::assertSame('{"email":"grace@example.com"}', $form->valuesJson());
+        self::assertSame(2, $form->revision());
+    }
+
+    public function testASaveHoldingARevisionTheFormHasLeftBehindIsRefused(): void
+    {
+        // GIVEN a form somebody else has saved since it was read
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+        $form->saveDraft(self::values('{"email": "grace@example.com"}'), new StubValues());
+        $form->releaseEvents();
+
+        // WHEN the reader of the first one writes back
+        try {
+            $form->saveDraft(
+                self::values('{"email": "eve@example.com"}'),
+                new StubValues(),
+                expected: ExpectedRevision::of(1),
+            );
+            self::fail('A stale save was accepted.');
+        } catch (FormMovedOn $refused) {
+            // THEN nothing was stored, nothing was recorded, and the refusal
+            // says which belief it refused
+            self::assertSame(2, $refused->actual);
+            self::assertSame('1', (string) $refused->expected);
+            // Both numbers in the message, because this one is read in a log by
+            // whoever is wondering why a client's saves stopped landing
+            self::assertStringContainsString('revision 2 is stored, not 1', $refused->getMessage());
+        }
+
+        self::assertSame('{"email":"grace@example.com"}', $form->valuesJson());
+        self::assertSame(2, $form->revision());
+        self::assertSame([], $form->releaseEvents());
+    }
+
+    public function testAnExpectationIsJudgedBeforeTheValuesAre(): void
+    {
+        // GIVEN a form that has moved on
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+
+        // WHEN a stale caller sends values that would be refused anyway
+        // THEN the answer is about the form having moved on: the other question
+        // has a different answer for every caller, and this one is the reason
+        // none of them matters
+        $this->expectException(FormMovedOn::class);
+
+        $form->saveDraft(
+            self::values('{"email": 1}'),
+            new StubValues(refuse: true),
+            expected: ExpectedRevision::of(0),
+        );
+    }
+
+    public function testAnExpectationNamingSeveralRevisionsIsSatisfiedByAnyOfThem(): void
+    {
+        // GIVEN a form at revision 1
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+
+        // WHEN a caller says it would accept either of two
+        $form->saveDraft(
+            self::values('{"email": "grace@example.com"}'),
+            new StubValues(),
+            expected: ExpectedRevision::of(1, 2),
+        );
+
+        // THEN it is stored
+        self::assertSame(2, $form->revision());
+    }
+
+    public function testASaveExpectingAnEmptyFormIsRefusedOnceItHasBeenFilledIn(): void
+    {
+        // GIVEN a form somebody has already answered
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+
+        // WHEN a second person, who opened it while it was empty, sends theirs
+        // THEN they are told rather than silently replacing the first answers —
+        // the one case a client cannot ask about by holding a validator, since
+        // there was no document to read one from
+        $this->expectException(FormMovedOn::class);
+
+        $form->saveDraft(
+            self::values('{"email": "grace@example.com"}'),
+            new StubValues(),
+            expected: ExpectedRevision::of(0),
+        );
+    }
+
+    public function testConfirmingHoldingTheCurrentRevisionLocksTheForm(): void
+    {
+        // GIVEN a form holding one save
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+
+        // WHEN whoever read that save closes it
+        $form->confirm(new StubValues(), expected: ExpectedRevision::of(1));
+
+        // THEN the door is shut
+        self::assertSame(FormStatus::Confirmed, $form->status());
+    }
+
+    public function testConfirmingARevisionTheFormHasLeftBehindIsRefused(): void
+    {
+        // GIVEN a form saved again after somebody read it
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+        $form->saveDraft(self::values('{"email": "grace@example.com"}'), new StubValues());
+
+        // WHEN the reader of the first one confirms
+        try {
+            $form->confirm(new StubValues(), expected: ExpectedRevision::of(1));
+            self::fail('A form was locked on somebody\'s stale reading of it.');
+        } catch (FormMovedOn $refused) {
+            self::assertSame(2, $refused->actual);
+        }
+
+        // THEN it is still open, which is the whole point: this is the one of
+        // the two that cannot be undone
+        self::assertSame(FormStatus::Draft, $form->status());
+    }
+
+    public function testNeitherTransitionAsksAnythingOfACallerThatSaidNothing(): void
+    {
+        // GIVEN a form somebody has saved twice
+        $form = self::form();
+        $form->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
+        $form->saveDraft(self::values('{"email": "grace@example.com"}'), new StubValues());
+
+        // WHEN a client that never asked about revisions saves and confirms
+        $form->saveDraft(self::values('{"email": "eve@example.com"}'), new StubValues());
+        $form->confirm(new StubValues());
+
+        // THEN both went through: a precondition nobody asked for would break
+        // every client that has ever called this to protect a case they do not
+        // have
+        self::assertSame(3, $form->revision());
+        self::assertSame(FormStatus::Confirmed, $form->status());
     }
 
     private static function form(

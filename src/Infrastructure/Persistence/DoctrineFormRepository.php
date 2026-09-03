@@ -77,6 +77,9 @@ final class DoctrineFormRepository implements FormRepository
         // the whole row.
         $record->data = $form->valuesJson();
         $record->dataSavedAt = $form->dataSavedAt();
+        // Which is `1` for a form born a draft and `0` for an empty one; the
+        // form has already counted it.
+        $record->revision = $form->revision();
         // Who this form records, and who made it. A new row has no confirmer by
         // definition: nothing has locked it yet.
         $record->identityMode = $form->identityMode()->value;
@@ -95,6 +98,8 @@ final class DoctrineFormRepository implements FormRepository
         // told about that first save like any other. The creation is announced
         // here too, and first: a receiver that mirrors these forms should hear
         // that one exists before it hears what it holds.
+        $saves = 0;
+
         foreach ($form->releaseEvents() as $event) {
             if ($event instanceof FormCreated) {
                 $this->announce($event, $form->webhooks()->created);
@@ -103,7 +108,10 @@ final class DoctrineFormRepository implements FormRepository
             }
 
             if ($event instanceof DraftSaved) {
-                $revision = $this->revision($event);
+                // Numbered from what has been written here rather than from the
+                // row, so this holds for however many saves an insert carries —
+                // which is one today, and the count above is the form's own.
+                $revision = $this->revision($event, $saves++);
                 $this->entityManager->persist($revision);
                 $this->announce($event, $form->webhooks()->save, $revision->seq);
             }
@@ -300,6 +308,7 @@ final class DoctrineFormRepository implements FormRepository
             ),
             $record->confirmNotifiedAt,
             $record->createdNotifiedAt,
+            $record->revision,
         );
     }
 
@@ -342,11 +351,14 @@ final class DoctrineFormRepository implements FormRepository
     {
         $record->data = (string) $event->values;
         $record->dataSavedAt = $event->occurredAt;
+        $revision = $this->revision($event, $record->revision);
+        // The row's own count of accepted saves, which is what the next caller's
+        // expectation is judged against and what numbered the revision above.
+        $record->revision = $revision->seq;
         // The row keeps what the form holds now; the history keeps what it held
         // then, and the queue keeps that somebody is owed the news. All three
         // come from the same event, so none of them can be written without the
         // others.
-        $revision = $this->revision($event);
         $this->entityManager->persist($revision);
         $this->announce($event, $target, $revision->seq);
         $this->forgetBeyondTheLimit($event->formId, $revision->seq);
@@ -428,12 +440,17 @@ final class DoctrineFormRepository implements FormRepository
      * by the database: a save already holds the form's row lock, so nothing can
      * take the same one — and a sequence of the database's own would number
      * across forms, which is not what "the seventh save of this form" means.
+     *
+     * It comes from the form's own row rather than from `MAX(seq)` over the
+     * history, because the history is not the truth about how many saves there
+     * have been: the limit evicts the oldest, and a count over what is kept
+     * would start renumbering saves the moment it did.
      */
-    private function revision(DraftSaved $event): FormRevisionRecord
+    private function revision(DraftSaved $event, int $previous): FormRevisionRecord
     {
         $revision = new FormRevisionRecord();
         $revision->formId = $event->formId->toUuid();
-        $revision->seq = $this->lastSequence($event->formId) + 1;
+        $revision->seq = $previous + 1;
         $revision->savedAt = $event->occurredAt;
         $revision->data = (string) $event->values;
         $revision->actorSubject = self::subject($event->filler);
@@ -449,15 +466,5 @@ final class DoctrineFormRepository implements FormRepository
     private static function actor(?string $subject): ?Actor
     {
         return $subject === null ? null : Actor::stored($subject);
-    }
-
-    private function lastSequence(FormId $id): int
-    {
-        $last = $this->entityManager
-            ->createQuery(\sprintf('SELECT MAX(r.seq) FROM %s r WHERE r.formId = :form', FormRevisionRecord::class))
-            ->setParameter('form', $id->toUuid())
-            ->getSingleScalarResult();
-
-        return is_numeric($last) ? (int) $last : 0;
     }
 }

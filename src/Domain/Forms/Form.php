@@ -11,6 +11,7 @@ use App\Domain\Forms\Event\FormEvent;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
+use App\Domain\Forms\Exception\FormMovedOn;
 use App\Domain\Forms\Exception\IdentityRequired;
 use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Exception\ValuesNotValid;
@@ -18,6 +19,7 @@ use App\Domain\Forms\Port\ValuesValidator;
 use App\Domain\Forms\Presentation\PresentationRules;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\Definition;
+use App\Domain\Forms\ValueObject\ExpectedRevision;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Presentation;
@@ -59,6 +61,19 @@ final class Form
     private ExpireDate $expireDate;
 
     private ?Values $data = null;
+
+    /**
+     * How many saves this form has accepted, which is also the number of its
+     * newest revision: a form nobody has filled in is at `0`, and the first
+     * accepted save makes it `1`.
+     *
+     * It lives here rather than being counted in storage because it is what a
+     * caller's expectation is judged against, and judging a transition is the
+     * aggregate's own business ({@see saveDraft()}). It is a **count of accepted
+     * saves** and not of writes: a save that stores what is already stored
+     * changes nothing, including this.
+     */
+    private int $revision = 0;
 
     private ?Presentation $presentation = null;
 
@@ -176,6 +191,7 @@ final class Form
         ?Webhooks $webhooks = null,
         ?\DateTimeImmutable $confirmNotifiedAt = null,
         ?\DateTimeImmutable $createdNotifiedAt = null,
+        int $revision = 0,
     ): self {
         $form = new self($id, $definition, $expireDate, now: $createdAt, identity: $identity, author: $author, webhooks: $webhooks);
         $form->confirmedBy = $confirmedBy;
@@ -183,6 +199,7 @@ final class Form
         $form->createdNotifiedAt = $createdNotifiedAt;
         $form->data = $values;
         $form->dataSavedAt = $dataSavedAt;
+        $form->revision = $revision;
         $form->confirmedAt = $confirmedAt;
         // Assigned rather than handed to the constructor: what was stored was
         // judged on its way in, and reading is not the moment to judge again.
@@ -205,16 +222,30 @@ final class Form
      * proxy asserts on every request, so a form promising anonymity has to be
      * the thing that drops it.
      *
+     * A caller may say what it believes the form is at, and then this refuses to
+     * be the save that quietly replaces a document nobody read. It is optional
+     * on purpose and it is asked **first**: a caller whose belief is stale is
+     * told so before anything is judged, because whether the values fit is a
+     * different question and the answer to it would not help.
+     *
      * @throws FormLocked when the form was confirmed and is closed for good
+     * @throws FormMovedOn when the caller expected a revision this form has left behind
      * @throws IdentityRequired when this form records who fills it in and nobody was asserted
      * @throws ValuesNotValid when the values do not fit the definition
      * @throws \InvalidArgumentException when they are not a JSON object at all
      */
-    public function saveDraft(mixed $values, ValuesValidator $validator, ?Actor $filler = null, ?\DateTimeImmutable $now = null): void
-    {
+    public function saveDraft(
+        mixed $values,
+        ValuesValidator $validator,
+        ?Actor $filler = null,
+        ?ExpectedRevision $expected = null,
+        ?\DateTimeImmutable $now = null,
+    ): void {
         if ($this->confirmedAt !== null) {
             throw new FormLocked($this->id());
         }
+
+        $this->hold($expected);
 
         $filler = $this->attribute($filler);
 
@@ -234,6 +265,10 @@ final class Form
 
         $this->data = $saved;
         $this->dataSavedAt = self::utc($now ?? new \DateTimeImmutable());
+        // Numbered here rather than by storage, because this is what the next
+        // caller's expectation is judged against — and because a save that
+        // reached the line above is precisely what "a revision" means.
+        ++$this->revision;
         $this->events[] = new DraftSaved($this->id(), $this->dataSavedAt, $this->data, $filler);
     }
 
@@ -245,16 +280,28 @@ final class Form
      * closing a form is something the person filling it in does, and a promise
      * of anonymity that names whoever pressed "send" is not a promise.
      *
+     * A caller may say which revision it is closing, and it is the more useful
+     * half of the same question: a save that lands between somebody reading a
+     * form and confirming it means they lock a document they never saw, and
+     * unlike an overwritten draft that one cannot be put back.
+     *
      * @throws FormAlreadyConfirmed when the door was already closed
      * @throws FormHasNoData when nothing was ever filled in
+     * @throws FormMovedOn when the caller expected a revision this form has left behind
      * @throws IdentityRequired when this form records who fills it in and nobody was asserted
      * @throws ValuesNotValid when what is stored does not complete the form
      */
-    public function confirm(ValuesValidator $validator, ?Actor $confirmer = null, ?\DateTimeImmutable $now = null): void
-    {
+    public function confirm(
+        ValuesValidator $validator,
+        ?Actor $confirmer = null,
+        ?ExpectedRevision $expected = null,
+        ?\DateTimeImmutable $now = null,
+    ): void {
         if ($this->confirmedAt !== null) {
             throw new FormAlreadyConfirmed($this->id());
         }
+
+        $this->hold($expected);
 
         $confirmer = $this->attribute($confirmer);
 
@@ -265,6 +312,19 @@ final class Form
         $this->confirmedAt = self::utc($now ?? new \DateTimeImmutable());
         $this->confirmedBy = $confirmer;
         $this->events[] = new FormConfirmed($this->id(), $this->confirmedAt, $confirmer);
+    }
+
+    /**
+     * Refuses a transition whose caller was looking at an older form than this
+     * one, and does nothing at all for a caller that said nothing.
+     *
+     * @throws FormMovedOn
+     */
+    private function hold(?ExpectedRevision $expected): void
+    {
+        if ($expected !== null && !$expected->isSatisfiedBy($this->revision)) {
+            throw new FormMovedOn($this->id(), $expected, $this->revision);
+        }
     }
 
     /**
@@ -383,6 +443,16 @@ final class Form
     public function valuesJson(): ?string
     {
         return $this->data === null ? null : (string) $this->data;
+    }
+
+    /**
+     * The number of the newest save, and `0` for a form nobody has filled in.
+     * Served so that a client can hold it and hand it back
+     * ({@see ExpectedRevision}).
+     */
+    public function revision(): int
+    {
+        return $this->revision;
     }
 
     public function dataSavedAt(): ?\DateTimeImmutable

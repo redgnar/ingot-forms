@@ -17,6 +17,7 @@ use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
+use App\Domain\Forms\Exception\FormMovedOn;
 use App\Domain\Forms\Exception\FormNotFound;
 use App\Domain\Forms\Exception\FormUnreadable;
 use App\Domain\Forms\Exception\IdentityRequired;
@@ -84,6 +85,10 @@ final class ProblemExceptionListener
         // give — the caller may not do this on account of who they are not.
         IdentityRequired::class => [403, 'identity-required', 'This form records who fills it in, and nobody was asserted.'],
         FormGone::class => [410, 'form-gone', 'Form has expired.'],
+        // A failed precondition and not a conflict: the form is in a state the
+        // transition could perfectly well start from, and the only thing wrong
+        // is that the caller was looking at an older one.
+        FormMovedOn::class => [412, 'form-moved-on', 'The form has changed since you read it.'],
         // A form that would report itself somewhere this deployment cannot sign
         // for. Not 422: the document is fine, and it is this installation that
         // cannot honour it.

@@ -12,6 +12,7 @@ use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\Port\ValuesValidator;
 use App\Domain\Forms\ValueObject\Actor;
+use App\Domain\Forms\ValueObject\ExpectedRevision;
 use App\Domain\Forms\ValueObject\FormId;
 
 /**
@@ -30,14 +31,15 @@ final class ConfirmForm
     /**
      * @throws FormAlreadyConfirmed
      * @throws FormHasNoData
+     * @throws \App\Domain\Forms\Exception\FormMovedOn
      * @throws \App\Domain\Forms\Exception\IdentityRequired
      * @throws ValuesNotValid
      */
-    public function __invoke(FormId $id, ?Actor $confirmer = null): void
+    public function __invoke(FormId $id, ?Actor $confirmer = null, ?ExpectedRevision $expected = null): void
     {
-        $this->transactions->run(function () use ($id, $confirmer): void {
+        $this->transactions->run(function () use ($id, $confirmer, $expected): void {
             $form = $this->forms->getForUpdate($id);
-            $form->confirm($this->valuesValidator, $confirmer);
+            $form->confirm($this->valuesValidator, $confirmer, $expected);
             $this->forms->save($form);
         });
 

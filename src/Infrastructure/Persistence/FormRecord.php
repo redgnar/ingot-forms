@@ -40,6 +40,19 @@ class FormRecord
     #[ORM\Column(name: 'data_saved_at', type: Types::DATETIME_IMMUTABLE, nullable: true)]
     public ?\DateTimeImmutable $dataSavedAt = null;
 
+    /**
+     * How many saves this form has accepted, which is the `seq` of its newest
+     * revision.
+     *
+     * A column rather than a `MAX(seq)` over the history, for two reasons that
+     * are both about the history not being the truth about this: revisions are
+     * evicted (`FORMS_HISTORY_LIMIT`), so a count over them is a count of what
+     * is *kept*; and a save reads this to number itself, which would otherwise
+     * be one extra query per write on a row it already holds locked.
+     */
+    #[ORM\Column(type: Types::INTEGER, options: ['default' => 0])]
+    public int $revision = 0;
+
     #[ORM\Column(name: 'confirmed_at', type: Types::DATETIME_IMMUTABLE, nullable: true)]
     public ?\DateTimeImmutable $confirmedAt = null;
 

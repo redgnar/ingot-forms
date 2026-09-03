@@ -258,7 +258,7 @@ nelmio_api_doc:
                 FormEnvelope:
                     type: object
                     description: The canonical JSON shape of a form read back from the API.
-                    required: [id, status, expireDate, createdAt, definition, data, dataSavedAt, confirmedAt, createdNotifiedAt, confirmNotifiedAt, identity, author, confirmedBy, webhooks]
+                    required: [id, status, expireDate, createdAt, definition, data, dataSavedAt, revision, confirmedAt, createdNotifiedAt, confirmNotifiedAt, identity, author, confirmedBy, webhooks]
                     additionalProperties: false
                     properties:
                         id:
@@ -281,6 +281,16 @@ nelmio_api_doc:
                         dataSavedAt:
                             type: [string, 'null']
                             format: date-time
+                        revision:
+                            type: integer
+                            minimum: 0
+                            description: >-
+                                How many saves this form has accepted, which is the number of its
+                                newest one; 0 for a form nobody has filled in. Hand it back in
+                                `If-Match` on `PUT /api/forms/{id}/data` or
+                                `POST /api/forms/{id}/confirm` to be refused with 412 rather than
+                                replace a document somebody saved in between. The same number is
+                                the `ETag` of `GET /api/forms/{id}/data`.
                         confirmedAt:
                             type: [string, 'null']
                             format: date-time

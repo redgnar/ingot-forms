@@ -11,6 +11,7 @@ use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\Port\ValuesValidator;
 use App\Domain\Forms\ValueObject\Actor;
+use App\Domain\Forms\ValueObject\ExpectedRevision;
 use App\Domain\Forms\ValueObject\FormId;
 
 /**
@@ -44,15 +45,22 @@ final class SaveFormData
      * *this* request. Whether it is kept, or needed at all, is the form's own
      * business.
      *
+     * What the caller believes the form is at travels the same way and for the
+     * same reason: it is a fact about *this* request, and it is judged inside the
+     * transaction on the locked row — which is what makes the answer true. Asked
+     * outside it, the form could move on between the question and the write, and
+     * a precondition with a gap in it protects nothing.
+     *
      * @throws FormLocked
+     * @throws \App\Domain\Forms\Exception\FormMovedOn
      * @throws \App\Domain\Forms\Exception\IdentityRequired
      * @throws ValuesNotValid
      */
-    public function __invoke(FormId $id, mixed $values, ?Actor $filler = null): void
+    public function __invoke(FormId $id, mixed $values, ?Actor $filler = null, ?ExpectedRevision $expected = null): void
     {
-        $this->transactions->run(function () use ($id, $values, $filler): void {
+        $this->transactions->run(function () use ($id, $values, $filler, $expected): void {
             $form = $this->forms->getForUpdate($id);
-            $form->saveDraft($values, $this->valuesValidator, $filler);
+            $form->saveDraft($values, $this->valuesValidator, $filler, $expected);
             $this->forms->save($form);
         });
 

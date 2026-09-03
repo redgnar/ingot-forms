@@ -974,9 +974,9 @@ message beside a control needs to know which control.
 | `GET /api/forms/{id}/schema` | Derived JSON Schema of the form's *values* (`application/schema+json`). `?mode=draft` returns the relaxed variant. |
 | `GET /api/schemas/definition` · `GET /api/schemas/presentation` | The meta-schema each of those documents is judged by (`application/schema+json`) — the authoritative contract for what you may write, which is why it is served rather than described. Fixed for a deployment. |
 | `GET /api/forms/{id}/presentation` | How the form is shown, as it was given at creation (`404 presentation-not-set` when none). |
-| `PUT /api/forms/{id}/data` | Save a draft (repeatable). `204`, `409 form-locked` once confirmed. |
-| `POST /api/forms/{id}/confirm` | Strictly validate the stored data and lock the form. `204`; `409` when already confirmed or empty, `422` with the report when invalid. |
-| `GET /api/forms/{id}/data` | The current values (`404 form-data-empty` when none). |
+| `PUT /api/forms/{id}/data` | Save a draft (repeatable). `204`, `409 form-locked` once confirmed. Optionally conditional: `If-Match: "7"` stores only while the form is still at that save (`412 form-moved-on` otherwise). |
+| `POST /api/forms/{id}/confirm` | Strictly validate the stored data and lock the form. `204`; `409` when already confirmed or empty, `422` with the report when invalid. Takes the same `If-Match`, and wants it more: a form locked on a document nobody read cannot be put back. |
+| `GET /api/forms/{id}/data` | The current values (`404 form-data-empty` when none). The `ETag` is the number of the save they are — keep it for `If-Match`. |
 | `GET /api/forms/{id}/history` | Every accepted save, newest first: `{seq, savedAt, confirmed}`. |
 | `GET /api/forms/{id}/history/{seq}` | The values that save stored, byte for byte. Send them back through `PUT …/data` to restore them. |
 | `POST /api/forms/{id}/files` | Upload a file for this form. One `multipart/form-data` part named `file`. `201` with the description to put in the values, plus `Location`. |
@@ -988,9 +988,37 @@ Content` (or `422` with the report), because the client already knows the values
 read the form if you need its new state.
 
 Error status map: `400` malformed JSON, `404` unknown form, `409` state conflicts,
-`204` a write that succeeded, `410` expired form (every endpoint), `413` a body larger than
-this deployment accepts, `415` a request body that is not `application/json`,
-`422` validation reports, `500` opaque fallback.
+`204` a write that succeeded, `410` expired form (every endpoint), `412` a precondition the
+form has moved past, `413` a body larger than this deployment accepts, `415` a request body
+that is not `application/json`, `422` validation reports, `500` opaque fallback.
+
+### Two people, one form
+
+A form is one document, so two people filling it in at once are writing over each other — and
+without asking, the second save wins silently and the first person's answers are gone. What
+closes that is HTTP's own mechanism rather than anything of ours:
+
+```
+GET  /api/forms/{id}/data        →  200, ETag: "7"
+PUT  /api/forms/{id}/data           If-Match: "7"   →  204   (still at 7)
+                                                    →  412   (somebody saved: form-moved-on)
+```
+
+Everything about it is optional and nothing changes for a client that says nothing: the save
+stays unconditional, exactly as it always was. What the tag is, is the **number of the save** —
+`revision` in the form's envelope, `seq` in its history — and not a hash of the document,
+because the question is "has anybody saved since I read this" and two saves can perfectly well
+store the same answers.
+
+Three shapes are read, and anything else is `400 precondition-not-readable` rather than a save
+that quietly went through unconditionally: `"7"`, a list (`"7", "8"`, meaning any of them), and
+`*` (any revision, as long as the form is there). `"0"` is legal and means **only if nobody has
+filled this in yet** — the one moment there is no document to read a tag off, and the one where
+two people opening a fresh form would otherwise not be told.
+
+A refusal takes nothing away: nothing was stored, the form is where it was, and the client's own
+next move is the ordinary one — read the values again (with their new tag), show the person what
+changed, and send theirs on top of it.
 
 ## When something is refused
 

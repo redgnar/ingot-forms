@@ -154,6 +154,12 @@ largest deployment risk this service has.
 Ordered by what it opens over what it disturbs. The first three serve use cases we cannot serve
 at all today; the rest are comfort.
 
+**Since written, two of these are built**: the webhook (1) in [12](12-webhooks.md), four design
+passes and rather more than "an outlet"; and the conditional save (7) in
+[14](14-conditional-writes.md), as `If-Match` on both write endpoints. The gateway that
+["a permission system of our own"](#what-not-to-copy-and-why) delegates to has its recipe and a
+runnable example in [09](09-access.md) — the deployment itself is still somebody's to do.
+
 1. **A webhook on save and on confirmation.** The events exist, are past tense, and are already
    written; what is missing is an outlet. Without it, every owning system has to poll. Most value
    for the least movement in the model — and the design question is small and familiar: delivery

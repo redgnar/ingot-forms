@@ -35,6 +35,11 @@ final class FormEnvelope
             'definition' => (string) $record->definition(),
             'data' => $record->valuesJson() ?? 'null',
             'dataSavedAt' => self::encoded($record->dataSavedAt()?->format(\DateTimeInterface::ATOM)),
+            // How many saves this form has accepted, which is the number of its
+            // newest one. Served so that a caller can hold it and hand it back
+            // in `If-Match`, and so that "the newest revision" needs no second
+            // request to the history to be named.
+            'revision' => self::encoded($record->revision()),
             'confirmedAt' => self::encoded($record->confirmedAt()?->format(\DateTimeInterface::ATOM)),
             // When this form told whoever owns it that it had been confirmed.
             // Beside `confirmedAt` because that is what it is about, and on the

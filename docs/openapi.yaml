@@ -17,6 +17,14 @@ paths:
       operationId: confirmForm
       parameters:
         -
+          name: If-Match
+          in: header
+          description: 'Optional. The revision the caller read, as its entity tag — `"7"`, several of them (`"7", "8"`), or `*` for any. When it names a revision the form has left behind, nothing is locked and the answer is `412`; when it is absent, whatever is stored is confirmed. The tag comes from the `ETag` of `GET /api/forms/{id}/data`, and `"0"` means "only if nobody has filled this in yet".'
+          required: false
+          schema:
+            type: string
+            example: '"7"'
+        -
           name: id
           in: path
           required: true
@@ -41,6 +49,16 @@ paths:
                 form-already-confirmed:
                   summary: 'Confirming twice'
                   value: { type: 'urn:problem:ingot-forms:form-already-confirmed', title: 'Form data is already confirmed.', status: 409 }
+        '412':
+          description: 'The caller said which revision it read and the form has moved on since. Nothing was locked.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                form-moved-on:
+                  summary: 'Somebody saved between reading and confirming'
+                  value: { type: 'urn:problem:ingot-forms:form-moved-on', title: 'The form has changed since you read it.', status: 412 }
         '410':
           $ref: '#/components/responses/FormGone'
         '422':
@@ -249,7 +267,13 @@ paths:
             pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
       responses:
         '200':
-          description: 'The stored values (draft or confirmed).'
+          description: 'The stored values (draft or confirmed). The `ETag` is the number of the save these values are — hand it back in `If-Match` on `PUT` or `POST …/confirm` to be refused rather than overwrite whatever somebody saved in between.'
+          headers:
+            ETag:
+              description: 'The revision these values are, as an entity tag.'
+              schema:
+                type: string
+                example: '"7"'
           content:
             application/json:
               schema:
@@ -271,6 +295,14 @@ paths:
       description: 'Repeatable; overwrites the previous draft. Values are validated against the draft variant of the derived schema — types, enums, ranges and the closed property set are enforced, `required` is not.'
       operationId: saveFormData
       parameters:
+        -
+          name: If-Match
+          in: header
+          description: 'Optional. The revision the caller read, as its entity tag — `"7"`, several of them (`"7", "8"`), or `*` for any. When it names a revision the form has left behind, nothing is stored and the answer is `412`; when it is absent, the save is unconditional. The tag comes from the `ETag` of `GET /api/forms/{id}/data`, and `"0"` means "only if nobody has filled this in yet".'
+          required: false
+          schema:
+            type: string
+            example: '"7"'
         -
           name: id
           in: path
@@ -301,6 +333,16 @@ paths:
                 form-locked:
                   summary: 'Editing a confirmed form'
                   value: { type: 'urn:problem:ingot-forms:form-locked', title: 'Form data is confirmed and can no longer be edited.', status: 409 }
+        '412':
+          description: 'The caller said which revision it read and the form has moved on since. Nothing was stored.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                form-moved-on:
+                  summary: 'Somebody saved in between'
+                  value: { type: 'urn:problem:ingot-forms:form-moved-on', title: 'The form has changed since you read it.', status: 412 }
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '410':
@@ -818,6 +860,7 @@ components:
         - definition
         - data
         - dataSavedAt
+        - revision
         - confirmedAt
         - createdNotifiedAt
         - confirmNotifiedAt
@@ -850,6 +893,10 @@ components:
             - string
             - 'null'
           format: date-time
+        revision:
+          description: 'How many saves this form has accepted, which is the number of its newest one; 0 for a form nobody has filled in. Hand it back in `If-Match` on `PUT /api/forms/{id}/data` or `POST /api/forms/{id}/confirm` to be refused with 412 rather than replace a document somebody saved in between. The same number is the `ETag` of `GET /api/forms/{id}/data`.'
+          type: integer
+          minimum: 0
         confirmedAt:
           type:
             - string

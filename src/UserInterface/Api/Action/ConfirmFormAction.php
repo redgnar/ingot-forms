@@ -6,6 +6,7 @@ namespace App\UserInterface\Api\Action;
 
 use App\Application\Forms\UseCase\ConfirmForm;
 use App\Domain\Forms\ValueObject\Actor;
+use App\Domain\Forms\ValueObject\ExpectedRevision;
 use App\Domain\Forms\ValueObject\FormId;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\Response;
@@ -28,6 +29,13 @@ final class ConfirmFormAction
         operationId: 'confirmForm',
         summary: 'Confirm the stored values',
         description: 'Validates the stored data against the full strict schema and locks the form forever. A definition containing an unknown (plugin) field type cannot be confirmed — the server will not vouch for a value contract it does not know.',
+    )]
+    #[OA\Parameter(
+        name: 'If-Match',
+        description: 'Optional. The revision the caller read, as its entity tag — `"7"`, several of them (`"7", "8"`), or `*` for any. When it names a revision the form has left behind, nothing is locked and the answer is `412`; when it is absent, whatever is stored is confirmed. The tag comes from the `ETag` of `GET /api/forms/{id}/data`, and `"0"` means "only if nobody has filled this in yet".',
+        in: 'header',
+        required: false,
+        schema: new OA\Schema(type: 'string', example: '"7"'),
     )]
     #[OA\Response(response: 204, description: 'Form confirmed and locked. No body.')]
     #[OA\Response(response: 404, ref: '#/components/responses/FormNotFound')]
@@ -54,6 +62,25 @@ final class ConfirmFormAction
                         'type' => 'urn:problem:ingot-forms:form-already-confirmed',
                         'title' => 'Form data is already confirmed.',
                         'status' => 409,
+                    ],
+                ),
+            ],
+        ),
+    )]
+    #[OA\Response(
+        response: 412,
+        description: 'The caller said which revision it read and the form has moved on since. Nothing was locked.',
+        content: new OA\MediaType(
+            mediaType: 'application/problem+json',
+            schema: new OA\Schema(ref: '#/components/schemas/Problem'),
+            examples: [
+                new OA\Examples(
+                    example: 'form-moved-on',
+                    summary: 'Somebody saved between reading and confirming',
+                    value: [
+                        'type' => 'urn:problem:ingot-forms:form-moved-on',
+                        'title' => 'The form has changed since you read it.',
+                        'status' => 412,
                     ],
                 ),
             ],
@@ -95,9 +122,9 @@ final class ConfirmFormAction
             ],
         ),
     )]
-    public function __invoke(Uuid $id, ?Actor $confirmer): Response
+    public function __invoke(Uuid $id, ?Actor $confirmer, ?ExpectedRevision $expected): Response
     {
-        ($this->confirmForm)(FormId::of($id), $confirmer);
+        ($this->confirmForm)(FormId::of($id), $confirmer, $expected);
 
         return new Response(status: 204);
     }

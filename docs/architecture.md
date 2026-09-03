@@ -323,6 +323,18 @@ store values that do not fit a definition by forgetting to ask; the same methods
 confirmed form (`FormLocked`), a second confirmation and an empty one. A use case is left
 with when it happens: one transaction, a locked read, a write.
 
+**A form counts its own saves, and a caller may hold that number.** `Form::revision()` is how
+many saves this form has accepted — `0` for one nobody has filled in — and it is the `seq` of the
+newest revision. Both transitions take an optional `ExpectedRevision`, and refuse with
+`FormMovedOn` when the caller was looking at an older form than the one it is writing to. The
+check is the aggregate's, first in the method and before the values are judged, for the reason
+every other invariant is there: a use case that re-asked it would be asking outside the lock,
+where the answer can stop being true between the question and the write. At the boundary it is
+`If-Match` on `PUT …/data` and `POST …/confirm`, read by `RevisionIntake`, answered with `412`,
+and served as the `ETag` of `GET /api/forms/{id}/data` plus `revision` in the envelope. Nothing
+about it is mandatory: a caller that says nothing writes unconditionally, exactly as before it
+existed.
+
 **Each transition records what happened** (`FormCreated`, `DraftSaved` — which carries the
 values it stored — `FormConfirmed`), and `releaseEvents()` hands them over. That is what the
 repository writes from: a column changes because something happened, not because a copying
@@ -357,7 +369,10 @@ revision deliberately has none, so `RevisionsLeaveWithTheirForm` states it on
 `postGenerateSchema` instead and `SchemaInSyncTest` keeps the mapping and the migrated database
 agreeing about it; and
 `FORMS_HISTORY_LIMIT` is how many saves one form keeps, the oldest leaving in the same statement
-that appends the newest. Neither the row nor the revision can be written without the other —
+that appends the newest. The number a save takes comes from `forms.revision`, a count of accepted
+saves on the form's own row: the history is not the truth about how many there have been, because
+the limit evicts the oldest, and a `MAX(seq)` over what is *kept* would start renumbering saves
+the moment it did — besides being one more query on a row the save already holds locked. Neither the row nor the revision can be written without the other —
 both come from one `DraftSaved` — which is what makes "the current values are also the newest
 revision" true, and everything that asks what a form has **ever** named leans on it.
 

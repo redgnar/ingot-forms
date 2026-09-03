@@ -163,6 +163,10 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         self::assertNotNull($read->dataSavedAt());
         self::assertNotNull($read->confirmedAt());
         self::assertSame(FormStatus::Confirmed, $read->status());
+        // The count of accepted saves comes back too, and it is the one field
+        // here that a caller is allowed to hold on to: a form read from storage
+        // has to be able to refuse a stale save the same way one in memory does.
+        self::assertSame(1, $read->revision());
         self::assertSame((string) self::presentation(), (string) $read->presentation());
         self::assertSame('email', $read->presentation()?->structure()->items[0]->name);
 
