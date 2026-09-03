@@ -14,6 +14,7 @@ versioning and multi-submission forms are deliberately out of scope.
 | [docs/configuring-forms.md](docs/configuring-forms.md) | **describe a form**: item types, widgets, skins, files, lists, history, error codes, a worked example |
 | [docs/kits.md](docs/kits.md) | **know exactly what a kit can draw**: every control of both engines, control by control, with links to Bootstrap's own documentation |
 | [docs/architecture.md](docs/architecture.md) | **work on the service**: layers, the model, storage, the validation gates, the pages, operations, testing |
+| [docs/deploying-behind-a-gateway.md](docs/deploying-behind-a-gateway.md) | **put it in front of people**: the six rules a gateway needs, the identity header, the decision point's contract — with a runnable example in [examples/gateway/](examples/gateway) |
 | [docs/api.md](docs/api.md) · [docs/openapi.yaml](docs/openapi.yaml) | the generated endpoint reference (`make docs` writes both — never edit them by hand) |
 | [tests/_requests/](tests/_requests) | working requests for every endpoint, one file per topic, with assertions |
 | [.claude/plan/](.claude/plan) | how it got here: the decisions, their reasons, and what each stage changed — and, in [10](.claude/plan/10-what-a-vendor-offers.md), what a commercial platform offers and which of it we want |

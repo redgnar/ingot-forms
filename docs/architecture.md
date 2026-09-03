@@ -69,7 +69,8 @@ itself, which is a deployment and not code here. The short version, because it d
 service does and does not contain:
 
 **This service will authorise nothing.** A gateway decides what may reach it, per prefix and per
-method. A decision point outside — owned by the system that created the form — answers "may this
+method — [deploying-behind-a-gateway.md](deploying-behind-a-gateway.md) is the recipe, with a
+runnable example in `examples/gateway/`. A decision point outside — owned by the system that created the form — answers "may this
 caller touch *this* form", because whoever created a form already knows who may touch it, and that
 answer is theirs to keep. The form id is not a public credential either: a person reaches a form
 through the object of the superordinate system that uses it, after that system's own authorization,

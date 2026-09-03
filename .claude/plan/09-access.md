@@ -576,3 +576,26 @@ form, because each was a real dead end rather than a preference.
   redundant: what should not pass never arrives.
 - **A per-form `identity: required` that refused a save.** Became a deployment-level fallback plus
   one refusal, once the owner's fourth decision made the gateway responsible for who is calling.
+
+## The recipe, built
+
+The gateway is still not code here and never will be, but "somebody else's deployment" was doing
+a lot of work in the sentences above. It is written down now:
+[`docs/deploying-behind-a-gateway.md`](../../docs/deploying-behind-a-gateway.md) — the six rules
+(the four audience prefixes, plus the static prefix and the address that names no form), the three
+things a gateway must do with `X-Forms-Identity` (the third being *set it on every request*, so a
+client's own header is replaced rather than believed), and the decision point's contract: four
+headers in, `204` or `403` out, cached per (form, subject, method), failing closed.
+
+Beside it, `examples/gateway/` is the runnable half: an nginx configuration and a stand-in
+decision point, on the service's own compose network. Every rule in the document was checked
+through it rather than reasoned about, which turned up three things worth keeping:
+
+- **An `upstream` block is resolved once at startup**, so a gateway written that way refuses to
+  start while the service is down and holds a stale address after it moves. The example uses a
+  resolver and a variable.
+- **An unquoted `{` in an nginx value starts a block**, so the `{36}` in a UUID pattern has to be
+  inside quotes — the sort of thing a paper recipe gets wrong and nobody notices until deployment.
+- **The identity really does come from the gateway**: the smoke test's save was recorded against
+  the subject nginx asserted, and nothing else could have set it. That is the whole arrangement in
+  one line of output.

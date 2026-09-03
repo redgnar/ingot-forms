@@ -1,0 +1,67 @@
+# The gateway, in front of the service this repository builds.
+#
+#   docker compose -f examples/gateway/docker-compose.yml up -d
+#
+# One command brings up all of it: the service, its database, this gateway, and
+# a stand-in for the system that owns the forms.
+#
+# The service is nowhere in this file, and that is the point of the two lines at
+# the bottom. `include` pulls in the repository's own compose file rather than
+# describing the service a second time — so there is one description of how this
+# service runs and the example cannot drift from it — and `name` puts both in
+# the *same* project, so this adds two containers to the ones already running
+# instead of starting a second copy of everything on the same ports.
+#
+# Three processes, and `nginx.conf` names all three:
+#
+#   php:8000              the service, from the other compose file, reached by
+#                         its service name on the project's own network — a name
+#                         that does not change when somebody clones this into a
+#                         differently named directory, which a container name
+#                         would.
+#   gateway:80 → :8080    nginx, the only thing anybody outside talks to.
+#   decision-point:9000   stands in for the system that owns the forms and
+#                         answers "may this caller touch this form". Port 9000
+#                         so that it is obviously not the service, and a stock
+#                         `php:*-cli-alpine` so that it is obviously not *of*
+#                         the service: it shares nothing with this repository —
+#                         not the image, not the code, not the database — and
+#                         PHP only because a one-file HTTP stub is shortest
+#                         there. In your deployment it is an address in a system
+#                         you already have.
+#
+# The service needs one thing from this arrangement, and it is not optional:
+#
+#   FORMS_TRUSTED_PROXIES=<the gateway's address>
+#
+# without which `X-Forms-Identity` is ignored entirely and every save on a form
+# that records who fills it in is refused. That is the safe direction: a header
+# any client could set is not an assertion about anybody. In development
+# `.env.dist` already says `private_ranges`, which covers a compose network.
+# The project the repository's own compose file uses (it takes the name from the
+# directory). Naming it here rather than inheriting it is what makes this an
+# addition to that project instead of a second one beside it.
+name: ingot-forms
+
+include:
+  - ../../docker-compose.yml
+
+services:
+  gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on: [php, decision-point]
+
+  # Replace this with a URL of your own in `nginx.conf`. Nothing about this
+  # container is part of the recipe except the four headers it reads and the two
+  # answers it gives — hence a stock image and this one directory mounted,
+  # rather than the service's own image with the repository behind it.
+  decision-point:
+    image: php:8.4-cli-alpine
+    working_dir: /example
+    command: php -S 0.0.0.0:9000 decision-point.php
+    volumes:
+      - .:/example:ro

@@ -128,7 +128,7 @@ check-values: ## Would the API take this JSON? make check-values DEFINITION=… 
 	$(RUN) bin/console app:forms:check-values '$(DEFINITION)' '$(VALUES)' --mode=$(or $(MODE),draft)
 
 lint: ## Syntax check every PHP file against the runtime this project targets
-	$(RUN) sh -c 'find src tests tools migrations public -name "*.php" -print0 | xargs -0 -n1 php -l | grep -v "No syntax errors" || true'
+	$(RUN) sh -c 'find src tests tools migrations public examples -name "*.php" -print0 | xargs -0 -n1 php -l | grep -v "No syntax errors" || true'
 
 stan:
 	$(RUN) vendor/bin/phpstan analyse --no-progress --memory-limit=512M

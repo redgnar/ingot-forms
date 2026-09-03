@@ -743,7 +743,7 @@ Formatting is php-cs-fixer's job; every PHP file starts with `declare(strict_typ
 
 ## Where documentation goes
 
-Four places, and putting something in the wrong one is how two of them start disagreeing:
+Five places, and putting something in the wrong one is how two of them start disagreeing:
 
 | File | Holds | Written by |
 |---|---|---|
@@ -751,12 +751,15 @@ Four places, and putting something in the wrong one is how two of them start dis
 | `docs/configuring-forms.md` | everything somebody needs to **describe a form**: item types, widgets per engine, skins, files, lists, history, every refusal code, a worked example | hand |
 | `docs/kits.md` | what each kit draws, control by control: markup, what the definition contributes, options, Bootstrap links | hand |
 | `docs/architecture.md` | everything somebody needs to **work on the service**: layers, the model, storage, the gates, the pages and their markup conventions, operations, testing | hand |
+| `docs/deploying-behind-a-gateway.md` | everything somebody needs to **put this in front of people**: the six rules, the identity header, the decision point's contract, and what goes wrong. `examples/gateway/` is its runnable half | hand |
 | `docs/api.md`, `docs/openapi.yaml` | the endpoint reference | `make docs` — **never by hand** |
 
 So: a new item type, a new refusal code or a new skin → `configuring-forms.md`, and a new
 **widget** → `kits.md` as well, which is the one document that claims to list them all. A new
-port, adapter, cache, command or env var → `architecture.md`. A rule the model keeps → this file
-*and* whichever of the two describes it to its reader. The README grows a line only when the
+port, adapter, cache, command or env var → `architecture.md`. A new **address** — or anything
+that changes what a gateway must let through — → `deploying-behind-a-gateway.md` *and* the
+example beside it, because a rule nobody can run is a rule nobody checks. A rule the model keeps
+→ this file *and* whichever of those documents describes it to its reader. The README grows a line only when the
 thing is one of the first five facts about the project.
 
 ## Repo conventions
