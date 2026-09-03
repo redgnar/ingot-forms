@@ -133,6 +133,13 @@ services:
         arguments:
             $defaultSkin: '%forms.skin%'
 
+    # A record is read in the language the caller asked for, the document's own
+    # default, or — when neither says — the deployment's. That last one is
+    # configuration, so it is named here rather than picked inside a use case.
+    App\Application\Forms\UseCase\ReadFormRecord:
+        arguments:
+            $fallbackLocale: '%kernel.default_locale%'
+
     # The definition mapper is configuration, not a consumer's private detail:
     # one named service, built by a domain factory, injected where it is needed.
     forms.definition_mapper:
@@ -173,6 +180,7 @@ services:
     App\Application\Forms\Port\DataSchemas: '@App\Infrastructure\Cache\CachedDataSchemaProvider'
     App\Application\Forms\Port\FileStore: '@App\Infrastructure\Files\FlysystemFileStore'
     App\Application\Forms\Port\FormHistory: '@App\Infrastructure\Persistence\DoctrineFormHistory'
+    App\Application\Forms\Port\RecordDocuments: '@App\Infrastructure\Pdf\DompdfRecordDocuments'
 
     App\Infrastructure\Persistence\DoctrineFormRepository:
         arguments:

@@ -34,7 +34,7 @@ the same ones.
 | 1 | `/api/schemas/` | anybody, deliberately — a contract stated once has to be reachable | GET |
 | 2 | `FORMS_ASSETS_PREFIX` (`/assets/` by default) | anybody; not a route, served as files, cacheable, holds no form data | GET |
 | 3 | `/api/manage/forms` | the system that owns the forms — **never the open internet** | POST |
-| 4 | `/api/manage/**` | the same system: the envelope, the history with actors, the deliveries, delete | any |
+| 4 | `/api/manage/**` | the same system: the envelope, the history with actors, the deliveries, the PDF record, delete | any |
 | 5 | `/api/forms/{id}/**` | whoever that system let through to *that* form | GET reads, `POST …/confirm` confirms, other mutating methods fill |
 | 6 | `/forms/{id}` and `/forms/{id}/versions/{seq}` | the same person, in a browser | GET |
 

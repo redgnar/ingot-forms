@@ -330,6 +330,22 @@ final class OpenApiComplianceTest extends WebTestCase
                 $test->putJson(\sprintf('/api/forms/%s/data', $id), self::PARTIAL_DATA);
                 $test->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
             }],
+            ['GET', '/api/manage/forms/{id}/pdf', 200, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s/pdf', $test->confirmedForm()));
+            }],
+            ['GET', '/api/manage/forms/{id}/pdf', 404, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s/pdf', Uuid::v7()->toRfc4122()));
+            }],
+            ['GET', '/api/manage/forms/{id}/pdf', 409, true, '', static function (self $test): void {
+                // A draft is not a record of anything yet.
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s/pdf', $test->createForm()));
+            }],
+            ['GET', '/api/manage/forms/{id}/pdf', 410, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s/pdf', $test->expiredForm()));
+            }],
+            ['GET', '/api/manage/forms/{id}/pdf', 422, false, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/forms/%s/pdf?lang=polish!', $test->confirmedForm()));
+            }],
             ['GET', '/api/forms/{id}/presentation', 200, true, '', static function (self $test): void {
                 $test->client->request('GET', \sprintf('/api/forms/%s/presentation', $test->presentedForm()));
             }],

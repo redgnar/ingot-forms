@@ -15,6 +15,7 @@ service, [configuring-forms.md](configuring-forms.md) is the document you want.
 - [The published contract](#the-published-contract)
 - [The pages](#the-pages)
 - [Telling somebody what happened](#telling-somebody-what-happened)
+- [The record of a confirmed form](#the-record-of-a-confirmed-form)
 - [Where the bytes live](#where-the-bytes-live)
 - [Operations](#operations)
 - [Development](#development)
@@ -659,6 +660,54 @@ where somebody is already watching.
 **Run one deliverer at a time.** `due()` takes no lock, so two runs would each send what the other
 is sending. The promise is at-least-once and the delivery id is what makes a duplicate harmless,
 which is a cheaper answer than holding a row lock across an HTTP call.
+
+## The record of a confirmed form
+
+`GET /api/manage/forms/{id}/pdf` answers with the archival copy of a confirmed form: every
+question, the answer it was given, and who closed it and when. Four decisions hold it together,
+and each is the kind that is cheap now and expensive later.
+
+**It is not the page.** Rendering the existing HTML with headless Chrome was the obvious reuse and
+was refused twice over. A deployment of this service needs PHP, a database and somewhere to put
+files; wanting a browser as well — or a second container to talk to — is a demand on everybody
+who installs it, for the sake of one endpoint. And a page is not a record: it carries triggers,
+the reader's own switches and whichever skin the document named, so an archival document would
+look different because a form was dressed differently. `dompdf` lays out a plain template of its
+own (`templates/record/form.html.twig`), needs only `ext-dom` and `ext-mbstring` — both already in
+the image — and is told it may fetch nothing at all, so a renderer that cannot reach out cannot be
+made to reach somewhere it should not, or to hang on a network.
+
+**It needs no presentation.** `PresentedNodes` refuses a form that has none, and rightly: a page
+has nothing to draw. A record is of what was asked and what came back, and the definition says
+both — so `FormRecords` walks the definition, and the presentation, when there is one, decides the
+order, the labels and how an option reads. That is what keeps the deployments most likely to want
+an archive (the API-only ones) from being the ones that cannot have it. Both readers resolve a
+translation code through the same `Words`, so a label cannot read one way on screen and another on
+paper.
+
+**It is on the management prefix**, which follows from the identity rule rather than from taste:
+the record names the author and the confirmer, and an actor is served on that side and nowhere
+else (see [Who may do what](#who-may-do-what)).
+
+**Nothing is stored.** A confirmed form cannot change, so the document is the same every time it
+is asked for; a copy kept here would be a second representation of the same values, with a
+lifecycle of its own to clean up and a rendering that quietly stops matching the code that made
+it. Whoever needs a frozen artifact keeps the bytes they downloaded, which is what an archive is.
+A draft is refused (`FormNotConfirmed` → `409`): nothing is wrong with a draft, it is simply not a
+record of anything yet.
+
+A row is one of **three types** — `Answered` (a question and its answer), `Entries` (a list and
+the documents in it) and `Section` (a group under a heading), behind `RecordedRow` — for the
+reason `PresentedNode` is three: code walking a record asks what a row is instead of checking
+which member happens to be there. `kind()` rides along only because a template cannot ask
+`instanceof`. `Section` is what a labelled container becomes: the shape goes, the words stay.
+
+The layers are the usual ones. `RecordSheet` and the rows are the reading (Application, no
+rules and no idea what they will be rendered into), `FormRecords` builds it, `RecordDocuments` is
+the port — one method wide, a sheet in and bytes out, so nothing about fonts or page sizes reaches
+a use case — and `DompdfRecordDocuments` fills it. `FormRecords` is also **the one place in PHP
+that turns a stored value into text**: the kits do it in Twig and in JavaScript, each for its own
+controls, and a second copy of this reading is the thing to refuse.
 
 ## Where the bytes live
 

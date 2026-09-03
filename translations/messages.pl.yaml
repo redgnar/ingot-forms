@@ -32,6 +32,17 @@ page:
     stepper:
         less: 'Mniej'
         more: 'Więcej'
+    record:
+        title: 'Zapis zatwierdzonego formularza'
+        form: 'Formularz'
+        created: 'Utworzony'
+        confirmed: 'Zatwierdzony'
+        author: 'Utworzył'
+        confirmedBy: 'Zatwierdził'
+        entry: 'Wpis %n% z %of%'
+        unanswered: 'bez odpowiedzi'
+        empty: 'pozostawione puste'
+        footer: 'To jest zapis tego, o co pytano, i tego, co odpowiedziano. Odpowiedzi nie można już zmienić: zatwierdzony formularz jest zamknięty na dobre.'
     ticked: 'tak'
     unticked: 'nie'
     entry:

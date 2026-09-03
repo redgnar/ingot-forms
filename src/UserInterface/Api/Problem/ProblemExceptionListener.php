@@ -9,6 +9,7 @@ use App\Application\Forms\Exception\FileBudgetSpent;
 use App\Application\Forms\Exception\FileEmpty;
 use App\Application\Forms\Exception\FileMissing;
 use App\Application\Forms\Exception\FileTooLarge;
+use App\Application\Forms\Exception\FormNotConfirmed;
 use App\Application\Forms\Exception\RevisionNotFound;
 use App\Application\Forms\Exception\WebhooksNotSignable;
 use App\Domain\Forms\Exception\CarriesFindings;
@@ -80,6 +81,9 @@ final class ProblemExceptionListener
         // Nothing to confirm. The read endpoint answers 404 for the same state and
         // translates it itself — a missing document, not a conflict.
         FormHasNoData::class => [409, 'form-data-empty', 'There is no data to confirm.'],
+        // A draft is not a wrong state, it is the wrong *thing* to ask for: a
+        // record is the archival copy of a document somebody closed.
+        FormNotConfirmed::class => [409, 'form-not-confirmed', 'The form is not confirmed, so there is no record of it.'],
         // This form records who fills it in, and nothing asserted anybody. Not a
         // 422: nothing is wrong with the document, so there is no pointer to
         // give — the caller may not do this on account of who they are not.

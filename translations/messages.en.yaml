@@ -36,6 +36,17 @@ page:
     stepper:
         less: 'Less'
         more: 'More'
+    record:
+        title: 'Record of a confirmed form'
+        form: 'Form'
+        created: 'Created'
+        confirmed: 'Confirmed'
+        author: 'Created by'
+        confirmedBy: 'Confirmed by'
+        entry: 'Entry %n% of %of%'
+        unanswered: 'not answered'
+        empty: 'left empty'
+        footer: 'This is a record of what was asked and what was answered. The answers cannot be changed: a confirmed form is closed for good.'
     ticked: 'yes'
     unticked: 'no'
     entry:

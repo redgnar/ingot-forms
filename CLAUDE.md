@@ -155,6 +155,34 @@ fifth, "this caller for this form", is delegated rather than deferred.
 Both halves are built. What is still missing is the gateway itself, which is a deployment and not
 code here.
 
+**A confirmed form has a record, and it is not a page.** `GET /api/manage/forms/{id}/pdf`
+answers with the archival copy: every question, the answer it was given, and who closed the form
+and when. Three things about it are decisions rather than details. It **needs no presentation** —
+a page cannot be drawn without a document saying how, but a record is of what was asked and what
+came back, and the definition says both, so the deployments most likely to want an archive (the
+ones that never draw a page) are not the ones that cannot have one; when there is a presentation
+it decides the order, the labels and how each option reads. It is on the **management prefix**,
+and that follows from the identity rule rather than from taste: a record names the author and the
+confirmer, and an actor is served there and nowhere else. And it is **generated on request and
+stored nowhere** — a confirmed form cannot change, so a kept copy would be a second
+representation with a lifecycle to clean up and a rendering that quietly stops matching the code
+that made it; whoever needs a frozen artifact keeps the bytes they downloaded, which is what an
+archive is. A draft is refused (`409 form-not-confirmed`): nothing is wrong with a draft, it is
+simply not a record of anything yet. Laid out by a **library and not a browser** (`dompdf`, one
+plain template of its own): a deployment needs PHP, a database and somewhere for files, and
+wanting a browser as well — for one endpoint — is a demand on everybody who installs this; and a
+page is not a record anyway, since it carries triggers, the reader's switches and whichever skin
+somebody chose. `FormRecords` is the one place in PHP that turns a stored value into text (the
+kits do it in Twig and JavaScript, each for its own controls), so a second copy of that reading
+is the thing to refuse. **A container keeps its words and loses its shape**: a card, an accordion
+and a row are three ways of *looking*, so none of them is drawn — but one carrying a label
+carries a sentence somebody wrote about the questions inside it, and that becomes a heading; one
+with no label is stepped through, a heading with no words being a line where a sentence should
+be. A row is one of **three types** (`Answered`, `Entries`, `Section` behind `RecordedRow`,
+`kind()` riding along only because a template cannot ask `instanceof`) for the reason
+`PresentedNode` is three: code walking a record asks what a row *is* rather than which member
+happens to be there.
+
 **How a form reports itself.** A form may name where it is told about, per event
 (`webhooks: {created?, save?, confirm?, deleted?}`), given at creation and immutable like
 everything else; naming none is the default and queues nothing. `created` was refused at first —
@@ -228,8 +256,8 @@ form naming files that are gone, while a directory with no row is provably garba
 collected. That is what closed the old worry about a purge having to succeed in two places.
 
 Three exceptions this buys, each deliberate and each stated where it lives: the upload is the
-one endpoint whose body is not JSON, the download is the one that does not answer with a
-document, and `ReferencedFilesExist` is one of two gates stricter than the published
+one endpoint whose body is not JSON, the download is one of two that do not answer with a
+document (the other being the record below), and `ReferencedFilesExist` is one of two gates stricter than the published
 contract — no schema can state "this id exists", any more than "this form has not expired",
 and a client echoing the upload's answer can never trip it. The second is
 `NumbersFitTheirPrecision`, and its reason is a different one: the schema *has* a word for

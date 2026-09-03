@@ -1,0 +1,101 @@
+{# The archival copy of a confirmed form. Deliberately plain: a record is read,
+   filed and printed, and it must look the same whatever a form was dressed in
+   on screen — so nothing here comes from a skin, a kit or a theme.
+
+   Every sentence is this application's own, from `translations/`, because a
+   record's chrome is ours: the form's text is the author's and arrives already
+   resolved in the rows. #}
+<html lang="{{ sheet.locale }}">
+<head>
+    <meta charset="utf-8">
+    <title>{{ 'page.record.title'|trans({}, null, sheet.locale) }} {{ sheet.formId }}</title>
+    <style>
+        @page { margin: 18mm 16mm; }
+        body { font-family: DejaVu Sans, sans-serif; font-size: 9.5pt; color: #111; }
+        h1 { font-size: 13pt; margin: 0 0 2mm; }
+        .facts { width: 100%; border-collapse: collapse; margin-bottom: 6mm; font-size: 8.5pt; color: #333; }
+        .facts th { text-align: left; width: 32mm; font-weight: normal; color: #666; padding: 0.6mm 0; vertical-align: top; }
+        .facts td { padding: 0.6mm 0; vertical-align: top; }
+        table.rows { width: 100%; border-collapse: collapse; }
+        table.rows th { text-align: left; width: 42%; font-weight: normal; color: #444; padding: 1.6mm 2mm 1.6mm 0; vertical-align: top; border-bottom: 0.2mm solid #ddd; }
+        table.rows td { padding: 1.6mm 0; vertical-align: top; border-bottom: 0.2mm solid #ddd; }
+        .unanswered { color: #999; }
+        .entry { margin: 1.5mm 0 0; }
+        .entry-of { color: #666; font-size: 8pt; margin: 0 0 0.5mm; }
+        .section { padding: 3mm 0 1mm; }
+        .section-of { font-weight: bold; font-size: 10pt; margin: 0 0 1mm; }
+        .nested { margin-left: 4mm; }
+        .footer { margin-top: 8mm; padding-top: 2mm; border-top: 0.2mm solid #ddd; color: #666; font-size: 7.5pt; }
+    </style>
+</head>
+<body>
+<h1>{{ 'page.record.title'|trans({}, null, sheet.locale) }}</h1>
+
+<table class="facts">
+    <tr><th>{{ 'page.record.form'|trans({}, null, sheet.locale) }}</th><td>{{ sheet.formId }}</td></tr>
+    <tr><th>{{ 'page.record.created'|trans({}, null, sheet.locale) }}</th><td>{{ sheet.createdAt|date('Y-m-d H:i') }} (UTC)</td></tr>
+    <tr><th>{{ 'page.record.confirmed'|trans({}, null, sheet.locale) }}</th><td>{{ sheet.confirmedAt|date('Y-m-d H:i') }} (UTC)</td></tr>
+    {# Who, when this form records anybody. An anonymous form says nothing here
+       rather than saying "nobody": the absence is the record. #}
+    {% if sheet.author %}<tr><th>{{ 'page.record.author'|trans({}, null, sheet.locale) }}</th><td>{{ sheet.author }}</td></tr>{% endif %}
+    {% if sheet.confirmedBy %}<tr><th>{{ 'page.record.confirmedBy'|trans({}, null, sheet.locale) }}</th><td>{{ sheet.confirmedBy }}</td></tr>{% endif %}
+</table>
+
+{{ _self.rows(sheet.rows, sheet.locale) }}
+
+<p class="footer">{{ 'page.record.footer'|trans({}, null, sheet.locale) }}</p>
+</body>
+</html>
+
+{% macro rows(rows, locale) %}
+    <table class="rows">
+        {% for row in rows %}
+            {% if row.kind == 'section' %}
+                {# A container kept its words and lost its shape: no card, no
+                   accordion, and the sentence its author wrote about the
+                   questions inside it — over both columns, because it is about
+                   all of them. #}
+                <tr>
+                    <td class="section" colspan="2">
+                        <p class="section-of">{{ row.label }}</p>
+                        {{ _self.rows(row.rows, locale) }}
+                    </td>
+                </tr>
+            {% else %}
+            <tr>
+                <th>{{ row.label }}</th>
+                <td>
+                    {% if row.kind == 'entries' %}
+                        {# A list is answered once per entry, and each entry is a
+                           document of its own — so it is drawn as one, indented,
+                           rather than flattened into a sentence nobody can read
+                           back. A list with no entries was asked and left alone,
+                           which is the same "not answered" as anywhere else. #}
+                        {% if row.entries is empty %}
+                            <span class="unanswered">{{ 'page.record.unanswered'|trans({}, null, locale) }}</span>
+                        {% endif %}
+                        {% for entry in row.entries %}
+                            <div class="entry">
+                                <p class="entry-of">{{ 'page.record.entry'|trans({'%n%': loop.index, '%of%': row.entries|length}, null, locale) }}</p>
+                                <div class="nested">{{ _self.rows(entry, locale) }}</div>
+                            </div>
+                        {% endfor %}
+                    {% elseif row.answer is same as(true) %}
+                        {{ 'page.ticked'|trans({}, null, locale) }}
+                    {% elseif row.answer is same as(false) %}
+                        {{ 'page.unticked'|trans({}, null, locale) }}
+                    {% elseif row.answer is null %}
+                        {# Not answered, which is not the same as answered with
+                           nothing — a record has to be able to say which. #}
+                        <span class="unanswered">{{ 'page.record.unanswered'|trans({}, null, locale) }}</span>
+                    {% elseif row.answer == '' %}
+                        <span class="unanswered">{{ 'page.record.empty'|trans({}, null, locale) }}</span>
+                    {% else %}
+                        {{ row.answer|nl2br }}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
+        {% endfor %}
+    </table>
+{% endmacro %}

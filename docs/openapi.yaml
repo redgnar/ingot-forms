@@ -461,6 +461,64 @@ paths:
                   value: { type: 'urn:problem:ingot-forms:presentation-not-set', title: 'The form has no presentation.', status: 404 }
         '410':
           $ref: '#/components/responses/FormGone'
+  '/api/manage/forms/{id}/pdf':
+    get:
+      summary: 'Download a confirmed form as a PDF'
+      description: "The archival copy: every question the definition declares, the answer it was given, and who closed the form and when.\n\nGenerated on request and stored nowhere — a confirmed form cannot change, so the document is the same every time. Keep the bytes if you need a frozen artifact.\n\nIt does **not** need a presentation. A page cannot be drawn without one, but a record is of what was asked and what came back, and the definition says both; when there is a presentation it decides the order, the labels and how each option reads."
+      operationId: getFormRecord
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+        -
+          name: lang
+          in: query
+          description: "Which language the record is read in — a locale the presentation carries a catalogue for. `auto` (the default) uses the document's own default locale, and a form with no presentation is unaffected either way: its labels are the definition's item names."
+          required: false
+          schema:
+            description: "Which language the record is read in — a locale the presentation carries a catalogue for. `auto` (the default) uses the document's own default locale, and a form with no presentation is unaffected either way: its labels are the definition's item names."
+            type: string
+            pattern: '.*(^(auto|[A-Za-z]{2,8}([_-][A-Za-z0-9]{2,8})*)$).*'
+            example: pl
+            default: auto
+            maxLength: 35
+          example: pl
+      responses:
+        '200':
+          description: 'The record, as a PDF attachment.'
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/FormNotFound'
+        '409':
+          description: 'The form is still a draft, so there is nothing to record.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                form-not-confirmed:
+                  summary: 'Asking for a record of a draft'
+                  value: { type: 'urn:problem:ingot-forms:form-not-confirmed', title: 'The form is not confirmed, so there is no record of it.', status: 409 }
+        '410':
+          $ref: '#/components/responses/FormGone'
+        '422':
+          description: 'The requested language is not a locale.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                request-not-valid:
+                  summary: 'Something that is not a locale'
+                  value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /lang, code: request.pattern, message: 'lang must be a locale such as "pl" or "pl-PL".', input: polish! }] }
   '/api/forms/{id}/history/{seq}':
     get:
       summary: 'Read one save of this form'
@@ -1078,6 +1136,16 @@ components:
           default: null
       type: object
       additionalProperties: false
+    RecordQuery:
+      properties:
+        lang:
+          description: "Which language the record is read in — a locale the presentation carries a catalogue for. `auto` (the default) uses the document's own default locale, and a form with no presentation is unaffected either way: its labels are the definition's item names."
+          type: string
+          pattern: '.*(^(auto|[A-Za-z]{2,8}([_-][A-Za-z0-9]{2,8})*)$).*'
+          example: pl
+          default: auto
+          maxLength: 35
+      type: object
     DataSchemaQuery:
       properties:
         mode:

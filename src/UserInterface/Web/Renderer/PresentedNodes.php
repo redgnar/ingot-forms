@@ -16,6 +16,7 @@ use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\Presentation\PresentationActions;
 use App\Domain\Forms\Presentation\PresentedItem;
+use App\Domain\Forms\Presentation\Words;
 use App\UserInterface\Web\FormApi;
 use App\UserInterface\Web\Renderer\Node\BranchNode;
 use App\UserInterface\Web\Renderer\Node\CollectionNode;
@@ -484,31 +485,12 @@ final class PresentedNodes
      */
     private static function text(?string $code, array $translations, string $locale, ?string $default): ?string
     {
-        if ($code === null) {
-            return null;
-        }
-
-        foreach (self::candidates($locale, $default) as $candidate) {
-            if (isset($translations[$candidate][$code])) {
-                return $translations[$candidate][$code];
-            }
-        }
-
-        return $code;
+        // The chain is the presentation's own ({@see Words}), because a record
+        // resolves the same codes and two chains would be two fallbacks — a form
+        // reading one way on screen and another on paper.
+        return Words::forCatalogues($translations, $locale, $default)->text($code);
     }
 
-    /**
-     * @return list<string>
-     */
-    private static function candidates(string $locale, ?string $default): array
-    {
-        $language = preg_replace('/[_-].*$/', '', $locale) ?? $locale;
-
-        return array_values(array_unique(array_filter(
-            [$locale, $language, $default],
-            static fn(?string $candidate): bool => $candidate !== null && $candidate !== '',
-        )));
-    }
 
     /**
      * What a document gets for saying nothing about a value: the plainest

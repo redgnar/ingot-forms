@@ -26,6 +26,7 @@ this reference cannot drift from the implementation.
 | [`GET /api/forms/{id}/history`](#get-apiformsidhistory) | `getFormHistory` | List every accepted save of this form | `200`, `404`, `410` |
 | [`GET /api/manage/forms/{id}/history`](#get-apimanageformsidhistory) | `getManagedFormHistory` | List every accepted save of this form, with who entered it | `200`, `404`, `410` |
 | [`GET /api/forms/{id}/presentation`](#get-apiformsidpresentation) | `getFormPresentation` | Read how the form is shown | `200`, `404`, `410` |
+| [`GET /api/manage/forms/{id}/pdf`](#get-apimanageformsidpdf) | `getFormRecord` | Download a confirmed form as a PDF | `200`, `404`, `409`, `410`, `422` |
 | [`GET /api/forms/{id}/history/{seq}`](#get-apiformsidhistoryseq) | `getFormRevision` | Read one save of this form | `200`, `404`, `410` |
 | [`GET /api/schemas/{document}`](#get-apischemasdocument) | `getMetaSchema` | Read the meta-schema of a definition or a presentation | `200`, `404` |
 | [`GET /api/forms/{id}/schema`](#get-apiformsidschema) | `getFormDataSchema` | Read the values schema derived from the definition | `200`, `404`, `410`, `422` |
@@ -281,6 +282,29 @@ The document as it was set. Codes are served unresolved: which language a client
 | `200` | `application/json` | [`FormPresentation`](#formpresentation) | The presentation document. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | Unknown form, or a form nobody has said anything about yet. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
+
+### GET /api/manage/forms/{id}/pdf
+
+`operationId: getFormRecord` — Download a confirmed form as a PDF
+
+The archival copy: every question the definition declares, the answer it was given, and who closed the form and when. Generated on request and stored nowhere — a confirmed form cannot change, so the document is the same every time. Keep the bytes if you need a frozen artifact. It does **not** need a presentation. A page cannot be drawn without one, but a record is of what was asked and what came back, and the definition says both; when there is a presentation it decides the order, the labels and how each option reads.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `id` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+| `lang` | query | no | `string` (max length 35, pattern `.*(^(auto|[A-Za-z]{2,8}([_-][A-Za-z0-9]{2,8})*)$).*`) | Which language the record is read in — a locale the presentation carries a catalogue for. `auto` (the default) uses the document's own default locale, and a form with no presentation is unaffected either way: its labels are the definition's item names. |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | `application/pdf` | `string` (`binary`) | The record, as a PDF attachment. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
+| `409` | `application/problem+json` | [`Problem`](#problem) | The form is still a draft, so there is nothing to record. |
+| `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
+| `422` | `application/problem+json` | [`Problem`](#problem) | The requested language is not a locale. |
 
 ### GET /api/forms/{id}/history/{seq}
 
@@ -576,6 +600,12 @@ No other properties are allowed.
 | `webhooks` | `object \| null` | no | Where this form reports what happens to it. All members are optional and independent: `created` is told when the form comes into being (for a receiver that is not whoever created it), `save` when a draft save was accepted, `confirm` when the form was confirmed, `deleted` when it stops existing (deleted, or reaped for having expired — the notification says which in `reason`). What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — so a receiver reads the document through this API, signed with this deployment's secret in `X-Forms-Signature`. Immutable with the definition: changing where a form reports means deleting it and creating a new one. Omit it, or omit either member, and nobody is told. |
 
 No other properties are allowed.
+
+### RecordQuery
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `lang` | `string` (max length 35, pattern `.*(^(auto|[A-Za-z]{2,8}([_-][A-Za-z0-9]{2,8})*)$).*`) | no | Which language the record is read in — a locale the presentation carries a catalogue for. `auto` (the default) uses the document's own default locale, and a form with no presentation is unaffected either way: its labels are the definition's item names. |
 
 ### DataSchemaQuery
 

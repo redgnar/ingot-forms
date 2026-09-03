@@ -31,6 +31,7 @@ answered is a form whose answers were given to the questions it had.
 - [Widget reference](#widget-reference)
 - [Accessibility: what the reader controls, and what you can default](#accessibility-what-the-reader-controls-and-what-you-can-default)
 - [Being told what happened](#being-told-what-happened)
+- [The record of a confirmed form](#the-record-of-a-confirmed-form)
 - [History](#history)
 - [Talking to the API](#talking-to-the-api)
 - [When something is refused](#when-something-is-refused)
@@ -860,6 +861,40 @@ the next run, and a receiver that was broken and is now fixed is the deployment'
 and `request.unexpected_key` for a third event nobody has. Changing where a form reports itself
 means deleting it and creating a new one, like everything else about a form.
 
+## The record of a confirmed form
+
+A confirmed form is closed for good, which is exactly when somebody wants to file it:
+`GET /api/manage/forms/{id}/pdf` is that document. Every question the definition declares, the
+answer it was given, and the facts a record is filed by — the form's id, when it was created and
+confirmed, and the author and confirmer when the form records anybody.
+
+It is **not a page turned into a PDF**, and that is deliberate. A page carries triggers, the
+reader's own switches and whichever skin the document chose, so an archival copy would look
+different because a form was dressed differently; and rendering one would need a browser at
+runtime, which is a demand on every deployment for the sake of one endpoint. The record has a
+plain layout of its own and looks the same always.
+
+**It needs no presentation.** A page cannot be drawn without a document saying how, but a record
+is of what was asked and what came back — the definition says both. Without a presentation the
+labels are the item names in declaration order; with one, it decides the order, the labels and
+how each option reads (`Sprzęt (hardware)` — the words the document gave the option, with the
+value that was actually sent beside them, because that is what a reader is asking about).
+
+A container **keeps its words and loses its shape**. A card, an accordion and a row are three
+ways of looking, so a record draws none of them — but a container with a label carries a sentence
+its author wrote about the questions inside it ("When and where"), and that becomes a heading with
+those questions under it. A container with no label is stepped through: there is nothing to say
+about it.
+
+Answers read back as text: a tick is the page's own *yes* / *no*, a moment keeps its offset
+(`2026-03-01 14:30 (UTC+01:00)`), a file is its name, size, type and id — the bytes stay where
+they were, behind `GET /api/forms/{id}/files/{fileId}` — and a list is one block per entry, each
+with its own questions. A question nobody answered says *not answered*, which is not the same as
+one answered with nothing.
+
+Nothing is stored: the document is generated on request and is the same every time, because a
+confirmed form cannot change. Keep the bytes if you need a frozen artifact.
+
 ## History
 
 Every accepted save is kept. A draft save writes the current values onto the row *and* appends a
@@ -987,6 +1022,7 @@ message beside a control needs to know which control.
 |---|---|
 | `POST /api/manage/forms` | Create a form. Body: `{"expireDate": "<RFC 3339>", "definition": {…}, "presentation": {…}?, "data": {…}?, "identity": "recorded"\|"anonymous"?}`. `201` + `Location`, answering with `{"id": …}` alone. |
 | `GET /api/manage/forms/{id}` | Full envelope: definition, status, data, timestamps. |
+| `GET /api/manage/forms/{id}/pdf` | The archival copy of a **confirmed** form as a PDF: every question, the answer it was given, who closed it and when. `?lang=xx` reads it in one of the presentation's catalogues (`auto`, the default, uses the document's own). `409 form-not-confirmed` for a draft. Needs no presentation. |
 | `GET /api/manage/forms/{id}/history` | Every accepted save, newest first, each with the identity that was asserted when it was accepted (`actor`, null on an `anonymous` form). The management side of `GET /api/forms/{id}/history`, which carries no `actor` at all. |
 | `DELETE /api/manage/forms/{id}` | `204`. The "definition changed" path is delete + recreate. |
 | `GET /api/forms/{id}/schema` | Derived JSON Schema of the form's *values* (`application/schema+json`). `?mode=draft` returns the relaxed variant. |
