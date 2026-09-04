@@ -151,7 +151,19 @@ final class Form
         $this->expireDate = $expireDate;
         $this->createdAt = self::utc($now ?? new \DateTimeImmutable());
         $this->identity = $identity;
-        $this->author = $author;
+        // **Discarded here too.** A form promising anonymity has to be the thing
+        // that drops an assertion, and the creation is an assertion like any
+        // other — a proxy asserting on every request would otherwise have named
+        // the author of every anonymous form ever created. And the mode is the
+        // *creator's own configuration*: whoever asks for a form that records
+        // nobody is asking for that about themselves as well, and loses nothing
+        // by it, since a system that created a form already knows it did.
+        //
+        // Discarded, never demanded: `recorded` fails loudly at the first save
+        // rather than at creation, because a deployment is allowed to put its
+        // proxy in front of the pages and not in front of whoever creates the
+        // forms.
+        $this->author = $this->kept($author);
         // Nobody, unless somebody said otherwise — and said it now, because this
         // is the only moment it can be said.
         $this->webhooks = $webhooks ?? Webhooks::none();
@@ -175,6 +187,14 @@ final class Form
      * what they read: nothing is judged again — it was judged on the way in —
      * and nothing is recorded, because reading is not something that happened
      * to the form.
+     *
+     * The identity mode is the one thing that still applies, because it goes
+     * through the constructor: a form that records nobody cannot be *built*
+     * holding an author, however it is built. That is not judging a stored
+     * document — nothing is refused — it is the same invariant on the way out as
+     * on the way in, and an invariant a read can walk around is not one. Rows
+     * written before the author was discarded therefore read back with none, and
+     * `Version20260904090000` takes it out of the table as well.
      */
     public static function fromState(
         FormId $id,
@@ -339,11 +359,28 @@ final class Form
      */
     private function attribute(?Actor $actor): ?Actor
     {
-        if (!$this->identity->needsAnActor()) {
-            return null;
+        $kept = $this->kept($actor);
+
+        if ($kept === null && $this->identity->needsAnActor()) {
+            throw new IdentityRequired($this->id());
         }
 
-        return $actor ?? throw new IdentityRequired($this->id());
+        return $kept;
+    }
+
+    /**
+     * What this form keeps of an identity somebody handed in — the discard on
+     * its own, without the demand.
+     *
+     * Both halves are one rule ({@see attribute()}), and one of them applies at
+     * a moment where the other must not: creating a form cannot insist on an
+     * actor, or a `recorded` form would be impossible to create without a proxy
+     * in front of the management side, while it must still refuse to *record*
+     * one on a form promising anonymity.
+     */
+    private function kept(?Actor $actor): ?Actor
+    {
+        return $this->identity->needsAnActor() ? $actor : null;
     }
 
     /** Whether this form records who fills it in. */

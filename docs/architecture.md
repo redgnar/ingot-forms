@@ -158,9 +158,8 @@ effect one cache lifetime late, which is the ordinary bargain.
 **What identity is.** Three slots and no fourth: the **author** on the form, asserted at creation;
 the **confirmer** on the form, which needs a slot of its own because confirming writes no values and
 is therefore no revision of its own; and the **filler** on every revision. "Who last changed this
-form" is not stored — the newest revision already answers it. The author and the fill side are
-orthogonal: an anonymous form still has an author, because somebody created it, and creating happens
-where a caller is always known.
+form" is not stored — the newest revision already answers it. All three go through the same
+discard: an `anonymous` form records nobody, the author included.
 
 `Actor` (one opaque subject) and `IdentityMode` are the domain's; `IdentityIntake` is the boundary's
 — a value resolver, so an action declares `?Actor` as an argument and passes it to a use case.
@@ -170,10 +169,21 @@ what was resolved for that one request.
 `identity: recorded | anonymous` is a third top-level property of a form beside its definition, its
 values and its `expire_date` — given at creation with `POST /api/manage/forms`, immutable, and
 **defaulting to `recorded`**.
-`anonymous` means the filler is **not** stored *even when the proxy asserted one*, which is the one
-half of this that cannot be delegated, so the aggregate discards it. It defaults to `recorded`
-because the two options fail differently: `anonymous` by default fails silently and unrecoverably,
-`recorded` by default fails loudly at the first save.
+`anonymous` means nobody is stored *even when the proxy asserted somebody* — the filler, the
+confirmer and the **author** alike — which is the one half of this that cannot be delegated, so the
+aggregate discards it. The author was the exception once, on the reasoning that creating happens
+where a caller is always known; that made "this form records nobody" a sentence in a document
+rather than a property of the form, and behind a proxy asserting on every request it named the
+creator of every anonymous form. The mode is the creator's own configuration: asking for a form
+that records nobody is asking for that about oneself as well, and a system that created a form has
+not forgotten that it did. Rows written under the old rule were repaired by
+`Version20260904090000`, which is possible precisely because this is one column rather than a
+forgeable header.
+
+Discarding is never *demanding*: creating a `recorded` form with nobody asserted is allowed, since a
+deployment may put its proxy in front of the pages and not in front of whoever creates the forms. It
+defaults to `recorded` because the two options fail differently: `anonymous` by default fails
+silently and unrecoverably, `recorded` by default fails loudly at the first save.
 
 An absent header falls back to **`FORMS_IDENTITY_FALLBACK`**; with that unset, a save on a
 `recorded` form is refused (`IdentityRequired`, `403`). That is deliberately the only thing this
@@ -182,9 +192,8 @@ header visible instead of recording `unattributed` forever. The fallback value s
 and obviously not a person (`unattributed`, not `system`), so a row saying "nobody told us" is a
 fact rather than something mistakable for a subject.
 
-**Confirming is judged the same way a save is**, and that is worth stating because it is the one
-place the "author is orthogonal" rule stops: closing a form is something the person filling it in
-does, so an `anonymous` form records nobody as its confirmer however much the proxy asserted. A
+**Confirming is judged the same way a save is**: closing a form is something the person filling it
+in does, so an `anonymous` form records nobody as its confirmer however much the proxy asserted. A
 promise of anonymity that names whoever pressed "send" is not a promise.
 
 **Asserted, never claimed**: identity arrives in `X-Forms-Identity` and nowhere else, and nothing

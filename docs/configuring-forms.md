@@ -1001,8 +1001,10 @@ was let through to a form learns nothing about who else filled it in.
 Nothing about it is ever **drawn on a page**, in either kit, and nothing about it changes how a form
 is described: who answers is not an item and not a widget. The one thing a creation request says
 about it is `identity`, which is `recorded` unless you write `anonymous` — and `anonymous` means
-nobody is stored *even when the deployment asserted somebody*, including whoever pressed the button
-that locked the form. See [Who may do what](architecture.md#who-may-do-what) for where the identity
+nobody is stored *even when the deployment asserted somebody*: not whoever filled the form in, not
+whoever pressed the button that locked it, and **not whoever created it**. The mode is your own
+configuration, so asking for a form that records nobody is asking for that about your own system
+too — which costs nothing, since it knows perfectly well that it created the form. See [Who may do what](architecture.md#who-may-do-what) for where the identity
 comes from and what a deployment has to configure for it to arrive at all.
 
 ## Talking to the API

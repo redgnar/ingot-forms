@@ -90,16 +90,36 @@ sentence should be. That made a third kind of row, which made the rows three typ
 interface rather than one class with the members of all three — the same reasoning `PresentedNode`
 was split under, arrived at from the other end.
 
-## Found on the way, and deliberately not fixed here
+## Found on the way, and settled the next day
 
 The first record printed of a demo form showed **`Utworzył local-dev` on a form declared
 `identity: anonymous`** — which reads like a privacy bug against the sentence "a form may
-instead be declared anonymous and record nobody". It is not a bug: there is a test asserting it
-on purpose (`testTheAuthorIsRecordedWhateverTheFormDoesWithItsFillers`), whose reasoning is that
-an author is the *system* that created the form and `anonymous` is a promise to whoever fills it
-in. The change was made, then reverted, because flipping the meaning of a documented immutable
-property is not a decision to take while building something else. It is written up for whoever
-does decide: the two readings disagree, and one of them is in `CLAUDE.md`.
+instead be declared anonymous and record nobody". It was not a bug but a decision: a test
+asserted it on purpose (`testTheAuthorIsRecordedWhateverTheFormDoesWithItsFillers`), reasoning
+that an author is the *system* that created the form while `anonymous` is a promise to whoever
+fills it in. The fix was written, then reverted, because flipping the meaning of a documented
+immutable property is not a decision to take while building something else — and it was put to
+the owner instead.
+
+**The owner reversed it**, with the argument the old reasoning was missing: `anonymous` is
+**configuration**, and the party configuring it is the very party the old rule kept recording.
+Asking for a form that records nobody is asking for that about oneself as well, and it costs
+nothing — a system that created a form has not forgotten that it did. Keeping the author made
+"this form records nobody" a sentence in a document rather than a property of the form, which is
+what the mode exists to prevent, and behind a proxy asserting on every request it named the
+creator of every anonymous form there had ever been.
+
+So the discard moved into the constructor, where every way of building a form goes through it
+— including `Form::fromState()`, which means a row written under the old rule reads back with no
+author anywhere. That is not a read judging what it reads: nothing is refused, the mode simply
+cannot hold that value, and an invariant a read can walk around is not one. The data at rest is
+repaired too (`Version20260904090000`), because a column holding somebody on a form that promises
+to hold nobody is a promise kept only by whichever code happens to read it.
+
+The discard is still never a *demand*: creating a `recorded` form with nobody asserted stays
+allowed, since a deployment may put its proxy in front of the pages and not in front of whoever
+creates the forms. `recorded` fails loudly at the first save, which is the whole reason it is the
+default.
 
 ## Not built, on purpose
 

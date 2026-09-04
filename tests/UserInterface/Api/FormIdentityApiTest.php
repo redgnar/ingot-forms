@@ -72,9 +72,9 @@ final class FormIdentityApiTest extends WebTestCase
         $this->send('POST', \sprintf('/api/forms/%s/confirm', $id), null, 'owner');
         self::assertResponseStatusCodeSame(204);
 
-        // THEN nobody was kept on the fill side of it: not the filler, not the
-        // person who closed it. Anonymity is a promise, and the only place it can
-        // be kept is here.
+        // THEN nobody was kept anywhere: not the filler, not the person who
+        // closed it, and not whoever created it. Anonymity is a promise, and the
+        // only place it can be kept is here.
         $envelope = $this->read(\sprintf('/api/manage/forms/%s', $id));
         self::assertSame('anonymous', $envelope['identity'] ?? null);
         // Present and null, not absent: the member is part of the contract, and
@@ -87,9 +87,13 @@ final class FormIdentityApiTest extends WebTestCase
         self::assertArrayHasKey('actor', $managed[0]);
         self::assertNull($managed[0]['actor']);
 
-        // AND it still has an author, because somebody created it: the two are
-        // orthogonal, and creating happens where a caller is always known
-        self::assertSame('crm', $envelope['author'] ?? null);
+        // AND the author went the same way, though `crm` was asserted on the
+        // creating call. The mode is the creator's own configuration: asking for
+        // a form that records nobody is asking for that about oneself too, and
+        // nothing is lost by it — the system that created this form has not
+        // forgotten that it did.
+        self::assertArrayHasKey('author', $envelope);
+        self::assertNull($envelope['author']);
     }
 
     public function testAFormBornHoldingValuesAttributesThemToWhoeverCreatedIt(): void

@@ -491,21 +491,46 @@ final class FormTest extends TestCase
         self::assertSame(FormStatus::Draft, $form->status());
     }
 
-    public function testTheAuthorIsRecordedWhateverTheFormDoesWithItsFillers(): void
+    public function testAnAnonymousFormDropsItsAuthorAsWellAsItsFillers(): void
     {
-        // GIVEN a form that records nobody, created by somebody
+        // GIVEN a form that records nobody, created behind a proxy that asserts
+        // an identity on every single request — including this one
         $form = self::form(identity: IdentityMode::Anonymous, author: Actor::of('crm'));
 
-        // THEN it still has an author, and the creation says so: the two are
-        // orthogonal, because an anonymous form was still made by somebody and
-        // creating happens where a caller is always known
-        self::assertSame('crm', (string) $form->author());
+        // THEN nobody is named anywhere, and the creation says nothing either.
+        // The mode is the *creator's own configuration*: asking for a form that
+        // records nobody is asking for that about oneself too, and nothing is
+        // lost by it — a system that created a form has not forgotten that it
+        // did. Keeping it would make "this form records nobody" a sentence in a
+        // document rather than a property of the form.
+        self::assertNull($form->author());
         self::assertSame(IdentityMode::Anonymous, $form->identityMode());
 
         $events = $form->releaseEvents();
         self::assertCount(1, $events);
         self::assertInstanceOf(FormCreated::class, $events[0]);
+        self::assertNull($events[0]->author);
+    }
+
+    public function testAFormThatRecordsAnybodyKeepsItsAuthorAndNeverDemandsOne(): void
+    {
+        // GIVEN a form that records who touches it, created by a system that
+        // was asserted
+        $form = self::form(identity: IdentityMode::Recorded, author: Actor::of('crm'));
+
+        // THEN the creation is attributed
+        self::assertSame('crm', (string) $form->author());
+        $events = $form->releaseEvents();
+        self::assertInstanceOf(FormCreated::class, $events[0]);
         self::assertSame('crm', (string) $events[0]->author);
+
+        // AND creating one with nobody asserted is still allowed: a deployment
+        // may put its proxy in front of the pages and not in front of whoever
+        // creates the forms, and `recorded` is what fails loudly at the first
+        // save rather than at creation
+        $unattributed = self::form(identity: IdentityMode::Recorded);
+        self::assertNull($unattributed->author());
+        self::assertSame(FormStatus::Empty, $unattributed->status());
     }
 
     public function testConfirmingIsAttributedUnderTheSameRuleAsASave(): void

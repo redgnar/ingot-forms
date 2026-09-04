@@ -323,8 +323,9 @@ nelmio_api_doc:
                             description: >-
                                 Who created this form — an opaque subject as whatever authenticated
                                 the caller said it, never resolved into a person here. Null when
-                                nobody was asserted. Outside `identity` on purpose: an anonymous
-                                form still has an author, because somebody created it.
+                                nobody was asserted, and on an `anonymous` form: that mode records
+                                nobody at all, the author included, and it is the creator's own
+                                choice to make.
                         confirmedBy:
                             type: [string, 'null']
                             maxLength: 255

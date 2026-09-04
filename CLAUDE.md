@@ -102,7 +102,15 @@ options fail differently — `anonymous` by default fails silently and unrecover
 default fails loudly at the first save.
 `anonymous` *discards* an assertion rather than refusing it, so a proxy asserting identity on every
 request cannot build a record by accident, and that discard is the one half of this that cannot be
-delegated. Three slots and no fourth: the confirmer needs its own because confirming writes no
+delegated. **It discards all three, the author included**: the mode is the creator's own
+configuration, so asking for a form that records nobody is asking for that about oneself too — and
+nothing is lost by it, since a system that created a form has not forgotten that it did. That was
+the other way round once, on the reasoning that creating happens where a caller is always known; it
+made "this form records nobody" a sentence in a document rather than a property of the form, which
+is what the mode exists to stop. The discard is never a *demand*, though: creating a `recorded`
+form with nobody asserted is allowed, because a deployment may put its proxy in front of the pages
+and not in front of whoever creates the forms — `recorded` fails loudly at the first save, which is
+the whole reason it is the default. Three slots and no fourth: the confirmer needs its own because confirming writes no
 values and is no revision of its own, while "who last changed this form" is the newest revision and
 a second copy is a second truth. One opaque subject, never parsed, trimmed or normalized, **never
 displayed on any page** and served on the manage side only. Asserted in a header and never claimed
