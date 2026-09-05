@@ -2,9 +2,15 @@
 # All quality gates (composer, phpunit, phpstan, php-cs-fixer) run inside this image — see Makefile.
 FROM php:8.4-cli-alpine
 
-# pdo_pgsql for the application database, pcov for fast code coverage in tests
-RUN apk add --no-cache postgresql-dev \
-    && docker-php-ext-install pdo_pgsql \
+# pdo_pgsql for the application database, pcov for fast code coverage in tests.
+# gd is what turns an image in a PDF record into a picture rather than a line
+# naming the file: dompdf hands a PNG with an alpha channel — which is what a
+# browser's canvas produces, so every drawn signature — to GD to split. It is
+# **optional**, and the record says so by naming the file instead when it is
+# missing; this image has it so that the default is the good one.
+RUN apk add --no-cache postgresql-dev libpng-dev libjpeg-turbo-dev freetype-dev \
+    && docker-php-ext-configure gd --with-jpeg --with-freetype \
+    && docker-php-ext-install pdo_pgsql gd \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
     && pecl install pcov \
     && docker-php-ext-enable pcov \

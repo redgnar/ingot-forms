@@ -20,6 +20,16 @@
         table.rows th { text-align: left; width: 42%; font-weight: normal; color: #444; padding: 1.6mm 2mm 1.6mm 0; vertical-align: top; border-bottom: 0.2mm solid #ddd; }
         table.rows td { padding: 1.6mm 0; vertical-align: top; border-bottom: 0.2mm solid #ddd; }
         .unanswered { color: #999; }
+        /* Bounded rather than drawn at whatever size the bytes happen to be: a
+           record is a page, and a photograph from a telephone is four thousand
+           pixels wide. */
+        /* Bounded rather than drawn at whatever size the bytes happen to be: a
+           record is a page, and a photograph from a telephone is four thousand
+           pixels wide. Both of these are blocks, and both are widths dompdf can
+           settle without measuring the image — a cell holding a block picture
+           next to inline text is a cell it lays out wrong. */
+        .picture { display: block; width: 60mm; margin: 0 0 1mm; }
+        .filed { display: block; color: #666; font-size: 8pt; }
         .entry { margin: 1.5mm 0 0; }
         .entry-of { color: #666; font-size: 8pt; margin: 0 0 0.5mm; }
         .section { padding: 3mm 0 1mm; }
@@ -41,7 +51,7 @@
     {% if sheet.confirmedBy %}<tr><th>{{ 'page.record.confirmedBy'|trans({}, null, sheet.locale) }}</th><td>{{ sheet.confirmedBy }}</td></tr>{% endif %}
 </table>
 
-{{ _self.rows(sheet.rows, sheet.locale) }}
+{{ _self.rows(rows, sheet.locale) }}
 
 <p class="footer">{{ 'page.record.footer'|trans({}, null, sheet.locale) }}</p>
 </body>
@@ -80,6 +90,17 @@
                                 <div class="nested">{{ _self.rows(entry, locale) }}</div>
                             </div>
                         {% endfor %}
+                    {% elseif row.kind == 'filed' %}
+                        {# A file, and a picture of it when this deployment could
+                           draw one: a signature *is* an image, so a record that
+                           names it has described the answer instead of showing
+                           it. What it is called goes underneath, small — it is
+                           how the bytes are fetched and the least of what
+                           somebody reading this is looking for. #}
+                        {% if row.picture %}
+                            <img class="picture" src="{{ row.picture }}" alt="{{ row.name }}">
+                        {% endif %}
+                        <div class="filed">{{ row.name }} — {{ row.measured }}, {{ row.type }}</div>
                     {% elseif row.answer is same as(true) %}
                         {{ 'page.ticked'|trans({}, null, locale) }}
                     {% elseif row.answer is same as(false) %}

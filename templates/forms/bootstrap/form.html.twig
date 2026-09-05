@@ -590,7 +590,7 @@
                         data-stepper-by-param="1"{{ readOnly ? ' disabled' : '' }}
                         aria-label="{{ 'page.stepper.more'|trans }}">{{ ux_icon('tabler:plus', {class: 'icon'}) }}</button>
             </div>
-        {% elseif node.widget == 'file' or node.widget == 'dropzone' %}
+        {% elseif node.widget == 'file' or node.widget == 'dropzone' or node.widget == 'signature' %}
             {# Two controls and a line of text. The hidden one is the value — the
                description the upload answered with, carried as the JSON it is
                (`data-type="json"`) — and the visible one is only how somebody
@@ -600,14 +600,21 @@
                file rather than a picker to open, with the progress of the upload
                drawn while it happens. That is what this kit can afford and the
                plain one cannot; it is not a restyling of the picker, which is
-               still there underneath for anybody not dragging anything. #}
+               still there underneath for anybody not dragging anything.
+
+               `signature` is the third: somewhere to draw one, which becomes a
+               PNG and goes up the same way. Nobody can draw with a keyboard, so
+               the picker stays underneath there too — attaching a photograph of
+               a signature is as good an answer, and a question that cannot be
+               answered without a mouse is a question this page has no business
+               asking. #}
             <div{{ html.attributes({
                 'class': node.widget == 'dropzone' ? 'border border-2 border-secondary-subtle rounded-3 p-4 text-center' : null,
-                'data-controller': 'file',
+                'data-controller': node.widget == 'signature' and not readOnly ? 'file signature' : 'file',
                 'data-file-dropzone': node.widget == 'dropzone' ? true : null,
                 'data-action': node.widget == 'dropzone' and not readOnly
-                    ? 'dragover->file#over dragleave->file#leave drop->file#dropped file:place->file#place'
-                    : 'file:place->file#place',
+                    ? 'dragover->file#over dragleave->file#leave drop->file#dropped file:place->file#place file:pick->file#handed file:cleared->file#cleared'
+                    : 'file:place->file#place file:pick->file#handed file:cleared->file#cleared file:held->signature#shows',
                 'data-file-upload-value': node.upload,
                 'data-file-accept-value': node.accept|join(','),
                 'data-file-max-size-value': node.maxSize,
@@ -624,11 +631,67 @@
                     'data-file-target': 'held',
                     'value': node.value ? node.value|json_encode : null,
                 })|raw }}>
+                {% if node.widget == 'signature' %}
+                    {# What was signed, shown. A signature *is* an image, so a
+                       page that names the file and shows nothing has answered
+                       the wrong question — and a form drawn again after a save
+                       used to show an empty pad with a filename beside it. The
+                       bytes come from the same address anything else fetches
+                       them from; a browser renders an image subresource whatever
+                       the download's `Content-Disposition` says. #}
+                    <img{{ html.attributes({
+                        'class': 'd-block w-100 border border-2 border-secondary-subtle rounded-3 bg-white',
+                        'style': 'height: ' ~ (node.options.height|default(160)) ~ 'px; object-fit: contain;',
+                        'data-signature-target': 'preview',
+                        'src': node.value ? node.download : null,
+                        'alt': 'page.file.signed'|trans,
+                        'hidden': node.value ? false : true,
+                    })|raw }}>
+                    {% if not readOnly %}
+                        <div class="d-flex justify-content-end pt-1" data-signature-target="redo"{{ node.value ? '' : ' hidden' }}>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    data-action="signature#again">{{ 'page.file.sign_again'|trans }}</button>
+                        </div>
+                    {% endif %}
+                {% endif %}
                 {% if not readOnly %}
                     {% if node.widget == 'dropzone' %}
                         <p class="text-secondary d-flex align-items-center justify-content-center gap-2 mb-2">
                             {{ ux_icon('tabler:cloud-upload', {class: 'icon'}) }}{{ 'page.file.drop'|trans }}
                         </p>
+                    {% endif %}
+                    {% if node.widget == 'signature' %}
+                        {# The pad, and the words that say what it is for. It is
+                           not a control a caret can reach, so it says so: the
+                           caption names it, both lines under it are tied to it,
+                           and the sentence beneath says the other way is open.
+
+                           Hidden from the start when this form already holds a
+                           signature: then what somebody wants to see is the
+                           signature, and the pad is how they replace it. #}
+                        <div{{ html.attributes({
+                            'class': 'border border-2 border-secondary-subtle rounded-3 bg-white p-1',
+                            'data-signature-target': 'frame',
+                            'hidden': node.value ? true : false,
+                        })|raw }}>
+                            <canvas{{ html.attributes({
+                                'class': 'd-block w-100',
+                                'style': 'height: ' ~ (node.options.height|default(160)) ~ 'px; touch-action: none;',
+                                'data-signature-target': 'pad',
+                                'role': 'img',
+                                'aria-label': 'page.file.sign'|trans,
+                                'aria-describedby': (node.hint ? id ~ '-hint ' : '') ~ id ~ '-error',
+                            })|raw }}></canvas>
+                            <div class="d-flex justify-content-end pt-1">
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        data-action="signature#again">{{ 'page.file.clear'|trans }}</button>
+                            </div>
+                        </div>
+                        <p{{ html.attributes({
+                            'class': 'form-text mb-1',
+                            'data-signature-target': 'other',
+                            'hidden': node.value ? true : false,
+                        })|raw }}>{{ 'page.file.or_attach'|trans }}</p>
                     {% endif %}
                     <input{{ html.attributes({
                         'type': 'file',
@@ -638,6 +701,8 @@
                         'aria-required': node.required ? 'true' : null,
                         'aria-describedby': (node.hint ? id ~ '-hint ' : '') ~ id ~ '-error',
                         'data-file-target': 'picker',
+                        'data-signature-target': node.widget == 'signature' ? 'chooser' : null,
+                        'hidden': node.widget == 'signature' and node.value ? true : false,
                         'data-action': 'file#picked',
                     })|raw }}>
                     {# How far the upload has got, said as well as drawn: a bar is
@@ -649,7 +714,7 @@
                              data-file-target="bar" style="width: 0"></div>
                     </div>
                 {% endif %}
-                <p class="small mt-2 mb-0 d-flex align-items-center justify-content-center gap-2{{ node.value ? '' : ' d-none' }}"
+                <p class="small mt-2 mb-0 d-flex align-items-center justify-content-center gap-2{{ node.value ? '' : ' d-none' }}{{ node.widget == 'signature' ? ' text-secondary' : '' }}"
                    data-file-target="line" data-file-held>
                     {{ ux_icon('tabler:paperclip', {class: 'icon'}) }}
                     <a data-file-target="download" data-file-download href="{{ node.download }}">{{ node.value.name ?? '' }}</a>

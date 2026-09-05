@@ -65,6 +65,11 @@ page:
         too_large: 'Ten plik jest większy, niż ten formularz przyjmuje.'
         rejected_type: 'Ten formularz nie przyjmuje plików tego rodzaju.'
         failed: 'Nie udało się wysłać pliku. Spróbuj ponownie.'
+        sign: 'Podpisz się tutaj'
+        clear: 'Wyczyść'
+        or_attach: 'Albo załącz zdjęcie swojego podpisu:'
+        signed: 'Podpis złożony na tym formularzu'
+        sign_again: 'Podpisz ponownie'
     error:
         form-not-found: 'Nie ma takiego formularza.'
         presentation-not-set: 'Nikt nie powiedział, jak pokazać ten formularz.'

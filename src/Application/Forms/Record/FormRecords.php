@@ -152,6 +152,13 @@ final readonly class FormRecords
      */
     private function row(Field $field, string $label, mixed $value, array $shown, ?Words $words, array $choices = []): RecordedRow
     {
+        // A file is its own kind of row: what it is called is the least of what
+        // somebody wants from it, and only a renderer knows whether it can show
+        // the rest ({@see Filed}).
+        if ($field instanceof FileField && $value !== null) {
+            return self::filed($label, $value);
+        }
+
         if (!$field instanceof CollectionField) {
             return new Answered($label, $this->answer($field, $value, $words, $choices));
         }
@@ -201,9 +208,6 @@ final readonly class FormRecords
             return implode(', ', $picked);
         }
 
-        if ($field instanceof FileField) {
-            return self::file($value);
-        }
 
         if ($field instanceof DateTimeField && \is_string($value)) {
             return self::moment($value);
@@ -225,32 +229,18 @@ final readonly class FormRecords
     }
 
     /**
-     * The description a values document holds, as a line: what it was called,
-     * how big it was, what it turned out to be, and the id the bytes are still
-     * fetched by.
+     * The description a values document holds, as a row: what it was called, how
+     * big it was, what it turned out to be, and the id the bytes are fetched by.
      */
-    private static function file(mixed $value): string
+    private static function filed(string $label, mixed $value): Filed
     {
-        $described = (array) $value;
+        $described = self::members($value);
         $name = \is_string($described['name'] ?? null) ? $described['name'] : '?';
         $size = \is_int($described['size'] ?? null) ? $described['size'] : 0;
         $type = \is_string($described['type'] ?? null) ? $described['type'] : '?';
         $id = \is_string($described['id'] ?? null) ? $described['id'] : '?';
 
-        return \sprintf('%s — %s, %s (%s)', $name, self::bytes($size), $type, $id);
-    }
-
-    private static function bytes(int $size): string
-    {
-        if ($size < 1024) {
-            return \sprintf('%d B', $size);
-        }
-
-        $kilobytes = $size / 1024;
-
-        return $kilobytes < 1024
-            ? \sprintf('%.1f kB', $kilobytes)
-            : \sprintf('%.1f MB', $kilobytes / 1024);
+        return new Filed($label, $id, $name, $size, $type);
     }
 
     /**

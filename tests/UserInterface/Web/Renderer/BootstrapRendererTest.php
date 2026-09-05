@@ -807,6 +807,129 @@ final class BootstrapRendererTest extends KernelTestCase
         self::assertSame([], array_values(array_unique(array_diff($named, $ids))));
     }
 
+    public function testASignatureIsAFileAskedForByDrawingItAndStillByAttachingOne(): void
+    {
+        // GIVEN a form asking for a signature — which is a `file` item drawn a
+        // third way
+        $page = $this->signed();
+        // Both controllers on one element: the file widget is what a signature
+        // is, and the pad is drawn on top of it.
+        $widget = $page->filter('[data-item="signature"] [data-controller="file signature"]');
+        $pad = $widget->filter('[data-signature-target="frame"] canvas');
+
+        // THEN there is somewhere to draw, and it is the same file widget
+        // underneath: the same upload address, the same rule about what this item
+        // takes, and the same hidden control carrying the description
+        self::assertCount(1, $pad);
+        self::assertStringEndsWith('/files', (string) $widget->attr('data-file-upload-value'));
+        self::assertSame('image/png', $widget->attr('data-file-accept-value'));
+        self::assertSame('json', $widget->filter('input[type="hidden"]')->attr('data-type'));
+
+        // AND the pad hands bytes to the file widget rather than uploading them
+        // itself, which is why a signature needed no upload path of its own
+        self::assertStringContainsString('file:pick->file#handed', (string) $widget->attr('data-action'));
+
+        // AND the ordinary picker is still there. Nobody can draw with a
+        // keyboard, so a signature that could only be drawn would be a question
+        // some people cannot answer at all
+        self::assertCount(1, $widget->filter('input[type="file"]'));
+        self::assertSame('Or attach a photograph of your signature:', trim($widget->filter('p.form-text')->text()));
+    }
+
+    public function testAFormHoldingASignatureShowsItRatherThanNamingAFile(): void
+    {
+        // GIVEN a form that already holds one
+        $page = $this->signed(held: true);
+        $widget = $page->filter('[data-item="signature"]');
+
+        // THEN the signature is drawn on the page, from the address every other
+        // file of this form is fetched from — the name of the file it is stored
+        // as is the least of what somebody wants to see
+        $preview = $widget->filter('[data-signature-target="preview"]');
+        self::assertSame('img', $preview->nodeName());
+        self::assertNull($preview->attr('hidden'));
+        self::assertStringContainsString('/files/', (string) $preview->attr('src'));
+        self::assertSame('The signature on this form', $preview->attr('alt'));
+
+        // AND the pad is put away, because signing again is something somebody
+        // asks for rather than the state a form opens in
+        self::assertNotNull($widget->filter('[data-signature-target="frame"]')->attr('hidden'));
+        self::assertSame('Sign again', trim($widget->filter('[data-signature-target="redo"] button')->text()));
+    }
+
+    public function testAFormHoldingNothingShowsThePadAndNoPicture(): void
+    {
+        // GIVEN a form nobody has signed
+        $widget = $this->signed()->filter('[data-item="signature"]');
+
+        // THEN the pad is what it opens on, and there is nothing to show yet —
+        // an image element pointing at nothing is a broken picture
+        self::assertNull($widget->filter('[data-signature-target="frame"]')->attr('hidden'));
+        self::assertNotNull($widget->filter('[data-signature-target="preview"]')->attr('hidden'));
+        self::assertNull($widget->filter('[data-signature-target="preview"]')->attr('src'));
+    }
+
+    public function testAPadSaysWhatItIsAndPointsAtBothLinesUnderIt(): void
+    {
+        // GIVEN
+        $page = $this->signed();
+        $pad = $page->filter('[data-item="signature"] canvas');
+
+        // THEN it is not a control a caret can reach, so it says what it is
+        // instead of leaving a screen reader to guess from an empty box
+        self::assertSame('img', $pad->attr('role'));
+        self::assertSame('Sign here', $pad->attr('aria-label'));
+        self::assertSame('item-signature-hint item-signature-error', $pad->attr('aria-describedby'));
+
+        // AND there is a way to start again, in words rather than an icon
+        self::assertSame('Clear', trim($page->filter('[data-signature-target="frame"] button')->text()));
+
+        // AND the height is the document's to set, in the pixels a pad is
+        // measured in — a canvas has no rows
+        self::assertStringContainsString('height: 220px', (string) $pad->attr('style'));
+        // ...and drawing on it must not scroll the page under somebody's finger
+        self::assertStringContainsString('touch-action: none', (string) $pad->attr('style'));
+    }
+
+    private function signed(bool $held = false): Crawler
+    {
+        $definitions = new FormDefinitionProcessor(self::mapper());
+        $presentations = new PresentationProcessor(self::mapper());
+        $form = new Form(
+            FormId::next(),
+            $definitions->document($definitions->parse(['items' => [
+                ['type' => 'file', 'name' => 'signature', 'accept' => ['image/png'], 'maxSize' => 65536],
+            ]])),
+            ExpireDate::future(new \DateTimeImmutable('+1 day')),
+            $presentations->document($presentations->parse([
+                'engine' => 'bootstrap',
+                'defaultLocale' => 'en',
+                'items' => [
+                    ['name' => 'signature', 'widget' => 'signature', 'label' => 's.sign', 'hint' => 's.hint',
+                        'options' => ['height' => 220]],
+                    ['widget' => 'confirm', 'label' => 's.send'],
+                ],
+                'translations' => ['en' => ['s.sign' => 'Your signature', 's.hint' => 'A finger will do', 's.send' => 'Send']],
+            ])),
+            new PresentationRules(new Engines([new BootstrapEngine()])),
+        );
+
+        if ($held) {
+            // A description like the one an upload answers with: what a form
+            // holds is never the bytes.
+            $form->saveDraft(
+                json_decode(
+                    '{"signature": {"id": "01a0f3d4-0000-7000-8000-0000000000a2", "name": "signature.png", "size": 8462, "type": "image/png"}}',
+                    false,
+                    flags: \JSON_THROW_ON_ERROR,
+                ),
+                new StubValues(),
+            );
+        }
+
+        return new Crawler($this->renderer->render(new RenderedForm($form, 'en')));
+    }
+
     public function testAFileIsAskedForByPickerAndByDropAndBothHoldTheSameValue(): void
     {
         // GIVEN a form asking for one file with a picker and another by dropping

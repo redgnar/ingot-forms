@@ -111,7 +111,7 @@ widget to draw.
 | `file` | the description of an uploaded file: `{id, name, size, type}` | `accept` (media types, at least one, no repeats), `maxSize` — both required |
 | anything else | whatever it came as | the plugin's own keys, kept in `extras` |
 
-Six of those say something worth spelling out:
+Seven of those say something worth spelling out:
 
 - **`decimals` bounds precision.** `0` means whole numbers and is published as JSON Schema's
   `integer`. Above zero it is the one rule this API enforces without publishing it as a rule:
@@ -161,6 +161,13 @@ Six of those say something worth spelling out:
   `select`, which answered the question and lied about the shape — a list of one-member
   documents, entries that could be reordered and duplicated, and a page that drew a table with
   an *Add* button where somebody wanted three ticks.
+- **A signature is a `file`.** There is no signature item type, because a signature brings no
+  rules of its own: what it produces is the same `{id, name, size, type}` as any other upload,
+  and "these bytes were drawn rather than attached" is not something this service could check
+  even if it wanted to. So it is a **widget** (`signature`, the richer kit only) on a `file`
+  item that accepts `image/png` — and the page keeps the ordinary picker beside the pad, because
+  nobody can draw with a keyboard. A form that already holds a signature **shows it** rather than
+  naming the file it is stored as, with the pad behind a *sign again* button.
 - **A `file` holds a description, not bytes.** The bytes are uploaded first
   (`POST /api/forms/{id}/files`) and the answer to that is exactly what the values document
   may hold — id, name, size and media type, all four measured by the server. That is what lets
@@ -447,6 +454,11 @@ half in codes is exactly the drift a presentation exists to prevent. Naming a va
 not offer is `presentation.choice.unknown`, leaving one out is `presentation.choice.missing`, and
 wording the options of something that has none is `presentation.choice.not-allowed`.
 
+**A `hint` goes under the control, in both kits.** Worth knowing before you word one: a
+sentence saying "draw in the frame below" ends up under the frame, pointing at itself. Say what
+somebody needs to know rather than where to look — the hint is tied to the control it belongs to
+(`aria-describedby`), so it is read out *with* the question whatever order it sits in.
+
 **An empty control may say what would go in it.** `placeholder` sits beside `label` and `hint`
 — not among the `options` — because it is text a person reads, so it is a translation code like
 the other two and the default catalogue is held to it. It reaches `text`, `textarea` and
@@ -580,7 +592,7 @@ for its type — the first in each row below.
 | `date` | `date` | `date` |
 | `checkbox` | `checkbox`, `switch` | `checkbox`, `switch` |
 | `collection` | `table` | `table` |
-| `file` | `file` | `file`, `dropzone` |
+| `file` | `file` | `file`, `dropzone`, `signature` |
 | a plugin type | — | — |
 
 **Everything else an item can be:**
@@ -611,6 +623,7 @@ document that places no `comfort` still gets them, at the top.
 | `align` | `row` | `"start"`, `"center"`, `"end"`, `"between"`, `"around"` — the five Bootstrap packs columns with; omit it for `start` |
 | `tone` | `alert` | `"primary"`, `"secondary"`, `"success"`, `"danger"`, `"warning"`, `"info"`, `"light"`, `"dark"` — Bootstrap's eight; **`info`** when omitted, and a word that is not one of them draws an alert with no colour at all |
 | `columns` | `radio`, `checkboxes` | `true` or `false`; **false** when omitted |
+| `height` | `signature` | how tall the pad is, in pixels; **160** when omitted |
 | `rows` | `multi-select` | how many options are visible at once; **as many as there are, up to 6** when omitted |
 
 And the four members that are not options, with their values:
@@ -887,9 +900,13 @@ those questions under it. A container with no label is stepped through: there is
 about it.
 
 Answers read back as text: a tick is the page's own *yes* / *no*, a moment keeps its offset
-(`2026-03-01 14:30 (UTC+01:00)`), a file is its name, size, type and id — the bytes stay where
-they were, behind `GET /api/forms/{id}/files/{fileId}` — and a list is one block per entry, each
-with its own questions. A question nobody answered says *not answered*, which is not the same as
+(`2026-03-01 14:30 (UTC+01:00)`), and a list is one block per entry, each with its own questions.
+
+**An image is drawn into the record**, whatever widget asked for it — a signature is an image, and
+a record naming the file has described the answer rather than shown it. PNG, JPEG and GIF up to
+4 MB; anything else, anything larger, and anything on a deployment without PHP's `gd` extension is
+named instead (`signature.png — 8.3 kB, image/png`). Either way the bytes stay where they were,
+behind `GET /api/forms/{id}/files/{fileId}`. A question nobody answered says *not answered*, which is not the same as
 one answered with nothing.
 
 Nothing is stored: the document is generated on request and is the same every time, because a

@@ -11,14 +11,16 @@ namespace App\Application\Forms\Record;
  *
  * {@see Answered} is a question and its answer, {@see Entries} is a list and the
  * documents in it, {@see Section} is a group of rows under a heading its author
- * wrote. A fourth would be a fourth class.
+ * wrote, and {@see Filed} is one answered with a file — its own kind because for
+ * some files the name is the least of what a record should say about them. A
+ * fifth would be a fifth class.
  *
  * `kind()` rides along for one reason only: a template cannot ask `instanceof`.
  */
 interface RecordedRow
 {
     /**
-     * @return 'answered'|'entries'|'section'
+     * @return 'answered'|'entries'|'section'|'filed'
      */
     public function kind(): string;
 

@@ -128,7 +128,16 @@ default.
   deployment that actually has to satisfy an archiving standard — and it changes the image.
 - **No letterhead, logo or footer of a deployment's own.** That is a new category: the moment a
   deployment decides how the document looks, there is a third document to describe.
-- **No attachments inside the file.** The bytes stay where they are, behind their own address; a
-  record naming them is a record of the answers, which is what it is for.
+- ~~**No attachments inside the file.**~~ **Reversed, once there was a signature to record.** The
+  reasoning held for *attachments* — a record of the answers, with the bytes one address away —
+  and did not survive the first answer that **is** an image: a signature recorded as
+  `signature.png — 8.3 kB` describes the answer instead of showing it. So an image is drawn into
+  the record (PNG, JPEG, GIF, up to 4 MB), and everything else is still named. It cost a fourth
+  row type (`Filed`), the bytes read in the *adapter* rather than in the reading — whether an
+  image can become a picture is a question about the renderer — and `ext-gd`, which dompdf needs
+  for the alpha channel every canvas PNG has. That extension is **optional** and the record says
+  so by naming the file when it is missing, which is what keeps this from being a new demand on
+  every deployment. What is still not embedded is an attachment that is not an image: a contract
+  is named, and a PDF inside a PDF is a different feature.
 - **No record of a draft, and no record of a revision.** A draft is not a record of anything
   yet, and `GET …/history/{seq}` plus a client is what asks about an earlier version.

@@ -340,6 +340,33 @@ that the plain kit has no markup for.
   take it off, a chip nobody can remove being an answer somebody cannot change. There is no
   empty option: a multiple choice says "none" by having nothing picked.
 
+### `signature` (a `file` item)
+
+- **Draws:** a canvas to draw on, a **Clear** button, and — underneath, always —
+  the ordinary `<input type="file">`. Behind it is the same file widget as `file` and `dropzone`:
+  the same upload address, the same hidden control carrying the description, the same chip
+- **From the definition:** `accept` and `maxSize`, checked against what the upload answered.
+  A definition asking for a drawn signature lists `image/png`, because that is what a canvas
+  produces
+- **Options:** `height` — how tall the pad is, in pixels (**160** when omitted). A canvas has no
+  rows
+- **Notes:** the drawing is turned into a PNG when a stroke ends and uploaded at once, so the
+  value is attached before anybody presses save — and a save started in the moment between the
+  two waits for it. Redrawing throws the previous upload away, which the file endpoint allows
+  for a file no save names and refuses for one that is. **The picker is not optional**: nobody
+  can draw with a keyboard, and a question that cannot be answered without a mouse is one this
+  page has no business asking, so attaching a photograph of a signature is as good an answer.
+  The pad says what it is (`role="img"` with a label) because it is not a control a caret can
+  reach. Drawn by [Signature Pad](https://github.com/szimek/signature_pad)
+- **What it shows when the form already holds one:** the signature itself, fetched from the
+  file's own address, with the pad put away behind a *Sign again* button — a signature **is** an
+  image, so a page that names the file and draws nothing has answered the wrong question, and a
+  form opened after a save would otherwise show an empty pad beside a filename. The filename
+  stays, small, underneath: it is how the bytes are fetched and the least of what anybody is
+  looking for. While somebody is *signing*, the pad stays put however many strokes they take —
+  swapping it for a picture after the first one would take the pad away in the middle of a
+  two-stroke signature
+
 ### `number`
 
 - **Draws:** `<input type="number" class="form-control">`

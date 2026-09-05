@@ -33,6 +33,26 @@ export default class extends Controller {
         if (file) this.#send(file);
     }
 
+    /**
+     * Bytes made somewhere else on the page — the `signature` pad draws a PNG and
+     * hands it over here. Whatever produced them, they go up the same way and are
+     * judged by the same answer, which is why a signature needed no upload path
+     * of its own.
+     */
+    handed(event) {
+        const file = event.detail;
+
+        if (file instanceof File) this.#send(file);
+    }
+
+    /**
+     * Starting again, asked for by something beside the picker. The same as
+     * pressing the picker's own remove.
+     */
+    cleared(event) {
+        this.forget(event);
+    }
+
     over(event) {
         event.preventDefault();
         this.element.classList.add('border-primary');
@@ -55,9 +75,12 @@ export default class extends Controller {
     // what drops it — and the save is what throws it away.
     forget(event) {
         event.preventDefault();
-        const held = this.#reference();
-
+        this.#discard();
         this.#hold(null);
+    }
+
+    #discard() {
+        const held = this.#reference();
 
         if (held !== null) fetch(`${this.uploadValue}/${held.id}`, { method: 'DELETE' }).catch(() => {});
     }
@@ -92,6 +115,19 @@ export default class extends Controller {
 
         this.#say('');
         this.#showProgress(true);
+
+        // Where the save can find it. Pressing save while bytes are still going
+        // up used to lose them silently — the hidden control was still empty, so
+        // the member was simply absent from the document — and with a pad that
+        // uploads on its own the moment a stroke ends, that stopped being a rare
+        // race ({@see form_controller.js}).
+        this.element.filePending = new Promise((settled) => {
+            request.addEventListener('loadend', () => {
+                this.element.filePending = null;
+                settled();
+            });
+        });
+
         request.send(body);
     }
 
@@ -118,6 +154,14 @@ export default class extends Controller {
             return;
         }
 
+        // The one it replaces goes now, and not a moment earlier: redrawing a
+        // signature is three or four uploads before somebody likes it, and every
+        // one of them that nothing names is a file in the store nobody will ever
+        // fetch. Doing it before the new one landed would leave the page holding
+        // a file that had been deleted if the upload failed. The endpoint decides
+        // which of them may go — a file a stored save names answers 409 and stays
+        // — so nothing here has to know the difference.
+        this.#discard();
         this.#hold(reference);
     }
 
@@ -133,6 +177,15 @@ export default class extends Controller {
     // that says which file is held is on the page already, waiting.
     #hold(reference) {
         this.heldTarget.value = reference === null ? '' : JSON.stringify(reference);
+
+        // Said out loud, because for some files the *name* is the least
+        // interesting thing about them: a signature is an image, and the widget
+        // drawn on top of this one shows it. Announced with the address too —
+        // this is where a file's address is built, and there is no reason for a
+        // second place to know how.
+        this.dispatch('held', {
+            detail: reference === null ? null : { reference, href: `${this.uploadValue}/${reference.id}` },
+        });
 
         if (reference !== null) {
             this.downloadTarget.textContent = reference.name;

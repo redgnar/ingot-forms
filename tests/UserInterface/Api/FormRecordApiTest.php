@@ -6,6 +6,7 @@ namespace App\Tests\UserInterface\Api;
 
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Uid\Uuid;
 
 /**
@@ -81,6 +82,28 @@ final class FormRecordApiTest extends WebTestCase
         self::assertSame(\strlen($documents['en']), \strlen($documents['auto']));
     }
 
+    public function testASignatureIsDrawnIntoTheRecordAndNotOnlyNamed(): void
+    {
+        // GIVEN a confirmed form answered with an image
+        $id = $this->plant(presented: true, withFile: true);
+        $file = $this->uploaded($id);
+        $this->putJson(
+            \sprintf('/api/forms/%s/data', $id),
+            \sprintf('{"title": "A printer is broken", "tags": ["urgent"], "signature": %s}', $file),
+        );
+        self::assertResponseStatusCodeSame(204);
+        $this->client->request('POST', \sprintf('/api/forms/%s/confirm', $id));
+        self::assertResponseStatusCodeSame(204);
+
+        // WHEN the record is asked for
+        $this->client->request('GET', \sprintf('/api/manage/forms/%s/pdf', $id));
+
+        // THEN the bytes are in the document. A signature *is* an image, so a
+        // record naming the file has described the answer rather than shown it
+        self::assertResponseStatusCodeSame(200);
+        self::assertStringContainsString('/Image', (string) $this->client->getResponse()->getContent());
+    }
+
     public function testADraftIsNotARecordOfAnything(): void
     {
         // GIVEN a form somebody is still filling in
@@ -131,6 +154,30 @@ final class FormRecordApiTest extends WebTestCase
         self::assertResponseStatusCodeSame(404);
     }
 
+    /**
+     * A PNG through the API, exactly as a page would send one — and the answer
+     * is what the values document may hold, verbatim.
+     */
+    private function uploaded(string $id): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'sig') . '.png';
+        $png = base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+            true,
+        );
+        file_put_contents($path, $png === false ? '' : $png);
+
+        $this->client->request(
+            'POST',
+            \sprintf('/api/forms/%s/files', $id),
+            files: ['file' => new UploadedFile($path, 'signature.png', 'image/png', null, true)],
+        );
+        self::assertResponseStatusCodeSame(201);
+        unlink($path);
+
+        return (string) $this->client->getResponse()->getContent();
+    }
+
     private function confirmed(bool $presented = true): string
     {
         $id = $this->plant($presented);
@@ -141,11 +188,17 @@ final class FormRecordApiTest extends WebTestCase
         return $id;
     }
 
-    private function plant(bool $presented = true): string
+    private function plant(bool $presented = true, bool $withFile = false): string
     {
+        $definition = self::DEFINITION;
+
+        if ($withFile) {
+            $definition['items'][] = ['type' => 'file', 'name' => 'signature', 'accept' => ['image/png'], 'maxSize' => 4096];
+        }
+
         $payload = [
             'expireDate' => new \DateTimeImmutable('+1 day')->format(\DateTimeInterface::ATOM),
-            'definition' => self::DEFINITION,
+            'definition' => $definition,
         ];
 
         if ($presented) {
@@ -156,10 +209,15 @@ final class FormRecordApiTest extends WebTestCase
                     ['name' => 'title', 'widget' => 'text', 'label' => 'r.title'],
                     ['name' => 'tags', 'widget' => 'checkboxes', 'label' => 'r.tags',
                         'choices' => ['urgent' => 'r.urgent', 'legal' => 'r.legal']],
+                    // A plain picker rather than a pad: a record draws an image
+                    // because it is one, and never because of which widget asked
+                    // for it — this document is written for the kit that has no
+                    // pad at all.
+                    ...($withFile ? [['name' => 'signature', 'widget' => 'file', 'label' => 'r.sig']] : []),
                     ['widget' => 'confirm', 'label' => 'r.send'],
                 ],
                 'translations' => [
-                    'en' => ['r.title' => 'What happened', 'r.tags' => 'Tags', 'r.urgent' => 'Urgent', 'r.legal' => 'Legal', 'r.send' => 'Send'],
+                    'en' => ['r.title' => 'What happened', 'r.tags' => 'Tags', 'r.urgent' => 'Urgent', 'r.legal' => 'Legal', 'r.sig' => 'Your signature', 'r.send' => 'Send'],
                     'pl' => ['r.title' => 'Co się stało', 'r.tags' => 'Etykiety', 'r.urgent' => 'Pilne', 'r.legal' => 'Prawne', 'r.send' => 'Wyślij'],
                 ],
             ];

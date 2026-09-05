@@ -180,7 +180,13 @@ simply not a record of anything yet. Laid out by a **library and not a browser**
 plain template of its own): a deployment needs PHP, a database and somewhere for files, and
 wanting a browser as well — for one endpoint — is a demand on everybody who installs this; and a
 page is not a record anyway, since it carries triggers, the reader's switches and whichever skin
-somebody chose. `FormRecords` is the one place in PHP that turns a stored value into text (the
+somebody chose. **An image in a record is drawn rather than named** — a signature *is* an image — which is why a
+file is its own row type (`Filed`) carrying the description, and why the *adapter* reads the bytes
+through `FileStore`: whether an image can become a picture is a question about the renderer, not
+about the form. PNG/JPEG/GIF, up to 4 MB, and only where `ext-gd` is installed (dompdf needs it
+for the alpha channel every canvas PNG has). **That extension is optional**: without it the row
+stays a line naming the file, which is a worse record and not a broken one.
+`FormRecords` is the one place in PHP that turns a stored value into text (the
 kits do it in Twig and JavaScript, each for its own controls), so a second copy of that reading
 is the thing to refuse. **A container keeps its words and loses its shape**: a card, an accordion
 and a row are three ways of *looking*, so none of them is drawn — but one carrying a label
@@ -245,6 +251,14 @@ back by the client verbatim. That is the whole design, and everything else follo
 one JSON document, and the item's own rules stay *statable in the derived schema* (`maxSize` is
 a maximum on `size`, `accept` an enum of `type`) instead of being enforced past the contract.
 Several files is a `collection` holding a `file`; the counting was built once.
+**A signature is one of those descriptions too**: `signature` is a widget on a `file` item (the
+richer kit only — there is no plain control for drawing), it hands a PNG to the same upload the
+picker uses, and it keeps that picker beside the pad because nobody can draw with a keyboard. No
+item type, no gate, no address: "these bytes were drawn rather than attached" is not something
+this service could check even if it wanted to. **A form holding one shows it** — a signature is
+an image, so naming the file and drawing nothing answers the wrong question — with the pad behind
+a "sign again" button and the filename small underneath; while somebody is signing the pad stays,
+because a signature can take more than one stroke and each of them lands as its own upload.
 
 **The values document is the only index of a form's files** — no column, no `files` table,
 because the values are what passed validation and what is served byte for byte, so a second
@@ -468,6 +482,13 @@ Rules that follow from it, and that the tooling checks:
   fail — it *deletes* whatever rule it was overriding. That is how an empty autocomplete came to
   sit short of every control beside it, and it is pinned in the browser battery now, because a
   height nothing measures is a height nothing notices.
+  **And `hidden` only means hidden if this sheet says so.** Bootstrap ships both
+  `[hidden] { display: none !important }` and `.d-block { display: block !important }`, utilities
+  last — so an element with `hidden` *set* and a display utility on it is shown, which is how an
+  image with no source came to sit under a signature pad. Ours is the last stylesheet on the
+  page, so it states the same declaration again. The test lesson is the same one: ask the
+  **layout** (`offsetParent`, a screenshot), never `element.hidden`, because the property agrees
+  with the bug.
 - **A skin's literal colours beat an indirection.** Overriding `--bs-*` is not enough on its
   own: Bootswatch repaints `color` and `background-color` outright hundreds of rules later, and
   its dark rules are `[data-bs-theme=dark] .btn-…` — one specificity point above a bare class.

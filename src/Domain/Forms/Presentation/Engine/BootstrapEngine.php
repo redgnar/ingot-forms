@@ -65,7 +65,11 @@ final class BootstrapEngine implements PresentationEngine
         DateTimeField::class => ['datetime'],
         CheckboxField::class => ['checkbox', 'switch'],
         CollectionField::class => ['table'],
-        FileField::class => ['file', 'dropzone'],
+        // A signature is a third way of asking for a file, not a fourth kind of
+        // value: what it produces is the same description of the same bytes.
+        // The plain kit has no answer for it, which is the same bargain as
+        // `autocomplete` — there is no plain control for drawing.
+        FileField::class => ['file', 'dropzone', 'signature'],
     ];
 
     public function id(): string

@@ -7,6 +7,7 @@ namespace App\Tests\Domain\Forms\Presentation\Engine;
 use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\Field;
+use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\GenericField;
 use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
@@ -39,6 +40,7 @@ final class BootstrapEngineTest extends TestCase
         yield 'number' => [new NumberField('seats'), ['number', 'range', 'stepper']];
         yield 'date' => [new DateField('starts'), ['date']];
         yield 'checkbox' => [new CheckboxField('terms'), ['checkbox', 'switch']];
+        yield 'file' => [new FileField('invoice', ['application/pdf'], 4096), ['file', 'dropzone', 'signature']];
     }
 
     /**
@@ -134,7 +136,7 @@ final class BootstrapEngineTest extends TestCase
         // THEN the plain controls are deliberately the same names in both — a
         // text field is a text field — and what is left is what this kit brought:
         // ways of asking the other one has no markup for at all
-        self::assertSame(['radio-buttons', 'autocomplete', 'checkbox-buttons', 'range', 'stepper'], $added);
+        self::assertSame(['radio-buttons', 'autocomplete', 'checkbox-buttons', 'range', 'stepper', 'dropzone', 'signature'], $added);
 
         // AND the ways of grouping share nothing: a fieldset is not a card
         self::assertSame([], array_intersect($plain->containers(), $rich->containers()));

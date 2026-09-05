@@ -6,6 +6,7 @@ namespace App\Tests\Application\Forms\Record;
 
 use App\Application\Forms\Record\Answered;
 use App\Application\Forms\Record\Entries;
+use App\Application\Forms\Record\Filed;
 use App\Application\Forms\Record\FormRecords;
 use App\Application\Forms\Record\RecordedRow;
 use App\Application\Forms\Record\Section;
@@ -43,6 +44,7 @@ final class FormRecordsTest extends TestCase
         ['type' => 'checkbox', 'name' => 'terms', 'mustBeChecked' => true],
         ['type' => 'datetime', 'name' => 'seen'],
         ['type' => 'text', 'name' => 'note'],
+        ['type' => 'file', 'name' => 'scan', 'accept' => ['image/png'], 'maxSize' => 65536],
         ['type' => 'collection', 'name' => 'lines', 'min' => 1, 'items' => [
             ['type' => 'text', 'name' => 'sku', 'required' => true],
             ['type' => 'select', 'name' => 'unit', 'options' => ['pc', 'kg']],
@@ -56,6 +58,7 @@ final class FormRecordsTest extends TestCase
         "tags": ["urgent", "legal"],
         "terms": true,
         "seen": "2026-03-01T14:30:00+01:00",
+        "scan": {"id": "01a0f3d4-0000-7000-8000-0000000000a2", "name": "signature.png", "size": 8462, "type": "image/png"},
         "lines": [{"sku": "A-1", "unit": "kg"}, {"sku": "B-2"}]
     }';
 
@@ -68,7 +71,7 @@ final class FormRecordsTest extends TestCase
         // the order the presentation put them — not the definition's. The two
         // questions inside the card are under its heading rather than beside it
         self::assertSame(
-            ['What happened', 'About it', 'Which floor', 'Terms', 'Seen at', 'Anything else', 'Lines'],
+            ['What happened', 'About it', 'Which floor', 'Terms', 'Seen at', 'Anything else', 'Your signature', 'Lines'],
             array_map(static fn(RecordedRow $row): string => $row->label(), $rows),
         );
     }
@@ -107,7 +110,7 @@ final class FormRecordsTest extends TestCase
         // THEN what was inside it stands where it was, without a heading: a
         // heading with no words is a line where a sentence should be
         self::assertSame(
-            ['What happened', 'Country', 'Tags', 'Which floor', 'Terms', 'Seen at', 'Anything else', 'Lines'],
+            ['What happened', 'Country', 'Tags', 'Which floor', 'Terms', 'Seen at', 'Anything else', 'Your signature', 'Lines'],
             array_map(static fn(RecordedRow $row): string => $row->label(), $rows),
         );
     }
@@ -141,6 +144,28 @@ final class FormRecordsTest extends TestCase
         self::assertNull($answers['Anything else']);
     }
 
+    public function testAFileIsItsOwnKindOfRowRatherThanASentenceAboutOne(): void
+    {
+        // GIVEN a form answered with a file
+        $rows = self::flattened(new FormRecords()->of(self::form(presented: false), 'en')->rows);
+        $filed = array_values(array_filter($rows, static fn(RecordedRow $row): bool => $row->label() === 'scan'));
+
+        // THEN the row carries the four facts the values document holds, and
+        // nothing is decided here about what can be done with them: for some
+        // files the name is the least of what a record should say — a signature
+        // *is* an image — and only a renderer knows what it can draw
+        self::assertInstanceOf(Filed::class, $filed[0]);
+        self::assertSame('filed', $filed[0]->kind());
+        self::assertSame('signature.png', $filed[0]->name);
+        self::assertSame('image/png', $filed[0]->type);
+        self::assertSame(8462, $filed[0]->size);
+        self::assertSame('01a0f3d4-0000-7000-8000-0000000000a2', $filed[0]->id);
+        self::assertNull($filed[0]->picture);
+
+        // AND how big it is, in words a person reads rather than bytes to count
+        self::assertSame('8.3 kB', $filed[0]->measured());
+    }
+
     public function testAListIsOneRowPerEntryAndEachEntryIsADocumentOfItsOwn(): void
     {
         // GIVEN
@@ -164,7 +189,7 @@ final class FormRecordsTest extends TestCase
         // GIVEN a confirmed form whose list was left alone — which only a form
         // that does not ask for entries can be
         $definition = self::DEFINITION;
-        unset($definition['items'][7]['min']);
+        unset($definition['items'][8]['min']);
         $rows = new FormRecords()->of(self::form(presented: false, definition: $definition, values: '{"title": "x"}'), 'en')->rows;
         $lines = array_values(array_filter($rows, static fn(RecordedRow $row): bool => $row->label() === 'lines'));
 
@@ -184,7 +209,7 @@ final class FormRecordsTest extends TestCase
         // THEN the definition is what was asked, so it is what the record says:
         // its items, in the order it declares them, labelled by their own names
         self::assertSame(
-            ['title', 'floor', 'country', 'tags', 'terms', 'seen', 'note', 'lines'],
+            ['title', 'floor', 'country', 'tags', 'terms', 'seen', 'note', 'scan', 'lines'],
             array_map(static fn(RecordedRow $row): string => $row->label(), $sheet->rows),
         );
 
@@ -319,6 +344,7 @@ final class FormRecordsTest extends TestCase
             ['name' => 'terms', 'widget' => 'checkbox', 'label' => 'r.terms'],
             ['name' => 'seen', 'widget' => 'datetime', 'label' => 'r.seen'],
             ['name' => 'note', 'widget' => 'text', 'label' => 'r.note'],
+            ['name' => 'scan', 'widget' => 'signature', 'label' => 'r.scan'],
             ['name' => 'lines', 'widget' => 'table', 'label' => 'r.lines', 'columns' => ['sku'], 'items' => [
                 ['name' => 'sku', 'widget' => 'text', 'label' => 'r.sku'],
                 ['name' => 'unit', 'widget' => 'select', 'label' => 'r.unit',
@@ -341,6 +367,7 @@ final class FormRecordsTest extends TestCase
                 'r.terms' => 'Terms',
                 'r.seen' => 'Seen at',
                 'r.note' => 'Anything else',
+                'r.scan' => 'Your signature',
                 'r.lines' => 'Lines',
                 'r.sku' => 'SKU',
                 'r.unit' => 'Unit',

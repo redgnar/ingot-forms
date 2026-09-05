@@ -103,4 +103,14 @@
     array (
     ),
   ),
+  'signature_pad' => 
+  array (
+    'version' => '5.1.4',
+    'dependencies' => 
+    array (
+    ),
+    'extraFiles' => 
+    array (
+    ),
+  ),
 );

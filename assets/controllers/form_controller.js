@@ -64,25 +64,25 @@ export default class extends Controller {
         if (event.target.closest('[data-history-view], [data-language]') !== null) this.#keepUnsaved();
     }
 
-    save(event) {
+    async save(event) {
         event.preventDefault();
+        await this.#settled();
 
-        this.#send(this.apiValue.data, 'PUT', this.#collect()).then((ok) => {
-            if (!ok) return;
+        if (!await this.#send(this.apiValue.data, 'PUT', this.#collect())) return;
 
-            this.#forgetUnsaved();
-            this.asDrawn = JSON.stringify(this.#collect());
-            if (this.hasSavedTarget) this.savedTarget.classList.remove('d-none');
-            // A save makes a new moment, and a panel that does not show it is
-            // lying about what this form remembers.
-            this.dispatch('saved', { prefix: 'form' });
-        });
+        this.#forgetUnsaved();
+        this.asDrawn = JSON.stringify(this.#collect());
+        if (this.hasSavedTarget) this.savedTarget.classList.remove('d-none');
+        // A save makes a new moment, and a panel that does not show it is lying
+        // about what this form remembers.
+        this.dispatch('saved', { prefix: 'form' });
     }
 
     // Confirming judges what the form holds, so what is on the page has to be in
     // it first. A form that locks is drawn again, read-only, by the server.
     async confirm(event) {
         event.preventDefault();
+        await this.#settled();
 
         if (await this.#send(this.apiValue.data, 'PUT', this.#collect())) {
             if (await this.#send(this.apiValue.confirm, 'POST')) window.location.reload();
@@ -200,6 +200,19 @@ export default class extends Controller {
     #entriesOf(list) {
         return [...list.querySelectorAll('[data-entry]')].filter(
             (entry) => entry.closest('[data-collection]') === list && entry.closest('template') === null,
+        );
+    }
+
+    // Bytes still going up are bytes the document does not name yet, and the
+    // hidden control that carries a file's description is empty until its upload
+    // lands. A save a moment too early would send a document with the member
+    // simply missing — which is what it looked like before this waited, and what
+    // a signature pad uploading on its own would have made ordinary.
+    async #settled() {
+        await Promise.all(
+            [...this.element.querySelectorAll('[data-controller~="file"]')]
+                .map((widget) => widget.filePending)
+                .filter((pending) => pending !== null && pending !== undefined),
         );
     }
 

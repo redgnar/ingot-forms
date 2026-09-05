@@ -705,11 +705,24 @@ it. Whoever needs a frozen artifact keeps the bytes they downloaded, which is wh
 A draft is refused (`FormNotConfirmed` → `409`): nothing is wrong with a draft, it is simply not a
 record of anything yet.
 
-A row is one of **three types** — `Answered` (a question and its answer), `Entries` (a list and
-the documents in it) and `Section` (a group under a heading), behind `RecordedRow` — for the
-reason `PresentedNode` is three: code walking a record asks what a row is instead of checking
-which member happens to be there. `kind()` rides along only because a template cannot ask
-`instanceof`. `Section` is what a labelled container becomes: the shape goes, the words stay.
+A row is one of **four types** — `Answered` (a question and its answer), `Entries` (a list and
+the documents in it), `Section` (a group under a heading) and `Filed` (one answered with a file)
+— behind `RecordedRow`, for the reason `PresentedNode` is three: code walking a record asks what
+a row is instead of checking which member happens to be there. `kind()` rides along only because
+a template cannot ask `instanceof`. `Section` is what a labelled container becomes: the shape
+goes, the words stay.
+
+**An image in a record is drawn, not named.** A signature *is* an image, and a record saying
+`signature.png — 8.3 kB` has described the answer instead of showing it — so `Filed` carries the
+description and `DompdfRecordDocuments` reads the bytes through `FileStore` and hands the
+template a `data:` URI. Three things stop it, and each is about what a renderer can be sure of: a
+type outside `image/png`, `image/jpeg`, `image/gif`; anything past 4 MB, because a record that has
+to be downloaded before it can be opened is not a document to file; and a missing **`ext-gd`**,
+which dompdf needs for a PNG with an alpha channel — which is every PNG a browser canvas writes.
+That extension is **optional**: without it the row stays a line naming the file, which is a worse
+record and not a broken one, and the image this repository builds has it so the default is the
+good one. Reading happens in the adapter rather than in `FormRecords` for exactly that reason:
+whether an image can become a picture is a question about the renderer, not about the form.
 
 The layers are the usual ones. `RecordSheet` and the rows are the reading (Application, no
 rules and no idea what they will be rendered into), `FormRecords` builds it, `RecordDocuments` is

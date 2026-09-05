@@ -77,4 +77,12 @@ return [
     'es-module-shims' => [
         'version' => '2.8.4',
     ],
+    // The pad the `signature` widget draws on. Smoothing is the difference
+    // between a signature and a child's drawing, and `devicePixelRatio`,
+    // coalesced pointer events and pen pressure are three things a hand-rolled
+    // version gets wrong on the first three devices. No dependencies of its own,
+    // and committed like everything else here.
+    'signature_pad' => [
+        'version' => '5.1.4',
+    ],
 ];
