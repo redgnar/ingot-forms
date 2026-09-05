@@ -590,6 +590,7 @@ for its type — the first in each row below.
 | `multiselect` | `checkboxes`, `multi-select` | `checkboxes`, `checkbox-buttons`, `autocomplete` |
 | `number` | `number` | `number`, `range`, `stepper` |
 | `date` | `date` | `date` |
+| `datetime` | `datetime` | `datetime` |
 | `checkbox` | `checkbox`, `switch` | `checkbox`, `switch` |
 | `collection` | `table` | `table` |
 | `file` | `file` | `file`, `dropzone`, `signature` |
@@ -1132,6 +1133,8 @@ multiple choice cannot be ticked, exactly as a text box will not take a characte
 | `form.field.not-a-date` | a `min`/`max` on a date is not a calendar day |
 | `form.field.not-a-moment` | a `min`/`max` on a datetime is not an RFC 3339 moment with an offset |
 | `form.collection.required-not-allowed` | `required` on a collection — use `min` instead |
+| `form.multiselect.required-not-allowed` | `required` on a multiple choice — use `min` instead, for the same reason |
+| `form.multiselect.impossible-minimum` | `min` asks for more ticks than the item has options |
 | `form.collection.too-deep` | lists nested inside lists more than five deep |
 | `form.file.not-a-media-type` | an `accept` entry is not a media type |
 | `form.data.unknown-field-type` | (at confirmation) the form holds a plugin item type |
@@ -1180,8 +1183,9 @@ fallback.
 
 ## A complete example
 
-An order form: who is ordering, what they are ordering (a list), an invoice to attach, and a
-consent. Drawn by the richer kit, wearing `flatly`, in Polish.
+An order form: who is ordering, what they are ordering (a list), which extras they want (several
+of a closed list), an invoice to attach, a signature to draw, and a consent. Drawn by the richer
+kit, wearing `flatly`, in Polish.
 
 ```json
 {
@@ -1190,8 +1194,10 @@ consent. Drawn by the richer kit, wearing `flatly`, in Polish.
     "items": [
       { "type": "text",   "name": "customer", "required": true, "maxLength": 60 },
       { "type": "select", "name": "country",  "required": true, "options": ["pl", "de"] },
+      { "type": "multiselect", "name": "extras", "options": ["gift", "express", "insured"], "max": 2 },
       { "type": "date",   "name": "delivery", "min": "2026-01-01" },
       { "type": "file",   "name": "invoice",  "accept": ["application/pdf"], "maxSize": 1048576 },
+      { "type": "file",   "name": "signature", "accept": ["image/png"], "maxSize": 262144 },
       { "type": "collection", "name": "lines", "min": 1, "max": 20, "items": [
         { "type": "text",   "name": "sku",      "required": true, "pattern": "^[A-Z]-[0-9]+$" },
         { "type": "number", "name": "quantity", "required": true, "min": 1, "decimals": 0 }
@@ -1211,7 +1217,9 @@ consent. Drawn by the richer kit, wearing `flatly`, in Polish.
           { "name": "country",  "widget": "radio-buttons", "label": "t.country",
             "choices": { "pl": "t.pl", "de": "t.de" }, "options": { "width": 4 } }
         ]},
-        { "name": "delivery", "widget": "date", "label": "t.delivery", "hint": "t.delivery.hint" }
+        { "name": "delivery", "widget": "date", "label": "t.delivery", "hint": "t.delivery.hint" },
+        { "name": "extras", "widget": "checkboxes", "label": "t.extras", "hint": "t.extras.hint",
+          "choices": { "gift": "t.gift", "express": "t.express", "insured": "t.insured" } }
       ]},
       { "name": "lines", "widget": "table", "label": "t.lines", "columns": ["sku", "quantity"],
         "items": [
@@ -1220,6 +1228,8 @@ consent. Drawn by the richer kit, wearing `flatly`, in Polish.
         ]},
       { "name": "invoice", "widget": "dropzone", "label": "t.invoice", "hint": "t.invoice.hint" },
       { "name": "terms", "widget": "switch", "label": "t.terms" },
+      { "name": "signature", "widget": "signature", "label": "t.signature",
+        "options": { "height": 180 } },
       { "widget": "save",    "label": "t.save", "options": { "appearance": "link" } },
       { "widget": "confirm", "label": "t.send" },
       { "widget": "reset",   "label": "t.reset" },
@@ -1231,7 +1241,10 @@ consent. Drawn by the richer kit, wearing `flatly`, in Polish.
         "t.customer": "Imię i nazwisko", "t.country": "Kraj", "t.pl": "Polska", "t.de": "Niemcy",
         "t.delivery": "Data dostawy", "t.delivery.hint": "Najwcześniej od stycznia 2026",
         "t.lines": "Pozycje", "t.sku": "Kod", "t.quantity": "Ilość",
+        "t.extras": "Dodatki", "t.extras.hint": "Najwyżej dwa",
+        "t.gift": "Pakowanie na prezent", "t.express": "Dostawa ekspresowa", "t.insured": "Ubezpieczenie",
         "t.invoice": "Faktura (PDF)", "t.invoice.hint": "Jeden PDF, do 1 MB",
+        "t.signature": "Podpis",
         "t.terms": "Akceptuję regulamin",
         "t.save": "Zapisz na później", "t.send": "Wyślij", "t.reset": "Zacznij od nowa",
         "t.history": "Wcześniejsze wersje"

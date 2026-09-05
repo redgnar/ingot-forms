@@ -236,9 +236,11 @@ that does not ask for `history` has no panel.
 
 ## What this kit deliberately does not have
 
-No autocomplete, no slider, no stepper, no drop area, no cards or accordions, no icons, no
-skins. Every one of those is either a way of asking that needs machinery this kit refuses, or a
-way of looking that it has no opinion about. A document that wants them names the other kit.
+No autocomplete, no slider, no stepper, no drop area, **no signature pad**, no cards or
+accordions, no icons, no skins. Every one of those is either a way of asking that needs
+machinery this kit refuses, or a way of looking that it has no opinion about. A document that
+wants them names the other kit — and a `file` item is still answerable here, by attaching a
+photograph of a signature like any other file.
 
 ---
 

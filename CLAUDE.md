@@ -857,7 +857,12 @@ Five places, and putting something in the wrong one is how two of them start dis
 | `docs/api.md`, `docs/openapi.yaml` | the endpoint reference | `make docs` — **never by hand** |
 
 So: a new item type, a new refusal code or a new skin → `configuring-forms.md`, and a new
-**widget** → `kits.md` as well, which is the one document that claims to list them all. A new
+**widget** → `kits.md` as well, which is the one document that claims to list them all.
+**`DocumentedWidgetsTest` holds both to it**: the controls table in `configuring-forms.md` must
+say exactly what the engines answer, and every control must be described in `kits.md`. Nothing in
+the pipeline reads Markdown, so that test is the only thing that notices — and it exists because
+both documents had already fallen behind (a whole item type, `datetime`, was missing from the
+table for as long as it has existed). A new
 port, adapter, cache, command or env var → `architecture.md`. A new **address** — or anything
 that changes what a gateway must let through — → `deploying-behind-a-gateway.md` *and* the
 example beside it, because a rule nobody can run is a rule nobody checks. A rule the model keeps

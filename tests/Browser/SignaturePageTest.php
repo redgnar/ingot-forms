@@ -374,7 +374,13 @@ final class SignaturePageTest extends PantherTestCase
         return $values;
     }
 
-    private function eventually(callable $ready, float $seconds = 6.0): mixed
+    /**
+     * Ten seconds rather than the usual few: a signature is the longest chain in
+     * this suite — a stroke ends, a canvas is encoded, bytes go up, and only then
+     * does a save even start — and it runs last, after a thousand other tests
+     * have warmed nothing up. A wait is not a performance assertion.
+     */
+    private function eventually(callable $ready, float $seconds = 10.0): mixed
     {
         $deadline = microtime(true) + $seconds;
 
