@@ -489,7 +489,8 @@ the same one.
 `app:forms:purge-expired` remains the end of everything, and both deletions go **the row
 first, the bytes second**. The other way round can leave a live form naming files that are
 gone — the one state this design does not tolerate — while a directory whose row is already
-gone is provably garbage and gets collected by the command above. That is what closes the
+gone is provably garbage and gets collected by the command above, once its bytes have sat out
+`FILES_TEMPORARY_DAYS` like anything else that command looks at. That is what closes the
 worry a file item was postponed over: a purge no longer has to succeed in two places at once.
 
 **Both kits draw a file** — `file` in `core-html`, `file` and `dropzone` in `bootstrap` (a

@@ -297,12 +297,15 @@ named, its current document and every earlier save of it (`FormFiles`, cheap bec
 definition is immutable, so every revision is read with the same one). What is not saved is
 collected in two places — the page at once (`DELETE …/files/{id}`, refused for anything any save
 names) and `app:files:purge-temporary` on a schedule (whatever no save ever named and has sat
-longer than `FILES_TEMPORARY_DAYS`, plus directories whose row is already gone). **A save takes
+longer than `FILES_TEMPORARY_DAYS`, plus directories whose row is already gone — **the age
+gate is asked first and covers both**, so a dead form's directory is collected once its bytes
+are old rather than on the next run: the listing is what a run pays for, and asking the row
+about a directory holding nothing old would be paying it for nothing). **A save takes
 nothing away**: a document somebody can put back is a document whose files still matter, so
 replacing a file leaves the old one fetchable until its form goes. Deleting a form and
 purging one both go **the row first, the bytes second**: the other way round can leave a live
 form naming files that are gone, while a directory with no row is provably garbage and gets
-collected. That is what closed the old worry about a purge having to succeed in two places.
+collected once it is old enough to be looked at. That is what closed the old worry about a purge having to succeed in two places.
 
 Three exceptions this buys, each deliberate and each stated where it lives: the upload is the
 one endpoint whose body is not JSON, the download is one of two that do not answer with a
