@@ -75,6 +75,10 @@ final readonly class FormRecords
         $rows = [];
 
         foreach ($items as $item) {
+            if (!self::wasAsked($item, $values)) {
+                continue;
+            }
+
             $rows[] = $this->row($item, $item->name, $values[$item->name] ?? null, [], $words);
         }
 
@@ -129,7 +133,7 @@ final readonly class FormRecords
 
             $field = $declared[$item->name] ?? null;
 
-            if ($field === null) {
+            if ($field === null || !self::wasAsked($field, $values)) {
                 continue;
             }
 
@@ -144,6 +148,22 @@ final readonly class FormRecords
         }
 
         return $rows;
+    }
+
+    /**
+     * Whether this question was asked at all of these answers.
+     *
+     * A record shows what a form asked and what was answered, and a question
+     * this document never put is neither — printed with a dash beside it, it
+     * would read as an answer somebody withheld. The condition is read the way
+     * the page reads it and the way the schema enforced it: one vocabulary, one
+     * verdict ({@see \App\Domain\Forms\Definition\Condition::holds()}).
+     *
+     * @param array<string, mixed> $values
+     */
+    private static function wasAsked(Field $field, array $values): bool
+    {
+        return $field->askedWhen?->holds($values) ?? true;
     }
 
     /**

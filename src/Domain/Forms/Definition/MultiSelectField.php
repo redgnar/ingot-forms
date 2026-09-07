@@ -48,8 +48,10 @@ final readonly class MultiSelectField extends Field
         #[Constraints(minimum: 1)]
         public ?int $max = null,
         bool $required = false,
+        ?Condition $askedWhen = null,
+        ?Condition $requiredWhen = null,
     ) {
-        parent::__construct($name, $required);
+        parent::__construct($name, $required, $askedWhen, $requiredWhen);
     }
 
     /**

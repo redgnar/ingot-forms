@@ -22,7 +22,9 @@ final readonly class DateField extends Field
         // "a day that exists" is — and that is one check, in one place.
         public ?string $min = null,
         public ?string $max = null,
+        ?Condition $askedWhen = null,
+        ?Condition $requiredWhen = null,
     ) {
-        parent::__construct($name, $required);
+        parent::__construct($name, $required, $askedWhen, $requiredWhen);
     }
 }

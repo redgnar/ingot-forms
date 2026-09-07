@@ -27,7 +27,9 @@ final readonly class DateTimeField extends Field
         bool $required = false,
         public ?string $min = null,
         public ?string $max = null,
+        ?Condition $askedWhen = null,
+        ?Condition $requiredWhen = null,
     ) {
-        parent::__construct($name, $required);
+        parent::__construct($name, $required, $askedWhen, $requiredWhen);
     }
 }

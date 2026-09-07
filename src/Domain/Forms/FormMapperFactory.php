@@ -7,6 +7,9 @@ namespace App\Domain\Forms;
 use App\Domain\Forms\Definition\CollectionCountValidator;
 use App\Domain\Forms\Definition\CollectionDepthValidator;
 use App\Domain\Forms\Definition\CollectionField;
+use App\Domain\Forms\Definition\Condition;
+use App\Domain\Forms\Definition\ConditionShapeValidator;
+use App\Domain\Forms\Definition\ConditionsMakeSenseValidator;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateRangeValidator;
 use App\Domain\Forms\Definition\DateTimeField;
@@ -60,6 +63,9 @@ final class FormMapperFactory
             ->withValidator(CollectionField::class, new UniqueFieldNamesValidator())
             ->withValidator(CollectionField::class, new CollectionCountValidator())
             ->withValidator(MultiSelectField::class, new MultiSelectCountValidator())
+            ->withValidator(Condition::class, new ConditionShapeValidator())
+            ->withValidator(FormDefinition::class, new ConditionsMakeSenseValidator())
+            ->withValidator(CollectionField::class, new ConditionsMakeSenseValidator())
             // How deep a list may sit inside a list, asked of the whole document:
             // the finding has to point at where the nesting went too far.
             ->withValidator(FormDefinition::class, new CollectionDepthValidator())

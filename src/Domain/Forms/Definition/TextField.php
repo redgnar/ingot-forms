@@ -17,7 +17,9 @@ final readonly class TextField extends Field
         public ?int $maxLength = null,
         #[Constraints(minLength: 1)]
         public ?string $pattern = null,
+        ?Condition $askedWhen = null,
+        ?Condition $requiredWhen = null,
     ) {
-        parent::__construct($name, $required);
+        parent::__construct($name, $required, $askedWhen, $requiredWhen);
     }
 }

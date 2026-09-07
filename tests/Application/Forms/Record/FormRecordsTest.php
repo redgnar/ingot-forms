@@ -199,6 +199,53 @@ final class FormRecordsTest extends TestCase
         self::assertSame([], $lines[0]->entries);
     }
 
+    public function testAQuestionNobodyWasAskedIsNotInTheRecord(): void
+    {
+        // GIVEN a form asking one question only of somebody with a company, and
+        // an answer that says they have none
+        $definition = ['items' => [
+            ['type' => 'checkbox', 'name' => 'hasCompany'],
+            ['type' => 'text', 'name' => 'nip', 'askedWhen' => ['item' => 'hasCompany', 'is' => true]],
+            ['type' => 'text', 'name' => 'note'],
+        ]];
+
+        // WHEN the record is read
+        $rows = new FormRecords()->of(
+            self::form(presented: false, definition: $definition, values: '{"hasCompany": false, "note": "nothing"}'),
+            'en',
+        )->rows;
+
+        // THEN the question is not in it at all. A record says what was asked
+        // and what was answered, and a question nobody put is neither — printed
+        // with a dash beside it, it would read as an answer somebody withheld
+        self::assertSame(['hasCompany', 'note'], array_map(
+            static fn(RecordedRow $row): string => $row->label(),
+            $rows,
+        ));
+    }
+
+    public function testTheSameFormAnsweredTheOtherWayHasTheQuestionInIt(): void
+    {
+        // GIVEN the same form, answered the way that asks the question
+        $definition = ['items' => [
+            ['type' => 'checkbox', 'name' => 'hasCompany'],
+            ['type' => 'text', 'name' => 'nip', 'askedWhen' => ['item' => 'hasCompany', 'is' => true]],
+        ]];
+
+        // WHEN
+        $rows = new FormRecords()->of(
+            self::form(presented: false, definition: $definition, values: '{"hasCompany": true, "nip": "1234567890"}'),
+            'en',
+        )->rows;
+
+        // THEN it is there with its answer, like any other question
+        self::assertSame(['hasCompany', 'nip'], array_map(
+            static fn(RecordedRow $row): string => $row->label(),
+            $rows,
+        ));
+        self::assertSame('1234567890', self::answers($rows)['nip']);
+    }
+
     public function testAFormNobodyDescribedStillHasARecord(): void
     {
         // GIVEN a form created through the API with no presentation at all —

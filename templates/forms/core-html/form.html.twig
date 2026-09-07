@@ -297,6 +297,11 @@
     {% set id = 'list-' ~ (node.scope ? node.scope ~ '-' : '') ~ node.name %}
     <fieldset class="entries" data-collection="{{ node.name }}" data-pending="{{ node.pending }}"
          aria-describedby="{{ node.hint ? id ~ '-hint ' : '' }}{{ id }}-error"
+         {#- A list the document asks for only sometimes: the condition rides
+             along as the data it is, and `data-unasked` says this one is not
+             being asked — so nothing inside it is collected. #}
+         {%- if node.askedWhen %} data-asked-when="{{ node.askedWhen }}"{% endif %}
+         {%- if not node.asked %} data-unasked hidden{% endif %}
          data-ticked="{{ 'page.ticked'|trans }}" data-unticked="{{ 'page.unticked'|trans }}"
          {%- if node.min is not null %} data-min="{{ node.min }}"{% endif %}
          {%- if node.max is not null %} data-max="{{ node.max }}"{% endif %}>
@@ -397,13 +402,23 @@
        — so inside an entry every id carries the entry's own scope. The label
        points at it as everywhere else. #}
     {% set id = 'item-' ~ (node.scope ? node.scope ~ '-' : '') ~ node.name %}
-    <div class="item" data-item="{{ node.name }}"{% if node.widget == 'hidden' %} hidden{% endif %}>
+    {# Two different reasons for a question not to be on the page, and only one
+       of them says anything about the document: a `hidden` widget is an item a
+       client fills in, whose answer still travels, while `data-unasked` is a
+       question this document does not ask of these answers — and an unasked
+       answer is not collected at all. #}
+    <div class="item" data-item="{{ node.name }}"
+         {%- if node.askedWhen %} data-asked-when="{{ node.askedWhen }}"{% endif %}
+         {%- if node.requiredWhen %} data-required-when="{{ node.requiredWhen }}"{% endif %}
+         {%- if not node.asked %} data-unasked{% endif %}
+         {%- if node.widget == 'hidden' %} data-out-of-sight{% endif %}
+         {%- if not node.asked or node.widget == 'hidden' %} hidden{% endif %}>
         {% if node.widget != 'hidden' %}
             {# A group of radios is not one control, so its caption cannot point
                at one: each option's own label does that. It still has to be read
                as the question, so the group names it instead — a caption pointing
                at nothing is a question a screen reader never asks. #}
-            <label id="{{ id }}-label"{% if node.widget not in ['radio', 'checkboxes'] %} for="{{ id }}"{% endif %}>{{ node.label }}{% if node.required %}<span aria-hidden="true"> *</span>{% endif %}</label>
+            <label id="{{ id }}-label"{% if node.widget not in ['radio', 'checkboxes'] %} for="{{ id }}"{% endif %}>{{ node.label }}{% if node.required or node.requiredWhen %}<span data-star aria-hidden="true"{% if not node.required %} hidden{% endif %}> *</span>{% endif %}</label>
             {% if node.hint %}<p class="hint" id="{{ id }}-hint">{{ node.hint }}</p>{% endif %}
         {% endif %}
         {{ _self.control(node, readOnly, id) }}

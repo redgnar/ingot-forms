@@ -51,6 +51,12 @@ versioning and multi-submission forms are deliberately out of scope.
   reads like, and in which language, belongs to whatever draws the form. The definition says
   what is asked (`name`, `type`) and what an answer must satisfy — a client keys its own copy
   by the item's name.
+- **A question may be asked only sometimes.** Any item can carry `askedWhen` and
+  `requiredWhen` — a condition written as data, never as an expression: a test of another
+  answer, or `all`/`any`/`none` of such tests. Both are derived into the published schema, so
+  an answer to a question nobody was asked is *refused* rather than ignored, and both kits ask
+  the same condition again after every keystroke
+  ([conditions](docs/configuring-forms.md#questions-asked-only-sometimes)).
 - **A form can draw itself.** An optional presentation document says how, in one of two kits;
   a skin says what it looks like; and what a *reader* needs — contrast, colours, text size — is
   theirs to set and no document's to decide ([the pages](docs/architecture.md#the-pages)).

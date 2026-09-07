@@ -614,6 +614,20 @@ with the page — and show that instead, with the number filled in from what the
 carries. A code neither kit has words for keeps the API's own message, which is the right one for
 whoever hand-wrote that request.
 
+**A question asked only sometimes is asked again after every keystroke.** A definition may say
+`askedWhen` / `requiredWhen` (see
+[Questions asked only sometimes](configuring-forms.md#questions-asked-only-sometimes)), and both
+kits carry the condition into the markup — `data-asked-when` and `data-required-when` on the
+block holding the question — because what decides a question may be an answer somebody is typing
+now. A question the condition does not ask is marked `data-unasked` and hidden, any refusal
+standing beside it is cleared, and **its answer is not collected**: the server derives
+`{"properties": {"nip": false}}` from the same condition, so an answer left behind would not be
+ignored but refused. `requiredWhen` coming about draws the star and sets `aria-required`; an
+entry of a list decides for itself, including one added a moment ago. The server does the same
+thing before the first paint, so nothing flashes on the way in. `data-unasked` is deliberately
+*not* the same fact as `hidden`: an item drawn with the `hidden` widget is one a client fills in,
+and its answer travels like any other.
+
 **A ceiling is held before it is met.** Every maximum that would refuse a *draft* is enforced in
 the page: `maxlength` on text, `max` on a number, a dead *add* button at a list's `max`, and
 unticked options disabled at a multiple choice's `max` (the searchable one hands the number to

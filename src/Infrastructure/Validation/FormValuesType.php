@@ -41,9 +41,15 @@ final class FormValuesType extends AbstractType
     {
         $definition = $options['definition'];
         \assert($definition instanceof FormDefinition);
-        $strict = $options['mode'] === DeriveMode::Strict;
+        $mode = $options['mode'];
 
         foreach ($definition->items as $field) {
+            // Strict for everything except an obligation that depends on another
+            // answer. Only the derived schema can see a condition — this stage is
+            // handed one item at a time — so a `required` beside an `askedWhen`
+            // must not be demanded here, or this gate would refuse what the
+            // published contract accepts. Which is the one thing it may never do.
+            $strict = $mode === DeriveMode::Strict && !$field->isConditional();
             [$type, $fieldOptions] = match (true) {
                 $field instanceof TextField => [TextType::class, self::textOptions($field, $strict)],
                 $field instanceof SelectField => [ChoiceType::class, self::selectOptions($field, $strict)],

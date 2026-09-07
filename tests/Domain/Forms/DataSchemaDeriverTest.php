@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Tests\Domain\Forms;
 
 use App\Domain\Forms\DataSchemaDeriver;
+use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
+use App\Domain\Forms\Definition\Condition;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\GenericField;
 use App\Domain\Forms\Definition\MultiSelectField;
@@ -177,6 +179,209 @@ final class DataSchemaDeriverTest extends TestCase
             'uniqueItems' => true,
             'maxItems' => 2,
         ], $draft['properties']['tags']);
+    }
+
+    public function testAConditionalQuestionIsPublishedAsAConditionAndNotAsARule(): void
+    {
+        // GIVEN a question asked only when another was answered a certain way,
+        // and required whenever it is asked
+        $definition = new FormDefinition([
+            new CheckboxField('hasCompany'),
+            new TextField('nip', required: true, askedWhen: new Condition(item: 'hasCompany', is: true)),
+        ]);
+
+        // WHEN
+        $strict = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Strict));
+
+        // THEN the obligation is inside the condition and nowhere else: a
+        // conditional `required` in the flat list would owe the answer whatever
+        // anybody said before it
+        self::assertArrayNotHasKey('required', $strict);
+        self::assertSame([[
+            'if' => ['properties' => ['hasCompany' => ['const' => true]], 'required' => ['hasCompany']],
+            'then' => ['required' => ['nip']],
+            // Absent when the question was not asked — a rule about the value,
+            // and the half that makes a page's hiding safe. Spelled as a refused
+            // member rather than as `not`, because that is the spelling whose
+            // finding names the member.
+            'else' => ['properties' => ['nip' => false]],
+        ]], $strict['allOf']);
+    }
+
+    public function testWhileFillingInNothingIsOwedButWhatWasNotAskedIsStillRefused(): void
+    {
+        // GIVEN the same form
+        $definition = new FormDefinition([
+            new CheckboxField('hasCompany'),
+            new TextField('nip', required: true, askedWhen: new Condition(item: 'hasCompany', is: true)),
+        ]);
+
+        // WHEN
+        $draft = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Draft));
+
+        // THEN the obligation goes and the relevance stays, which is the same
+        // split `required` and `max` already follow
+        self::assertSame([[
+            'if' => ['properties' => ['hasCompany' => ['const' => true]], 'required' => ['hasCompany']],
+            'else' => ['properties' => ['nip' => false]],
+        ]], $draft['allOf']);
+    }
+
+    public function testAConditionalObligationIsOnlyAnObligation(): void
+    {
+        // GIVEN a question always asked and sometimes owed
+        $definition = new FormDefinition([
+            new SelectField('rating', ['1', '2', '3']),
+            new TextField('why', requiredWhen: new Condition(item: 'rating', in: ['1', '2'])),
+        ]);
+
+        // WHEN
+        $strict = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Strict));
+        $draft = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Draft));
+
+        // THEN there is no `else`: the question is asked either way, so an
+        // answer is allowed either way — only the obligation moved
+        self::assertSame([[
+            'if' => ['properties' => ['rating' => ['enum' => ['1', '2']]], 'required' => ['rating']],
+            'then' => ['required' => ['why']],
+        ]], $strict['allOf']);
+
+        // AND in a draft it is not there at all, like every other obligation
+        self::assertArrayNotHasKey('allOf', $draft);
+    }
+
+    public function testEveryTestAndEveryCombinatorAsTheSchemaSaysIt(): void
+    {
+        // GIVEN one item per test and one per combinator
+        $definition = new FormDefinition([
+            new SelectField('country', ['pl', 'de']),
+            new TextField('a', askedWhen: new Condition(item: 'country', isNot: 'pl')),
+            new TextField('b', askedWhen: new Condition(item: 'country', notIn: ['pl'])),
+            new TextField('c', askedWhen: new Condition(item: 'country', answered: true)),
+            new TextField('d', askedWhen: new Condition(item: 'country', answered: false)),
+            new TextField('e', askedWhen: new Condition(none: [new Condition(item: 'country', is: 'pl')])),
+        ]);
+
+        // WHEN
+        $strict = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Strict));
+        self::assertIsArray($strict['allOf']);
+        $conditions = [];
+
+        foreach ($strict['allOf'] as $branch) {
+            self::assertIsArray($branch);
+            $conditions[] = $branch['if'];
+        }
+
+        // THEN each is the schema that decides it — and every test but the one
+        // about absence asks for the item as well as for the answer, which is
+        // the difference between "not Poland" and "nobody has said yet"
+        self::assertSame([
+            ['properties' => ['country' => ['not' => ['const' => 'pl']]], 'required' => ['country']],
+            ['properties' => ['country' => ['not' => ['enum' => ['pl']]]], 'required' => ['country']],
+            ['required' => ['country']],
+            ['not' => ['required' => ['country']]],
+            ['not' => ['anyOf' => [['properties' => ['country' => ['const' => 'pl']], 'required' => ['country']]]]],
+        ], $conditions);
+    }
+
+    public function testCombinatorsNestAsTheyWereWritten(): void
+    {
+        // GIVEN two answers that both have to say so
+        $definition = new FormDefinition([
+            new CheckboxField('x'),
+            new CheckboxField('y'),
+            new TextField('a', askedWhen: new Condition(all: [
+                new Condition(item: 'x', is: true),
+                new Condition(any: [new Condition(item: 'y', is: true)]),
+            ])),
+        ]);
+
+        // WHEN
+        $strict = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Strict));
+        self::assertIsArray($strict['allOf']);
+        self::assertIsArray($strict['allOf'][0]);
+
+        // THEN the tree comes out as the tree it went in as
+        self::assertSame(['allOf' => [
+            ['properties' => ['x' => ['const' => true]], 'required' => ['x']],
+            ['anyOf' => [['properties' => ['y' => ['const' => true]], 'required' => ['y']]]],
+        ]], $strict['allOf'][0]['if']);
+    }
+
+    public function testAConditionInsideAListIsJudgedInsideTheEntry(): void
+    {
+        // GIVEN a list whose entries ask about their own answers
+        $definition = new FormDefinition([
+            new CollectionField('lines', [
+                new SelectField('kind', ['dent', 'other']),
+                new TextField('why', required: true, askedWhen: new Condition(item: 'kind', is: 'other')),
+            ], min: 1),
+        ]);
+
+        // WHEN
+        $strict = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Strict));
+        self::assertIsArray($strict['properties']);
+        self::assertIsArray($strict['properties']['lines']);
+        $entry = $strict['properties']['lines']['items'];
+
+        // THEN the condition sits in the entry's own object, because that is the
+        // scope it was written in — which is also what makes a finding point at
+        // `/lines/1/why` rather than at the list
+        self::assertIsArray($entry);
+        self::assertSame([[
+            'if' => ['properties' => ['kind' => ['const' => 'other']], 'required' => ['kind']],
+            'then' => ['required' => ['why']],
+            'else' => ['properties' => ['why' => false]],
+        ]], $entry['allOf']);
+        self::assertArrayNotHasKey('allOf', $strict);
+    }
+
+    public function testAnItemMayBeAskedUnderOneConditionAndOwedUnderAnother(): void
+    {
+        // GIVEN a question asked when one answer says so, and owed when another
+        // does — two conditions about one item, which is neither a mistake nor a
+        // special case
+        $definition = new FormDefinition([
+            new CheckboxField('x'),
+            new CheckboxField('y'),
+            new TextField(
+                'a',
+                askedWhen: new Condition(item: 'x', is: true),
+                requiredWhen: new Condition(item: 'y', is: true),
+            ),
+        ]);
+
+        // WHEN
+        $strict = self::document(new DataSchemaDeriver()->derive($definition, DeriveMode::Strict));
+
+        // THEN both are published, and both apply: relevance first, obligation
+        // second, and neither is folded into the other
+        self::assertSame([
+            [
+                'if' => ['properties' => ['x' => ['const' => true]], 'required' => ['x']],
+                'else' => ['properties' => ['a' => false]],
+            ],
+            [
+                'if' => ['properties' => ['y' => ['const' => true]], 'required' => ['y']],
+                'then' => ['required' => ['a']],
+            ],
+        ], $strict['allOf']);
+    }
+
+    public function testATestWithNoItemNeverLeavesTheMapperAndIsRefusedIfItDoes(): void
+    {
+        // GIVEN a definition built by hand, past the validation every real one
+        // goes through: a test that names no item
+        $definition = new FormDefinition([
+            new TextField('a', askedWhen: new Condition(is: true)),
+        ]);
+
+        // WHEN / THEN deriving stops rather than publishing an `if` with no
+        // question in it — which would be an `if` that is always true, and a
+        // contract quietly saying the opposite of what the document meant
+        $this->expectException(\LogicException::class);
+
+        new DataSchemaDeriver()->derive($definition, DeriveMode::Strict);
     }
 
     public function testStrictIsTheDefaultMode(): void

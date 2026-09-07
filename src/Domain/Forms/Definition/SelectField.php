@@ -17,7 +17,9 @@ final readonly class SelectField extends Field
         #[Constraints(minItems: 1, uniqueItems: true)]
         public array $options,
         bool $required = false,
+        ?Condition $askedWhen = null,
+        ?Condition $requiredWhen = null,
     ) {
-        parent::__construct($name, $required);
+        parent::__construct($name, $required, $askedWhen, $requiredWhen);
     }
 }

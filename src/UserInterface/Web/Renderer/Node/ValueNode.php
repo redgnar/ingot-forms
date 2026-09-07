@@ -8,6 +8,12 @@ namespace App\UserInterface\Web\Renderer\Node;
  * A node that presents one declared item of the form: the control, the words
  * around it, the answer it holds, and the limits the definition puts on it.
  *
+ * Whether it is asked at all is here too, resolved the same way: a condition is
+ * data the definition carries, and the answer to it is the values document read
+ * through {@see \App\Domain\Forms\Definition\Condition::holds()}. The
+ * conditions ride along beside the answer because the answer goes stale the
+ * moment somebody types — the page asks them again, of what is on it.
+ *
  * Every limit is carried whether or not this kind of item has one — a text item
  * has no `min`, a number no `maxLength` — because a template asks the node and
  * not the item type. What the definition did not say is null, which is the same
@@ -43,6 +49,11 @@ final readonly class ValueNode extends PresentedNode
         public ?int $maxSize,
         public ?string $download,
         public ?string $upload,
+        /** Whether this question is asked at all of the document as drawn — false hides it, and its answer is not collected. */
+        public bool $asked = true,
+        /** The conditions as the documents they were written as, for a page to ask again after every keystroke — null when there are none. */
+        public ?string $askedWhen = null,
+        public ?string $requiredWhen = null,
     ) {
         parent::__construct('value', $widget, $label, $hint, $options);
     }

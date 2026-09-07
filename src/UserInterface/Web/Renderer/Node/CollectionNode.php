@@ -31,6 +31,16 @@ final readonly class CollectionNode extends PresentedNode
         public array $entries,
         /** The entry form again, holding nothing: what a page clones when somebody asks for one more. */
         public PresentedEntry $blank,
+        /** Whether the list is asked for at all of the document as drawn ({@see ValueNode::$asked}). */
+        public bool $asked = true,
+        /**
+         * The condition as the document it was written as, for a page to ask
+         * again. There is no `requiredWhen` beside it: a list owing entries
+         * under a condition is refused at creation, because `required` on a
+         * list would be satisfied by an empty one
+         * ({@see \App\Domain\Forms\Definition\CollectionCountValidator}).
+         */
+        public ?string $askedWhen = null,
     ) {
         parent::__construct('collection', $widget, $label, $hint, $options);
     }

@@ -45,6 +45,12 @@ export default class extends Controller {
 
         this.#guard();
 
+        // A whole scope of answers arrived (or left), and which questions this
+        // page asks follows from the answers — so it says so, and the form
+        // controller works them out again. Announced rather than reached for:
+        // this list knows nothing about conditions.
+        this.dispatch('changed');
+
         // Somebody who asked for one more entry is about to answer it, and the
         // form they answer it in is below the row they pressed. A document being
         // put back onto the page asked for nothing, and moves nobody.
@@ -75,6 +81,7 @@ export default class extends Controller {
         event.preventDefault();
         event.target.closest('[data-entry]').remove();
         this.#guard();
+        this.dispatch('changed');
     }
 
     // A table that contradicts the form under it is worse than no table.

@@ -19,7 +19,9 @@ final readonly class CheckboxField extends Field
         string $name,
         bool $required = false,
         public bool $mustBeChecked = false,
+        ?Condition $askedWhen = null,
+        ?Condition $requiredWhen = null,
     ) {
-        parent::__construct($name, $required);
+        parent::__construct($name, $required, $askedWhen, $requiredWhen);
     }
 }

@@ -2,6 +2,52 @@ import { Controller } from '@hotwired/stimulus';
 import { withOffset } from '../moments.js';
 
 /**
+ * Whether a condition holds of a document.
+ *
+ * The same question the server asks of the same data — `Condition::holds()` in
+ * PHP, and the derived schema behind it, which is what actually enforces this.
+ * The vocabulary is closed: five tests, three combinators, no expressions and
+ * nothing to run. A condition is data all the way down, which is what lets both
+ * sides read it and neither own it.
+ *
+ * Every test but `answered` needs the item answered before it can compare
+ * anything: without that, "asked when the country is not Poland" would hold on
+ * an empty form and the question after it would be standing there before
+ * anybody had said where they live.
+ *
+ * Outside the controller, because it is about a document rather than about a
+ * page — and the plain kit has the same thirty lines of its own, which is the
+ * bargain that kit was born with.
+ */
+function holds(condition, values) {
+    for (const combinator of ['all', 'any', 'none']) {
+        const children = condition[combinator];
+
+        if (!Array.isArray(children)) continue;
+
+        const held = children.filter((child) => holds(child, values)).length;
+
+        if (combinator === 'all') return held === children.length;
+
+        return combinator === 'any' ? held > 0 : held === 0;
+    }
+
+    const answered = Object.hasOwn(values, condition.item);
+
+    // An unanswered item is absent from the document, so presence is the whole
+    // of this one — and the only test that is about absence at all.
+    if (condition.answered !== undefined) return condition.answered === answered;
+
+    const value = values[condition.item];
+
+    if (condition.is !== undefined) return answered && value === condition.is;
+    if (condition.isNot !== undefined) return answered && value !== condition.isNot;
+    if (condition.in !== undefined) return answered && condition.in.includes(value);
+
+    return answered && !condition.notIn.includes(value);
+}
+
+/**
  * The page's side of the form: collect what the controls hold, send it to the
  * API, and show what comes back where it belongs.
  *
@@ -47,6 +93,12 @@ export default class extends Controller {
                 // to admit it.
                 if (this.hasUnsavedTarget) this.unsavedTarget.classList.remove('d-none');
             }
+
+            // Drawn by the server, which asked the same conditions of the
+            // document it holds — and then filled back in from a draft nobody
+            // saved, which it could not have known about. So the questions are
+            // worked out again before anything is measured.
+            this.#ask();
 
             // Whatever the page holds now — drawn by the server, or drawn and then
             // filled back in — is the baseline the next detour is measured against.
@@ -117,6 +169,12 @@ export default class extends Controller {
     // first thing somebody changes afterwards takes it away.
     touched() {
         if (this.hasSavedTarget) this.savedTarget.classList.add('d-none');
+
+        // Which questions are asked follows what has been answered, so it is
+        // worked out again after anything that changes an answer: typing,
+        // picking, ticking, and adding or removing an entry — which brings a
+        // whole scope of answers with it.
+        this.#ask();
     }
 
     // Structure carries identity: what a control answers is read from where it
@@ -182,13 +240,29 @@ export default class extends Controller {
     // Everything belonging to this scope rather than to a list inside it. A
     // blank entry waiting to be cloned belongs to nobody until it is added.
     #ownControls(scope) {
-        return this.controlTargets.filter((control) => scope.contains(control) && this.#listOwning(control, scope) === null);
+        return this.controlTargets.filter(
+            (control) => scope.contains(control) && this.#listOwning(control, scope) === null && !this.#unasked(control),
+        );
     }
 
     #ownLists(scope) {
         return [...scope.querySelectorAll('[data-collection]')].filter(
-            (list) => this.#listOwning(list.parentElement, scope) === null && list.closest('template') === null,
+            (list) => this.#listOwning(list.parentElement, scope) === null
+                && list.closest('template') === null
+                && !this.#unasked(list),
         );
+    }
+
+    // A question this document is not asking of these answers. Its answer is not
+    // collected, which is the whole point: the document has to match the
+    // contract rather than be refused by it — the server derives `{"properties":
+    // {"nip": false}}` from the same condition, so a value sent for a question
+    // nobody was asked is not ignored but refused.
+    //
+    // Not the same fact as being out of sight: an item drawn `hidden` is one a
+    // client fills in, and its answer travels like any other.
+    #unasked(element) {
+        return element.closest('[data-unasked]') !== null;
     }
 
     #listOwning(element, scope) {
@@ -235,6 +309,93 @@ export default class extends Controller {
         this.#showErrors(await response.json().catch(() => ({})));
 
         return false;
+    }
+
+    // Which questions this page is asking, worked out again after every
+    // keystroke: what decides a question may be an answer somebody is typing
+    // now.
+    //
+    // One scope at a time, because a condition names an item declared beside it
+    // — so an entry's questions are answered by that entry's own answers, and
+    // the same list drawn three times decides three times over.
+    #ask(scope = this.element) {
+        for (const list of this.#ownLists(scope)) {
+            for (const entry of this.#entriesOf(list)) this.#ask(entry);
+        }
+
+        const blocks = [...scope.querySelectorAll('[data-asked-when], [data-required-when]')].filter(
+            (block) => this.#listOwning(block.dataset.collection === undefined ? block : block.parentElement, scope) === null
+                && block.closest('template') === null,
+        );
+
+        if (blocks.length === 0) return;
+
+        // A chain settles in as many passes as it is long: a question may be
+        // asked on the strength of an answer to a question that is not being
+        // asked, and an unasked answer is no answer at all. A definition with a
+        // ring in it is refused at creation, so this always settles.
+        for (let pass = 0; pass <= blocks.length; pass++) {
+            if (!this.#askOnce(scope, blocks)) return;
+        }
+    }
+
+    // Returns whether anything moved, which is what the pass above counts.
+    #askOnce(scope, blocks) {
+        const answers = this.#collect(scope);
+        let moved = false;
+
+        for (const block of blocks) {
+            const askedWhen = block.dataset.askedWhen;
+            const asked = askedWhen === undefined || holds(JSON.parse(askedWhen), answers);
+
+            if (asked === (block.dataset.unasked !== undefined)) moved = true;
+
+            // An item a client fills in was never to be looked at, so it stays
+            // out of sight whether or not it is being asked for.
+            block.hidden = !asked || block.dataset.outOfSight !== undefined;
+
+            if (asked) delete block.dataset.unasked;
+            else block.dataset.unasked = '';
+
+            // A refusal about a question nobody is being asked is a message
+            // about nothing, and it would stand there unanswerable.
+            if (!asked) this.#clearIn(block);
+
+            const requiredWhen = block.dataset.requiredWhen;
+
+            if (requiredWhen !== undefined) this.#owe(block, holds(JSON.parse(requiredWhen), answers));
+        }
+
+        return moved;
+    }
+
+    // The star, and what it stands for: a page draws one for an answer that is
+    // owed, and a condition coming about is one of the ways an answer becomes
+    // owed. The star is for eyes, `aria-required` for everybody else — a page
+    // that shows one without the other has told half its readers.
+    #owe(block, owed) {
+        const star = block.querySelector('[data-star]');
+
+        if (star !== null) star.hidden = !owed;
+
+        for (const control of block.querySelectorAll('[data-name][data-type]')) {
+            if (owed) control.setAttribute('aria-required', 'true');
+            else control.removeAttribute('aria-required');
+        }
+    }
+
+    // What the last attempt said about one question, when the page stops asking
+    // it.
+    #clearIn(block) {
+        for (const slot of block.querySelectorAll('[data-error]')) {
+            slot.classList.add('d-none');
+            slot.textContent = '';
+        }
+
+        for (const control of block.querySelectorAll('[data-name][data-type]')) {
+            control.classList.remove('is-invalid');
+            control.removeAttribute('aria-invalid');
+        }
     }
 
     // The collector, backwards: putting a document onto the page the same way it is

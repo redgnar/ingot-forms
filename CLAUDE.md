@@ -43,6 +43,33 @@ or id on the definition (it belongs to one form, which has a UUID of its own; no
 or looks definitions up, so a second name would only be a label that can drift) —
 deliberately.
 
+**How a question comes to be asked.** Any item may carry `askedWhen` (the question is only put
+when it holds) and `requiredWhen` (the answer is only owed then) — **a condition written as data
+and never as an expression**: one recursive shape that is either a test of one item
+(`is`, `isNot`, `in`, `notIn`, `answered`) or a combinator of other conditions
+(`all`/`any`/`none`, one to ten each, three deep at most). Data is the whole point, because the
+same condition has to be read by three parties: the **derived schema**, which is what enforces it
+(`else: {properties: {nip: false}}` — an answer to a question nobody was asked is *refused*, not
+ignored — and `then: {required: [nip]}`, strict contract only, since an obligation is a thing to
+finish); `Condition::holds()`, for the readers with no browser (a page drawn by the server before
+the first paint, and the printed record, which must not show a question nobody was put); and each
+kit's own evaluator, which asks again after every keystroke because what decides a question may be
+an answer somebody is typing now. Three readings of one rule is a drift risk, so
+`ConditionsAgreeWithTheSchemaTest` puts every condition and a table of documents to the first two
+and insists they agree, and the browser battery pins the third. **Every test but `answered: false`
+needs the item answered** — otherwise "asked when the country is not Poland" holds on an empty
+form. **A condition names an item declared beside it**: an entry asks about its entry, so each
+one decides for itself and nothing reaches across scopes. What a page must get right is not the
+hiding but the **collecting**: an unasked question is marked `data-unasked` and its answer is left
+out, which is what makes the document match the contract rather than be refused by it. What is
+refused at creation is a condition that could never work — an unknown item, a self-reference, a
+ring (a page evaluating it would never settle), a value the item cannot hold (a word for a
+checkbox, an option a select does not offer, one value for a `multiselect`, anything but
+`answered` for a file or a list), `required` beside `requiredWhen`, and `requiredWhen` on a
+collection (an empty list satisfies it, which is why `required` is refused there too). No
+expression language, no `oneOf` (it reads as `any` to everybody who has not checked), no
+conditional `min`, and no cross-scope test — deliberately.
+
 **How history works.** Every accepted save is kept — and a save that stores what is already
 stored is not one: the aggregate compares the documents (member order does not matter, entry
 order does) and records nothing when they say the same thing, so putting back the version

@@ -154,12 +154,16 @@ largest deployment risk this service has.
 Ordered by what it opens over what it disturbs. The first three serve use cases we cannot serve
 at all today; the rest are comfort.
 
-**Since written, four of these are built**: the webhook (1) in [12](12-webhooks.md), four design
+**Since written, six of these are built**: the webhook (1) in [12](12-webhooks.md), four design
 passes and rather more than "an outlet"; the conditional save (7) in
 [14](14-conditional-writes.md), as `If-Match` on both write endpoints; the multiple choice (4) in
-[15](15-multiple-choice.md), which was as cheap as this list said it would be; and the PDF (3) in
+[15](15-multiple-choice.md), which was as cheap as this list said it would be; the PDF (3) in
 [16](16-the-record.md) — where the one sentence of this entry that proved wrong was "the page
-already knows how to draw" it. The gateway that
+already knows how to draw" it; the signature (6) in [17](17-signature.md), an ordinary file after
+all; and the conditional logic (2) in [18](18-conditions.md), where the split this entry demanded
+be settled first is exactly the split that was built — the condition lives in the definition and
+is derived into the published schema, and no part of it is an expression. Only the wizard (5) is
+left. The gateway that
 ["a permission system of our own"](#what-not-to-copy-and-why) delegates to has its recipe and a
 runnable example in [09](09-access.md) — the deployment itself is still somebody's to do.
 

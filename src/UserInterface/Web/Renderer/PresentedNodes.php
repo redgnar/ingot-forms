@@ -6,6 +6,7 @@ namespace App\UserInterface\Web\Renderer;
 
 use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
+use App\Domain\Forms\Definition\Condition;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateTimeField;
 use App\Domain\Forms\Definition\Field;
@@ -179,7 +180,10 @@ final class PresentedNodes
                 // Whether an answer is owed, which is the item's own question:
                 // an item that counts is answered by ticking or by adding, not
                 // by being present ({@see \App\Domain\Forms\Definition\Field::mustBeAnswered()}).
-                $field->mustBeAnswered(),
+                // Owed *now*, so a condition that holds is what makes the star
+                // appear — the page draws the same star for the same reason
+                // once somebody's answer brings the condition about.
+                $field->mustBeAnswered() || ($field->requiredWhen?->holds($values) ?? false),
                 $values[$item->name] ?? null,
                 // Each option as the person picking it sees it: the value it
                 // sends, and the words this document gave it — falling back to
@@ -203,6 +207,14 @@ final class PresentedNodes
                 $field instanceof FileField ? $field->maxSize : null,
                 $field instanceof FileField ? $this->downloadOf($form, $values[$item->name] ?? null) : null,
                 $field instanceof FileField ? $this->api->files($form) : null,
+                // Whether this question is asked of the document as drawn, and
+                // the conditions themselves — because the answer is only true
+                // of this moment: what decides a question may be an answer
+                // somebody is typing now, so the page asks again after every
+                // keystroke with the same data the server judged.
+                $field->askedWhen?->holds($values) ?? true,
+                self::conditionJson($field->askedWhen),
+                self::conditionJson($field->requiredWhen),
             );
         }
 
@@ -283,6 +295,8 @@ final class PresentedNodes
             // holding nothing — assembled here, because a template that builds
             // an entry is a second place deciding what one is made of.
             new PresentedEntry($blank, self::blankCells($columns)),
+            $field->askedWhen?->holds($values) ?? true,
+            self::conditionJson($field->askedWhen),
         );
     }
 
@@ -420,6 +434,17 @@ final class PresentedNodes
         }
 
         return false;
+    }
+
+    /**
+     * A condition as the text a page reads it back from — the document it was
+     * written as, encoded once here rather than by a template.
+     */
+    private static function conditionJson(?Condition $condition): ?string
+    {
+        return $condition === null
+            ? null
+            : json_encode($condition->document(), \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES);
     }
 
     private function downloadOf(string $form, mixed $value): ?string

@@ -19,7 +19,9 @@ final readonly class NumberField extends Field
         // nothing at all.
         #[Constraints(minimum: 0, maximum: 8)]
         public ?int $decimals = null,
+        ?Condition $askedWhen = null,
+        ?Condition $requiredWhen = null,
     ) {
-        parent::__construct($name, $required);
+        parent::__construct($name, $required, $askedWhen, $requiredWhen);
     }
 }

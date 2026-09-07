@@ -21,9 +21,31 @@
                 "type": {"type": "string", "minLength": 1},
                 "name": {"type": "string", "minLength": 1},
                 "required": {"type": "boolean"},
+                "askedWhen": {"$ref": "#/$defs/condition"},
+                "requiredWhen": {"$ref": "#/$defs/condition"},
                 "items": {"$ref": "#/$defs/items"}
             },
             "additionalProperties": true
+        },
+        "condition": {
+            "description": "When a question is asked, or when its answer is owed. One object is either a test of one item or one combinator of other conditions; which members may stand together, how deep combinators may nest, and whether an item can hold the value it is compared to are semantic rules, reported with form.condition.* codes.",
+            "type": "object",
+            "properties": {
+                "item": {"type": "string", "minLength": 1},
+                "is": true,
+                "isNot": true,
+                "in": {"type": "array"},
+                "notIn": {"type": "array"},
+                "answered": {"type": "boolean"},
+                "all": {"$ref": "#/$defs/conditions"},
+                "any": {"$ref": "#/$defs/conditions"},
+                "none": {"$ref": "#/$defs/conditions"}
+            },
+            "additionalProperties": false
+        },
+        "conditions": {
+            "type": "array",
+            "items": {"$ref": "#/$defs/condition"}
         }
     }
 }

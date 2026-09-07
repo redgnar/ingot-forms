@@ -24,7 +24,9 @@ final readonly class GenericField extends Field
         bool $required = false,
         #[Extras]
         public array $extras = [],
+        ?Condition $askedWhen = null,
+        ?Condition $requiredWhen = null,
     ) {
-        parent::__construct($name, $required);
+        parent::__construct($name, $required, $askedWhen, $requiredWhen);
     }
 }

@@ -341,9 +341,14 @@ final class BootstrapRendererTest extends KernelTestCase
         // THEN the controller knows which form it is talking to, watches for
         // changes, and has both notices ready and silent
         self::assertCount(1, $main);
-        // ...and for somebody leaving to look at an earlier version, which is the
-        // one navigation this page knows about in advance
-        self::assertSame('input->form#touched click->form#leaving', $main->attr('data-action'));
+        // Three ways an answer changes — typed, picked, or a whole entry added or
+        // removed — because which questions this form asks follows from the
+        // answers; and one for somebody leaving to look at an earlier version,
+        // which is the one navigation this page knows about in advance
+        self::assertSame(
+            'input->form#touched change->form#touched entries:changed->form#touched click->form#leaving',
+            $main->attr('data-action'),
+        );
         self::assertStringContainsString('d-none', $page->filter('[data-form-target="saved"]')->attr('class') ?? '');
         self::assertStringContainsString('d-none', $page->filter('[data-form-target="problem"]')->attr('class') ?? '');
     }

@@ -6,6 +6,7 @@ namespace App\Domain\Forms;
 
 use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
+use App\Domain\Forms\Definition\Condition;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateTimeField;
 use App\Domain\Forms\Definition\Field;
@@ -52,12 +53,19 @@ final class DataSchemaDeriver
         $properties = [];
         $required = [];
 
+        $conditions = [];
+
         foreach ($items as $field) {
             $properties[$field->name] = $this->fieldSchema($field, $mode);
 
-            if ($field->mustBeAnswered()) {
+            // A conditional obligation is not an obligation: whether this item
+            // is owed depends on an answer, so it is said in the condition
+            // below and never in the flat list.
+            if ($field->mustBeAnswered() && $field->askedWhen === null) {
                 $required[] = $field->name;
             }
+
+            $conditions = [...$conditions, ...self::conditionsFor($field, $mode)];
         }
 
         $schema = [
@@ -70,7 +78,110 @@ final class DataSchemaDeriver
             $schema['required'] = $required;
         }
 
+        // One entry per conditional item, and `allOf` because they are all true
+        // at once: each says "when this, that — and otherwise the other".
+        if ($conditions !== []) {
+            $schema['allOf'] = $conditions;
+        }
+
         return $schema;
+    }
+
+    /**
+     * What one item's conditions contribute — nothing, or one `if`.
+     *
+     * The two members split the way every rule here splits. `askedWhen` decides
+     * whether the question exists in this document at all, so it holds in both
+     * contracts: `then` owes the answer when the item's own rules owe it, and
+     * `else` says the member must be **absent**, which is a rule about the value
+     * rather than an obligation to finish. `requiredWhen` is only ever an
+     * obligation, so it exists in the strict contract and vanishes from the
+     * draft, exactly as `required` does.
+     *
+     * `properties: {name: false}` rather than `not: {required: [name]}` for
+     * "must be absent", and that is measured rather than preferred: a `not`
+     * reports at the object with nothing to say which member it meant, while
+     * this one names the member and ingot points the finding at it.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function conditionsFor(Field $field, DeriveMode $mode): array
+    {
+        $conditions = [];
+
+        if ($field->askedWhen !== null) {
+            $branch = ['if' => self::conditionSchema($field->askedWhen)];
+
+            if ($field->mustBeAnswered() && $mode === DeriveMode::Strict) {
+                $branch['then'] = ['required' => [$field->name]];
+            }
+
+            $branch['else'] = ['properties' => [$field->name => false]];
+            $conditions[] = $branch;
+        }
+
+        if ($field->requiredWhen !== null && $mode === DeriveMode::Strict) {
+            $conditions[] = [
+                'if' => self::conditionSchema($field->requiredWhen),
+                'then' => ['required' => [$field->name]],
+            ];
+        }
+
+        return $conditions;
+    }
+
+    /**
+     * A condition as the schema that decides it.
+     *
+     * Every test but `answered: false` asks for the item as well as the answer,
+     * and that is the difference between "the country is not Poland" and
+     * "nobody has said where they live yet". Without it a question would appear
+     * on an empty form and disappear the moment somebody answered the one
+     * before it.
+     *
+     * Nothing here is ever the source of a finding: a condition sits in `if`,
+     * `if` is not an assertion, and every code a client sees comes from `then`
+     * or `else`. That is what makes the negations free.
+     *
+     * @return array<string, mixed>
+     */
+    private static function conditionSchema(Condition $condition): array
+    {
+        $children = static fn(Condition ...$conditions): array => array_map(
+            static fn(Condition $one): array => self::conditionSchema($one),
+            $conditions,
+        );
+
+        return match ($condition->combinator()) {
+            'all' => ['allOf' => $children(...$condition->all ?? [])],
+            'any' => ['anyOf' => $children(...$condition->any ?? [])],
+            'none' => ['not' => ['anyOf' => $children(...$condition->none ?? [])]],
+            default => self::testSchema($condition),
+        };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function testSchema(Condition $condition): array
+    {
+        // Stated rather than cast past: a test names an item or it is refused at
+        // creation ({@see \App\Domain\Forms\Definition\ConditionShapeValidator}),
+        // so one arriving here without a name is a definition that never went
+        // through the mapper — and deriving a schema from it would publish an
+        // `if` that is always true, which is worse than stopping.
+        $item = $condition->item ?? throw new \LogicException('A condition tests an item, and this one names none.');
+        $answered = ['required' => [$item]];
+
+        return match ($condition->predicate()) {
+            'is' => ['properties' => [$item => ['const' => $condition->is]], ...$answered],
+            'isNot' => ['properties' => [$item => ['not' => ['const' => $condition->isNot]]], ...$answered],
+            'in' => ['properties' => [$item => ['enum' => $condition->in]], ...$answered],
+            'notIn' => ['properties' => [$item => ['not' => ['enum' => $condition->notIn]]], ...$answered],
+            // The one test that is about absence, so the one that does not ask
+            // for the item to be there.
+            default => $condition->answered === true ? $answered : ['not' => $answered],
+        };
     }
 
     /**

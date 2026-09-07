@@ -26,6 +26,7 @@ answered is a form whose answers were given to the questions it had.
 - [The life of a form](#the-life-of-a-form)
 - [Creating one](#creating-one)
 - [The definition: what is asked](#the-definition-what-is-asked)
+- [Questions asked only sometimes](#questions-asked-only-sometimes)
 - [Files](#files)
 - [The presentation: how it is shown](#the-presentation-how-it-is-shown)
 - [Widget reference](#widget-reference)
@@ -95,8 +96,9 @@ only be a label free to drift.
 ## The definition: what is asked
 
 Every item declares a `name` and may declare `required` (which only bites at confirmation).
-An item type exists here because it brings rules of its own — never to tell a frontend which
-widget to draw.
+Any item may also be asked only sometimes — `askedWhen` and `requiredWhen`, in
+[Questions asked only sometimes](#questions-asked-only-sometimes). An item type exists here
+because it brings rules of its own — never to tell a frontend which widget to draw.
 
 | `type` | value on the wire | its own options |
 |---|---|---|
@@ -244,6 +246,138 @@ Three things to read off that pair:
 
 Ask the form what it will take, rather than guessing: `GET /api/forms/{id}/schema` is the
 derived JSON Schema, and `?mode=draft` is the lenient one used while filling in.
+
+## Questions asked only sometimes
+
+Two members, on any item: **`askedWhen`** says the question is only put when the condition
+holds, and **`requiredWhen`** says the answer is only owed when it holds. Either may sit on any
+item (with one exception, below), both may sit on the same item, and every item in a
+`collection`'s `items` may carry them too.
+
+```json
+{"items": [
+  {"type": "checkbox", "name": "hasCompany"},
+  {"type": "text", "name": "nip", "required": true, "maxLength": 10,
+   "askedWhen": {"item": "hasCompany", "is": true}},
+  {"type": "text", "name": "note", "maxLength": 200,
+   "requiredWhen": {"item": "hasCompany", "is": true}}
+]}
+```
+
+A form asking that will not carry a `nip` from anybody who has not ticked the box — not
+"ignore it", **refuse it** — and will not close without one from anybody who has.
+
+### The vocabulary
+
+A condition is **data, never an expression**. One object is either a test of one item or one
+combinator of other conditions, never both. Six tests:
+
+| Written | Holds when |
+|---|---|
+| `{"item": "x", "is": "pl"}` | `x` was answered, and its answer is exactly `pl` |
+| `{"item": "x", "isNot": "pl"}` | `x` was answered, and its answer is anything else |
+| `{"item": "x", "in": ["pl", "de"]}` | `x` was answered, and its answer is one of these |
+| `{"item": "x", "notIn": ["pl"]}` | `x` was answered, and its answer is none of these |
+| `{"item": "x", "answered": true}` | `x` was answered at all |
+| `{"item": "x", "answered": false}` | `x` was not answered |
+
+**Every test but `answered: false` needs the item answered.** That is a decision and not a side
+effect: without it, "asked when the country is not Poland" would hold on an empty form, and the
+question after it would be standing there before anybody had said where they live.
+
+Three combinators, each holding one to ten conditions:
+
+| Written | Holds when |
+|---|---|
+| `{"all": [a, b]}` | every one of them holds |
+| `{"any": [a, b]}` | at least one holds |
+| `{"none": [a, b]}` | not one of them holds |
+
+They nest, three deep at most: `{"all": [{"any": […]}, {"none": […]}]}`. There is deliberately
+no `oneOf` (exactly one) — it is the one combination nobody asks for in a form, and it reads as
+`any` to everybody who has not checked.
+
+`is` and `isNot` compare against **one value of the item's own kind**: `true`/`false` for a
+checkbox, one of the declared options for a `select`, a number for a `number`, text for
+anything else. A number is a number however it was written, so `4` and `4.0` are one value.
+Items whose answer is not a single value — a `multiselect`, a `file`, a `collection` — can only
+be asked `answered`, because comparing a list to one of its members is a condition that could
+never hold.
+
+### What it does to the published contract
+
+Both members are derived into the JSON Schema the form publishes, so a client validating
+locally sees the same rules the server keeps:
+
+```json
+{"allOf": [
+  {"if": {"required": ["hasCompany"], "properties": {"hasCompany": {"const": true}}},
+   "then": {"required": ["nip"]},
+   "else": {"properties": {"nip": false}}}
+]}
+```
+
+- the `else` is the half that matters: **an answer to a question nobody was asked is refused**,
+  at that answer's own pointer, with `schema.properties`;
+- **expect one conditional finding at a time.** A flat `required` reports every member it is
+  missing at once, but two failing *branches* — two conditional obligations, or one beside an
+  unconditional refusal — come back one per attempt: the schema gate reports the first branch
+  that failed. A page shows the next one after the first is answered, which is why a page holds
+  every ceiling it can before saving at all;
+- the `then` is the obligation, so it is in the **strict** contract only — a draft is saved
+  without it, exactly as `required` is;
+- an item with an `askedWhen` is never in the flat `required` list, because "owed" is a thing
+  it can only be when it is asked at all.
+
+Ask the form rather than working it out: `GET /api/forms/{id}/schema` and `?mode=draft`.
+
+### Scope, and what is refused
+
+**A condition names an item declared beside it.** In a form, that is the form's own items; in a
+`collection`, the entry's — so each entry decides for itself, and an entry cannot ask about the
+form around it (or the other way round). Everything else is refused when the form is created,
+where somebody can still fix it:
+
+| Code | Pointer | What it means |
+|---|---|---|
+| `form.condition.empty` | the condition | Nothing to test with: no predicate and no combinator |
+| `form.condition.ambiguous` | the condition | Two things written where one was meant — two predicates, or an `item` beside a combinator |
+| `form.condition.no-item` | the condition | A test of nobody's answer: a predicate with no `item` |
+| `form.condition.unknown-item` | `…/item` | No item of that name is declared in this scope |
+| `form.condition.self-reference` | `…/item` | An item asked for on the strength of its own answer |
+| `form.condition.cycle` | the item | A ring: two or more items each waiting on the next |
+| `form.condition.not-comparable` | the predicate | A value the item could never hold — a word for a checkbox, an option it does not offer, one value for a multiple choice |
+| `form.condition.too-deep` | the condition | Combinators nested more than three deep |
+| `schema.additionalProperties` | the member | A member of a condition nobody has heard of — the shape is closed and published, so a typo points at itself (`equals` where `is` was meant) |
+| `form.field.required-and-conditional` | `…/required` | `required` and `requiredWhen` on one item: the first already always owes the answer |
+| `form.collection.required-not-allowed` | `…/requiredWhen` | A list asks for entries with `min`; `required` and `requiredWhen` would both be satisfied by an empty one |
+
+So: **a list may carry `askedWhen`** (the whole list is not asked for), and never `requiredWhen`.
+
+### What a page does with it
+
+Both kits carry the condition into the markup and ask it again after every keystroke, because
+what decides a question may be an answer somebody is typing now:
+
+- a question the condition does not ask is **not on the page**, and its answer is **not
+  collected** — which is what makes the document match the contract rather than be refused by
+  it;
+- a refusal standing beside a question goes when the question does;
+- the star appears when `requiredWhen` comes about, with `aria-required` beside it, so it
+  reaches somebody who cannot see a star;
+- an entry decides for itself, including one added a moment ago;
+- the server does the same thing before the first paint, so a page never flashes questions
+  nobody is being asked, and the printed record of a confirmed form leaves them out entirely.
+
+### What this is not
+
+- **Not an expression language.** There is no arithmetic, no comparison between two items, no
+  string matching. A rule the vocabulary cannot say is a rule this service will not keep.
+- **Not a way to change what an item is.** A condition decides whether a question is asked and
+  whether its answer is owed. It cannot change an item's type, its options, or its limits.
+- **Not conditional counting.** `min` on a list or a multiple choice is not conditional; a
+  whole list can be asked for or not, and that is the whole of it.
+- **Not cross-scope.** An entry's condition cannot reach out of its entry.
 
 ## Files
 
@@ -1132,12 +1266,24 @@ multiple choice cannot be ticked, exactly as a text box will not take a characte
 | `form.field.impossible-range` | `min` is greater than `max` |
 | `form.field.not-a-date` | a `min`/`max` on a date is not a calendar day |
 | `form.field.not-a-moment` | a `min`/`max` on a datetime is not an RFC 3339 moment with an offset |
-| `form.collection.required-not-allowed` | `required` on a collection — use `min` instead |
+| `form.collection.required-not-allowed` | `required` or `requiredWhen` on a collection — use `min` instead |
 | `form.multiselect.required-not-allowed` | `required` on a multiple choice — use `min` instead, for the same reason |
 | `form.multiselect.impossible-minimum` | `min` asks for more ticks than the item has options |
 | `form.collection.too-deep` | lists nested inside lists more than five deep |
 | `form.file.not-a-media-type` | an `accept` entry is not a media type |
 | `form.data.unknown-field-type` | (at confirmation) the form holds a plugin item type |
+| `form.field.required-and-conditional` | `required` and `requiredWhen` on one item |
+| `form.condition.empty` | a condition with no predicate and no combinator |
+| `form.condition.ambiguous` | two things written where one was meant |
+| `form.condition.no-item` | a test that names no item |
+| `form.condition.unknown-item` | it tests an item not declared in that scope |
+| `form.condition.self-reference` | an item asked for on the strength of its own answer |
+| `form.condition.cycle` | items each waiting on the next, in a ring |
+| `form.condition.not-comparable` | a value the item could never hold |
+| `form.condition.too-deep` | combinators nested more than three deep |
+
+The eight `form.condition.*` codes are explained one by one in
+[Questions asked only sometimes](#questions-asked-only-sometimes).
 
 **Refusals about the presentation** (`presentation-not-valid`, `422`):
 
@@ -1184,8 +1330,9 @@ fallback.
 ## A complete example
 
 An order form: who is ordering, what they are ordering (a list), which extras they want (several
-of a closed list), an invoice to attach, a signature to draw, and a consent. Drawn by the richer
-kit, wearing `flatly`, in Polish.
+of a closed list), an invoice to attach, a signature to draw, and a consent — plus one question
+asked only of a company, and one that is only owed when the delivery is express. Drawn by the
+richer kit, wearing `flatly`, in Polish.
 
 ```json
 {
@@ -1195,7 +1342,12 @@ kit, wearing `flatly`, in Polish.
       { "type": "text",   "name": "customer", "required": true, "maxLength": 60 },
       { "type": "select", "name": "country",  "required": true, "options": ["pl", "de"] },
       { "type": "multiselect", "name": "extras", "options": ["gift", "express", "insured"], "max": 2 },
+      { "type": "checkbox", "name": "company" },
+      { "type": "text",   "name": "nip", "required": true, "maxLength": 10, "pattern": "^[0-9]{10}$",
+        "askedWhen": { "item": "company", "is": true } },
       { "type": "date",   "name": "delivery", "min": "2026-01-01" },
+      { "type": "text",   "name": "window", "maxLength": 40,
+        "requiredWhen": { "item": "extras", "answered": true } },
       { "type": "file",   "name": "invoice",  "accept": ["application/pdf"], "maxSize": 1048576 },
       { "type": "file",   "name": "signature", "accept": ["image/png"], "maxSize": 262144 },
       { "type": "collection", "name": "lines", "min": 1, "max": 20, "items": [
@@ -1217,9 +1369,12 @@ kit, wearing `flatly`, in Polish.
           { "name": "country",  "widget": "radio-buttons", "label": "t.country",
             "choices": { "pl": "t.pl", "de": "t.de" }, "options": { "width": 4 } }
         ]},
+        { "name": "company", "widget": "switch", "label": "t.company" },
+        { "name": "nip", "widget": "text", "label": "t.nip" },
         { "name": "delivery", "widget": "date", "label": "t.delivery", "hint": "t.delivery.hint" },
         { "name": "extras", "widget": "checkboxes", "label": "t.extras", "hint": "t.extras.hint",
-          "choices": { "gift": "t.gift", "express": "t.express", "insured": "t.insured" } }
+          "choices": { "gift": "t.gift", "express": "t.express", "insured": "t.insured" } },
+        { "name": "window", "widget": "text", "label": "t.window" }
       ]},
       { "name": "lines", "widget": "table", "label": "t.lines", "columns": ["sku", "quantity"],
         "items": [
@@ -1239,7 +1394,9 @@ kit, wearing `flatly`, in Polish.
       "pl": {
         "t.title": "Zamówienie", "t.who": "Kto zamawia",
         "t.customer": "Imię i nazwisko", "t.country": "Kraj", "t.pl": "Polska", "t.de": "Niemcy",
+        "t.company": "Zamawiam na firmę", "t.nip": "NIP",
         "t.delivery": "Data dostawy", "t.delivery.hint": "Najwcześniej od stycznia 2026",
+        "t.window": "Preferowane godziny dostawy",
         "t.lines": "Pozycje", "t.sku": "Kod", "t.quantity": "Ilość",
         "t.extras": "Dodatki", "t.extras.hint": "Najwyżej dwa",
         "t.gift": "Pakowanie na prezent", "t.express": "Dostawa ekspresowa", "t.insured": "Ubezpieczenie",
@@ -1274,6 +1431,10 @@ Working requests for every endpoint, ready to run, live in
 - **The default catalogue is complete** — every label, hint and choice code, including the ones
   inside entries. Other locales may lag; the default one may not.
 - **Every option of a choice is worded, or none is.**
+- **Every condition can come about.** A question waiting on an answer nobody can give is a
+  question nobody will ever see: work through each `askedWhen` and name the answer that asks
+  it. The refusals catch a condition that is *impossible* (an option the item does not offer),
+  never one that is merely unreachable.
 - **`maxSize` fits under the deployment's own upload limit** (`FILES_MAX_UPLOAD`, 10 MiB by
   default). Yours is the published contract; the deployment's is a wall.
 - **`accept` lists what the server will sniff**, not what a browser claims. Check the answer of

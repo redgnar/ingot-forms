@@ -41,6 +41,21 @@ abstract readonly class Field
         // No default: every variant declares its own (that is what the engine
         // hydrates) and forwards both values explicitly.
         public bool $required,
+        /**
+         * When this question is asked at all. Answered otherwise, the item must
+         * be **absent** from the values document — in both contracts, because
+         * "this was not asked" is a rule about the value rather than an
+         * obligation to finish. That is what makes a page's hiding safe: a
+         * hidden control sends nothing, and the contract says nothing is what
+         * belongs there.
+         */
+        public ?Condition $askedWhen = null,
+        /**
+         * When an answer is owed. The question is always asked, so an answer is
+         * always allowed; only the obligation moves — which is why this holds in
+         * the strict contract alone, exactly like `required`.
+         */
+        public ?Condition $requiredWhen = null,
     ) {}
 
     /**
@@ -55,5 +70,11 @@ abstract readonly class Field
     public function mustBeAnswered(): bool
     {
         return $this->required;
+    }
+
+    /** Whether anything about this item depends on another answer. */
+    public function isConditional(): bool
+    {
+        return $this->askedWhen !== null || $this->requiredWhen !== null;
     }
 }

@@ -333,6 +333,24 @@ store values that do not fit a definition by forgetting to ask; the same methods
 confirmed form (`FormLocked`), a second confirmation and an empty one. A use case is left
 with when it happens: one transaction, a locked read, a write.
 
+**A condition is data the definition carries, and it is read in three places that may not
+disagree.** `askedWhen` / `requiredWhen` on any item (`Condition`, in
+`src/Domain/Forms/Definition/`) is one recursive shape: a test of one item, or a combinator of
+other conditions. `DataSchemaDeriver` derives it into the published schema, which is what
+*enforces* it — `else: {properties: {nip: false}}` refuses an answer to a question nobody was
+asked, and `then: {required: [nip]}` is the obligation, in the strict contract only.
+`Condition::holds()` asks the same question of the same document, for the two readers that have
+no browser: the server drawing a page before the first paint, and the printed record of a
+confirmed form, which must not show a question nobody was put. And each kit asks it again after
+every keystroke, because what decides a question may be an answer somebody is typing now. Two of
+those readings could drift, so a test holds them together
+(`ConditionsAgreeWithTheSchemaTest` puts every condition and a table of documents to both and
+insists they agree); the third is pinned by the browser battery. What refuses a condition that
+could never work — an unknown item, a ring, a value the item cannot hold — is
+`ConditionsMakeSenseValidator`, at creation, where somebody can still fix it. The `form` gate is
+told to demand nothing of a conditional item (`FormValuesType`), because only the schema can see
+a condition.
+
 **A form counts its own saves, and a caller may hold that number.** `Form::revision()` is how
 many saves this form has accepted — `0` for one nobody has filled in — and it is the `seq` of the
 newest revision. Both transitions take an optional `ExpectedRevision`, and refuse with
@@ -507,6 +525,10 @@ convention:
 | `data-error="name"` | where a refusal about that item goes |
 | `data-collection`, `data-entry`, `data-cell` | a list, one entry of it, one previewed value |
 | `data-item`, `data-choice` | one presented item; a group of radios rather than a single control |
+| `data-asked-when`, `data-required-when` | the condition this question waits on, as the document it was written as |
+| `data-unasked` | this question is not being asked of these answers: hidden, and **its answer is not collected** |
+| `data-out-of-sight` | drawn with the `hidden` widget — a client fills it in, and its answer travels |
+| `data-star` | the star that says an answer is owed, which a condition can bring about |
 | `PresentedNodes::PENDING` | the token a blank entry carries where its own scope would be |
 
 **Structure carries identity.** Values are collected scope by scope in the order entries appear,
@@ -515,6 +537,15 @@ by walking that same structure back down. A blank entry is markup the server ren
 in a `<template>` — a kit never builds markup in JavaScript — and cloning one replaces the token
 in every `id`, `for`, `name`, `aria-labelledby` and `aria-describedby` it carries, because all
 five are names and pointing at another entry's is how a question comes to be read out twice.
+
+**Which questions a page asks is worked out again after every keystroke**, and in each scope on
+its own — a condition names an item declared beside it, so an entry's questions are answered by
+that entry's answers. Each kit has its own evaluator of the same closed vocabulary (thirty lines
+in the plain kit's module, the same in the richer kit's `form` controller), and it repeats until
+nothing moves: a question may be asked on the strength of an answer to a question that is not
+being asked, and an unasked answer is no answer at all. A ring is refused at creation, so it
+always settles. `data-unasked` is the fact the collector reads, which is what keeps a page from
+ever producing a document the schema's `else` would refuse.
 
 **A message nobody can see is not a message.** A refusal about an entry unfolds every form on
 the way to it, marks each entry it is inside so the row still says "look here" once folded back
@@ -693,6 +724,12 @@ order, the labels and how an option reads. That is what keeps the deployments mo
 an archive (the API-only ones) from being the ones that cannot have it. Both readers resolve a
 translation code through the same `Words`, so a label cannot read one way on screen and another on
 paper.
+
+**A question nobody was asked is not in it.** An `askedWhen` that did not hold of the confirmed
+document leaves the item out entirely, because a record says what was asked and what was
+answered — and a question that was never put is neither. Printed with a dash beside it, it would
+read as an answer somebody withheld. `FormRecords` asks the condition the same way the schema
+enforced it and the page drew it ({@see `Condition::holds()`}).
 
 **It is on the management prefix**, which follows from the identity rule rather than from taste:
 the record names the author and the confirmer, and an actor is served on that side and nowhere
@@ -880,6 +917,12 @@ the method under test. Three habits are worth copying:
 - **The item catalogue is tested by a battery**, one class per type on each side of the boundary:
   what a definition may carry, and a table of values with the pointer and code each must produce.
   That table is also what proves the server never refuses what its published schema accepts.
+- **Two readings of one rule are held together by a test.** A condition is enforced by the
+  derived schema and answered again by `Condition::holds()` for readers with no browser, so
+  `ConditionsAgreeWithTheSchemaTest` puts every condition to both against a table of documents
+  and insists they agree — nothing else would notice a drift, because the form would go on
+  validating exactly as its contract says while its own record showed a question nobody was
+  asked.
 - **`OpenApiComplianceTest` checks both halves of every exchange** against `docs/openapi.yaml`, and
   fails when a documented operation has no scenario — so the DTOs, the code and the contract
   cannot drift apart in any direction.
