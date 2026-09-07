@@ -430,6 +430,20 @@ derives the per-form JSON Schema published to clients. **Submitted values pass t
    state "this id exists", any more than it can state "this form has not expired". A client
    that echoes the upload's answer back verbatim can never trip it.
 
+**A refused document is looked at more than once, and an accepted one is not.** opis takes a
+schema level in *phases* — the keywords of one phase are reported together, and nothing after the
+phase that failed — and `allOf` stops at the first branch that did not hold. So a document missing
+a member used to hear nothing about the obligations a conditional branch would have named, and a
+document failing two branches heard about one. ingot's `OpisSchemaValidator` asks each branch of a
+conjunction on its own and merges the answers (`allOf` only: a branch of an `anyOf` that did not
+hold is not an obligation), which needs no re-pointing, because a branch applies to the same
+instance as the schema holding it. It happens **only when the document was refused**, so nothing
+on the accepted path pays for it; a branch that names something in the document around it (a
+`$ref`, an `$id`, `unevaluatedProperties`) is left to opis, because away from that document it
+would be a different question. What still arrives in two rounds is a scope reached through
+`properties`/`items`: inside a list entry, an answer the entry always owes is reported before a
+conditional one in the same entry.
+
 Values refused by the schema never reach the form: on this project's example definition the
 schema answers in ~60 µs where building and running the form costs ~670 µs, so a payload
 that was never going to fit is rejected without that work. The store is asked last, so

@@ -25,7 +25,8 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
  */
 abstract class FieldValuesTestCase extends KernelTestCase
 {
-    private ValuesValidator $values;
+    /** The whole staged validator, as production holds it — reachable, because a subclass may have a question of its own to ask of it. */
+    protected ValuesValidator $values;
 
     private DerivedSchemaValues $schema;
 

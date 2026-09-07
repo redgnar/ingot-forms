@@ -645,6 +645,14 @@ Rules that follow from it, and that the tooling checks:
   so a page can mark the control instead of saying the document is incomplete. Anything that
   reports per object (JSON Schema's `required` does) is unpacked in ingot's
   `OpisSchemaValidator`, which is also where `additionalProperties` is unpacked the same way.
+  **And every independent complaint is in the one answer**: opis reports a schema level in phases
+  and stops after the phase that failed, and `allOf` stops at the first branch that did not hold,
+  so an obligation a condition brought about used to wait for the next attempt. The same class
+  asks each branch of a conjunction on its own and merges — **only when the document was refused**,
+  so the accepted path costs what it always did, and never for a branch that names something in
+  the document around it (a `$ref`, `unevaluatedProperties`), which away from that document would
+  be a different question. A scope reached through `properties`/`items` still stages: inside a list
+  entry, what the entry always owes is reported before a conditional obligation beside it.
 - **Bytes live beside the form, never in it.** `FileStore` is an **application** port (the
   model has rules about a *reference*, never about storage), filled by one adapter over
   `league/flysystem` — a directory in dev/test/CI, S3 in production, by configuration. Every

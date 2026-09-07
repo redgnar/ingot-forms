@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace App\Tests\Infrastructure\Validation\Field;
 
 use App\Domain\Forms\DeriveMode;
+use App\Domain\Forms\Exception\ValuesNotValid;
+use App\Domain\Forms\ValueObject\FormId;
+use Ingot\Error\MappingError;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * What a conditional form takes, judged the way production judges it.
@@ -68,5 +72,43 @@ final class ConditionalValuesTest extends FieldValuesTestCase
         // somebody is still filling the form in.
         yield 'a draft still refuses what was not asked' => [DeriveMode::Draft, '{"hasCompany": false, "nip": "1234567890"}', '/nip', 'schema.properties'];
         yield 'a draft judges an answer it did ask for' => [DeriveMode::Draft, '{"hasCompany": true, "nip": "abc"}', '/nip', 'schema.pattern'];
+    }
+
+    /**
+     * @return iterable<string, array{string, list<string>}>
+     */
+    public static function owed(): iterable
+    {
+        // An obligation of the definition's own, beside one a condition brought
+        // about — the pair that used to come back one at a time, because the
+        // schema gate reports a level in phases and stops after the phase that
+        // failed.
+        yield 'an obligation and a conditional one' => ['{"hasCompany": true}', ['/rating', '/nip']];
+
+        // And two conditional ones, which `allOf` used to report one of: it
+        // stops at the first branch that did not hold.
+        yield 'two conditional obligations' => ['{"hasCompany": true, "rating": "1"}', ['/nip', '/why']];
+    }
+
+    /**
+     * @param list<string> $pointers
+     */
+    #[DataProvider('owed')]
+    public function testEveryAnswerThatIsOwedIsNamedInOneRefusal(string $json, array $pointers): void
+    {
+        // GIVEN a document that owes more than one answer
+        // WHEN it is judged
+        try {
+            $this->values->assertFit(self::definition(), self::values($json), DeriveMode::Strict, FormId::next());
+            self::fail('Expected the values to be refused.');
+        } catch (ValuesNotValid $refused) {
+            // THEN every one of them is in the one refusal, each pointed at its
+            // own member: a page marks two controls and a person answers both in
+            // one go, instead of being sent round again for the second
+            self::assertSame($pointers, array_map(
+                static fn(MappingError $error): string => $error->pointer->toString(),
+                $refused->report->errors,
+            ));
+        }
     }
 }

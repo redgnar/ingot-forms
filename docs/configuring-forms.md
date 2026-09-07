@@ -319,11 +319,11 @@ locally sees the same rules the server keeps:
 
 - the `else` is the half that matters: **an answer to a question nobody was asked is refused**,
   at that answer's own pointer, with `schema.properties`;
-- **expect one conditional finding at a time.** A flat `required` reports every member it is
-  missing at once, but two failing *branches* — two conditional obligations, or one beside an
-  unconditional refusal — come back one per attempt: the schema gate reports the first branch
-  that failed. A page shows the next one after the first is answered, which is why a page holds
-  every ceiling it can before saving at all;
+- **every answer that is owed is named in one refusal.** An obligation of the definition's own
+  beside one a condition brought about, or two conditional ones, come back together, each at its
+  own pointer — so a page marks every control at once instead of sending somebody round again for
+  the second. (One thing still arrives in two rounds: inside a list *entry*, an answer the entry
+  always owes is reported before a conditional one in the same entry.);
 - the `then` is the obligation, so it is in the **strict** contract only — a draft is saved
   without it, exactly as `required` is;
 - an item with an `askedWhen` is never in the flat `required` list, because "owed" is a thing
@@ -1235,6 +1235,13 @@ Every error is an RFC 9457 `application/problem+json` document. Validation probl
 `errors` array with one entry per finding: `{pointer, code, message, input?}`. **A pointer names
 the thing that is wrong**, never what surrounds it — `/email`, or `/lines/1/sku` inside a list —
 so a page can mark the control instead of announcing that the document is incomplete.
+
+**Every independent complaint is in the one answer.** A missing member, a value that broke its
+own rule, and an obligation a condition brought about are three findings in one response, each at
+its own pointer — a client fixes all of them and sends once. Alternatives are the exception, and
+they are not complaints of that kind: where a document must match one of several shapes and
+matches none, every shape it failed is named, because none of them is the one it was supposed to
+match.
 
 **`message` is for you; a page says something else.** The message is written for whoever is
 calling the API — `Array should have at most 2 items, 3 found` is exactly right in a log and no

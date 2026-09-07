@@ -375,12 +375,15 @@ final class SignaturePageTest extends PantherTestCase
     }
 
     /**
-     * Ten seconds rather than the usual few: a signature is the longest chain in
-     * this suite — a stroke ends, a canvas is encoded, bytes go up, and only then
-     * does a save even start — and it runs last, after a thousand other tests
-     * have warmed nothing up. A wait is not a performance assertion.
+     * Twenty seconds rather than the usual few: a signature is the longest chain
+     * in this suite — a stroke ends, a canvas is encoded, bytes go up, and only
+     * then does a save even start — and it runs last, sharing a machine with
+     * everything else a full run is doing. Ten was enough for this battery on
+     * its own and not always enough inside `make ci`, which is the second time
+     * this number has been the whole of a failure. A wait is not a performance
+     * assertion: what it must not do is turn a busy machine into a red suite.
      */
-    private function eventually(callable $ready, float $seconds = 10.0): mixed
+    private function eventually(callable $ready, float $seconds = 20.0): mixed
     {
         $deadline = microtime(true) + $seconds;
 
