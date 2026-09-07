@@ -1575,6 +1575,12 @@ PUT  /api/forms/{id}/data           { "customer": "Ada", "lines": [{"sku":"A-1",
 POST /api/forms/{id}/confirm                                                             → 204
 ```
 
+**To answer this form on several pages**, wrap the presentation's `items` in one
+`{"widget": "wizard", "items": [ … ]}` whose children are `step`s, and move the questions into
+whichever page each belongs on. Nothing else changes: not the definition, not the values, not a
+single request above — a step is a way of looking
+([one form on several pages](#one-form-on-several-pages)).
+
 Working requests for every endpoint, ready to run, live in
 [`tests/_requests/`](../tests/_requests) — one file per topic, each with assertions.
 
@@ -1590,6 +1596,11 @@ Working requests for every endpoint, ready to run, live in
   half-finished answer, by design ([the life of a form](#the-life-of-a-form)) — so check each one
   against somebody typing: a ten-digit `pattern` is fine on a field pasted into, and a nuisance
   on one typed slowly.
+- **If the form is paged, the last page is where the way to finish belongs.** Nothing enforces
+  it — a `confirm` anywhere satisfies the server — but a page somebody has to go *back* from to
+  send the form is a page that reads as unfinished. A page holding nothing but triggers is
+  never stepped over, so a "review and send" page is safe to make; a page whose only question a
+  condition can take away simply disappears, which is a feature and worth checking you meant.
 - **Every condition can come about.** A question waiting on an answer nobody can give is a
   question nobody will ever see: work through each `askedWhen` and name the answer that asks
   it. The refusals catch a condition that is *impossible* (an option the item does not offer),

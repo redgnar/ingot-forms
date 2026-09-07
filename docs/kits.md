@@ -264,7 +264,9 @@ that does not ask for `history` has no panel.
 
 No autocomplete, no slider, no stepper, no drop area, **no signature pad**, no cards or
 accordions, no icons, no skins. Every one of those is either a way of asking that needs
-machinery this kit refuses, or a way of looking that it has no opinion about. A document that
+machinery this kit refuses, or a way of looking that it has no opinion about. It does **page** a
+form, though (`wizard` and `step`): paging is a structure rather than a look, so it is the one
+way of grouping both kits have. A document that
 wants them names the other kit — and a `file` item is still answerable here, by attaching a
 photograph of a signature like any other file.
 
@@ -672,6 +674,16 @@ entry of a list decides for itself, including one added a moment ago. The server
 thing before the first paint, so nothing flashes on the way in. `data-unasked` is deliberately
 *not* the same fact as `hidden`: an item drawn with the `hidden` widget is one a client fills in,
 and its answer travels like any other.
+
+**A form on several pages is still one document.** A document may say `wizard` and `step` (see
+[one form on several pages](configuring-forms.md#one-form-on-several-pages)), and both kits draw
+it the same way, down to the attributes: every page is in the markup, all but one carry `hidden`,
+and the collector reads the whole form whatever page is showing — so a save from the last page
+carries what was answered on the first. Nothing is gated: *next* always moves and a mark can be
+pressed to jump, for the reason floors are never enforced. A page whose every question a
+condition left unasked is stepped over and drops off the track (its number goes with it), and a
+refusal about another page brings that page forward before the caret goes there — a message on a
+page nobody is drawing is no message at all.
 
 **A ceiling is held before it is met.** Every maximum that would refuse a *draft* is enforced in
 the page: `maxlength` on text, `max` on a number, a dead *add* button at a list's `max`, and
