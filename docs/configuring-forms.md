@@ -700,8 +700,9 @@ are fine. Findings carry `presentation.*` codes and pointers into the document a
 
 **What it deliberately is not**: no stylesheet of your own (a skin is a name out of a closed
 list, never CSS in a document — that would be an injection surface and an unbounded support
-burden), no conditional visibility (that changes what an answer must satisfy, so it belongs to
-the definition), and no way to change any of it afterwards, because the description of a fixed
+burden), no conditional visibility **of its own** — a question asked only sometimes is the
+definition's, because it changes what an answer must satisfy
+([conditions](#questions-asked-only-sometimes)) — and no way to change any of it afterwards, because the description of a fixed
 thing has no reason to drift.
 
 ## Widget reference

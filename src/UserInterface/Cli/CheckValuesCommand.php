@@ -25,7 +25,8 @@ use Symfony\Component\Console\Output\OutputInterface;
  * Note what is being asked: the *published schema* is the judge here. At
  * runtime the server enforces a Symfony form built from the same definition;
  * the two are kept in step by
- * {@see \App\Tests\Http\Form\SymfonyFormValuesTest::testFormAndPublishedSchemaAgree}.
+ * {@see \App\Tests\Infrastructure\Validation\Field\FieldValuesTestCase::testTheFormNeverRefusesWhatThePublishedSchemaAccepts},
+ * asked of every item type's own table of values.
  */
 #[AsCommand(
     name: 'app:forms:check-values',

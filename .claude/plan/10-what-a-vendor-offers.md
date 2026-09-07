@@ -14,6 +14,10 @@ it" nor "we lack it":
 | **have** | exists here in a comparable form |
 | **partial** | the foundation is here; the layer a vendor sells is not |
 | **gap** | a real hole — a use case we cannot serve today |
+
+**Every status below is as of the day this was written.** Six of the gaps are closed since (the
+list under [what is worth taking](#what-is-worth-taking-in-order) says which, and by which plan);
+the rows are left as they were, because a comparison read on one day is worth keeping as one.
 | **not wanted** | the domain model says no, and this document says why |
 
 The form builder is out of scope on purpose: it is known to be needed and its absence is not a

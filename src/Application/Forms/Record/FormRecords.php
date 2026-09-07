@@ -209,7 +209,9 @@ final readonly class FormRecords
         }
 
         if ($field instanceof CheckboxField) {
-            // Two words, and words are the catalogue's ({@see RecordRow}).
+            // A tick is answered as a tick, because "true" is not something to
+            // put in front of a person: which two words it reads as is the
+            // template's, out of this application's own catalogue.
             return (bool) $value;
         }
 

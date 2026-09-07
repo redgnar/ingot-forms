@@ -355,50 +355,82 @@ only compares layers, so a dependency in no layer is *uncovered* rather than a v
 decision about what the standalone package would drag with it, made in `deptrac.yaml`.
 
 ```
-src/Domain/Forms/          the model: Form (aggregate), FormStatus, DeriveMode, the definition
-                           model and its processors. Framework-free and storage-free — the
-                           future standalone package.
-    Definition/            the field union and the meta-schema
-    Event/                 what happened to a form: FormCreated, DraftSaved, FormConfirmed
+src/Domain/Forms/          the model: Form (aggregate), FormStatus, IdentityMode, DeriveMode,
+                           the two document processors, DataSchemaDeriver (a definition as the
+                           published JSON Schema), MetaSchema and UnknownFieldTypes.
+                           Framework-free and storage-free — the future standalone package.
+    Definition/            the field union, the semantic validators each scope is judged by,
+                           and Condition — when a question is asked, and when it is owed
+    Presentation/          how a form is shown: PresentationDocument, PresentedItem, Words,
+                           PresentationRules — judged against the definition it came with
+        Engine/            what a kit can draw (PresentationEngine, one class per kit): the
+                           vocabulary a presentation is held to
+        Rule/              the rules a presentation keeps whichever kit it names
+    Event/                 what happened to a form: FormCreated, DraftSaved, FormConfirmed.
+                           A deletion is announced from a row instead — there is no aggregate
+                           left to record it
     File/                  FileReferences — which files one document names, and where
-    ValueObject/           FormId, ExpireDate, Values, Definition, FileId, FileDescriptor,
-                           FileReference, MediaType
-    Exception/             what the model refuses: DefinitionNotValid, ValuesNotValid,
+    ValueObject/           FormId, ExpireDate, Values, Definition, Presentation, Webhooks,
+                           Actor, ExpectedRevision, FileId, FileDescriptor, FileReference,
+                           MediaType
+    Exception/             what the model refuses (DefinitionNotValid, ValuesNotValid,
                            FormNotFound, FormGone, FormLocked, FormAlreadyConfirmed,
-                           FormHasNoData
-    Port/                  FormRepository, ValuesValidator, DefinitionParser — what the
-                           model needs from the outside to keep its own rules
+                           FormHasNoData, FormMovedOn, IdentityRequired, …) and
+                           CarriesFindings — which of them point at what is wrong
+    Port/                  FormRepository, ValuesValidator, DefinitionParser,
+                           PresentationParser — what the model needs from the outside to keep
+                           its own rules
 src/Application/Forms/
     UseCase/               one class per thing the system does, each with a single __invoke:
                            CreateForm, SaveFormData, ConfirmForm, DeleteForm, ReadForm,
                            UploadFormFile, ReadFormFile, DiscardFormFile, ReadFormHistory,
+                           ReadFormRecord, ReadFormDeliveries, DeliverAnnouncements,
                            PurgeExpiredForms, PurgeTemporaryFiles. This is where a transaction
                            is opened and where the order of steps lives.
     File/                  IncomingFile, FileStream, CollectedFiles — an upload on its way
                            in, an open file on its way out, and what a collector took —
                            plus FormFiles: which files a form has ever named
     History/               FormRevision — one accepted save, as something to choose by
-    Port/                  Transactions, DataSchemas (two shapes of one schema:
-                           the document an endpoint serves, and the compiled thing
-                           a gate holding the definition validates against),
-                           FileStore, FormHistory — what a use case needs and
+    Record/                a confirmed form as something to print: FormRecords reads it into a
+                           RecordSheet, and a row is Answered, Entries, Filed or Section
+                           (RecordedRow) — three ways of being a row, plus a file
+    Webhook/               the outbox and one delivery: Announcement (what is owed),
+                           Delivery, DeliveryRun, RecordedDelivery, and AnnouncementsOwed —
+                           the nudge a worker gets, carrying nothing
+    Exception/             what a use case refuses that the model has no word for: an upload
+                           too large or empty, a budget spent, a revision that is not there,
+                           a form that is not confirmed, a receiver that said no
+    Port/                  Transactions, DataSchemas (two shapes of one schema: the document
+                           an endpoint serves, and the compiled thing a gate validates
+                           against), FileStore, FormHistory, FormDeliveries, Announcements,
+                           Announcer, Webhook, RecordDocuments — what a use case needs and
                            cannot do itself
 src/Infrastructure/        the adapters filling those ports
-    Persistence/           FormRecord and FormRevisionRecord (the rows, mapped with ORM
-                           attributes), DoctrineFormRepository, DoctrineFormHistory,
-                           DoctrineTransactions
+    Persistence/           the rows (FormRecord, FormRevisionRecord,
+                           WebhookAnnouncementRecord — public fields, ORM attributes, no idea
+                           a form exists), the adapters over them, and
+                           RowsLeaveWithTheirForm: the cascades the mapping cannot declare
     Cache/                 CachedDataSchemaProvider
     Files/                 FlysystemFileStore — keys, the sidecar of facts, sniffing, deletes
-    Validation/            the schema gate, the Symfony form, the reference gate and the
-                           staged validator
-src/UserInterface/
+    Validation/            the schema gate, the Symfony form, the two gates stricter than the
+                           published contract (ReferencedFilesExist, NumbersFitTheirPrecision)
+                           and the staged validator that orders them
+    Pdf/                   DompdfRecordDocuments — a record laid out by a library, never by a
+                           browser
+    Webhook/               SignedHttpWebhook (the signature and the request) and
+                           MessengerAnnouncer (the nudge, over MESSENGER_TRANSPORT_DSN)
+src/UserInterface/         RouteGroup — the four audience prefixes, asked of a path
+    Api/                   FormEnvelope — the canonical JSON shape of a form, assembled as
+                           text so a stored document is handed back byte for byte
     Api/Action/            one invokable class per endpoint, suffixed Action
-    Api/Request|Problem/   request DTOs, problem+json mapping
+    Api/Request|Problem/   request DTOs and the resolvers that read a header (IdentityIntake,
+                           RevisionIntake), and problem+json mapping
     Web/                   the pages that draw a form: an action, a renderer per
                            engine, PresentedNodes (which resolves the tree they all
                            draw) with Node/ holding that tree's types, and the
                            templates each draws with (assets/ holds what a kit's page
                            imports in the browser)
+    Messenger/             TellWhoeverIsOwed — the handler behind the nudge
     Cli/                   console commands
 ```
 
@@ -847,8 +879,11 @@ Local PHP is 8.1 — all tools run inside the pinned Docker image (`docker/Docke
 
 | Command | What it does |
 |---|---|
+| `make setup` / `make image` | a fresh checkout all the way up (image, dependencies, an empty database, serving) / just rebuild the image |
+| `make up` / `make down` / `make shell` | serve on :8000 / stop / a shell inside the dev image |
 | `make install` / `make update` | composer install/update (Docker) |
-| `make migrate` / `make db-test` | migrations for dev / test database |
+| `make require PACKAGES="…" [DEV=1]` | add a dependency (rewrites the committed lock) |
+| `make migrate` / `make db-test` / `make db-reset` | migrations for dev / test database, or the database thrown away and built again |
 | `make cache-clear` | drop the derived pools (data schemas, mapper metadata) — after a rules change |
 | `make storage-clean` | empty the file store (dev and test): bytes only, forms keep their references |
 | `make assets` | download the vendor JavaScript/CSS named in `importmap.php` into `assets/vendor/` |
@@ -858,12 +893,14 @@ Local PHP is 8.1 — all tools run inside the pinned Docker image (`docker/Docke
 | `make lint` | `php -l` over every PHP file, in the pinned image |
 | `make console CMD="…"` | any `bin/console` command inside the container |
 | `make schema DEFINITION=…` / `make check-values DEFINITION=… VALUES=…` | derive the values schema from a definition file / validate a values file against it, no database involved |
+| `make coverage` | the whole suite with a coverage summary |
 | `make mutation` | Infection over `src/Domain/` only (unit suite, no DB), minMsi 90 / minCoveredMsi 100 |
 | `make openapi` | validate `openapi.yaml` (OpenAPI 3.1) |
 | `make docs` | render `openapi.yaml` → `docs/openapi.yaml` + `docs/api.md` (DTO schemas injected); `docs/` is generated, never edit it by hand |
 | `make stan` | PHPStan level `max` + strict rules — zero errors, no baseline |
 | `make cs` / `make cs-fix` | php-cs-fixer check / apply |
 | `make deptrac` | layer boundaries |
+| `make validate` | `composer validate --strict` |
 | `make audit` | composer audit |
 | `make ci` | everything CI runs |
 

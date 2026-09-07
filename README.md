@@ -87,16 +87,22 @@ versioning and multi-submission forms are deliberately out of scope.
 ## What a client talks to
 
 ```
-POST   /api/manage/forms               create one          GET /forms/{id}                 the page
-GET    /api/manage/forms/{id}          read it             GET /forms/{id}?lang=pl         in a language
-DELETE /api/manage/forms/{id}          delete it           GET /forms/{id}/versions/{seq}  one saved version
-GET    /api/manage/forms/{id}/history  saves, with who entered each
-GET    /api/forms/{id}/schema          its values schema
-PUT    /api/forms/{id}/data            save a draft
-POST   /api/forms/{id}/confirm         lock it
-GET    /api/forms/{id}/history[/{seq}] what it held, and when
-POST   /api/forms/{id}/files           upload bytes; the answer goes into the values
-GET    /api/schemas/{document}         the meta-schema of a definition or a presentation
+POST   /api/manage/forms                  create one    GET /forms/{id}                 the page
+GET    /api/manage/forms/{id}             read it       GET /forms/{id}?lang=pl         in a language
+DELETE /api/manage/forms/{id}             delete it     GET /forms/{id}/versions/{seq}  one saved version
+GET    /api/manage/forms/{id}/history     saves, with who entered each
+GET    /api/manage/forms/{id}/deliveries  what it has reported, and what is still owed
+GET    /api/manage/forms/{id}/pdf         the record of a confirmed form
+GET    /api/forms/{id}/data               what it holds now — the ETag is the revision
+PUT    /api/forms/{id}/data               save a draft; If-Match if nobody may have moved it
+POST   /api/forms/{id}/confirm            lock it
+GET    /api/forms/{id}/history[/{seq}]    what it held, and when
+GET    /api/forms/{id}/schema             its values schema (?mode=draft for the lenient one)
+GET    /api/forms/{id}/presentation       how it is shown
+POST   /api/forms/{id}/files              upload bytes; the answer goes into the values
+GET    /api/forms/{id}/files/{fileId}     fetch what a save named
+DELETE /api/forms/{id}/files/{fileId}     throw away one nothing saved
+GET    /api/schemas/{document}            the meta-schema of a definition or a presentation
 ```
 
 **The prefix is the audience**, and that is deliberate: `/api/manage/` is the system that owns

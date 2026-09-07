@@ -46,9 +46,4 @@ final readonly class FormRevision
     {
         return new self($this->seq, $this->savedAt, true, $this->actor, $this->notifiedAt);
     }
-
-    public function notifiedAt(?\DateTimeImmutable $when): self
-    {
-        return new self($this->seq, $this->savedAt, $this->confirmed, $this->actor, $when);
-    }
 }
