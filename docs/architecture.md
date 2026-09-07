@@ -543,6 +543,9 @@ convention:
 | `data-unasked` | this question is not being asked of these answers: hidden, and **its answer is not collected** |
 | `data-out-of-sight` | drawn with the `hidden` widget — a client fills it in, and its answer travels |
 | `data-star` | the star that says an answer is owed, which a condition can bring about |
+| `data-wizard`, `data-step` | one form on several pages, and one of those pages |
+| `data-wizard-nav`, `data-wizard-mark`, `data-wizard-status` | the marks that say where somebody is, and the same thing in words |
+| `data-wizard-back`, `data-wizard-next` | the two buttons a wizard draws for itself |
 | `PresentedNodes::PENDING` | the token a blank entry carries where its own scope would be |
 
 **Structure carries identity.** Values are collected scope by scope in the order entries appear,
@@ -561,9 +564,24 @@ being asked, and an unasked answer is no answer at all. A ring is refused at cre
 always settles. `data-unasked` is the fact the collector reads, which is what keeps a page from
 ever producing a document the schema's `else` would refuse.
 
+**A wizard is presentation, and the invariant that says so is in the markup.** `wizard` and
+`step` are container widgets both kits declare (the first two containers they share: a fieldset
+is not a card, but paging a form is a structure rather than a look). Every page is rendered and
+all but one carry `hidden`, so the collector reads the whole form whatever page is showing — a
+step has no contract of its own, and `PUT …/data` carries every answer on every page. The
+stepper is per kit (a Stimulus controller, and a few dozen lines in the plain kit's module) and
+does three things beyond moving: it steps over a page whose every question a condition left
+unasked, it draws no mark for such a page, and it takes no part in validation — *next* always
+moves, because a page that stopped somebody for being under a floor would enforce an obligation
+the server only asks about at confirmation. Which pages are worth showing follows from which
+questions are asked, so the form controller announces that it asked them (`form:asked`, and
+`refreshSteppers()` in the plain kit) rather than the stepper reaching into conditions.
+
 **A message nobody can see is not a message.** A refusal about an entry unfolds every form on
 the way to it, marks each entry it is inside so the row still says "look here" once folded back
-up, sets `aria-invalid` on the control, and moves the caret there.
+up, sets `aria-invalid` on the control, and moves the caret there. A page of a wizard hides a
+message the same way, so the refusal brings that page forward first — said at the control
+(`wizard:reveal`), because whichever wizard holds it is the one that has to move.
 
 **Two catalogues, on purpose.** The presentation carries the *form's* text as translation codes,
 because that is the author's to write; `translations/messages.*.yaml` under `page.*` carries the

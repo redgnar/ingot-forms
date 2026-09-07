@@ -290,9 +290,17 @@ final class SignaturePageTest extends PantherTestCase
      */
     private function sign(): void
     {
-        $pad = $this->eventually(fn(): ?WebDriverElement => $this->browser->findElements(
-            WebDriverBy::cssSelector('[data-signature-target="pad"]'),
-        )[0] ?? null);
+        // Waited for *ready*, not for present: a canvas is in the markup from
+        // the first paint, and until the controller has connected a stroke on it
+        // lands on nothing — no ink, no upload, and a wait afterwards that can
+        // only run out. That is what three timeouts in one afternoon turned out
+        // to be, every one of them inside a full run where the page takes longer
+        // to come up than the driver takes to start drawing.
+        $this->eventually(fn(): ?bool => $this->browser->executeScript(
+            "return document.querySelector('[data-controller~=\"signature\"]')?.signatureReady === true;",
+        ) === true ? true : null);
+
+        $pad = $this->browser->findElements(WebDriverBy::cssSelector('[data-signature-target="pad"]'))[0] ?? null;
         self::assertInstanceOf(WebDriverElement::class, $pad);
 
         $driver = $this->browser->getWebDriver();
@@ -378,10 +386,15 @@ final class SignaturePageTest extends PantherTestCase
      * Twenty seconds rather than the usual few: a signature is the longest chain
      * in this suite — a stroke ends, a canvas is encoded, bytes go up, and only
      * then does a save even start — and it runs last, sharing a machine with
-     * everything else a full run is doing. Ten was enough for this battery on
-     * its own and not always enough inside `make ci`, which is the second time
-     * this number has been the whole of a failure. A wait is not a performance
-     * assertion: what it must not do is turn a busy machine into a red suite.
+     * everything else a full run is doing.
+     *
+     * The number was raised twice while this battery kept timing out, and it was
+     * never the reason: a save pressed in the frame between the release and
+     * `endStroke` found the widget idle and sent a document with no signature in
+     * it, so the wait was waiting for something that was never going to arrive
+     * ({@see signature_controller.js}, which is now busy from the moment the pen
+     * touches the pad). It stays generous, because a wait costs nothing when
+     * things work — but a timeout here is a bug and not a slow machine.
      */
     private function eventually(callable $ready, float $seconds = 20.0): mixed
     {

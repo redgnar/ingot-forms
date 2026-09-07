@@ -178,7 +178,9 @@
 {% endmacro %}
 
 {% macro node(node, readOnly, inEntry, chrome) %}
-    {% if node.kind == 'container' %}
+    {% if node.kind == 'container' and node.widget == 'wizard' %}
+        {{ _self.wizard(node, readOnly, inEntry, chrome) }}
+    {% elseif node.kind == 'container' %}
         {% if node.widget == 'accordion' %}
             {# Folded away without borrowing anybody's JavaScript: a browser has
                known how to open and close this on its own for years. #}
@@ -246,6 +248,58 @@
     {% else %}
         {{ _self.item(node, readOnly) }}
     {% endif %}
+{% endmacro %}
+
+{# One form on several pages. Every page is in the markup and all but one are
+   `hidden`, because a step is a way of *looking*: whatever page somebody is on, a
+   save sends the whole form. The server draws the first page open so nothing
+   flashes on the way in, and the controller decides again once the conditions
+   have been asked — a page whose every question is unasked is stepped over.
+
+   `form:asked@document` is how it hears that: which pages are worth showing
+   follows from which questions are asked, and that is the form controller's to
+   work out. #}
+{% macro wizard(node, readOnly, inEntry, chrome) %}
+    {% set steps = node.children %}
+    <div class="mb-4" data-wizard data-controller="wizard"
+         data-wizard-status-value="{{ 'page.wizard.status'|trans }}"
+         data-action="form:asked@document->wizard#refresh wizard:reveal->wizard#reveal">
+        {# A path rather than a row of buttons: numbered places joined by a line,
+           on one line that scrolls when a form has many pages. Pills were the
+           first shape this took and wrong twice over — they looked exactly like
+           the choice buttons underneath, so a control that changes the page read
+           as an answer, and five pages wrapped onto a second row. #}
+        <nav class="wizard-nav" data-wizard-nav aria-label="{{ 'page.wizard.steps'|trans }}">
+            <ol class="wizard-track">
+                {% for step in steps %}
+                    <li class="wizard-place">
+                        <button type="button" class="wizard-mark"
+                                data-wizard-mark="{{ loop.index0 }}" data-wizard-target="mark"
+                                data-action="click->wizard#jump"
+                                {%- if loop.first %} aria-current="step"{% endif %}>{{ step.label ?? loop.index }}</button>
+                    </li>
+                {% endfor %}
+            </ol>
+        </nav>
+        {# Where somebody is, for a reader who cannot see which pill is lit. #}
+        <p class="text-body-secondary small" data-wizard-status data-wizard-target="status"
+           aria-live="polite">{{ 'page.wizard.status'|trans|replace({'{n}': 1, '{m}': steps|length}) }}</p>
+
+        {% for step in steps %}
+            <section data-step data-wizard-target="step"{% if not loop.first %} hidden{% endif %}
+                     {%- if step.label %} aria-label="{{ step.label }}"{% endif %}>
+                {% if step.hint %}<p class="text-body-secondary">{{ step.hint }}</p>{% endif %}
+                {{ _self.nodes(step.children, readOnly, inEntry, chrome) }}
+            </section>
+        {% endfor %}
+
+        <div class="d-flex gap-2 mt-3">
+            <button type="button" class="btn btn-outline-secondary" data-wizard-back data-wizard-target="back"
+                    data-action="click->wizard#back">{{ 'page.wizard.back'|trans }}</button>
+            <button type="button" class="btn btn-outline-primary" data-wizard-next data-wizard-target="next"
+                    data-action="click->wizard#next">{{ 'page.wizard.next'|trans }}</button>
+        </div>
+    </div>
 {% endmacro %}
 
 {# A question asked repeatedly: a table of what has been answered so far, each

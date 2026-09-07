@@ -45,6 +45,11 @@ page:
         footer: 'To jest zapis tego, o co pytano, i tego, co odpowiedziano. Odpowiedzi nie można już zmienić: zatwierdzony formularz jest zamknięty na dobre.'
     ticked: 'tak'
     unticked: 'nie'
+    wizard:
+        steps: 'Kroki'
+        status: 'Krok {n} z {m}'
+        back: 'Wstecz'
+        next: 'Dalej'
     entry:
         add: 'Dodaj'
         remove: 'Usuń'

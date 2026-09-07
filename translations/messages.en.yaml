@@ -49,6 +49,11 @@ page:
         footer: 'This is a record of what was asked and what was answered. The answers cannot be changed: a confirmed form is closed for good.'
     ticked: 'yes'
     unticked: 'no'
+    wizard:
+        steps: 'Steps'
+        status: 'Step {n} of {m}'
+        back: 'Back'
+        next: 'Next'
     entry:
         add: 'Add'
         remove: 'Remove'

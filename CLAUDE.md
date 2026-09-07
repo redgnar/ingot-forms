@@ -524,6 +524,22 @@ Rules that follow from it, and that the tooling checks:
   never a second name for a control the other kit already draws — and never a restyling of one
   (a floating label was tried and removed: it moved the same question's text, and it could not
   be applied to a choice group or a slider, so every page mixing them was labelled two ways).
+- **A long form may be answered in parts, and that is a way of looking.** `wizard` and `step`
+  are container widgets both kits declare — the first two containers they share, because paging
+  is a structure rather than a look — and a `wizard` holds `step`s and nothing else
+  (`StepsBelongToAWizardValidator`: a step outside a wizard, a wizard holding anything else, a
+  wizard nested or inside an entry; two side by side are fine, each stepping its own pages).
+  **Every page is in the markup and all but one carry `hidden`**, so the collector reads the
+  whole form whatever page is showing: a step has no contract of its own, and that is the
+  invariant that makes this presentation rather than a second way of validating. Nothing is
+  gated — *next* always moves, for the reason a floor is never guarded — a page whose every
+  question a condition left unasked is stepped over and draws no mark, and a refusal about
+  another page brings that page forward before the caret goes there. Which pages are worth
+  showing follows from which questions are asked, so the form controller *announces* that it
+  asked them and each stepper listens. Deliberately absent: validation per page, branching
+  between pages (a second condition language over the definition's), a stored "where somebody
+  was", and any trace of a step in the printed record — a labelled step reads as a section, like
+  a card.
 - **A page that cannot be looked at still has to work, and that is not an option a document
   asks for.** Both kits do all of it: `aria-required` says an answer is owed (the star is marked
   decoration — read out it is punctuation inside the question), `aria-describedby` ties the hint

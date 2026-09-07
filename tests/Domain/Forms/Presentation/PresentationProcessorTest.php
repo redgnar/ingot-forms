@@ -262,6 +262,88 @@ final class PresentationProcessorTest extends TestCase
             'presentation.item.duplicate',
         ];
 
+        yield 'a step with no wizard to step it' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'step', 'label' => 'x', 'items' => [['name' => 'email']]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/widget',
+            'presentation.step.outside-a-wizard',
+        ];
+
+        yield 'a step inside a wizard but not directly' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'wizard', 'items' => [
+                    ['widget' => 'step', 'items' => [
+                        // A page of a page: nothing would ever step this one.
+                        ['widget' => 'step', 'items' => [['name' => 'email']]],
+                    ]],
+                ]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/0/items/0/widget',
+            'presentation.step.outside-a-wizard',
+        ];
+
+        yield 'a wizard holding something that is not a step' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'wizard', 'items' => [
+                    ['widget' => 'step', 'items' => [['name' => 'email']]],
+                    ['widget' => 'heading', 'label' => 'x'],
+                ]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/1/widget',
+            'presentation.wizard.holds-more-than-steps',
+        ];
+
+        yield 'a wizard with nothing to step' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'wizard', 'items' => []],
+                ['name' => 'email'],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items',
+            'presentation.wizard.no-steps',
+        ];
+
+        yield 'a wizard inside a wizard' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'wizard', 'items' => [
+                    ['widget' => 'wizard', 'items' => [['widget' => 'step', 'items' => [['name' => 'email']]]]],
+                ]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/0/widget',
+            'presentation.wizard.nested',
+        ];
+
+        yield 'a wizard inside an entry of a list' => [
+            ['engine' => 'core-html', 'items' => [
+                ['name' => 'lines', 'items' => [
+                    ['widget' => 'wizard', 'items' => [['widget' => 'step', 'items' => [['name' => 'sku']]]]],
+                ]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/0/widget',
+            'presentation.wizard.in-an-entry',
+        ];
+
+        yield 'a wizard deeper inside an entry' => [
+            ['engine' => 'core-html', 'items' => [
+                ['name' => 'lines', 'items' => [
+                    // Once inside an entry, always inside it: a group in between
+                    // changes nothing about where this wizard is.
+                    ['widget' => 'fieldset', 'items' => [
+                        ['widget' => 'wizard', 'items' => [['widget' => 'step', 'items' => [['name' => 'sku']]]]],
+                    ]],
+                ]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/0/items/0/widget',
+            'presentation.wizard.in-an-entry',
+        ];
+
         yield 'a trigger inside an entry' => [
             ['engine' => 'core-html', 'items' => [
                 ['name' => 'lines', 'items' => [['name' => 'sku'], ['widget' => 'save']]],
@@ -338,6 +420,181 @@ final class PresentationProcessorTest extends TestCase
             self::assertSame($code, $exception->report->errors[0]->code);
             self::assertSame($pointer, $exception->report->errors[0]->pointer->toString());
         }
+    }
+
+    public function testAFormMayBeDrawnOnSeveralPages(): void
+    {
+        // GIVEN a document that pages one form, with the way to finish it on the
+        // last page — which is where a person expects to find it
+        $document = [
+            'engine' => 'core-html',
+            'items' => [
+                ['widget' => 'heading', 'label' => 'x'],
+                ['widget' => 'wizard', 'items' => [
+                    ['widget' => 'step', 'label' => 'one', 'items' => [['name' => 'email']]],
+                    ['widget' => 'step', 'label' => 'two', 'items' => [
+                        ['name' => 'terms'],
+                        ['widget' => 'confirm', 'label' => 'send'],
+                    ]],
+                ]],
+            ],
+        ];
+
+        // WHEN
+        $parsed = self::processor()->parse($document);
+
+        // THEN a wizard and its steps are containers like any other: what makes
+        // them a wizard is how a page draws them, and nothing about the document
+        // it holds
+        $wizard = $parsed->items[1];
+        self::assertTrue($wizard->isContainer());
+        self::assertCount(2, $wizard->items);
+        self::assertSame(['step', 'step'], array_map(
+            static fn(\App\Domain\Forms\Presentation\PresentedItem $step): ?string => $step->widget,
+            $wizard->items,
+        ));
+    }
+
+    public function testAWizardInsideAWizardIsOneComplaint(): void
+    {
+        // GIVEN the mistake written in the way that could be reported three
+        // times over: the inner wizard is nested, it is not a step, and the
+        // outer one is then left with no steps
+        $document = ['engine' => 'core-html', 'items' => [
+            ['widget' => 'wizard', 'items' => [
+                ['widget' => 'wizard', 'items' => [['widget' => 'step', 'items' => [['name' => 'email']]]]],
+            ]],
+            ['widget' => 'confirm'],
+        ]];
+
+        // WHEN
+        try {
+            self::processor()->parse($document);
+            self::fail('Expected PresentationNotValid.');
+        } catch (PresentationNotValid $refused) {
+            // THEN it is said once, where the wizard that cannot be there sits
+            self::assertCount(1, $refused->report->errors);
+            self::assertSame('presentation.wizard.nested', $refused->report->errors[0]->code);
+            self::assertSame('/items/0/items/0/widget', $refused->report->errors[0]->pointer->toString());
+        }
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, string}>
+     */
+    public static function wizardsThatCannotBeThere(): iterable
+    {
+        // Each of these holds something that is not a step, so a validator that
+        // went on looking would complain about that as well — about a wizard it
+        // has just said cannot be there at all.
+        yield 'nested' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'wizard', 'items' => [
+                    ['widget' => 'wizard', 'items' => [
+                        ['widget' => 'step', 'items' => [['name' => 'email']]],
+                        ['widget' => 'heading', 'label' => 'x'],
+                    ]],
+                ]],
+                ['widget' => 'confirm'],
+            ]],
+            'presentation.wizard.nested',
+        ];
+
+        yield 'inside an entry' => [
+            ['engine' => 'core-html', 'items' => [
+                ['name' => 'lines', 'items' => [
+                    ['widget' => 'wizard', 'items' => [
+                        ['widget' => 'step', 'items' => [['name' => 'sku']]],
+                        ['widget' => 'heading', 'label' => 'x'],
+                    ]],
+                ]],
+                ['widget' => 'confirm'],
+            ]],
+            'presentation.wizard.in-an-entry',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $document
+     */
+    #[DataProvider('wizardsThatCannotBeThere')]
+    public function testAWizardThatCannotBeThereIsOneComplaint(array $document, string $code): void
+    {
+        // GIVEN a wizard somewhere it may not be, holding something a wizard may
+        // not hold
+        // WHEN
+        try {
+            self::processor()->parse($document);
+            self::fail('Expected PresentationNotValid.');
+        } catch (PresentationNotValid $refused) {
+            // THEN where it sits is the whole complaint: what it holds is beside
+            // the point until it is somewhere it can be
+            self::assertCount(1, $refused->report->errors);
+            self::assertSame($code, $refused->report->errors[0]->code);
+        }
+    }
+
+    public function testAWizardMaySitInsideAnOrdinaryGroup(): void
+    {
+        // GIVEN a wizard inside a group — which is not an entry, and where a
+        // document may perfectly well want one
+        $document = ['engine' => 'core-html', 'items' => [
+            ['widget' => 'fieldset', 'label' => 'x', 'items' => [
+                ['widget' => 'wizard', 'items' => [['widget' => 'step', 'items' => [['name' => 'email']]]]],
+            ]],
+            ['widget' => 'confirm'],
+        ]];
+
+        // WHEN / THEN nothing is refused: where a wizard may not be is inside
+        // another one and inside an entry, and a group is neither
+        self::assertCount(2, self::processor()->parse($document)->items);
+    }
+
+    public function testAWizardSaysWhatItIsHoldingThatItShouldNotBe(): void
+    {
+        // GIVEN a wizard with a heading among its pages, and a page of its own
+        // that is fine — so the complaint is about the one thing that is not
+        $document = ['engine' => 'core-html', 'items' => [
+            ['widget' => 'wizard', 'items' => [
+                ['widget' => 'step', 'label' => 'one', 'items' => [['name' => 'email']]],
+                ['widget' => 'heading', 'label' => 'x'],
+                ['widget' => 'wizard', 'items' => [['widget' => 'step', 'items' => [['name' => 'terms']]]]],
+            ]],
+            ['widget' => 'confirm'],
+        ]];
+
+        // WHEN
+        try {
+            self::processor()->parse($document);
+            self::fail('Expected PresentationNotValid.');
+        } catch (PresentationNotValid $refused) {
+            // THEN two findings, because these are two mistakes: the heading
+            // that has no page to be on, named so somebody can find it, and the
+            // wizard that cannot be there at all
+            self::assertSame(
+                ['presentation.wizard.holds-more-than-steps', 'presentation.wizard.nested'],
+                array_map(
+                    static fn(\Ingot\Error\MappingError $error): string => $error->code,
+                    $refused->report->errors,
+                ),
+            );
+            self::assertSame('heading', $refused->report->errors[0]->input);
+        }
+    }
+
+    public function testTwoWizardsSideBySideAreAllowed(): void
+    {
+        // GIVEN two steppers, each with its own pages: two independent parts of
+        // one form, which nothing on a page has to reconcile — every mechanism
+        // there is per-wizard
+        $document = ['engine' => 'core-html', 'items' => [
+            ['widget' => 'wizard', 'items' => [['widget' => 'step', 'items' => [['name' => 'email']]]]],
+            ['widget' => 'wizard', 'items' => [['widget' => 'step', 'items' => [['name' => 'terms']]]]],
+            ['widget' => 'confirm'],
+        ]];
+
+        // WHEN / THEN
+        self::assertCount(3, self::processor()->parse($document)->items);
     }
 
     public function testAPresentationHasToOfferAWayToFinishTheForm(): void

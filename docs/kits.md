@@ -183,6 +183,32 @@ for when a form is a form rather than a product.
 - **Notes:** the only way this kit groups, and the browser's own: it draws the frame and cuts
   the name into it. Nests as deep as you like.
 
+### `wizard` — one form on several pages
+
+- **Draws:** a `<div data-wizard>` holding a `<nav data-wizard-nav>` with the pages as a
+  **track** — an `<ol>` of `<li class="wizard-place">`, each with one button, numbered by a CSS
+  counter and joined by a line — a line saying where somebody is in words, one
+  `<section data-step>` per page with every page but one `hidden`, and *back* / *next*
+- **Notes:** the track is one line that **scrolls** rather than wrapping, and the current place
+  is scrolled into view — a form with a dozen pages is otherwise a wizard whose marks are off
+  the end of it. A page nobody is being asked has no place on the path at all: the mark is
+  hidden and the place goes with it, which also takes its number, so the numbers stay 1..n and
+  agree with the line underneath. A wizard holds `step`s and nothing else. **Every page is in
+  the markup**: a step is
+  a way of looking, so whatever page somebody is on, a save sends the whole form. Nothing is
+  gated — *next* always moves, because a page that stopped somebody for being under a minimum
+  would enforce an obligation the server itself only asks about at confirmation. A page whose
+  every question a condition left unasked is stepped over, and a refusal about another page
+  brings that page forward before the caret goes there.
+
+### `step` — one page of a wizard
+
+- **Draws:** `<section data-step>`, labelled by its own label, holding whatever any container
+  holds
+- **Notes:** only directly inside a `wizard` (`presentation.step.outside-a-wizard` otherwise).
+  A page holding no questions at all is not skipped as long as it holds something else — "review
+  and send" is a page with one trigger and every reason to exist.
+
 <a id="core-html-decorations"></a>
 ## Text between things
 
@@ -483,6 +509,25 @@ that the plain kit has no markup for.
   Children that ask for nothing share what is left.
 - **Notes:** columns collapse to full width on a narrow screen, which is Bootstrap's own
   behaviour and not something a document can turn off.
+
+### `wizard` — one form on several pages
+
+- **Draws:** a `<div data-wizard>` with a Stimulus controller, the same track of numbered
+  places, a small line saying where somebody is, one `<section data-step>` per page (all but one
+  `hidden`), and two buttons
+- **Notes:** the same as the plain kit's, down to the attributes — a wizard is a structure both
+  kits share rather than a look either of them invented. It hears `form:asked` from the form
+  controller, because which pages are worth showing follows from which questions are asked. The
+  current place is filled with the **body** colour rather than the accent, for the reason the
+  buttons are: a skin may set `--bs-primary` to anything, while the colour a page is written in
+  is the one guaranteed to be legible on the colour it is written on.
+- **Bootstrap:** none — this is one of the two places (with the comfort bar) where the kit draws
+  something Bootstrap has no component for.
+
+### `step` — one page of a wizard
+
+- **Draws:** `<section data-step>` holding whatever any container holds
+- **Notes:** as in the plain kit; only directly inside a `wizard`.
 
 <a id="bootstrap-decorations"></a>
 ## Text between things

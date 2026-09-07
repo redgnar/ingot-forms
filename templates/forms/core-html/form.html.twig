@@ -103,6 +103,38 @@
         .history button { font: inherit; }
         .viewing { background: var(--viewing-bg); }
         .viewing p { margin: 0 0 .5rem; }
+        /* One form on several pages: the marks say where somebody is, and the
+           page they are on is the only one drawn. */
+        .wizard { border: 1px solid var(--frame); border-radius: .25rem; margin: 0 0 1.5rem; padding: 1rem 1.25rem; }
+        /* The pages of a form are a path: a numbered place each, joined by a
+           line, on one line that scrolls rather than wrapping. The numbers are
+           drawn by a counter, so a place nobody is being asked takes none — and
+           they are decoration: what a reader hears is the line underneath. */
+        .wizard-track { counter-reset: place; display: flex; list-style: none; margin: 0 0 .5rem;
+            overflow-x: auto; padding: .25rem 0 .5rem; scrollbar-width: thin; }
+        .wizard-place { counter-increment: place; flex: 1 0 auto; max-width: 12rem; min-width: 4.5rem; position: relative; }
+        /* `z-index` keeps the line behind the numbers: a positioned
+           pseudo-element paints in document order, and `::after` is the last
+           child of the place, so without it the line is drawn over the dot it
+           starts from. */
+        .wizard-place:not(:first-child)::before, .wizard-place:not(:last-child)::after {
+            background: var(--line); content: ''; height: 2px; position: absolute; top: 1rem; z-index: 0; }
+        .wizard-place:not(:first-child)::before { left: 0; right: 50%; }
+        .wizard-place:not(:last-child)::after { left: 50%; right: 0; }
+        .wizard-mark { align-items: center; background: none; border: 0; color: var(--quiet); cursor: pointer;
+            display: flex; flex-direction: column; font: inherit; font-size: .8125rem; gap: .35rem;
+            line-height: 1.2; padding: 0 .25rem; position: relative; text-align: center; width: 100%; z-index: 1; }
+        .wizard-mark::before { align-items: center; background: var(--page); border: 2px solid var(--line);
+            border-radius: 50%; content: counter(place); display: flex; font-size: .75rem;
+            font-variant-numeric: tabular-nums; height: 2rem; justify-content: center; width: 2rem; }
+        .wizard-mark[aria-current="step"] { color: var(--ink); font-weight: 600; }
+        .wizard-mark[aria-current="step"]::before { background: var(--ink); border-color: var(--ink); color: var(--page); }
+        /* A page nobody is being asked is not a place on the path: the module
+           hides the mark, and the place goes with it — which also takes its
+           number, so they stay 1..n and agree with the line underneath. */
+        .wizard-place:has(> .wizard-mark[hidden]) { display: none; }
+        .wizard-status { color: var(--quiet); font-size: .875rem; margin: 0 0 1rem; }
+        .wizard-move { display: flex; gap: .5rem; margin: 1rem 0 0; }
         .file-held { font-size: .875rem; margin: .25rem 0 0; }
         .file-progress { color: var(--quiet); font-size: .875rem; margin: .25rem 0 0; }
     </style>
@@ -249,7 +281,9 @@
 
 {% macro nodes(nodes, readOnly, inEntry, chrome) %}
     {% for node in nodes %}
-        {% if node.kind == 'container' %}
+        {% if node.kind == 'container' and node.widget == 'wizard' %}
+            {{ _self.wizard(node, readOnly, inEntry, chrome) }}
+        {% elseif node.kind == 'container' %}
             <fieldset>
                 {% if node.label %}<legend>{{ node.label }}</legend>{% endif %}
                 {{ _self.nodes(node.children, readOnly, inEntry, chrome) }}
@@ -283,6 +317,49 @@
             {{ _self.item(node, readOnly) }}
         {% endif %}
     {% endfor %}
+{% endmacro %}
+
+{# One form on several pages. Every page is in the markup and all but one are
+   `hidden`, because a step is a way of *looking*: whatever page somebody is on,
+   a save sends the whole form. The server draws the first page open so nothing
+   flashes on the way in, and the module below decides again — a page whose every
+   question a condition left unasked is stepped over.
+
+   Nothing here is gated: next always moves. A page that stopped somebody for
+   being under a minimum would be enforcing an obligation the server itself only
+   asks about at confirmation. #}
+{% macro wizard(node, readOnly, inEntry, chrome) %}
+    {% set steps = node.children %}
+    <div class="wizard" data-wizard
+         data-wizard-status-words="{{ 'page.wizard.status'|trans }}">
+        {# A path rather than a row of buttons ({@see the richer kit, which says
+           the same thing about the same shape). #}
+        <nav class="wizard-nav" data-wizard-nav aria-label="{{ 'page.wizard.steps'|trans }}">
+            <ol class="wizard-track">
+                {% for step in steps %}
+                    <li class="wizard-place">
+                        <button type="button" class="wizard-mark" data-wizard-mark="{{ loop.index0 }}"
+                                {%- if loop.first %} aria-current="step"{% endif %}>{{ step.label ?? loop.index }}</button>
+                    </li>
+                {% endfor %}
+            </ol>
+        </nav>
+        {# Where somebody is, for a reader who cannot see which mark is lit. #}
+        <p class="wizard-status" data-wizard-status aria-live="polite">{{ 'page.wizard.status'|trans|replace({'{n}': 1, '{m}': steps|length}) }}</p>
+
+        {% for step in steps %}
+            <section class="wizard-step" data-step{% if not loop.first %} hidden{% endif %}
+                     {%- if step.label %} aria-label="{{ step.label }}"{% endif %}>
+                {% if step.hint %}<p class="hint">{{ step.hint }}</p>{% endif %}
+                {{ _self.nodes(step.children, readOnly, inEntry, chrome) }}
+            </section>
+        {% endfor %}
+
+        <p class="wizard-move">
+            <button type="button" data-wizard-back>{{ 'page.wizard.back'|trans }}</button>
+            <button type="button" data-wizard-next>{{ 'page.wizard.next'|trans }}</button>
+        </p>
+    </div>
 {% endmacro %}
 
 {# A question asked repeatedly: the answers so far as a table, each with the form

@@ -22,6 +22,7 @@ export default class extends Controller {
 
     connect() {
         this.mine = false;
+        this.landed = null;
         this.pad = new SignaturePad(this.padTarget, {
             // Nothing about the ink is a document's business, and nothing here
             // is a skin: a signature is black on white wherever it is drawn,
@@ -37,10 +38,26 @@ export default class extends Controller {
         window.addEventListener('resize', this.fit);
         this.#fit();
 
+        // Busy from the moment the pen touches the pad, not from the moment the
+        // stroke ends: `endStroke` is a frame later than the release (the
+        // library throttles), and a save pressed inside that frame would have
+        // found the widget idle, collected an empty control, and sent a document
+        // with no signature in it and nothing to say one had been drawn. That is
+        // a person signing and pressing "save" in one movement, and it is what
+        // three timeouts in one afternoon turned out to be.
+        this.pad.addEventListener('beginStroke', () => this.#drawing());
         this.pad.addEventListener('endStroke', () => this.#hand());
+
+        // A canvas that exists is not yet a canvas anybody can draw on: until
+        // this line the strokes land on nothing at all. Said on the element for
+        // the reason the file widget says `filePending` there — whoever needs to
+        // know is outside this controller, and a busy machine is exactly when
+        // the difference shows.
+        this.element.signatureReady = true;
     }
 
     disconnect() {
+        this.element.signatureReady = false;
         window.removeEventListener('resize', this.fit);
         this.pad?.off();
     }
@@ -108,6 +125,19 @@ export default class extends Controller {
         if (!held) this.#fit();
     }
 
+    /**
+     * The pen is down: whatever this pad is about to hand over, nothing may save
+     * without it. The promise is settled by {@see #hand()} with the upload's own,
+     * so anybody waiting on it waits for the bytes to land.
+     */
+    #drawing() {
+        const widget = this.element.closest('[data-controller~="file"]');
+
+        if (widget === null) return;
+
+        widget.filePending = new Promise((settled) => { this.landed = settled; });
+    }
+
     #hand() {
         // No "is it empty?" question here, deliberately. This runs when a stroke
         // has just ended, so there is ink by definition — and asking the library
@@ -124,12 +154,17 @@ export default class extends Controller {
         // own, so anybody already waiting on this one waits for the bytes to
         // land ({@see file_controller.js}, {@see form_controller.js}).
         const widget = this.element.closest('[data-controller~="file"]');
-        let landed = null;
         // Ours, so that what comes back does not put the pad away
         // ({@see shows()}).
         this.mine = true;
 
-        if (widget !== null) widget.filePending = new Promise((settled) => { landed = settled; });
+        // Opened when the stroke began; opened here too, for the stroke nobody
+        // saw begin — a pad filled programmatically, or a library that one day
+        // stops announcing it.
+        if (this.landed === null || this.landed === undefined) this.#drawing();
+
+        const landed = this.landed;
+        this.landed = null;
 
         this.padTarget.toBlob((blob) => {
             if (blob === null) {

@@ -29,6 +29,7 @@ answered is a form whose answers were given to the questions it had.
 - [Questions asked only sometimes](#questions-asked-only-sometimes)
 - [Files](#files)
 - [The presentation: how it is shown](#the-presentation-how-it-is-shown)
+- [One form on several pages](#one-form-on-several-pages)
 - [Widget reference](#widget-reference)
 - [Accessibility: what the reader controls, and what you can default](#accessibility-what-the-reader-controls-and-what-you-can-default)
 - [Being told what happened](#being-told-what-happened)
@@ -723,6 +724,61 @@ definition's, because it changes what an answer must satisfy
 ([conditions](#questions-asked-only-sometimes)) — and no way to change any of it afterwards, because the description of a fixed
 thing has no reason to drift.
 
+## One form on several pages
+
+A long form is easier to answer in parts, and that is a way of *looking* — so it is the
+presentation's, and the definition does not move. Two container widgets, in both kits:
+
+```json
+{"widget": "wizard", "items": [
+  {"widget": "step", "label": "t.who",  "items": [{"name": "email"}, {"name": "company"}]},
+  {"widget": "step", "label": "t.what", "items": [{"name": "damage"}]},
+  {"widget": "step", "label": "t.send", "items": [{"widget": "confirm", "label": "t.send"}]}
+]}
+```
+
+A `wizard` shows one `step` at a time and draws its own marks, its own *back* and *next*, and a
+line saying where somebody is. A step holds whatever any container holds — questions, groups,
+lists, text, and the form's own triggers where you put them: the last page above is a "review
+and send" page, which is a page with no questions and every reason to exist.
+
+**Six things about it are decisions, not details.**
+
+- **Every page is in the markup, and a save sends the whole form.** A step has no contract of
+  its own: whatever page somebody is looking at, `PUT …/data` carries every answer on every
+  page. That is what makes a wizard presentation rather than a second way of validating.
+- **Nothing is gated.** *Next* always moves, and a mark can be pressed to jump. A page that
+  refused to let somebody on would be enforcing an obligation the server itself only asks about
+  at confirmation — and the kits promise the opposite everywhere else: a ceiling is held before
+  it is met, a floor never is.
+- **A page a condition emptied is stepped over.** If every question on a page is unasked
+  ([conditions](#questions-asked-only-sometimes)), *next* passes it by and its mark is not
+  drawn — and it comes back the moment an answer asks for it again. A page holding anything
+  else visible is never skipped.
+- **A refusal brings its page forward.** Confirm from the last page with an answer owed on the
+  first, and the first page is what you are looking at, with the message under the control and
+  the caret on it. A message on a page nobody is drawing is no message at all.
+- **Where the wizard sits is yours.** A heading above it, the form's triggers inside the last
+  step or below the whole thing — whatever the document says. Two wizards side by side are
+  allowed: each steps its own pages.
+- **Which page somebody is on is not stored.** Not on the server and not in the browser: a
+  wizard opens on the first page with something to answer, and the only thing that moves it by
+  itself is a refusal.
+
+What is refused at creation:
+
+| Code | Pointer | What it means |
+|---|---|---|
+| `presentation.step.outside-a-wizard` | `…/widget` | a `step` that is not directly inside a `wizard` — nothing would ever step it |
+| `presentation.wizard.no-steps` | `…/items` | a `wizard` with no `step` in it |
+| `presentation.wizard.holds-more-than-steps` | `…/items/N/widget` | something beside the pages. A heading for the whole wizard goes *before* it, where it is always visible |
+| `presentation.wizard.nested` | `…/widget` | a wizard inside a wizard: which one *next* belongs to has no answer |
+| `presentation.wizard.in-an-entry` | `…/widget` | a wizard inside a list entry, for the reason a trigger cannot sit there |
+
+**Deliberately not there**: no validation per page, no branching ("which page comes next" as a
+rule would be a second condition language over the one the definition already has), and no step
+in the printed record — a labelled step reads as a section there, exactly like a card.
+
 ## Widget reference
 
 The tables below are the index; [kits.md](kits.md) is the reference — every control of both
@@ -754,6 +810,7 @@ for its type — the first in each row below.
 | Kind | `core-html` | `bootstrap` | Holds items? |
 |---|---|---|---|
 | grouping | `fieldset` | `card`, `accordion`, `row` | yes |
+| paging | `wizard` + `step` | the same two | yes |
 | saying something | `heading`, `paragraph` | `heading`, `paragraph`, `alert`, `divider` | no |
 | about the page itself | `comfort`, `language` | the same two | no |
 | doing something | `save`, `confirm`, `reset`, `history` | the same four | no |
@@ -1330,6 +1387,11 @@ The eight `form.condition.*` codes are explained one by one in
 | `presentation.column.unknown` | a `columns` entry names something the entry does not have |
 | `presentation.confirm.missing` | no `confirm` anywhere — the page would be unfinishable |
 | `presentation.trigger.in-an-entry` | `save`/`confirm` inside a list entry: a form does those, not an entry |
+| `presentation.step.outside-a-wizard` | a `step` that is not directly inside a `wizard` |
+| `presentation.wizard.no-steps` | a `wizard` with no page to step |
+| `presentation.wizard.holds-more-than-steps` | a `wizard` holding something that is not a `step` |
+| `presentation.wizard.nested` | a wizard inside a wizard |
+| `presentation.wizard.in-an-entry` | a wizard inside an entry of a list |
 | `presentation.choice.unknown` | `choices` words a value the item does not offer |
 | `presentation.choice.missing` | some options worded and others left as codes |
 | `presentation.choice.not-allowed` | `choices` on an item that offers no choice |

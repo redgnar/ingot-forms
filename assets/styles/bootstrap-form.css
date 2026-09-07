@@ -439,3 +439,121 @@ input.form-control[type="file"]:active {
 .btn-group[data-name] > .btn {
     min-height: var(--kit-control-height, calc(1.5em + 0.75rem + 2px));
 }
+
+/* The pages of a form read as a path, not as a row of buttons. Pills were the
+   first shape this took and they were wrong twice over: they looked exactly like
+   the choice buttons underneath them — so a control that changes the page read as
+   an answer — and a form with five pages wrapped them onto a second row.
+
+   A numbered place per page, joined by a line, on one line that scrolls when
+   there are many. The number is a CSS counter, which means two things worth
+   having: no page renders it, so a place a condition hid takes no number, and it
+   is decoration a screen reader does not read out — what a reader hears is the
+   line underneath ("Step 2 of 5").
+
+   The current place is filled with the body colour rather than the accent, for
+   the reason the buttons above take theirs from the page: a skin may set
+   `--bs-primary` to anything, while the colour a page is written in is the one
+   colour guaranteed to be legible on the colour it is written on. */
+.wizard-track {
+    counter-reset: wizard-place;
+    display: flex;
+    list-style: none;
+    margin: 0 0 .5rem;
+    overflow-x: auto;
+    padding: .25rem 0 .5rem;
+    scrollbar-width: thin;
+}
+
+.wizard-place {
+    counter-increment: wizard-place;
+    flex: 1 0 auto;
+    max-width: 12rem;
+    min-width: 4.5rem;
+    position: relative;
+}
+
+/* Half a line each side of the dot, so the track never runs past the ends.
+
+   The `z-index` pair is the whole of what keeps the line *behind* the numbers,
+   and it is not decoration: a positioned pseudo-element paints in document
+   order, and `::after` is the last child of the place — so without it the line
+   to the right of a dot is painted over the dot it starts from, which is what a
+   track drawn through its own numbers looked like. */
+.wizard-place:not(:first-child)::before,
+.wizard-place:not(:last-child)::after {
+    background: var(--bs-border-color, #dee2e6);
+    content: '';
+    height: 2px;
+    position: absolute;
+    top: 1rem;
+    z-index: 0;
+}
+
+.wizard-place:not(:first-child)::before {
+    left: 0;
+    right: 50%;
+}
+
+.wizard-place:not(:last-child)::after {
+    left: 50%;
+    right: 0;
+}
+
+.wizard-mark {
+    align-items: center;
+    background: none;
+    border: 0;
+    color: var(--bs-secondary-color, #6c757d);
+    display: flex;
+    flex-direction: column;
+    font: inherit;
+    font-size: .8125rem;
+    gap: .35rem;
+    line-height: 1.2;
+    padding: 0 .25rem;
+    position: relative;
+    text-align: center;
+    width: 100%;
+    z-index: 1;
+}
+
+.wizard-mark::before {
+    align-items: center;
+    background: var(--bs-body-bg, #fff);
+    border: 2px solid var(--bs-border-color, #dee2e6);
+    border-radius: 50%;
+    content: counter(wizard-place);
+    display: flex;
+    font-size: .75rem;
+    font-variant-numeric: tabular-nums;
+    height: 2rem;
+    justify-content: center;
+    width: 2rem;
+}
+
+/* Written twice, and the colour stated as well as the variable: a skin's dark
+   rules are one specificity point above a bare class, and this file is the last
+   one loaded. The same reason the buttons above are written this way. */
+.wizard-mark[aria-current="step"],
+[data-bs-theme] .wizard-mark[aria-current="step"] {
+    color: var(--bs-body-color);
+    font-weight: 600;
+}
+
+.wizard-mark[aria-current="step"]::before,
+[data-bs-theme] .wizard-mark[aria-current="step"]::before {
+    background: var(--bs-body-color);
+    border-color: var(--bs-body-color);
+    color: var(--bs-body-bg);
+}
+
+/* A page nobody is being asked is not a place on the path either. The controller
+   hides the *mark* — that is the fact it knows, and the browser tests read it —
+   and the place it sits in goes with it, which also takes its number: with the
+   place gone the counter never reaches it, so the numbers stay 1..n and agree
+   with the line underneath ("Step 2 of 5"). Hiding only the button left a gap in
+   the track and a number nobody could get to. */
+.wizard-place:has(> .wizard-mark[hidden]) {
+    display: none;
+}

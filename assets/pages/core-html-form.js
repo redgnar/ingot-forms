@@ -194,6 +194,133 @@ function holds(condition, values) {
     return answered && !condition.notIn.includes(value);
 }
 
+// One form on several pages.
+//
+// Every page is in the markup and all but one are hidden, because a step is a way
+// of looking: whatever page somebody is on, a save sends the whole form. Nothing
+// here is gated either — next always moves, since a page that stopped somebody
+// for being under a minimum would be enforcing an obligation the server only asks
+// about at confirmation.
+//
+// Per wizard, because a document may place two of them and each steps its own
+// pages.
+function steppers() {
+    return [...document.querySelectorAll('[data-wizard]')];
+}
+
+function stepsOf(wizard) {
+    return [...wizard.querySelectorAll('[data-step]')].filter(
+        (step) => step.closest('[data-wizard]') === wizard && step.closest('template') === null,
+    );
+}
+
+// A page with nothing left to answer is stepped over: a condition can empty a
+// whole one. A page holding anything else visible — a trigger, a heading, the
+// "review and send" page — is never skipped, which is why this asks what is
+// *shown* rather than counting controls.
+function worthShowing(step) {
+    const asked = [...step.querySelectorAll('[data-name][data-type], [data-collection]')]
+        .filter((control) => control.closest('[data-unasked]') === null);
+
+    if (asked.length > 0) return true;
+
+    return [...step.querySelectorAll('[data-action], [data-history], .hint, h2, p, table')]
+        .some((thing) => thing.closest('[data-unasked]') === null);
+}
+
+function showStep(wizard, index) {
+    const steps = stepsOf(wizard);
+    const shown = steps.filter(worthShowing);
+
+    if (shown.length === 0) return;
+
+    const step = steps[index] !== undefined && worthShowing(steps[index]) ? steps[index] : shown[0];
+
+    for (const one of steps) one.hidden = one !== step;
+
+    for (const mark of wizard.querySelectorAll('[data-wizard-mark]')) {
+        const marked = steps[Number(mark.dataset.wizardMark)];
+        // A page nobody is being asked is not a place to go to.
+        mark.hidden = marked === undefined || !worthShowing(marked);
+
+        if (marked === step) {
+            mark.setAttribute('aria-current', 'step');
+            // A track long enough to scroll is no use if the place somebody is
+            // on is off the end of it. `nearest` on both axes, so this never
+            // scrolls the page itself.
+            mark.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        } else {
+            mark.removeAttribute('aria-current');
+        }
+    }
+
+    const at = shown.indexOf(step);
+    const status = wizard.querySelector('[data-wizard-status]');
+
+    if (status !== null) {
+        status.textContent = (wizard.dataset.wizardStatusWords ?? '')
+            .replace('{n}', String(at + 1))
+            .replace('{m}', String(shown.length));
+    }
+
+    const back = wizard.querySelector('[data-wizard-back]');
+    const next = wizard.querySelector('[data-wizard-next]');
+
+    if (back !== null) back.disabled = at === 0;
+    if (next !== null) next.disabled = at === shown.length - 1;
+}
+
+function currentStep(wizard) {
+    return stepsOf(wizard).find((step) => !step.hidden) ?? null;
+}
+
+// Moving is done in the *shown* pages, so a page a condition emptied is passed
+// over rather than landed on.
+function move(wizard, by, answering) {
+    const shown = stepsOf(wizard).filter(worthShowing);
+    const at = shown.indexOf(currentStep(wizard));
+    const going = shown[at + by];
+
+    if (going === undefined) return;
+
+    showStep(wizard, stepsOf(wizard).indexOf(going));
+
+    // Somebody who pressed "next" is about to answer what is on the page they
+    // asked for. A page opened by a refusal moves the caret itself, to the
+    // control the refusal is about.
+    if (answering) {
+        going.querySelector('input:not([type="hidden"]):not([disabled]), select, textarea, button')?.focus();
+    }
+}
+
+// A message nobody can see is not a message, and a page not being drawn hides one
+// as surely as a folded entry does. So a refusal opens the page it is about.
+function revealStep(element) {
+    const wizard = element.closest('[data-wizard]');
+    const step = element.closest('[data-step]');
+
+    if (wizard === null || step === null) return;
+
+    showStep(wizard, stepsOf(wizard).indexOf(step));
+}
+
+document.getElementById('form').addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-wizard-back], [data-wizard-next], [data-wizard-mark]');
+    const wizard = trigger?.closest('[data-wizard]');
+
+    if (!trigger || !wizard) return;
+
+    event.preventDefault();
+
+    if (trigger.dataset.wizardMark !== undefined) {
+        showStep(wizard, Number(trigger.dataset.wizardMark));
+
+        return;
+    }
+
+    move(wizard, trigger.dataset.wizardNext !== undefined ? 1 : -1, event.isTrusted);
+});
+
 // Which questions this page is asking, worked out again after every keystroke:
 // what decides a question may be an answer somebody is typing now.
 //
@@ -217,7 +344,26 @@ function ask(scope = document.getElementById('form')) {
     // unasked answer is no answer at all. A definition with a ring in it is
     // refused at creation, so this always settles.
     for (let pass = 0; pass <= blocks.length; pass++) {
-        if (!askOnce(scope, blocks)) return;
+        if (!askOnce(scope, blocks)) break;
+    }
+}
+
+// What follows from an answer changing: which questions are asked, and then which
+// pages are worth showing. In that order, because the second is decided by the
+// first — and called from the three places an answer changes rather than from
+// inside `ask()`, which is recursive and would otherwise do the second bit once
+// per entry.
+function evaluate() {
+    ask();
+    refreshSteppers();
+}
+
+// Which pages are worth showing follows from which questions are asked, so the
+// steppers are told after every pass — keeping whoever is where they are, unless
+// the page they were on has nothing left on it.
+function refreshSteppers() {
+    for (const wizard of steppers()) {
+        showStep(wizard, stepsOf(wizard).indexOf(currentStep(wizard)));
     }
 }
 
@@ -304,6 +450,11 @@ function clearMessages() {
 // marks each entry it is inside, so the row still says "look here" once somebody
 // folds it back up.
 function reveal(slot) {
+    // A page that is not being drawn hides a message as surely as a folded entry
+    // does, so the wizard is moved to the one this refusal is about — before the
+    // caret goes there, since a control on a hidden page cannot take it.
+    revealStep(slot);
+
     for (let form = slot.closest('details'); form !== null; form = form.parentElement?.closest('details') ?? null) {
         form.open = true;
     }
@@ -631,7 +782,7 @@ document.getElementById('form').addEventListener('click', (event) => {
     }
 
     guard(list);
-    ask();
+    evaluate();
 });
 
 document.getElementById('form').addEventListener('input', (event) => {
@@ -644,7 +795,7 @@ document.getElementById('form').addEventListener('input', (event) => {
 // again after anything that changes an answer: typing, picking, ticking — and
 // adding or removing an entry, which brings a whole scope of answers with it.
 for (const event of ['input', 'change']) {
-    document.getElementById('form').addEventListener(event, () => ask());
+    document.getElementById('form').addEventListener(event, () => evaluate());
 }
 
 for (const list of document.querySelectorAll('[data-collection]')) guard(list);
@@ -1087,7 +1238,7 @@ if (document.body.dataset.version === undefined) {
     // holds — and then filled back in from a draft nobody saved, which it could
     // not have known about. So the questions are worked out again before
     // anything is measured, and the baseline is what is left.
-    ask();
+    evaluate();
     asDrawn = JSON.stringify(collect());
 }
 // On a version page, nothing is touched: what somebody typed is waiting for them

@@ -57,7 +57,10 @@ final class CoreHtmlEngine implements PresentationEngine
 
     public function containers(): array
     {
-        return ['fieldset'];
+        // `wizard` and `step` are one form on several pages: a way of *looking*,
+        // so the plainest kit draws them too ({@see
+        // \App\Domain\Forms\Presentation\Rule\StepsBelongToAWizardValidator}).
+        return ['fieldset', 'wizard', 'step'];
     }
 
     public function decorations(): array

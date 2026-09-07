@@ -335,8 +335,13 @@ export default class extends Controller {
         // asked, and an unasked answer is no answer at all. A definition with a
         // ring in it is refused at creation, so this always settles.
         for (let pass = 0; pass <= blocks.length; pass++) {
-            if (!this.#askOnce(scope, blocks)) return;
+            if (!this.#askOnce(scope, blocks)) break;
         }
+
+        // Which pages of a wizard are worth showing follows from which questions
+        // are asked, and a whole page can be emptied by a condition. Announced
+        // rather than reached for: this controller knows nothing about stepping.
+        this.dispatch('asked', { target: document });
     }
 
     // Returns whether anything moved, which is what the pass above counts.
@@ -534,6 +539,13 @@ export default class extends Controller {
     // it — and marks each row it is inside, so the table still says "look here"
     // once somebody folds it back up.
     #reveal(slot) {
+        // A page of a wizard that is not being drawn hides a message as surely as
+        // a folded entry does, and it has to be opened before the caret goes
+        // there: a control on a hidden page cannot take it. Said at the control,
+        // because whichever wizard holds it is the one that has to move — and
+        // this controller does not know how one steps.
+        slot.dispatchEvent(new CustomEvent('wizard:reveal', { bubbles: true }));
+
         for (let form = slot.closest('details'); form !== null; form = form.parentElement?.closest('details') ?? null) {
             form.open = true;
         }
