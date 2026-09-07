@@ -3,10 +3,12 @@
 Backend-only forms management service (Symfony 7.4 API, Doctrine ORM — portable across
 database platforms)
 built on the [ingot](https://github.com/redgnar/ingot) mapping engine. **What the code does now is described here and in `README.md`** — those two are kept current.
-`.claude/plan/00-mvp.md` and `01-stage2.md` are the record of how it got here: the decisions,
-their reasons, and what each stage changed, in the words of the time. Read them for *why*, not
-for *what is*: paths, names and mechanisms in them have since moved on, and each stage's later
-sections say where.
+`.claude/plan/` is the record of how it got here: the decisions, their reasons, and what each
+stage changed, in the words of the time. Read them for *why*, not for *what is*: paths, names and
+mechanisms in them have since moved on, and each stage's later sections say where. Start at
+`00-mvp.md` and `01-stage2.md`; `13` and `20` are the two session records, and each indexes the
+plans of its own session and holds the blocks that have none — which is what they are for, since
+work with no plan otherwise leaves no trace of why it happened.
 
 ## Language
 
