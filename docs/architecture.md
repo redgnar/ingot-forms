@@ -435,9 +435,14 @@ schema level in *phases* — the keywords of one phase are reported together, an
 phase that failed — and `allOf` stops at the first branch that did not hold. So a document missing
 a member used to hear nothing about the obligations a conditional branch would have named, and a
 document failing two branches heard about one. ingot's `OpisSchemaValidator` asks each branch of a
-conjunction on its own and merges the answers (`allOf` only: a branch of an `anyOf` that did not
-hold is not an obligation), which needs no re-pointing, because a branch applies to the same
-instance as the schema holding it. It happens **only when the document was refused**, so nothing
+conjunction on its own and merges the answers, which needs no re-pointing, because a branch
+applies to the same instance as the schema holding it. `allOf` only, and the reason is the
+mirror image: an `anyOf` or `oneOf` branch that did not hold is a road *not taken*, so the
+library reports an alternative as **one** finding at the value that fitted nothing, with what
+each shape wanted in the message — reported per branch it would say "add this" and "add that"
+about a value that needs one of them. Nothing here derives an alternative into a reportable
+place (a condition's `any` becomes an `anyOf` inside an `if`, and a failing `if` says nothing at
+all), so no form has ever shown a `schema.anyOf`; the rule matters the day one does. It happens **only when the document was refused**, so nothing
 on the accepted path pays for it; a branch that names something in the document around it (a
 `$ref`, an `$id`, `unevaluatedProperties`) is left to opis, because away from that document it
 would be a different question. What still arrives in two rounds is a scope reached through
