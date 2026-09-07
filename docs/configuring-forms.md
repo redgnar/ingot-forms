@@ -415,6 +415,43 @@ rule that lets two entries hold different answers.
 And there is no conditional `min`: a whole list can be asked for or not, and that is the whole
 of it.
 
+#### How it behaves, measured
+
+The entry's own contract carries the condition, which is what makes every row judge itself —
+`GET …/schema` on the form above answers, under `properties.pozycje.items`:
+
+```json
+{"allOf": [{
+  "if":   {"required": ["rodzaj"], "properties": {"rodzaj": {"const": "inne"}}},
+  "then": {"required": ["opis"]},
+  "else": {"properties": {"opis": false}}
+}]}
+```
+
+so a client validating locally gets the same per-row answers, and `opis` is **not** in the
+entry's flat `required`. The draft contract keeps the `else` and drops the `then`, exactly as it
+does at the top level.
+
+| What is sent | What comes back |
+|---|---|
+| `[{"rodzaj":"inne","opis":"rysa"},{"rodzaj":"wgniecenie"}]` | `204` — one row was asked to describe it, the other was not |
+| `[{"rodzaj":"inne","opis":"rysa"},{"rodzaj":"wgniecenie","opis":"cokolwiek"}]` | `422` `/pozycje/1/opis` `schema.properties` — the answer nobody asked that row for is **refused**, and the finding names the row |
+| the whole list, when the list itself is not asked for | `422` `/firmowe` `schema.properties` |
+| confirming a company with none of it answered | `422` naming **all three** at once: `/nip`, `/pozycje/0/opis`, `/firmowe` |
+
+**On the page**, each entry is evaluated against its own answers, so a row added a moment ago
+starts with its conditional questions unasked and gains them the moment that row's answer asks
+for one; values are collected scope by scope, so adding or removing rows renumbers nothing. A
+list inside a list is the same rule one level further down. And a question a row was not asked
+is left out of that row entirely — of the document that is saved, and of the printed record.
+
+**One thing still arrives in two rounds**: inside a single row, what the row *always* owes is
+reported before a conditional obligation beside it (`/pozycje/0/rodzaj` comes back, and
+`/pozycje/0/opis` only after it is answered). Between rows, and between a row and the form
+around it, everything owed comes back together.
+
+Runnable, with assertions: [`tests/_requests/10-conditions.http`](../tests/_requests/10-conditions.http).
+
 ### What a page does with it
 
 Both kits carry the condition into the markup and ask it again after every keystroke, because

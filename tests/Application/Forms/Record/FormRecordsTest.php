@@ -224,6 +224,40 @@ final class FormRecordsTest extends TestCase
         ));
     }
 
+    public function testARowIsRecordedWithTheQuestionsThatRowWasAsked(): void
+    {
+        // GIVEN a list whose entry asks one more question of some answers, and
+        // two rows answered differently
+        $definition = ['items' => [
+            ['type' => 'collection', 'name' => 'lines', 'min' => 1, 'items' => [
+                ['type' => 'select', 'name' => 'kind', 'options' => ['dent', 'other']],
+                ['type' => 'text', 'name' => 'why', 'askedWhen' => ['item' => 'kind', 'is' => 'other']],
+            ]],
+        ]];
+        $values = '{"lines": [{"kind": "other", "why": "a scratch"}, {"kind": "dent"}]}';
+
+        // WHEN the record is read
+        $rows = new FormRecords()->of(
+            self::form(presented: false, definition: $definition, values: $values),
+            'en',
+        )->rows;
+
+        // THEN each row holds the questions *that row* was asked: a condition is
+        // asked of the entry's own answers, so the record of one row is not the
+        // record of the other — and a dash under a question nobody put would
+        // read as an answer somebody withheld
+        $entries = $rows[0];
+        self::assertInstanceOf(Entries::class, $entries);
+        self::assertSame(['kind', 'why'], array_map(
+            static fn(RecordedRow $row): string => $row->label(),
+            $entries->entries[0],
+        ));
+        self::assertSame(['kind'], array_map(
+            static fn(RecordedRow $row): string => $row->label(),
+            $entries->entries[1],
+        ));
+    }
+
     public function testTheSameFormAnsweredTheOtherWayHasTheQuestionInIt(): void
     {
         // GIVEN the same form, answered the way that asks the question

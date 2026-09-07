@@ -1,0 +1,321 @@
+# Questions asked only sometimes. Any item may carry `askedWhen` (the question is
+# only put when the condition holds) and `requiredWhen` (the answer is only owed
+# then) — a condition written as data, never as an expression.
+#
+# The half worth running is what happens **in a list**, because a condition names
+# an item declared beside it: inside an entry that is the entry's own items, so
+# every row decides for itself. Open the id this returns at {{host}}/forms/{id}
+# and add a row: the extra question appears on that row and on no other.
+
+### A claim: one question of the form's own, one inside every entry, and a whole list under a condition.
+# @name createConditionalForm
+POST {{host}}/api/manage/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "select", "name": "typ", "required": true, "options": ["osoba", "firma"] },
+      {
+        "type": "text",
+        "name": "nip",
+        "required": true,
+        "maxLength": 10,
+        "askedWhen": { "item": "typ", "is": "firma" }
+      },
+      {
+        "type": "collection",
+        "name": "pozycje",
+        "min": 1,
+        "max": 5,
+        "items": [
+          { "type": "select", "name": "rodzaj", "required": true, "options": ["wgniecenie", "inne"] },
+          {
+            "type": "text",
+            "name": "opis",
+            "required": true,
+            "maxLength": 40,
+            "askedWhen": { "item": "rodzaj", "is": "inne" }
+          }
+        ]
+      },
+      {
+        "type": "collection",
+        "name": "firmowe",
+        "min": 1,
+        "askedWhen": { "item": "typ", "is": "firma" },
+        "items": [
+          { "type": "text", "name": "nip", "required": true, "maxLength": 10 }
+        ]
+      }
+    ]
+  },
+  "presentation": {
+    "engine": "bootstrap",
+    "defaultLocale": "en",
+    "items": [
+      { "name": "typ", "widget": "radio-buttons", "label": "t.typ",
+        "choices": { "osoba": "t.osoba", "firma": "t.firma" } },
+      { "name": "nip", "widget": "text", "label": "t.nip" },
+      { "name": "pozycje", "widget": "table", "label": "t.pozycje", "columns": ["rodzaj"], "items": [
+        { "name": "rodzaj", "widget": "select", "label": "t.rodzaj",
+          "choices": { "wgniecenie": "t.dent", "inne": "t.other" } },
+        { "name": "opis", "widget": "text", "label": "t.opis" }
+      ]},
+      { "name": "firmowe", "widget": "table", "label": "t.firmowe", "columns": ["nip"], "items": [
+        { "name": "nip", "widget": "text", "label": "t.nip" }
+      ]},
+      { "widget": "save", "label": "t.save" },
+      { "widget": "confirm", "label": "t.send" }
+    ],
+    "translations": {
+      "en": {
+        "t.typ": "I am claiming as", "t.osoba": "A person", "t.firma": "A company",
+        "t.nip": "Tax number", "t.pozycje": "Damage", "t.rodzaj": "Kind",
+        "t.dent": "A dent", "t.other": "Something else", "t.opis": "What happened",
+        "t.firmowe": "Company numbers", "t.save": "Save for later", "t.send": "Send"
+      }
+    }
+  }
+}
+
+> {%
+    client.global.set("conditionalFormId", response.body.id);
+
+    client.test("201 — a definition with conditions is an ordinary definition", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+%}
+
+### The published contract of an entry: the condition is derived, not enforced behind the schema.
+GET {{host}}/api/forms/{{conditionalFormId}}/schema
+
+> {%
+    client.test("if/then/else inside the entry's own schema", function () {
+        const entry = response.body.properties.pozycje.items;
+        const branch = entry.allOf[0];
+
+        client.assert(branch.if.required[0] === "rodzaj", "Expected the condition to need the item answered");
+        client.assert(branch.if.properties.rodzaj.const === "inne", "Expected the value it tests for");
+        // The obligation: owed only when the question is asked at all.
+        client.assert(branch.then.required[0] === "opis", "Expected the conditional obligation");
+        // And the half that makes a page's hiding safe: an answer nobody was
+        // asked for is refused, not ignored.
+        client.assert(branch.else.properties.opis === false, "Expected the unasked answer to be refused");
+        client.assert(entry.required.indexOf("opis") === -1, "Expected `opis` out of the flat required list");
+    });
+%}
+
+### The draft contract keeps the refusal and drops the obligation.
+GET {{host}}/api/forms/{{conditionalFormId}}/schema?mode=draft
+
+> {%
+    client.test("no `then` while filling in, `else` all the same", function () {
+        const branch = response.body.properties.pozycje.items.allOf[0];
+
+        client.assert(branch.then === undefined, "Expected no obligation in the draft contract");
+        client.assert(branch.else.properties.opis === false, "Expected the unasked answer still refused");
+    });
+%}
+
+### Two entries, answered differently: each row decides for itself.
+PUT {{host}}/api/forms/{{conditionalFormId}}/data
+Content-Type: application/json
+
+{
+  "typ": "osoba",
+  "pozycje": [
+    { "rodzaj": "inne", "opis": "a scratch along the door" },
+    { "rodzaj": "wgniecenie" }
+  ]
+}
+
+> {%
+    client.test("204 — one row is asked to describe it, the other is not", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+### An answer in the row nobody asked it of.
+PUT {{host}}/api/forms/{{conditionalFormId}}/data
+Content-Type: application/json
+
+{
+  "typ": "osoba",
+  "pozycje": [
+    { "rodzaj": "inne", "opis": "a scratch along the door" },
+    { "rodzaj": "wgniecenie", "opis": "whatever" }
+  ]
+}
+
+> {%
+    client.test("422 at /pozycje/1/opis — refused, not ignored", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/pozycje/1/opis", "Expected the row to be named");
+        client.assert(response.body.errors[0].code === "schema.properties", "Expected schema.properties");
+    });
+%}
+
+### A whole list under a condition, sent by somebody the condition does not hold for.
+PUT {{host}}/api/forms/{{conditionalFormId}}/data
+Content-Type: application/json
+
+{
+  "typ": "osoba",
+  "pozycje": [{ "rodzaj": "wgniecenie" }],
+  "firmowe": [{ "nip": "1234567890" }]
+}
+
+> {%
+    client.test("422 at /firmowe — the list itself was not asked for", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/firmowe", "Expected the list to be named");
+        client.assert(response.body.errors[0].code === "schema.properties", "Expected schema.properties");
+    });
+%}
+
+### A company, with neither the number nor the list it now owes — storable as a draft.
+PUT {{host}}/api/forms/{{conditionalFormId}}/data
+Content-Type: application/json
+
+{ "typ": "firma", "pozycje": [{ "rodzaj": "inne" }, { "rodzaj": "wgniecenie" }] }
+
+> {%
+    client.test("204 — an obligation waits for confirmation, conditional or not", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+### Confirming names every answer that is owed, wherever it is owed.
+POST {{host}}/api/forms/{{conditionalFormId}}/confirm
+
+> {%
+    client.test("422 with all three, each at its own pointer", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+
+        const named = response.body.errors.map((error) => error.pointer);
+
+        // One the definition always asks for, one a condition brought about
+        // inside an entry, and one that is a whole list. They used to come back
+        // one per attempt, which is a form answered in three rounds.
+        client.assert(named.indexOf("/nip") !== -1, "Expected the conditional question of the form");
+        client.assert(named.indexOf("/pozycje/0/opis") !== -1, "Expected the conditional obligation inside the entry");
+        client.assert(named.indexOf("/firmowe") !== -1, "Expected the conditional list");
+    });
+%}
+
+### A list that owes entries under a condition — refused where somebody can still fix it.
+POST {{host}}/api/manage/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "checkbox", "name": "x" },
+      {
+        "type": "collection",
+        "name": "lines",
+        "items": [{ "type": "text", "name": "sku", "maxLength": 8 }],
+        "requiredWhen": { "item": "x", "is": true }
+      }
+    ]
+  }
+}
+
+> {%
+    client.test("422 form.collection.required-not-allowed", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/definition/items/1/requiredWhen", "Expected the member to be named");
+        // An empty list satisfies "the member is there" while answering nothing,
+        // which is why `required` is refused on a list too: a list asks for
+        // entries with `min`, and a condition does not change what the word
+        // would mean.
+        client.assert(response.body.errors[0].code === "form.collection.required-not-allowed", "Expected form.collection.required-not-allowed");
+    });
+%}
+
+### An entry asking about an answer outside it.
+POST {{host}}/api/manage/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "checkbox", "name": "x" },
+      {
+        "type": "collection",
+        "name": "lines",
+        "items": [
+          { "type": "text", "name": "sku", "maxLength": 8, "askedWhen": { "item": "x", "is": true } }
+        ]
+      }
+    ]
+  }
+}
+
+> {%
+    client.test("422 form.condition.unknown-item — every scope answers for itself", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/definition/items/1/items/0/askedWhen/item", "Expected the item to be named");
+        client.assert(response.body.errors[0].code === "form.condition.unknown-item", "Expected form.condition.unknown-item");
+    });
+%}
+
+### …and the form asking about an answer inside an entry, which is the same mistake the other way round.
+POST {{host}}/api/manage/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      {
+        "type": "collection",
+        "name": "lines",
+        "items": [{ "type": "select", "name": "rodzaj", "options": ["a", "b"] }]
+      },
+      { "type": "text", "name": "opis", "maxLength": 8, "askedWhen": { "item": "rodzaj", "is": "a" } }
+    ]
+  }
+}
+
+> {%
+    client.test("422 — which entry would the form be asking about?", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/definition/items/1/askedWhen/item", "Expected the condition to be named");
+        client.assert(response.body.errors[0].code === "form.condition.unknown-item", "Expected form.condition.unknown-item");
+    });
+%}
+
+### A ring: two items each waiting on the other.
+POST {{host}}/api/manage/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "text", "name": "a", "maxLength": 8, "askedWhen": { "item": "b", "answered": true } },
+      { "type": "text", "name": "b", "maxLength": 8, "askedWhen": { "item": "a", "answered": true } }
+    ]
+  }
+}
+
+> {%
+    client.test("422 form.condition.cycle — a page evaluating this would never settle", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "form.condition.cycle", "Expected form.condition.cycle");
+    });
+%}
+
+### Take the form away again. Its revisions and its announcements go with it, by foreign key.
+DELETE {{host}}/api/manage/forms/{{conditionalFormId}}
+
+> {%
+    client.test("204", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
