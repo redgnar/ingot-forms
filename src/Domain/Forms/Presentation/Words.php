@@ -50,6 +50,31 @@ final readonly class Words
     }
 
     /**
+     * The language this will actually answer in: the first catalogue in the
+     * chain that exists at all, and what was asked for when the document
+     * carries none.
+     *
+     * A page is read in one language. Its questions come out of the document's
+     * catalogues, and if the reader's language is not among them they come out
+     * in the document's default instead — so **that** is the language the reader
+     * is being spoken to in, and the words the page itself adds (a refused
+     * answer, "add an entry", "step 2 of 5") have to follow it. Asking here
+     * rather than working it out again is the reason this class exists: one
+     * chain, one answer, and no page that reads half in one language and half in
+     * another.
+     */
+    public function spokenIn(): string
+    {
+        foreach ($this->candidates as $candidate) {
+            if (isset($this->translations[$candidate])) {
+                return $candidate;
+            }
+        }
+
+        return $this->candidates[0];
+    }
+
+    /**
      * What this code reads as, or the code itself when no catalogue words it —
      * and null for an item that carries no code at all.
      *

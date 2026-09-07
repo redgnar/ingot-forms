@@ -103,4 +103,25 @@ final class WordsTest extends TestCase
     {
         return Words::forCatalogues(self::CATALOGUES, $locale, 'en');
     }
+
+    public function testItSaysWhichLanguageItWillAnswerIn(): void
+    {
+        // GIVEN a document with two catalogues and a default
+        $catalogues = ['en' => ['t' => 'Hello'], 'pl' => ['t' => 'Dzień dobry']];
+
+        // WHEN each kind of reader asks
+        // THEN the answer is the catalogue that will actually be used: what was
+        // asked for, the language inside it, or the document's own default —
+        // which is the language the page has to say everything else in
+        self::assertSame('pl', Words::forCatalogues($catalogues, 'pl', 'en')->spokenIn());
+        self::assertSame('pl', Words::forCatalogues($catalogues, 'pl-PL', 'en')->spokenIn());
+        self::assertSame('en', Words::forCatalogues($catalogues, 'de', 'en')->spokenIn());
+        // A document carrying nothing has nothing to disagree with.
+        self::assertSame('de', Words::forCatalogues([], 'de', 'en')->spokenIn());
+        // And a default nobody wrote a catalogue for is no better than the rest.
+        self::assertSame('de', Words::forCatalogues([], 'de', null)->spokenIn());
+        // With nothing carried, what the reader asked for stands as they asked
+        // it — region and all, rather than the language inside it.
+        self::assertSame('pl-PL', Words::forCatalogues([], 'pl-PL', null)->spokenIn());
+    }
 }

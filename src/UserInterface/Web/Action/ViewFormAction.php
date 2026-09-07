@@ -7,6 +7,7 @@ namespace App\UserInterface\Web\Action;
 use App\Application\Forms\UseCase\ReadForm;
 use App\Application\Forms\UseCase\ReadFormHistory;
 use App\Domain\Forms\Exception\PresentationNotSet;
+use App\Domain\Forms\Presentation\Words;
 use App\Domain\Forms\ValueObject\FormId;
 use App\UserInterface\Web\Renderer\RenderedForm;
 use App\UserInterface\Web\Renderer\Renderers;
@@ -16,6 +17,7 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Requirement\Requirement;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Contracts\Translation\LocaleAwareInterface;
 
 /**
  * The page this service serves: a form, drawn by the kit its presentation names,
@@ -41,6 +43,8 @@ final class ViewFormAction
         private readonly ReadForm $readForm,
         private readonly ReadFormHistory $readFormHistory,
         private readonly Renderers $renderers,
+        /** Set to the language the document can answer in, which is what every `|trans` on the page then reads. */
+        private readonly LocaleAwareInterface $translator,
     ) {}
 
     #[Route('/forms/{id}', name: 'web_form_view', methods: ['GET'], requirements: ['id' => Requirement::UUID])]
@@ -57,13 +61,25 @@ final class ViewFormAction
         $renderer = $this->renderers->find($engine)
             ?? throw new ConflictHttpException(\sprintf('Nothing here draws presentations written for "%s".', $engine));
 
-        // The locale is whatever the framework negotiated: `?lang=` when the
-        // reader asked for one (see PageLocaleListener), Accept-Language
-        // otherwise, and the configured default last. Reading it off the request
-        // is reading a decision, not a payload — envelopes still arrive as DTOs.
+        // What the framework negotiated is what the reader *asked* for: `?lang=`
+        // when they said so (see PageLocaleListener), Accept-Language otherwise,
+        // and the configured default last. Reading it off the request is reading
+        // a decision, not a payload — envelopes still arrive as DTOs.
+        //
+        // What the page is drawn in is what the *document* can answer in, which
+        // is not always the same thing: a form carrying only a Polish catalogue
+        // answers a reader who asked for English in Polish, and a page whose
+        // questions are Polish and whose own words are English is one page in two
+        // languages. So the document is asked ({@see Words::spokenIn()}) and the
+        // answer is put where every part of the page reads it from: the
+        // translator for the sentences in the templates, and the renderer for
+        // the words a refusal is told in.
+        $locale = Words::of($presentation->structure(), $request->getLocale())->spokenIn();
+        $this->translator->setLocale($locale);
+
         $response = new Response($renderer->render(new RenderedForm(
             $form,
-            $request->getLocale(),
+            $locale,
             $seq,
             $seq === null ? null : $this->readFormHistory->document($formId, $seq),
         )));

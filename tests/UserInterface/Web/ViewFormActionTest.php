@@ -162,6 +162,29 @@ final class ViewFormActionTest extends WebTestCase
         self::assertStringContainsString('Your answers are saved', $english->filter('#form-saved')->text());
     }
 
+    public function testAPageIsReadInOneLanguageEvenWhenItIsNotTheOneAskedFor(): void
+    {
+        // GIVEN a form carrying a Polish catalogue and nothing else
+        $id = $this->plant(onlyLocale: 'pl');
+
+        // WHEN a browser that wants English opens it
+        $page = $this->client->request('GET', \sprintf('/forms/%s', $id), server: ['HTTP_ACCEPT_LANGUAGE' => 'en-US,en;q=0.9']);
+
+        // THEN the questions come out in Polish, because that is all the
+        // document can say — and so does everything the *page* adds. A form
+        // whose questions are Polish and whose refusals are English is one page
+        // in two languages, which is what this used to be
+        self::assertSame('pl', $page->filter('html')->attr('lang'));
+        self::assertSame('Adres e-mail *', $page->filter('label[for="item-email"]')->text());
+        self::assertStringContainsString('Twoje odpowiedzi są zapisane', $page->filter('#form-saved')->text());
+        // The consent box is the one that started this: its refusal came out in
+        // English under a Polish form, because a `mustBeChecked` is `schema.const`
+        // and those words are the page's own.
+        $refusals = json_decode((string) $page->filter('body')->attr('data-refusals'), true, flags: \JSON_THROW_ON_ERROR);
+        self::assertIsArray($refusals);
+        self::assertSame('Trzeba się na to zgodzić.', $refusals['schema.const']);
+    }
+
     public function testAPageThatCannotBeDrawnAlsoSpeaksTheLanguageAskedFor(): void
     {
         // GIVEN / WHEN a form nobody has
@@ -448,8 +471,12 @@ final class ViewFormActionTest extends WebTestCase
         return (string) $id;
     }
 
-    private function plant(bool $withPresentation = true, string $engine = 'core-html', bool $expired = false): string
-    {
+    private function plant(
+        bool $withPresentation = true,
+        string $engine = 'core-html',
+        bool $expired = false,
+        ?string $onlyLocale = null,
+    ): string {
         $id = FormId::next();
         $container = self::getContainer();
 
@@ -462,6 +489,13 @@ final class ViewFormActionTest extends WebTestCase
 
         $document = self::PRESENTATION;
         $document['engine'] = $engine;
+
+        // A document that can answer in one language only, which is what makes
+        // "the page is read in one language" a question worth asking.
+        if ($onlyLocale !== null) {
+            $document['defaultLocale'] = $onlyLocale;
+            $document['translations'] = [$onlyLocale => $document['translations'][$onlyLocale]];
+        }
 
         $repository->add(new Form(
             $id,

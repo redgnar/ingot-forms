@@ -583,6 +583,15 @@ up, sets `aria-invalid` on the control, and moves the caret there. A page of a w
 message the same way, so the refusal brings that page forward first — said at the control
 (`wizard:reveal`), because whichever wizard holds it is the one that has to move.
 
+**A page is read in one language, and the document decides which.** What the
+framework negotiates (`?lang=`, then `Accept-Language`, then the configured default) is what the
+reader *asked* for; what the page is drawn in is what the presentation can answer in
+(`Words::spokenIn()`, asked once in `ViewFormAction`, which sets it on the translator and hands
+it to the renderer). A form carrying only a Polish catalogue answers a reader who asked for
+English in Polish — and before this, only its *questions* did: the page's own words, a refused
+answer among them, stayed in the language of the request, so a Polish form told somebody in
+English that a consent had to be given.
+
 **Two catalogues, on purpose.** The presentation carries the *form's* text as translation codes,
 because that is the author's to write; `translations/messages.*.yaml` under `page.*` carries the
 sentences this application invented — a stored draft, a closed form, the words on the reader's

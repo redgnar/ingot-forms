@@ -372,6 +372,49 @@ where somebody can still fix it:
 
 So: **a list may carry `askedWhen`** (the whole list is not asked for), and never `requiredWhen`.
 
+### Conditions and a list
+
+A `collection` meets a condition in two places, and they are different questions.
+
+**The whole list, asked only sometimes** — `askedWhen` on the collection itself:
+
+```json
+{"type": "collection", "name": "pozycje", "min": 1, "askedWhen": {"item": "typ", "is": "firma"},
+ "items": [{"type": "text", "name": "co", "required": true}]}
+```
+
+Nobody who is not a company is asked for the list at all: the page draws neither it nor its
+*add* button, its entries are not collected, and the `min: 1` it owes is only owed when it is
+asked (an `askedWhen` takes an item out of the flat `required`, so the obligation moves into the
+condition with it).
+
+**One question inside an entry** — `askedWhen` on an item of `items`, naming another item **of
+the same entry**:
+
+```json
+{"type": "collection", "name": "pozycje", "items": [
+  {"type": "select", "name": "rodzaj", "options": ["wgniecenie", "inne"], "required": true},
+  {"type": "text", "name": "opis", "required": true,
+   "askedWhen": {"item": "rodzaj", "is": "inne"}}
+]}
+```
+
+Each entry decides for itself: answer *inne* in the second row and only the second row is asked
+to describe it. That is what "a condition names an item declared beside it" means — the same
+rule that lets two entries hold different answers.
+
+**Two things are refused**, both at creation:
+
+- `requiredWhen` on a `collection` (`presentation`-side sibling: `required` on one) — an empty
+  list satisfies "the member is there" while answering nothing, so a list asks for entries with
+  `min` and a condition does not change what the word would mean;
+- a condition reaching **across scopes** — an entry testing an item of the form around it, or
+  the form testing an item inside an entry (`form.condition.unknown-item`, since the name is not
+  declared in that scope). Which entry would the form be asking about?
+
+And there is no conditional `min`: a whole list can be asked for or not, and that is the whole
+of it.
+
 ### What a page does with it
 
 Both kits carry the condition into the markup and ask it again after every keystroke, because
@@ -1322,6 +1365,12 @@ its own pointer — a client fixes all of them and sends once. Alternatives are 
 they are not complaints of that kind: where a document must match one of several shapes and
 matches none, every shape it failed is named, because none of them is the one it was supposed to
 match.
+
+**A page is read in one language, and it is the one your document can answer in.** The reader's
+language decides only when you carry a catalogue for it: with `?lang=de` or a German browser and
+no `de` catalogue, the questions come out in your `defaultLocale` — and so does everything the
+page itself says, refusals included. So a form with a single Polish catalogue is a Polish page
+for everybody, and the way to offer a language is to carry it.
 
 **`message` is for you; a page says something else.** The message is written for whoever is
 calling the API — `Array should have at most 2 items, 3 found` is exactly right in a log and no

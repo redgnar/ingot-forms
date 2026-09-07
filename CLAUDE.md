@@ -453,6 +453,13 @@ Rules that follow from it, and that the tooling checks:
   that sentence either: a template asks the catalogue (`|trans`), and what the browser needs
   is handed to it as a value (`data-form-refused-value`, `data-refused`). Two catalogues, and
   the split is the point: the form's text is the author's, these words are ours.
+  **A page is read in one language, and the document picks it.** What the framework negotiated is
+  what the reader *asked* for; what the page is drawn in is what the presentation can answer in
+  (`Words::spokenIn()` — the first catalogue in its own fallback chain that exists), asked once in
+  `ViewFormAction`, which sets it on the translator and hands it to the renderer. Otherwise a form
+  carrying only a Polish catalogue draws Polish questions and tells an English browser in English
+  that a consent is needed — one page in two languages, which is what it did until somebody
+  reported the sentence.
   **A refused answer is worded by the page too.** The API's `errors[].message` is written for
   whoever is *calling* it — "Array should have at most 2 items, 3 found" belongs in a log — so
   the page words the **code** (`RefusalWords`, `page.refusal.*`, handed over as one value) and
