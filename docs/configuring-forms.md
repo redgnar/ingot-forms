@@ -35,6 +35,7 @@ answered is a form whose answers were given to the questions it had.
 - [The record of a confirmed form](#the-record-of-a-confirmed-form)
 - [History](#history)
 - [Talking to the API](#talking-to-the-api)
+- [Saving without overwriting somebody](#saving-without-overwriting-somebody)
 - [When something is refused](#when-something-is-refused)
 - [A complete example](#a-complete-example)
 - [Before you ship a form](#before-you-ship-a-form)
@@ -50,10 +51,21 @@ answered is a form whose answers were given to the questions it had.
 ```
 
 - **Empty** — created, nothing answered yet. `GET …/data` answers `404`.
-- **Draft** — `PUT …/data` stores what is there so far. Repeatable, and judged **leniently**:
-  types, enums, ranges, lengths and the closed set of member names are all enforced, but
-  `required` is not, and neither is `mustBeChecked` or a collection's `min`. Half-finished work
-  is storable, which is the point of "save for later".
+- **Draft** — `PUT …/data` stores what is there so far. Repeatable, and judged **leniently** —
+  which means one thing exactly: **an obligation waits, a rule about the value does not.**
+  `required`, `mustBeChecked`, a collection's `min` and a multiple choice's `min` are
+  obligations, and a draft asks for none of them. Everything that says what a value *may be*
+  holds while somebody is still filling the form in: the type, `enum`, `maxLength`, **`pattern`**,
+  a number's `min`/`max` and `decimals`, a date's period, `uniqueItems`, a `max` on a list or a
+  multiple choice, the closed set of member names, and the rule that an answer to a question
+  nobody was asked is refused.
+  **The consequence worth knowing before you write a definition**: a shape or a floor refuses a
+  half-finished answer. `pattern: "^[0-9]{10}$"` on a tax number means "save for later" is
+  refused after three digits (`schema.pattern`), and `min: 1` on a number refuses a `0` somebody
+  is about to change. That is deliberate — a draft is a stored document, and it passes the same
+  published schema, so putting an old version back or printing the record can never bring out
+  something that was never allowed — but it is yours to design around: a rule that only makes
+  sense of a finished answer can be left to the client, or to whoever reads the confirmed form.
 - **Confirmed** — `POST …/confirm` judges what is **already stored** against the strict
   contract and locks the form. After that every write answers `409`, forever. There is no
   unlock.
@@ -69,6 +81,10 @@ Two things are worth knowing before you design anything around this:
 - **A save that changes nothing is not a save.** Send what the form already holds — in any
   member order — and the answer is still `204`, but nothing is stored and no revision appears.
   That is what makes "put this version back" safe to press twice.
+- **A save can be made conditional**, so two people filling one form in do not overwrite each
+  other: `If-Match` with the number of the save you read
+  ([saving without overwriting somebody](#saving-without-overwriting-somebody)). Nothing is
+  forced to use it — a client that says nothing saves unconditionally.
 
 ## Creating one
 
@@ -302,7 +318,8 @@ checkbox, one of the declared options for a `select`, a number for a `number`, t
 anything else. A number is a number however it was written, so `4` and `4.0` are one value.
 Items whose answer is not a single value — a `multiselect`, a `file`, a `collection` — can only
 be asked `answered`, because comparing a list to one of its members is a condition that could
-never hold.
+never hold. An item of a **plugin type** may be compared to anything: this service does not know
+what such an item holds, so it is in no position to call the comparison impossible.
 
 ### What it does to the published contract
 
@@ -1201,17 +1218,22 @@ Error status map: `400` malformed JSON, `404` unknown form, `409` state conflict
 form has moved past, `413` a body larger than this deployment accepts, `415` a request body
 that is not `application/json`, `422` validation reports, `500` opaque fallback.
 
-### Two people, one form
+## Saving without overwriting somebody
 
 A form is one document, so two people filling it in at once are writing over each other — and
 without asking, the second save wins silently and the first person's answers are gone. What
-closes that is HTTP's own mechanism rather than anything of ours:
+closes that is HTTP's own mechanism rather than anything of ours: **a conditional write**.
 
 ```
 GET  /api/forms/{id}/data        →  200, ETag: "7"
 PUT  /api/forms/{id}/data           If-Match: "7"   →  204   (still at 7)
                                                     →  412   (somebody saved: form-moved-on)
+POST /api/forms/{id}/confirm        If-Match: "7"   →  204   (locked on the document you read)
+                                                    →  412   (somebody saved: read it again first)
 ```
+
+**Confirming takes it too, and wants it more**: a draft saved over can be saved again, while a
+form locked on a document nobody read cannot be put back at all.
 
 Everything about it is optional and nothing changes for a client that says nothing: the save
 stays unconditional, exactly as it always was. What the tag is, is the **number of the save** —
@@ -1319,15 +1341,28 @@ The eight `form.condition.*` codes are explained one by one in
 
 **Refusals about values** (`422` on `PUT …/data` and `POST …/confirm`):
 
-| Code family | Comes from |
+| Code | Comes from |
 |---|---|
-| `schema.*` | the published JSON Schema — type, enum, range, length, pattern, required, unexpected member |
-| `form.value.*` | the second gate, for rules a schema cannot state |
+| `schema.<keyword>` | the published JSON Schema, named after the keyword that refused: `schema.required`, `schema.type`, `schema.enum`, `schema.const`, `schema.pattern`, `schema.minLength`/`maxLength`, `schema.minimum`/`maximum`, `schema.minItems`/`maxItems`, `schema.uniqueItems`, `schema.format`, `schema.formatMinimum`/`formatMaximum`, `schema.additionalProperties` (a member the form does not declare), `schema.properties` (an answer to a question nobody was asked) |
+| `form.value.required` | the second gate on a missing answer |
+| `form.value.decimals` | more decimal places than the item allows — the one rule that cannot be published ([`decimals`](#the-definition-what-is-asked)) |
+| `form.value.range` | outside the item's own range |
+| `form.value.type` | not the kind of value the item holds |
+| `form.value.unknown_field` | a member the form does not declare, as that gate names it |
+| `form.value.invalid` | anything else that gate refuses |
 | `form.file.unknown` | the values name a file this form does not have |
 | `form.file.mismatch` | they name a real file but describe it differently than the server measured it |
 
+The `schema.*` list is named after keywords, so it grows with the schema rather than with this
+service: whatever `GET /api/forms/{id}/schema` carries can refuse a document under its own name.
+The five `form.value.*` codes are ours, which is why they are spelled out.
+
 **Refusals about the request itself:** `request.unexpected_key` (a member the DTO does not
-declare — bodies are closed), `400` for malformed JSON, `415` for a body that is not JSON.
+declare — bodies are closed), `form.expire_date.past` (an `expireDate` that has already gone
+by), `request.type`, `request.length`, `request.pattern`, `request.choice` (a member of the creation request that is the wrong shape, too long, malformed
+or not one of the words offered — `form.identity.unknown` is the same kind of thing, for an
+`identity` that is neither `recorded` nor `anonymous`), `400` for malformed JSON, `415` for a
+body that is not JSON.
 
 **Status codes:** `204` a write that worked · `400` malformed JSON · `404` unknown form,
 revision or file · `409` state conflicts (locked, already confirmed, nothing to confirm, a file
@@ -1439,6 +1474,10 @@ Working requests for every endpoint, ready to run, live in
 - **The default catalogue is complete** — every label, hint and choice code, including the ones
   inside entries. Other locales may lag; the default one may not.
 - **Every option of a choice is worded, or none is.**
+- **No shape rule stands in the way of "save for later".** A `pattern` or a floor refuses a
+  half-finished answer, by design ([the life of a form](#the-life-of-a-form)) — so check each one
+  against somebody typing: a ten-digit `pattern` is fine on a field pasted into, and a nuisance
+  on one typed slowly.
 - **Every condition can come about.** A question waiting on an answer nobody can give is a
   question nobody will ever see: work through each `askedWhen` and name the answer that asks
   it. The refusals catch a condition that is *impossible* (an option the item does not offer),

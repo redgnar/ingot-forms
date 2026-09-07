@@ -24,7 +24,8 @@ versioning and multi-submission forms are deliberately out of scope.
 - **One form = one definition + one data set.** No versions, no submission collections.
 - **The definition is immutable.** To change it, delete the form and create a new one.
 - **Data lifecycle: `empty → draft → confirmed`.** Saving a draft (`PUT …/data`) is
-  repeatable and validates values leniently (types, enums, ranges, and the closed property
+  repeatable and validates values leniently — an obligation waits, a rule about the value does
+  not, so `pattern`, ranges and lengths all still hold (types, enums, ranges, and the closed property
   set are enforced; required fields are not — partial progress is storable). Confirming
   (`POST …/confirm`) validates the stored data against the full strict contract and locks
   the form for good.
