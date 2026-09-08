@@ -66,7 +66,7 @@ item and two widgets here.
 | Multiple choice in one item | Select Boxes, and `multiple` on Select — the value is an array | **gap** | The cheapest real hole in the catalogue. Today it has to be modelled as a collection of one `select`, which is a different data shape and a heavier page. |
 | Semantic fields | Email, URL, Phone Number, Currency, Tags, Address, Day, Time | **partial** | All reachable through `text` + `pattern` or `number` + `decimals`, but without a ready rule, browser hint or phone keyboard. Email and phone are the plausible candidates for types with rules of their own. |
 | Repeating groups | Data Grid, Edit Grid, Data Map, Container, Nested Form (premium) | **have** | `collection` is one concept doing all of it — nested lists, `min`/`max`, every rule re-asked one scope down, drawn by both kits. |
-| Layout and static content | Panel, Tabs, Columns, Field Set, Table, Well, HTML Element, Content | **have** | `fieldset`, `card`, `accordion`, `row` and text blocks. Tabs are missing, but that is one widget, not a missing mechanism. |
+| Layout and static content | Panel, Tabs, Columns, Field Set, Table, Well, HTML Element, Content | **have** | `fieldset`, `card`, `accordion`, `row` and text blocks. Tabs are missing, but that is one widget, not a missing mechanism. (Built in [22](22-tabs.md), and the row was right: one widget over the paging mechanism [19](19-wizard.md) had already built.) |
 | Signature, sketch, marks on an image | Signature, Sketchpad, Tagpad (premium) | **gap** | Signature is the one of the three anybody asks for. Its value would be a file, so the file mechanism already carries it — what is missing is a widget. |
 | Survey matrix | Survey | **gap** | Expressible today as a collection of `select`, without the matrix reading as one. |
 | CAPTCHA | premium component | **not wanted** | A form here is addressed to somebody by the system that created it, not opened to the public. Bot defence is the gateway's job. |
@@ -172,7 +172,9 @@ definition not moving a line. **That is the whole list.** Since then the compari
 *calculated values* are built in [21](21-calculated-values.md), as three words of data rather than
 an expression — and the decision that shaped them is the one this table could not see, that the
 number is **stored** and the client works it out, because a server filling members in would make
-the stored document something the client never sent. The gateway that
+the stored document something the client never sent. *Tabs* are built in [22](22-tabs.md) — one widget over [19](19-wizard.md)'s mechanism, exactly as
+the layout row said, and the design question it turned out to hide was whether a widget that
+differs only in its roles and its keyboard is a widget at all. The gateway that
 ["a permission system of our own"](#what-not-to-copy-and-why) delegates to has its recipe and a
 runnable example in [09](09-access.md) — the deployment itself is still somebody's to do.
 

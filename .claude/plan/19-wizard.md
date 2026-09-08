@@ -1,6 +1,11 @@
 # 19 — a wizard: one form, several pages
 
-**Built**, and the last entry of [10](10-what-a-vendor-offers.md)'s list to be. What the code
+**Built**, and the last entry of [10](10-what-a-vendor-offers.md)'s list to be. **Read the names
+below as the ones of the day**: [22](22-tabs.md) added the second shape of paging and renamed what
+the two share, so `data-wizard`/`data-step` are `data-pager`/`data-page`, `data-page-mark` is the
+mark, `wizard_controller.js` is `pager_controller.js`, and
+`StepsBelongToAWizardValidator` is `PagesBelongToTheirPagerValidator` — judging both pairs, and
+refusing a pager inside a pager at any depth rather than only directly. What the code
 does now is in `CLAUDE.md`, `docs/configuring-forms.md` ("One form on several pages"),
 `docs/kits.md` and `docs/architecture.md`; the last section here says what the building
 corrected. The design opened from the one line that entry gave it: *"presentation only — stepping and a progress bar over what both kits already

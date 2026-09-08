@@ -1,7 +1,7 @@
 # 20 — what one session changed, and what using it corrected
 
-Twenty commits here and three in the library, 167 files, +18306/−582, in thirteen blocks.
-Eight have plans of their own and this is the index to them; **five have none, and that is why
+Twenty-one commits here and three in the library, 173 files, +19881/−588, in fourteen blocks.
+Nine have plans of their own and this is the index to them; **five have none, and that is why
 this file exists** — plan [13](13-what-one-session-changed.md) was written for the same reason
 after the first long session, and the same reason held again: a block of work with no plan
 leaves no record of *why* it happened.
@@ -16,13 +16,14 @@ leaves no record of *why* it happened.
 | Questions asked only sometimes | `bf2956b`, ingot `a725922` | [18](18-conditions.md) |
 | One form on several pages | `6457399` | [19](19-wizard.md) |
 | A number worked out rather than typed | `b32c95b` | [21](21-calculated-values.md) |
+| One form in sections, side by side | `cf58565` | [22](22-tabs.md) |
 | Refusals that name everything | ingot `72e6767`, `4bb48ca` | this file |
 | Alternatives, reported as one | ingot `cfef0b3`, `c6d5563` | this file |
 | Documentation held to the code | `6250145`, `b3aa3f3`, `ff3d929`, `9483cc1`, `b136920`, `0e0a6fd` | this file |
 | What the owner found by using it | `ffeaf81`, `a6ab1e1`, and half of the above | this file |
-| Sweeping up after the last of it | the commit that carries this line | this file |
+| Sweeping up after the last of it | `26d46e9` | this file |
 
-**That last row is the shape of the session.** Roadmap [10](10-what-a-vendor-offers.md)'s list is
+**The row about what the owner found is the shape of the session.** Roadmap [10](10-what-a-vendor-offers.md)'s list is
 finished — every one of its seven entries is built — and *most of what is recorded below was not
 on any list*. It came from somebody opening a form and clicking.
 
@@ -142,10 +143,10 @@ Four things, and none of them was on a list.
 - **`schema.*` codes are named after keywords**, so the published contract can refuse under a name
   this service never wrote down. The five `form.value.*` codes are ours and are spelled out; the
   rest grow with the schema.
-- **A survey matrix, an embeddable renderer, offline drafts, tabs, `email` and `phone` as types
-  of their own** — the remaining entries of [10](10-what-a-vendor-offers.md)'s comparison table,
+- **A survey matrix, an embeddable renderer, offline drafts, `email` and `phone` as types of
+  their own** — the remaining entries of [10](10-what-a-vendor-offers.md)'s comparison table,
   none of them on its ordered list, and each still a decision rather than a task. Calculated
-  values were on this line until the session's last block took them off it.
+  values and tabs were on this line until the session's last blocks took them off it.
 
 ## Sweeping up after the last of it
 
@@ -173,6 +174,18 @@ session met six times over and the one nothing in the pipeline notices.
   a rolled-back row cannot take committed bytes with it: 49 directories and 480 KB had
   accumulated. `make storage-clean` is the sweep, `app:files:purge-temporary` is the same fact in
   production, and `docs/architecture.md` says so now rather than leaving it to be rediscovered.
+
+## One form in sections, side by side
+
+Recorded in [22](22-tabs.md), and the reason it is worth a plan at all is the question it opened:
+**tabs looked like a restyled wizard**, which this repository refuses by name. Settling it took a
+measurement rather than an argument — the wizard's marks had been clickable since the day it
+shipped, so *jump anywhere* was never the difference; the roles and the keyboard are, and a
+stylesheet cannot say either. What the block cost beyond the widget was the rename that follows
+from the answer: one mechanism under two looks is one name (`data-pager`, `data-page`,
+`pager_controller.js`, `PagesBelongToTheirPagerValidator`), paid once here rather than doubled.
+Generalizing the rule also closed a hole nobody had noticed — a wizard inside a *page* of a
+wizard used to be accepted, because one flag was answering two questions.
 
 ## The shape of the session, if it is worth copying
 

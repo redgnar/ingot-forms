@@ -289,9 +289,9 @@ that does not ask for `history` has no panel.
 No autocomplete, no slider, no stepper, no drop area, **no signature pad**, no cards or
 accordions, no icons, no skins. Every one of those is either a way of asking that needs
 machinery this kit refuses, or a way of looking that it has no opinion about. It does **page** a
-form, though (`wizard` and `step`): paging is a structure rather than a look, so it is the one
-way of grouping both kits have. A document that
-wants them names the other kit — and a `file` item is still answerable here, by attaching a
+form, though, in both shapes of it (`wizard` + `step` and `tabs` + `tab`): paging is a structure
+rather than a look, so those four are the ways of grouping both kits have. A document that wants
+the rest names the other kit — and a `file` item is still answerable here, by attaching a
 photograph of a signature like any other file.
 
 ---
@@ -541,9 +541,10 @@ that the plain kit has no markup for.
 - **Draws:** a `<div data-pager="steps">` with the pager controller, the same track of numbered
   places, a small line saying where somebody is, one `<section data-page>` per page (all but one
   `hidden`), and two buttons
-- **Notes:** the same as the plain kit's, down to the attributes — a wizard is a structure both
-  kits share rather than a look either of them invented. It hears `form:asked` from the form
-  controller, because which pages are worth showing follows from which questions are asked. The
+- **Notes:** the same as the plain kit's, down to the attributes — paging is a structure both
+  kits share rather than a look either of them invented, and the `tabs` entry below is this same
+  controller under different roles. It hears `form:asked` from the form controller, because which
+  pages are worth showing follows from which questions are asked. The
   current place is filled with the **body** colour rather than the accent, for the reason the
   buttons are: a skin may set `--bs-primary` to anything, while the colour a page is written in
   is the one guaranteed to be legible on the colour it is written on.
@@ -688,8 +689,9 @@ whatever rule it was overriding.
 ## What this kit deliberately does not have
 
 No floating labels, no styling knobs beyond the ones listed above, no way for a document to
-supply CSS, and no widget that is only a restyling of another. Colours, contrast and text size
-are not here either — they belong to the reader.
+supply CSS, and no widget that is only a restyling of another — the rule `tabs` had to clear
+before it was written, and cleared on the roles and the keyboard rather than on the look.
+Colours, contrast and text size are not here either — they belong to the reader.
 
 ---
 
