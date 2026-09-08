@@ -557,9 +557,10 @@ convention:
 | `data-unasked` | this question is not being asked of these answers: hidden, and **its answer is not collected** |
 | `data-out-of-sight` | drawn with the `hidden` widget — a client fills it in, and its answer travels |
 | `data-star` | the star that says an answer is owed, which a condition can bring about |
-| `data-wizard`, `data-step` | one form on several pages, and one of those pages |
-| `data-wizard-nav`, `data-wizard-mark`, `data-wizard-status` | the marks that say where somebody is, and the same thing in words |
-| `data-wizard-back`, `data-wizard-next` | the two buttons a wizard draws for itself |
+| `data-pager="steps"`/`"tabs"` | one form in parts, and which of the two looks it is drawn in |
+| `data-page`, `data-page-mark` | one of those parts, and the thing pressed to reach it |
+| `data-wizard-nav`, `data-wizard-status` | a wizard's own chrome: the track, and where somebody is in words |
+| `data-wizard-back`, `data-wizard-next` | the two buttons a wizard draws for itself, and tabs do not |
 | `PresentedNodes::PENDING` | the token a blank entry carries where its own scope would be |
 
 **Structure carries identity.** Values are collected scope by scope in the order entries appear,
@@ -579,7 +580,7 @@ always settles. `data-unasked` is the fact the collector reads, which is what ke
 ever producing a document the schema's `else` would refuse.
 
 **A number worked out from the answers is worked out on the page too**, and in a fixed order:
-conditions first, then the totals, then which pages of a wizard are worth showing. One pass each,
+conditions first, then the totals, then which pages of a pager are worth showing. One pass each,
 and that is a property of the model rather than luck — a condition may not be asked on the
 strength of a calculated number (`form.condition.on-a-calculated-number`), so nothing a total
 changes can change which questions are asked. Within the totals it is deepest first — a line's own
@@ -589,24 +590,35 @@ rings are refused at creation. The control is `readonly` and carries
 `data-calculated`; the places to write are read off its own `step`, which is where the
 definition's `decimals` already is.
 
-**A wizard is presentation, and the invariant that says so is in the markup.** `wizard` and
-`step` are container widgets both kits declare (the first two containers they share: a fieldset
-is not a card, but paging a form is a structure rather than a look). Every page is rendered and
-all but one carry `hidden`, so the collector reads the whole form whatever page is showing — a
-step has no contract of its own, and `PUT …/data` carries every answer on every page. The
-stepper is per kit (a Stimulus controller, and a few dozen lines in the plain kit's module) and
+**Paging is presentation, and the invariant that says so is in the markup.** `wizard` + `step`
+and `tabs` + `tab` are container widgets both kits declare (the four containers they share: a
+fieldset is not a card, but paging a form is a structure rather than a look). Every page is
+rendered and all but one carry `hidden`, so the collector reads the whole form whatever page is
+showing — a page has no contract of its own, and `PUT …/data` carries every answer on every one.
+The pager is per kit (a Stimulus controller, and a few dozen lines in the plain kit's module) and
 does three things beyond moving: it steps over a page whose every question a condition left
 unasked, it draws no mark for such a page, and it takes no part in validation — *next* always
 moves, because a page that stopped somebody for being under a floor would enforce an obligation
 the server only asks about at confirmation. Which pages are worth showing follows from which
 questions are asked, so the form controller announces that it asked them (`form:asked`, and
-`refreshSteppers()` in the plain kit) rather than the stepper reaching into conditions.
+`refreshPagers()` in the plain kit) rather than the pager reaching into conditions.
+
+**One mechanism, two looks, and the code is named after the mechanism.** A wizard and a strip of
+tabs differ in what a reader is told and how they move — an ordered sequence with *back*, *next*
+and "Step 2 of 5", or peers in a `tablist` with `aria-selected`, one tab stop and the arrow keys
+— and in nothing else, which is why one controller and one module function serve both and the
+shared markup says `pager` rather than `wizard`. Three things are read off `data-pager`'s value
+and no more: which attribute marks the page being shown, whether the marks are one tab stop with
+arrows between them, and whether there is a *next* to disable. It is worth saying why tabs are
+not a restyled wizard, since this repository refuses a widget that is: the marks of a wizard have
+always been clickable, so *jump anywhere* is not the difference — the roles and the keyboard are,
+and neither can be reached from a stylesheet.
 
 **A message nobody can see is not a message.** A refusal about an entry unfolds every form on
 the way to it, marks each entry it is inside so the row still says "look here" once folded back
-up, sets `aria-invalid` on the control, and moves the caret there. A page of a wizard hides a
+up, sets `aria-invalid` on the control, and moves the caret there. A page of a pager hides a
 message the same way, so the refusal brings that page forward first — said at the control
-(`wizard:reveal`), because whichever wizard holds it is the one that has to move.
+(`pager:reveal`), because whichever pager holds it is the one that has to move.
 
 **A page is read in one language, and the document decides which.** What the
 framework negotiates (`?lang=`, then `Accept-Language`, then the configured default) is what the

@@ -202,16 +202,23 @@ function holds(condition, values) {
 // for being under a minimum would be enforcing an obligation the server only asks
 // about at confirmation.
 //
-// Per wizard, because a document may place two of them and each steps its own
-// pages.
-function steppers() {
-    return [...document.querySelectorAll('[data-wizard]')];
+// Per pager, because a document may place two of them — a wizard and a strip of
+// tabs, or two of either — and each shows its own pages.
+function pagers() {
+    return [...document.querySelectorAll('[data-pager]')];
 }
 
-function stepsOf(wizard) {
-    return [...wizard.querySelectorAll('[data-step]')].filter(
-        (step) => step.closest('[data-wizard]') === wizard && step.closest('template') === null,
+function pagesOf(pager) {
+    return [...pager.querySelectorAll('[data-page]')].filter(
+        (page) => page.closest('[data-pager]') === pager && page.closest('template') === null,
     );
+}
+
+// Peers rather than a sequence. Three things follow from it and nothing else
+// does: which attribute marks the one showing, whether the strip is one tab stop
+// with arrows between the marks, and whether there is a *next* to disable.
+function amongPeers(pager) {
+    return pager.dataset.pager === 'tabs';
 }
 
 // A page with nothing left to answer is stepped over: a condition can empty a
@@ -228,23 +235,30 @@ function worthShowing(step) {
         .some((thing) => thing.closest('[data-unasked]') === null);
 }
 
-function showStep(wizard, index) {
-    const steps = stepsOf(wizard);
-    const shown = steps.filter(worthShowing);
+function showPage(pager, index) {
+    const pages = pagesOf(pager);
+    const shown = pages.filter(worthShowing);
 
     if (shown.length === 0) return;
 
-    const step = steps[index] !== undefined && worthShowing(steps[index]) ? steps[index] : shown[0];
+    const page = pages[index] !== undefined && worthShowing(pages[index]) ? pages[index] : shown[0];
 
-    for (const one of steps) one.hidden = one !== step;
+    for (const one of pages) one.hidden = one !== page;
 
-    for (const mark of wizard.querySelectorAll('[data-wizard-mark]')) {
-        const marked = steps[Number(mark.dataset.wizardMark)];
+    for (const mark of pager.querySelectorAll('[data-page-mark]')) {
+        const marked = pages[Number(mark.dataset.pageMark)];
         // A page nobody is being asked is not a place to go to.
         mark.hidden = marked === undefined || !worthShowing(marked);
 
-        if (marked === step) {
-            mark.setAttribute('aria-current', 'step');
+        if (amongPeers(pager)) {
+            mark.setAttribute('aria-selected', String(marked === page));
+            // One tab stop for the whole strip: the tab somebody is on is the
+            // one the caret can reach, and the arrows do the rest.
+            mark.tabIndex = marked === page ? 0 : -1;
+        }
+
+        if (marked === page) {
+            if (!amongPeers(pager)) mark.setAttribute('aria-current', 'step');
             // A track long enough to scroll is no use if the place somebody is
             // on is off the end of it. `nearest` on both axes, so this never
             // scrolls the page itself.
@@ -254,36 +268,36 @@ function showStep(wizard, index) {
         }
     }
 
-    const at = shown.indexOf(step);
-    const status = wizard.querySelector('[data-wizard-status]');
+    const at = shown.indexOf(page);
+    const status = pager.querySelector('[data-wizard-status]');
 
     if (status !== null) {
-        status.textContent = (wizard.dataset.wizardStatusWords ?? '')
+        status.textContent = (pager.dataset.wizardStatusWords ?? '')
             .replace('{n}', String(at + 1))
             .replace('{m}', String(shown.length));
     }
 
-    const back = wizard.querySelector('[data-wizard-back]');
-    const next = wizard.querySelector('[data-wizard-next]');
+    const back = pager.querySelector('[data-wizard-back]');
+    const next = pager.querySelector('[data-wizard-next]');
 
     if (back !== null) back.disabled = at === 0;
     if (next !== null) next.disabled = at === shown.length - 1;
 }
 
-function currentStep(wizard) {
-    return stepsOf(wizard).find((step) => !step.hidden) ?? null;
+function currentPage(pager) {
+    return pagesOf(pager).find((page) => !page.hidden) ?? null;
 }
 
 // Moving is done in the *shown* pages, so a page a condition emptied is passed
 // over rather than landed on.
-function move(wizard, by, answering) {
-    const shown = stepsOf(wizard).filter(worthShowing);
-    const at = shown.indexOf(currentStep(wizard));
+function move(pager, by, answering) {
+    const shown = pagesOf(pager).filter(worthShowing);
+    const at = shown.indexOf(currentPage(pager));
     const going = shown[at + by];
 
     if (going === undefined) return;
 
-    showStep(wizard, stepsOf(wizard).indexOf(going));
+    showPage(pager, pagesOf(pager).indexOf(going));
 
     // Somebody who pressed "next" is about to answer what is on the page they
     // asked for. A page opened by a refusal moves the caret itself, to the
@@ -295,30 +309,58 @@ function move(wizard, by, answering) {
 
 // A message nobody can see is not a message, and a page not being drawn hides one
 // as surely as a folded entry does. So a refusal opens the page it is about.
-function revealStep(element) {
-    const wizard = element.closest('[data-wizard]');
-    const step = element.closest('[data-step]');
+function revealPage(element) {
+    const pager = element.closest('[data-pager]');
+    const page = element.closest('[data-page]');
 
-    if (wizard === null || step === null) return;
+    if (pager === null || page === null) return;
 
-    showStep(wizard, stepsOf(wizard).indexOf(step));
+    showPage(pager, pagesOf(pager).indexOf(page));
 }
 
 document.getElementById('form').addEventListener('click', (event) => {
-    const trigger = event.target.closest('[data-wizard-back], [data-wizard-next], [data-wizard-mark]');
-    const wizard = trigger?.closest('[data-wizard]');
+    const trigger = event.target.closest('[data-wizard-back], [data-wizard-next], [data-page-mark]');
+    const pager = trigger?.closest('[data-pager]');
 
-    if (!trigger || !wizard) return;
+    if (!trigger || !pager) return;
 
     event.preventDefault();
 
-    if (trigger.dataset.wizardMark !== undefined) {
-        showStep(wizard, Number(trigger.dataset.wizardMark));
+    if (trigger.dataset.pageMark !== undefined) {
+        showPage(pager, Number(trigger.dataset.pageMark));
 
         return;
     }
 
-    move(wizard, trigger.dataset.wizardNext !== undefined ? 1 : -1, event.isTrusted);
+    move(pager, trigger.dataset.wizardNext !== undefined ? 1 : -1, event.isTrusted);
+});
+
+// Arrows move between tabs, which is the whole reason the strip is one tab stop:
+// a reader arrives at the sections once, not once per section. Only among peers —
+// in a sequence the marks are ordinary buttons, and the arrow keys belong to
+// whatever the reader is answering.
+document.getElementById('form').addEventListener('keydown', (event) => {
+    const mark = event.target.closest('[data-page-mark]');
+    const pager = mark?.closest('[data-pager]');
+
+    if (!mark || !pager || !amongPeers(pager)) return;
+
+    const shown = pagesOf(pager).filter(worthShowing);
+    const at = shown.indexOf(currentPage(pager));
+    const going = {
+        ArrowRight: shown[at + 1],
+        ArrowLeft: shown[at - 1],
+        Home: shown[0],
+        End: shown[shown.length - 1],
+    }[event.key];
+
+    if (going === undefined) return;
+
+    event.preventDefault();
+    showPage(pager, pagesOf(pager).indexOf(going));
+    // The mark, not the panel: somebody steering with the keyboard is still in
+    // the strip, and the next arrow has to move from where they are.
+    pager.querySelector(`[data-page-mark="${pagesOf(pager).indexOf(going)}"]`)?.focus();
 });
 
 // A number worked out from the other answers.
@@ -443,15 +485,15 @@ function evaluate() {
     // total changes can change which questions are asked — which is what makes
     // one pass enough rather than a loop that has to be shown to settle.
     total();
-    refreshSteppers();
+    refreshPagers();
 }
 
-// Which pages are worth showing follows from which questions are asked, so the
-// steppers are told after every pass — keeping whoever is where they are, unless
-// the page they were on has nothing left on it.
-function refreshSteppers() {
-    for (const wizard of steppers()) {
-        showStep(wizard, stepsOf(wizard).indexOf(currentStep(wizard)));
+// Which pages are worth showing follows from which questions are asked, so every
+// pager is told after every pass — keeping whoever is where they are, unless the
+// page they were on has nothing left on it.
+function refreshPagers() {
+    for (const pager of pagers()) {
+        showPage(pager, pagesOf(pager).indexOf(currentPage(pager)));
     }
 }
 
@@ -541,7 +583,7 @@ function reveal(slot) {
     // A page that is not being drawn hides a message as surely as a folded entry
     // does, so the wizard is moved to the one this refusal is about — before the
     // caret goes there, since a control on a hidden page cannot take it.
-    revealStep(slot);
+    revealPage(slot);
 
     for (let form = slot.closest('details'); form !== null; form = form.parentElement?.closest('details') ?? null) {
         form.open = true;
@@ -1122,7 +1164,7 @@ document.addEventListener('click', (event) => {
 //
 // Nothing is fetched until somebody opens the panel, and every row is a clone of
 // a template the server rendered: this file moves markup, it does not write it.
-const page = document.body.dataset.page;
+const page = document.body.dataset.pageUrl;
 const versions = document.querySelector('[data-history]');
 
 if (versions !== null) {

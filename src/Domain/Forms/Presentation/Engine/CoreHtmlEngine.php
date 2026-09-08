@@ -57,10 +57,11 @@ final class CoreHtmlEngine implements PresentationEngine
 
     public function containers(): array
     {
-        // `wizard` and `step` are one form on several pages: a way of *looking*,
-        // so the plainest kit draws them too ({@see
-        // \App\Domain\Forms\Presentation\Rule\StepsBelongToAWizardValidator}).
-        return ['fieldset', 'wizard', 'step'];
+        // A long form answered in parts is a way of *looking*, so the plainest
+        // kit draws both shapes of it too: a `wizard` of `step`s, ordered, and a
+        // `tabs` of `tab`s, which are peers ({@see
+        // \App\Domain\Forms\Presentation\Rule\PagesBelongToTheirPagerValidator}).
+        return ['fieldset', 'wizard', 'step', 'tabs', 'tab'];
     }
 
     public function decorations(): array

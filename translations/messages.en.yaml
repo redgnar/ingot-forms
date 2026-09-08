@@ -55,6 +55,8 @@ page:
         status: 'Step {n} of {m}'
         back: 'Back'
         next: 'Next'
+    tabs:
+        sections: 'Sections'
     entry:
         add: 'Add'
         remove: 'Remove'

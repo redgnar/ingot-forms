@@ -48,7 +48,7 @@ final class WizardInTheMarkupTest extends KernelTestCase
     {
         // GIVEN a form on three pages
         $page = self::drawn($engine);
-        $steps = $page->filter('[data-wizard] [data-step]');
+        $steps = $page->filter('[data-pager] [data-page]');
 
         // THEN all three are in the markup, the first one open and the rest out
         // of sight: a save sends the whole form whatever page is showing
@@ -60,8 +60,8 @@ final class WizardInTheMarkupTest extends KernelTestCase
         // AND a control on a page nobody is looking at is an ordinary control,
         // with the answer it holds — which is what makes the collector's job the
         // same as on a form with no pages at all
-        self::assertCount(1, $page->filter('[data-step] [data-name="terms"]'));
-        self::assertSame('60', $page->filter('[data-step] [data-name="note"]')->attr('maxlength'));
+        self::assertCount(1, $page->filter('[data-page] [data-name="terms"]'));
+        self::assertSame('60', $page->filter('[data-page] [data-name="note"]')->attr('maxlength'));
     }
 
     #[DataProvider('kits')]
@@ -72,7 +72,7 @@ final class WizardInTheMarkupTest extends KernelTestCase
 
         // THEN one mark per page, worded by the document, with the first marked
         // as the one somebody is on
-        $marks = $page->filter('[data-wizard-mark]');
+        $marks = $page->filter('[data-page-mark]');
         self::assertCount(3, $marks);
         self::assertSame(['Who you are', 'Anything else', 'Send it'], $marks->each(
             static fn(Crawler $mark): string => trim($mark->text()),
@@ -101,7 +101,7 @@ final class WizardInTheMarkupTest extends KernelTestCase
         // THEN it is inside that page and nowhere else: what a wizard draws for
         // itself is the moving, and what finishes the form is still the
         // document's to place
-        $confirm = $page->filter('[data-step]')->eq(2)->filter('[data-action*="confirm"]');
+        $confirm = $page->filter('[data-page]')->eq(2)->filter('[data-action*="confirm"]');
         self::assertCount(1, $confirm);
         self::assertSame('Send it', trim($confirm->text()));
     }

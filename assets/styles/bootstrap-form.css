@@ -557,3 +557,26 @@ input.form-control[type="file"]:active {
 .wizard-place:has(> .wizard-mark[hidden]) {
     display: none;
 }
+
+/* A strip of tabs is Bootstrap's own nav-tabs, with one rule of ours: which tab
+   is open is said by `aria-selected` and painted from it, rather than by the
+   `active` class Bootstrap styles. That is not tidiness — the controller keeps
+   one fact instead of two that can disagree, and a screen reader and the eye then
+   read the same attribute. Written twice, and the properties stated as well as
+   the variables, for the reason the wizard's marks are: a skin's dark rules are
+   one specificity point above a bare class, and this file is the last one
+   loaded. */
+.nav-tabs .tab-mark[aria-selected="true"],
+[data-bs-theme] .nav-tabs .tab-mark[aria-selected="true"] {
+    background-color: var(--bs-nav-tabs-link-active-bg, var(--bs-body-bg, #fff));
+    border-color: var(--bs-nav-tabs-link-active-border-color, var(--bs-border-color, #dee2e6));
+    color: var(--bs-body-color, #212529);
+    font-weight: 600;
+}
+
+/* A tab nobody is being asked is not a tab: the controller hides the mark, and
+   Bootstrap's `nav-item` around it would otherwise keep its width — a gap in the
+   strip where a section used to be. */
+.nav-tabs .nav-item:has(> .tab-mark[hidden]) {
+    display: none;
+}

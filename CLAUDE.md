@@ -553,11 +553,20 @@ Rules that follow from it, and that the tooling checks:
   never a second name for a control the other kit already draws — and never a restyling of one
   (a floating label was tried and removed: it moved the same question's text, and it could not
   be applied to a choice group or a slider, so every page mixing them was labelled two ways).
-- **A long form may be answered in parts, and that is a way of looking.** `wizard` and `step`
-  are container widgets both kits declare — the first two containers they share, because paging
-  is a structure rather than a look — and a `wizard` holds `step`s and nothing else
-  (`StepsBelongToAWizardValidator`: a step outside a wizard, a wizard holding anything else, a
-  wizard nested or inside an entry; two side by side are fine, each stepping its own pages).
+- **A long form may be answered in parts, and that is a way of looking.** Two shapes of it and
+  four container widgets, all declared by both kits — the four containers they share, because
+  paging is a structure rather than a look: `wizard` + `step` is an ordered sequence, `tabs` +
+  `tab` are peers. One validator judges both pairs
+  (`PagesBelongToTheirPagerValidator`: a page outside its pager, a pager holding anything else,
+  a pager nested — in either direction, at any depth — or inside an entry; two side by side are
+  fine, each showing its own pages, and a page with no label falls back to its number rather
+  than being refused). **One mechanism under two looks**, which is why the shared markup is
+  `data-pager` (the look as its value), `data-page` and `data-page-mark`, and why one controller
+  and one module function serve both: what differs is what a reader is told and how they move —
+  `aria-current="step"` with *back*, *next* and a count, against a `tablist` with
+  `aria-selected`, one tab stop for the strip and the arrow keys between the tabs. Tabs are not
+  a restyled wizard **because of that and not because of jumping**: a wizard's marks have always
+  been clickable.
   **Every page is in the markup and all but one carry `hidden`**, so the collector reads the
   whole form whatever page is showing: a step has no contract of its own, and that is the
   invariant that makes this presentation rather than a second way of validating. Nothing is

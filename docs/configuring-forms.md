@@ -30,7 +30,7 @@ answered is a form whose answers were given to the questions it had.
 - [Numbers worked out from the answers](#numbers-worked-out-from-the-answers)
 - [Files](#files)
 - [The presentation: how it is shown](#the-presentation-how-it-is-shown)
-- [One form on several pages](#one-form-on-several-pages)
+- [One form in parts](#one-form-in-parts)
 - [Widget reference](#widget-reference)
 - [Accessibility: what the reader controls, and what you can default](#accessibility-what-the-reader-controls-and-what-you-can-default)
 - [Being told what happened](#being-told-what-happened)
@@ -906,10 +906,14 @@ definition's, because it changes what an answer must satisfy
 ([conditions](#questions-asked-only-sometimes)) — and no way to change any of it afterwards, because the description of a fixed
 thing has no reason to drift.
 
-## One form on several pages
+## One form in parts
 
 A long form is easier to answer in parts, and that is a way of *looking* — so it is the
-presentation's, and the definition does not move. Two container widgets, in both kits:
+presentation's, and the definition does not move. Two shapes of it, four container widgets, all
+of them in both kits: a **wizard** of `step`s, which is an ordered sequence, and **tabs** of
+`tab`s, which are peers.
+
+### A wizard: one page at a time, in order
 
 ```json
 {"widget": "wizard", "items": [
@@ -961,6 +965,53 @@ What is refused at creation:
 rule would be a second condition language over the one the definition already has), and no step
 in the printed record — a labelled step reads as a section there, exactly like a card.
 
+### Tabs: sections side by side, in any order
+
+```json
+{"widget": "tabs", "label": "t.about", "items": [
+  {"widget": "tab", "label": "t.who",   "items": [{"name": "email"}, {"name": "company"}]},
+  {"widget": "tab", "label": "t.what",  "items": [{"name": "damage"}]},
+  {"widget": "tab", "label": "t.files", "items": [{"name": "photos"}]}
+]}
+```
+
+Everything in the six decisions above holds here word for word — every panel is in the markup, a
+save sends the whole form, nothing is gated, a section a condition emptied has no tab, a refusal
+opens the section it is about, and where the strip sits is yours. **The mechanism is the same
+one**, which is why: `tabs` is not a second way of paging a form, it is the second way of *saying*
+what the parts are.
+
+What differs is what a reader is told and how they move, and it is the whole reason both exist:
+
+| | a `wizard` | `tabs` |
+|---|---|---|
+| what it says | "Step 2 of 5", *back* and *next* | the section's own name, and nothing about progress |
+| how somebody moves | the buttons, or straight to a mark | the arrow keys, `Home`/`End`, or straight to a tab |
+| the keyboard | each mark is its own stop | the whole strip is **one** stop |
+| what it implies | finish this, then continue | these are peers; read them in any order |
+
+So write a wizard when the order is part of the question, and tabs when it is not — "personal
+details, address, attachments" is three sections and not three steps. Neither draws a *next*
+for the other, and the form's own triggers are still yours to place: below the strip is the
+natural home for them, since finishing is not one of the sections.
+
+What is refused at creation — the wizard's five in a second vocabulary, because it is one rule
+about where a page may sit:
+
+| Code | Pointer | What it means |
+|---|---|---|
+| `presentation.tab.outside-tabs` | `…/widget` | a `tab` that is not directly inside a `tabs` — nothing would ever open it |
+| `presentation.tabs.no-tabs` | `…/items` | a `tabs` with no `tab` in it |
+| `presentation.tabs.holds-more-than-tabs` | `…/items/N/widget` | something beside the sections. A heading for the whole strip goes *before* it |
+| `presentation.tabs.nested` | `…/widget` | a strip inside a `wizard` or another strip: a panel hidden inside a hidden page is one nothing can bring forward |
+| `presentation.tabs.in-an-entry` | `…/widget` | a strip inside a list entry, for the reason a trigger cannot sit there |
+
+A **`tab` with no label** is not refused: it falls back to its number, the way a step does. A
+numbered tab strip is a poor page and a fixable document, while a refusal is forever.
+
+**Deliberately not there**: the wizard's four absences, plus tabs inside tabs and any memory of
+which tab somebody was on.
+
 ## Widget reference
 
 The tables below are the index; [kits.md](kits.md) is the reference — every control of both
@@ -992,7 +1043,7 @@ for its type — the first in each row below.
 | Kind | `core-html` | `bootstrap` | Holds items? |
 |---|---|---|---|
 | grouping | `fieldset` | `card`, `accordion`, `row` | yes |
-| paging | `wizard` + `step` | the same two | yes |
+| paging | `wizard` + `step`, `tabs` + `tab` | the same four | yes |
 | saying something | `heading`, `paragraph` | `heading`, `paragraph`, `alert`, `divider` | no |
 | about the page itself | `comfort`, `language` | the same two | no |
 | doing something | `save`, `confirm`, `reset`, `history` | the same four | no |
@@ -1580,8 +1631,13 @@ The eight `form.condition.*` codes are explained one by one in
 | `presentation.step.outside-a-wizard` | a `step` that is not directly inside a `wizard` |
 | `presentation.wizard.no-steps` | a `wizard` with no page to step |
 | `presentation.wizard.holds-more-than-steps` | a `wizard` holding something that is not a `step` |
-| `presentation.wizard.nested` | a wizard inside a wizard |
+| `presentation.wizard.nested` | a wizard inside another pager |
 | `presentation.wizard.in-an-entry` | a wizard inside an entry of a list |
+| `presentation.tab.outside-tabs` | a `tab` that is not directly inside a `tabs` |
+| `presentation.tabs.no-tabs` | a `tabs` with no section in it |
+| `presentation.tabs.holds-more-than-tabs` | a `tabs` holding something that is not a `tab` |
+| `presentation.tabs.nested` | a strip of tabs inside another pager |
+| `presentation.tabs.in-an-entry` | a strip of tabs inside an entry of a list |
 | `presentation.choice.unknown` | `choices` words a value the item does not offer |
 | `presentation.choice.missing` | some options worded and others left as codes |
 | `presentation.choice.not-allowed` | `choices` on an item that offers no choice |
@@ -1717,11 +1773,12 @@ PUT  /api/forms/{id}/data           { "customer": "Ada", "lines": [{"sku":"A-1",
 POST /api/forms/{id}/confirm                                                             → 204
 ```
 
-**To answer this form on several pages**, wrap the presentation's `items` in one
-`{"widget": "wizard", "items": [ … ]}` whose children are `step`s, and move the questions into
-whichever page each belongs on. Nothing else changes: not the definition, not the values, not a
-single request above — a step is a way of looking
-([one form on several pages](#one-form-on-several-pages)).
+**To answer this form in parts**, wrap the presentation's `items` in one
+`{"widget": "wizard", "items": [ … ]}` whose children are `step`s — or in a
+`{"widget": "tabs", …}` of `tab`s, if the parts have no order — and move the questions into
+whichever part each belongs on. Nothing else changes: not the definition, not the values, not a
+single request above — paging is a way of looking
+([one form in parts](#one-form-in-parts)).
 
 Working requests for every endpoint, ready to run, live in
 [`tests/_requests/`](../tests/_requests) — one file per topic, each with assertions.

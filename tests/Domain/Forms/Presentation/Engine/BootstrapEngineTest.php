@@ -69,7 +69,7 @@ final class BootstrapEngineTest extends TestCase
 
         // THEN the three ways this kit groups, and what it can say between groups
         self::assertSame('bootstrap', $engine->id());
-        self::assertSame(['card', 'accordion', 'row', 'wizard', 'step'], $engine->containers());
+        self::assertSame(['card', 'accordion', 'row', 'wizard', 'step', 'tabs', 'tab'], $engine->containers());
         self::assertSame(['heading', 'paragraph', 'alert', 'divider', 'comfort', 'language'], $engine->decorations());
 
         // The last two stand alone like the others and say nothing about the
@@ -139,10 +139,11 @@ final class BootstrapEngineTest extends TestCase
         self::assertSame(['radio-buttons', 'autocomplete', 'checkbox-buttons', 'range', 'stepper', 'dropzone', 'signature'], $added);
 
         // AND the ways of *looking* share nothing — a fieldset is not a card —
-        // while the one way of grouping that is not a look is in both kits: a
-        // wizard and its steps are one form on several pages, which is a
-        // structure rather than a style, so the plainest kit steps too
-        self::assertSame(['wizard', 'step'], array_values(
+        // while the ways of grouping that are not a look are in both kits: a
+        // form answered in parts is a structure rather than a style, in either
+        // shape of it, so the plainest kit pages too — ordered as a wizard of
+        // steps, or as peers in a strip of tabs
+        self::assertSame(['wizard', 'step', 'tabs', 'tab'], array_values(
             array_intersect($plain->containers(), $rich->containers()),
         ));
     }

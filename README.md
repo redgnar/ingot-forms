@@ -64,8 +64,9 @@ versioning and multi-submission forms are deliberately out of scope.
   the same condition again after every keystroke
   ([conditions](docs/configuring-forms.md#questions-asked-only-sometimes)).
 - **A form can draw itself.** An optional presentation document says how, in one of two kits —
-  including on several pages, since a `wizard` is a way of looking and the definition does not
-  move ([one form on several pages](docs/configuring-forms.md#one-form-on-several-pages));
+  including in parts — as a `wizard` of pages, in order, or as `tabs` read in any order, both
+  being ways of looking that leave the definition where it is
+  ([one form in parts](docs/configuring-forms.md#one-form-in-parts));
   a skin says what it looks like; and what a *reader* needs — contrast, colours, text size — is
   theirs to set and no document's to decide ([the pages](docs/architecture.md#the-pages)).
 - **A form records who filled it in, and this service authorises nothing.** It has an author, a

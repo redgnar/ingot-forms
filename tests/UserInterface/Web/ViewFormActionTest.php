@@ -377,7 +377,7 @@ final class ViewFormActionTest extends WebTestCase
         $page = str_replace('\\/', '/', $response);
 
         self::assertStringContainsString(\sprintf('/svc/api/forms/%s/data', $id), $page);
-        self::assertStringContainsString(\sprintf('data-page="/svc/forms/%s"', $id), $page);
+        self::assertStringContainsString(\sprintf('data-page-url="/svc/forms/%s"', $id), $page);
         self::assertStringContainsString('src="/svc/assets/pages/core-html-form', $page);
         self::assertStringNotContainsString(\sprintf('"/api/forms/%s', $id), $page);
         self::assertStringNotContainsString('src="/assets/', $page);

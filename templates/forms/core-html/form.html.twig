@@ -135,6 +135,20 @@
         .wizard-place:has(> .wizard-mark[hidden]) { display: none; }
         .wizard-status { color: var(--quiet); font-size: .875rem; margin: 0 0 1rem; }
         .wizard-move { display: flex; gap: .5rem; margin: 1rem 0 0; }
+        /* Sections side by side: no numbers, no line between them and nothing
+           saying how far along anybody is — a tab is a peer of the others, and
+           the strip is a row of names over the panel they open. */
+        .tabs { margin: 0 0 1.5rem; }
+        .tab-strip { border-bottom: 1px solid var(--line); display: flex; gap: .25rem;
+            overflow-x: auto; scrollbar-width: thin; }
+        .tab-mark { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--quiet);
+            cursor: pointer; font: inherit; margin-bottom: -1px; padding: .5rem .9rem; white-space: nowrap; }
+        .tab-mark:hover { color: var(--ink); }
+        /* The line under the name is what says which panel is open, so it is
+           drawn from `aria-selected` rather than from a class the module would
+           have to keep in step with it. */
+        .tab-mark[aria-selected="true"] { border-bottom-color: var(--ink); color: var(--ink); font-weight: 600; }
+        .tab-panel { padding: 1rem 0 0; }
         .file-held { font-size: .875rem; margin: .25rem 0 0; }
         .file-progress { color: var(--quiet); font-size: .875rem; margin: .25rem 0 0; }
     </style>
@@ -182,7 +196,7 @@
 {# Where this form is written to, and where the page itself lives. Both are the
    server's answer rather than a shape this template knows: the addresses move
    with the installation, the page does not have to. #}
-<body data-form="{{ id }}" data-api="{{ api|json_encode }}" data-page="{{ path('web_form_view', {id: id}) }}"
+<body data-form="{{ id }}" data-api="{{ api|json_encode }}" data-page-url="{{ path('web_form_view', {id: id}) }}"
       {%- if version is not null %} data-version="{{ version }}"{% endif %}
       data-read-only="{{ readOnly ? 'yes' : 'no' }}" data-refused="{{ 'page.refused'|trans }}"
       {# What a refused answer is told to a person. The refusal arrives in the
@@ -283,6 +297,8 @@
     {% for node in nodes %}
         {% if node.kind == 'container' and node.widget == 'wizard' %}
             {{ _self.wizard(node, readOnly, inEntry, chrome) }}
+        {% elseif node.kind == 'container' and node.widget == 'tabs' %}
+            {{ _self.tabs(node, readOnly, inEntry, chrome) }}
         {% elseif node.kind == 'container' %}
             <fieldset>
                 {% if node.label %}<legend>{{ node.label }}</legend>{% endif %}
@@ -330,7 +346,7 @@
    asks about at confirmation. #}
 {% macro wizard(node, readOnly, inEntry, chrome) %}
     {% set steps = node.children %}
-    <div class="wizard" data-wizard
+    <div class="wizard" data-pager="steps"
          data-wizard-status-words="{{ 'page.wizard.status'|trans }}">
         {# A path rather than a row of buttons ({@see the richer kit, which says
            the same thing about the same shape). #}
@@ -338,7 +354,7 @@
             <ol class="wizard-track">
                 {% for step in steps %}
                     <li class="wizard-place">
-                        <button type="button" class="wizard-mark" data-wizard-mark="{{ loop.index0 }}"
+                        <button type="button" class="wizard-mark" data-page-mark="{{ loop.index0 }}"
                                 {%- if loop.first %} aria-current="step"{% endif %}>{{ step.label ?? loop.index }}</button>
                     </li>
                 {% endfor %}
@@ -348,7 +364,7 @@
         <p class="wizard-status" data-wizard-status aria-live="polite">{{ 'page.wizard.status'|trans|replace({'{n}': 1, '{m}': steps|length}) }}</p>
 
         {% for step in steps %}
-            <section class="wizard-step" data-step{% if not loop.first %} hidden{% endif %}
+            <section class="wizard-step" data-page{% if not loop.first %} hidden{% endif %}
                      {%- if step.label %} aria-label="{{ step.label }}"{% endif %}>
                 {% if step.hint %}<p class="hint">{{ step.hint }}</p>{% endif %}
                 {{ _self.nodes(step.children, readOnly, inEntry, chrome) }}
@@ -359,6 +375,42 @@
             <button type="button" data-wizard-back>{{ 'page.wizard.back'|trans }}</button>
             <button type="button" data-wizard-next>{{ 'page.wizard.next'|trans }}</button>
         </p>
+    </div>
+{% endmacro %}
+
+{# The same form in parts, as peers rather than as a sequence. Everything the
+   module does is the wizard's — every panel is in the markup and all but one
+   carry `hidden` — and what differs is what a reader is told and how they move:
+   the roles say `tablist`, so a screen reader announces "tab 2 of 4" and offers
+   the arrow keys, the strip is one tab stop rather than one per section, and
+   there is no *next* and nothing about progress, because these are peers. #}
+{% macro tabs(node, readOnly, inEntry, chrome) %}
+    {% set pages = node.children %}
+    <div class="tabs" data-pager="tabs">
+        <div class="tab-strip" role="tablist" aria-label="{{ node.label ?? 'page.tabs.sections'|trans }}">
+            {% for page in pages %}
+                <button type="button" class="tab-mark" role="tab" data-page-mark="{{ loop.index0 }}"
+                        aria-selected="{{ loop.first ? 'true' : 'false' }}"
+                        tabindex="{{ loop.first ? 0 : -1 }}">{{ page.label ?? loop.index }}</button>
+            {% endfor %}
+        </div>
+
+        {# The panel says its own name rather than pointing at the tab that opens
+           it, and the tabs point at nothing: `aria-controls` and
+           `aria-labelledby` need ids, a unique one needs identity this tree does
+           not carry, and a generated one would break the rule that the same form
+           renders byte-identical markup. So the name is repeated, which every
+           screen reader announces; what is lost is one shortcut in one of them.
+           `tabindex="0"` is what the role promises: a reader who arrowed to a tab
+           reaches its content with one more press. #}
+        {% for page in pages %}
+            <section class="tab-panel" role="tabpanel" data-page tabindex="0"
+                     {%- if page.label %} aria-label="{{ page.label }}"{% endif %}
+                     {%- if not loop.first %} hidden{% endif %}>
+                {% if page.hint %}<p class="hint">{{ page.hint }}</p>{% endif %}
+                {{ _self.nodes(page.children, readOnly, inEntry, chrome) }}
+            </section>
+        {% endfor %}
     </div>
 {% endmacro %}
 

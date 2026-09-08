@@ -51,6 +51,8 @@ page:
         status: 'Krok {n} z {m}'
         back: 'Wstecz'
         next: 'Dalej'
+    tabs:
+        sections: 'Sekcje'
     entry:
         add: 'Dodaj'
         remove: 'Usuń'

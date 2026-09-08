@@ -185,10 +185,10 @@ for when a form is a form rather than a product.
 
 ### `wizard` — one form on several pages
 
-- **Draws:** a `<div data-wizard>` holding a `<nav data-wizard-nav>` with the pages as a
+- **Draws:** a `<div data-pager="steps">` holding a `<nav data-wizard-nav>` with the pages as a
   **track** — an `<ol>` of `<li class="wizard-place">`, each with one button, numbered by a CSS
   counter and joined by a line — a line saying where somebody is in words, one
-  `<section data-step>` per page with every page but one `hidden`, and *back* / *next*
+  `<section data-page>` per page with every page but one `hidden`, and *back* / *next*
 - **Notes:** the track is one line that **scrolls** rather than wrapping, and the current place
   is scrolled into view — a form with a dozen pages is otherwise a wizard whose marks are off
   the end of it. A page nobody is being asked has no place on the path at all: the mark is
@@ -203,11 +203,35 @@ for when a form is a form rather than a product.
 
 ### `step` — one page of a wizard
 
-- **Draws:** `<section data-step>`, labelled by its own label, holding whatever any container
+- **Draws:** `<section data-page>`, labelled by its own label, holding whatever any container
   holds
 - **Notes:** only directly inside a `wizard` (`presentation.step.outside-a-wizard` otherwise).
   A page holding no questions at all is not skipped as long as it holds something else — "review
   and send" is a page with one trigger and every reason to exist.
+
+### `tabs` — one form in sections, side by side
+
+- **Draws:** a `<div class="tabs" data-pager="tabs">` holding a
+  `<div class="tab-strip" role="tablist">` of `<button class="tab-mark" role="tab">`, and one
+  `<section class="tab-panel" role="tabpanel" data-page tabindex="0">` per section with every
+  section but one `hidden`
+- **Notes:** the same mechanism as the wizard, down to the attributes and the module — what
+  differs is what a reader is told and how they move. Which section is open is said in
+  `aria-selected`, and the line under the name is painted from that attribute rather than from a
+  class, so the eye and a screen reader read the same fact. The strip is **one tab stop**: only
+  the open tab is reachable by tabbing, and `←`/`→`/`Home`/`End` move between them — which is the
+  half of this that a stylesheet could never provide. Nothing about progress is drawn: no *next*,
+  no counting, no numbers, because these are peers. The strip scrolls rather than wrapping, and a
+  section nobody is being asked has no tab at all.
+
+### `tab` — one section of a strip
+
+- **Draws:** `<section role="tabpanel" data-page tabindex="0">`, named by its own label, holding
+  whatever any container holds
+- **Notes:** only directly inside a `tabs` (`presentation.tab.outside-tabs` otherwise). It says
+  its own name rather than pointing at the tab that opens it — a cross-reference needs an id,
+  and a unique one would need identity the presented tree does not carry. With no label it falls
+  back to its number, which is a document worth fixing rather than one worth refusing.
 
 <a id="core-html-decorations"></a>
 ## Text between things
@@ -514,8 +538,8 @@ that the plain kit has no markup for.
 
 ### `wizard` — one form on several pages
 
-- **Draws:** a `<div data-wizard>` with a Stimulus controller, the same track of numbered
-  places, a small line saying where somebody is, one `<section data-step>` per page (all but one
+- **Draws:** a `<div data-pager="steps">` with the pager controller, the same track of numbered
+  places, a small line saying where somebody is, one `<section data-page>` per page (all but one
   `hidden`), and two buttons
 - **Notes:** the same as the plain kit's, down to the attributes — a wizard is a structure both
   kits share rather than a look either of them invented. It hears `form:asked` from the form
@@ -528,8 +552,30 @@ that the plain kit has no markup for.
 
 ### `step` — one page of a wizard
 
-- **Draws:** `<section data-step>` holding whatever any container holds
+- **Draws:** `<section data-page>` holding whatever any container holds
 - **Notes:** as in the plain kit; only directly inside a `wizard`.
+
+### `tabs` — one form in sections, side by side
+
+- **Draws:** a `<div data-pager="tabs">` with the pager controller, a
+  `<ul class="nav nav-tabs" role="tablist">` of `<button class="nav-link tab-mark" role="tab">`,
+  and one `<section class="pt-3" role="tabpanel" data-page tabindex="0">` per section (all but
+  one `hidden`)
+- **Notes:** the same as the plain kit's, down to the attributes and the controller — the second
+  structure both kits share, for the reason the wizard is the first. Bootstrap's nav-tabs draw
+  it, but which tab is open is said by `aria-selected` and **painted from it**, not by the
+  `active` class: the controller then keeps one fact instead of two that can disagree. One tab
+  stop for the strip, arrows between the tabs, and `keydown` reaches the controller because the
+  container listens for it.
+- **Bootstrap:** [Navs and tabs](https://getbootstrap.com/docs/5.3/components/navs-tabs/) — the
+  markup and the styling only; the behaviour is ours, because Bootstrap's own tab plugin is not
+  loaded and would keep its state where this kit keeps nothing.
+
+### `tab` — one section of a strip
+
+- **Draws:** `<section role="tabpanel" data-page tabindex="0">` holding whatever any container
+  holds
+- **Notes:** as in the plain kit; only directly inside a `tabs`.
 
 <a id="bootstrap-decorations"></a>
 ## Text between things
@@ -675,15 +721,27 @@ thing before the first paint, so nothing flashes on the way in. `data-unasked` i
 *not* the same fact as `hidden`: an item drawn with the `hidden` widget is one a client fills in,
 and its answer travels like any other.
 
-**A form on several pages is still one document.** A document may say `wizard` and `step` (see
-[one form on several pages](configuring-forms.md#one-form-on-several-pages)), and both kits draw
-it the same way, down to the attributes: every page is in the markup, all but one carry `hidden`,
-and the collector reads the whole form whatever page is showing — so a save from the last page
-carries what was answered on the first. Nothing is gated: *next* always moves and a mark can be
-pressed to jump, for the reason floors are never enforced. A page whose every question a
-condition left unasked is stepped over and drops off the track (its number goes with it), and a
-refusal about another page brings that page forward before the caret goes there — a message on a
-page nobody is drawing is no message at all.
+**A form in parts is still one document.** A document may page a form in either shape — `wizard`
+and `step`, or `tabs` and `tab` (see [one form in parts](configuring-forms.md#one-form-in-parts))
+— and both kits draw both the same way, down to the attributes: `data-pager` on the container
+with the look as its value, `data-page` on every panel, `data-page-mark` on every mark. **One
+mechanism under two looks**, which is why they share those names and one module: every page is in
+the markup, all but one carry `hidden`, and the collector reads the whole form whatever page is
+showing — so a save from the last section carries what was answered on the first. Nothing is
+gated: *next* always moves and a mark can be pressed to jump, for the reason floors are never
+enforced. A page whose every question a condition left unasked is stepped over and drops off the
+strip (a wizard's numbers close up behind it), and a refusal about another page brings that page
+forward before the caret goes there — a message on a page nobody is drawing is no message at all.
+
+What is *not* shared is what a reader is told and how they move, which is the whole of the
+difference between the two: a wizard's marks are places on a numbered path
+(`aria-current="step"`), each its own tab stop, with *back*, *next* and "Step 2 of 5"; a strip of
+tabs is a `tablist` of `tab`s over `tabpanel`s, saying which is open in `aria-selected`, taking
+**one** tab stop for the whole strip and moving on `←`/`→`/`Home`/`End`. Nothing about progress is
+drawn, because tabs are peers. A panel says its own name rather than pointing at its tab: a
+cross-reference needs ids, a unique id needs identity the presented tree does not carry, and a
+generated one would break the rule that the same form renders byte-identical markup — so the name
+is repeated, which every screen reader announces.
 
 **A number worked out from the answers is worked out by the page.** A definition may say
 `calculated` on a `number` (see

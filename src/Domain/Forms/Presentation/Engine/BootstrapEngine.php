@@ -84,7 +84,7 @@ final class BootstrapEngine implements PresentationEngine
 
     public function containers(): array
     {
-        return ['card', 'accordion', 'row', 'wizard', 'step'];
+        return ['card', 'accordion', 'row', 'wizard', 'step', 'tabs', 'tab'];
     }
 
     public function decorations(): array

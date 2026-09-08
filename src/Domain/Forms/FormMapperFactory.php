@@ -29,7 +29,7 @@ use App\Domain\Forms\Definition\NumberRangeValidator;
 use App\Domain\Forms\Definition\UniqueFieldNamesValidator;
 use App\Domain\Forms\Presentation\PresentationDocument;
 use App\Domain\Forms\Presentation\Rule\MustOfferConfirmationValidator;
-use App\Domain\Forms\Presentation\Rule\StepsBelongToAWizardValidator;
+use App\Domain\Forms\Presentation\Rule\PagesBelongToTheirPagerValidator;
 use App\Domain\Forms\Presentation\Rule\TranslationsValidator;
 use App\Domain\Forms\Presentation\Rule\TriggersBelongToTheFormValidator;
 use App\Domain\Forms\Presentation\Rule\UniqueItemNamesValidator;
@@ -83,7 +83,7 @@ final class FormMapperFactory
             ->withSchema(PresentationDocument::class, Schema::fromFile(MetaSchema::Presentation->file()))
             ->withValidator(PresentationDocument::class, new UniqueItemNamesValidator())
             ->withValidator(PresentationDocument::class, new TriggersBelongToTheFormValidator())
-            ->withValidator(PresentationDocument::class, new StepsBelongToAWizardValidator())
+            ->withValidator(PresentationDocument::class, new PagesBelongToTheirPagerValidator())
             ->withValidator(PresentationDocument::class, new TranslationsValidator())
             ->withValidator(PresentationDocument::class, new MustOfferConfirmationValidator())
             ->withVariantFallback(Field::class, GenericField::class);

@@ -344,6 +344,124 @@ final class PresentationProcessorTest extends TestCase
             'presentation.wizard.in-an-entry',
         ];
 
+        yield 'a wizard inside a page of a wizard' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'wizard', 'items' => [
+                    ['widget' => 'step', 'items' => [
+                        // A group in between changes nothing: a page hidden
+                        // inside a hidden page is one nothing can bring forward,
+                        // however deep it sits.
+                        ['widget' => 'wizard', 'items' => [['widget' => 'step', 'items' => [['name' => 'email']]]]],
+                    ]],
+                ]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/0/items/0/widget',
+            'presentation.wizard.nested',
+        ];
+
+        yield 'a tab with no tabs to hold it' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'tab', 'label' => 'x', 'items' => [['name' => 'email']]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/widget',
+            'presentation.tab.outside-tabs',
+        ];
+
+        yield 'a tab inside a strip but not directly' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'tabs', 'items' => [
+                    ['widget' => 'tab', 'items' => [
+                        // A panel of a panel: nothing would ever open this one.
+                        ['widget' => 'tab', 'items' => [['name' => 'email']]],
+                    ]],
+                ]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/0/items/0/widget',
+            'presentation.tab.outside-tabs',
+        ];
+
+        yield 'a tab in the wrong pager' => [
+            ['engine' => 'core-html', 'items' => [
+                // Each pair is its own: a `tab` is not a page of a wizard. The
+                // complaint is the wizard's rather than the tab's — one mistake
+                // reported once, at the same pointer either way, and the pager's
+                // wording names both halves of what does not fit.
+                ['widget' => 'wizard', 'items' => [['widget' => 'tab', 'items' => [['name' => 'email']]]]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/0/widget',
+            'presentation.wizard.holds-more-than-steps',
+        ];
+
+        yield 'a step in the other pager' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'tabs', 'items' => [['widget' => 'step', 'items' => [['name' => 'email']]]]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/0/widget',
+            'presentation.tabs.holds-more-than-tabs',
+        ];
+
+        yield 'a strip holding something that is not a tab' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'tabs', 'items' => [
+                    ['widget' => 'tab', 'items' => [['name' => 'email']]],
+                    ['widget' => 'heading', 'label' => 'x'],
+                ]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/1/widget',
+            'presentation.tabs.holds-more-than-tabs',
+        ];
+
+        yield 'a strip with nothing in it' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'tabs', 'items' => []],
+                ['name' => 'email'],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items',
+            'presentation.tabs.no-tabs',
+        ];
+
+        yield 'a strip of tabs inside a wizard' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'wizard', 'items' => [
+                    ['widget' => 'step', 'items' => [
+                        ['widget' => 'tabs', 'items' => [['widget' => 'tab', 'items' => [['name' => 'email']]]]],
+                    ]],
+                ]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/0/items/0/widget',
+            'presentation.tabs.nested',
+        ];
+
+        yield 'a strip of tabs inside another one' => [
+            ['engine' => 'core-html', 'items' => [
+                ['widget' => 'tabs', 'items' => [
+                    ['widget' => 'tabs', 'items' => [['widget' => 'tab', 'items' => [['name' => 'email']]]]],
+                ]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/0/widget',
+            'presentation.tabs.nested',
+        ];
+
+        yield 'a strip of tabs inside an entry of a list' => [
+            ['engine' => 'core-html', 'items' => [
+                ['name' => 'lines', 'items' => [
+                    ['widget' => 'tabs', 'items' => [['widget' => 'tab', 'items' => [['name' => 'sku']]]]],
+                ]],
+                ['widget' => 'confirm'],
+            ]],
+            '/items/0/items/0/widget',
+            'presentation.tabs.in-an-entry',
+        ];
+
         yield 'a trigger inside an entry' => [
             ['engine' => 'core-html', 'items' => [
                 ['name' => 'lines', 'items' => [['name' => 'sku'], ['widget' => 'save']]],
@@ -453,6 +571,87 @@ final class PresentationProcessorTest extends TestCase
             static fn(\App\Domain\Forms\Presentation\PresentedItem $step): ?string => $step->widget,
             $wizard->items,
         ));
+    }
+
+    public function testAFormMayBeDrawnInSectionsSideBySide(): void
+    {
+        // GIVEN a document with both shapes of paging in it, side by side: a
+        // strip of tabs for what can be read in any order, and a wizard beside
+        // it for what has one
+        $document = [
+            'engine' => 'core-html',
+            'items' => [
+                ['widget' => 'tabs', 'label' => 'about', 'items' => [
+                    ['widget' => 'tab', 'label' => 'one', 'items' => [['name' => 'email']]],
+                    ['widget' => 'tab', 'label' => 'two', 'items' => [['name' => 'terms']]],
+                ]],
+                ['widget' => 'wizard', 'items' => [
+                    ['widget' => 'step', 'label' => 'then', 'items' => [['widget' => 'confirm', 'label' => 'send']]],
+                ]],
+            ],
+        ];
+
+        // WHEN
+        $parsed = self::processor()->parse($document);
+
+        // THEN neither is refused for the other's sake: each shows its own pages,
+        // every mechanism on the page is per-pager, and a document that wants
+        // both is describing two independent parts of one form
+        $tabs = $parsed->items[0];
+        self::assertTrue($tabs->isContainer());
+        self::assertSame(['tab', 'tab'], array_map(
+            static fn(\App\Domain\Forms\Presentation\PresentedItem $tab): ?string => $tab->widget,
+            $tabs->items,
+        ));
+        self::assertSame('wizard', $parsed->items[1]->widget);
+    }
+
+    public function testARefusalCarriesTheWidgetThatDoesNotBelong(): void
+    {
+        // GIVEN a `tab` standing on its own, with nothing to open it
+        $document = ['engine' => 'core-html', 'items' => [
+            ['widget' => 'tab', 'label' => 'x', 'items' => [['name' => 'email']]],
+            ['widget' => 'confirm'],
+        ]];
+
+        // WHEN
+        try {
+            self::processor()->parse($document);
+            self::fail('Expected PresentationNotValid.');
+        } catch (PresentationNotValid $refused) {
+            // THEN the finding carries the word that does not belong, which is
+            // what a client shows as `input` beside the pointer — a refusal
+            // saying only "something here is wrong" makes somebody diff two
+            // documents to find out what
+            self::assertSame('presentation.tab.outside-tabs', $refused->report->errors[0]->code);
+            self::assertSame('tab', $refused->report->errors[0]->input);
+        }
+    }
+
+    public function testAStripOfTabsInsideAWizardIsOneComplaint(): void
+    {
+        // GIVEN the mistake written in the way that could be reported twice: the
+        // strip cannot be there, and the step it is in then holds a container
+        // whose panels nothing would ever open
+        $document = ['engine' => 'core-html', 'items' => [
+            ['widget' => 'wizard', 'items' => [
+                ['widget' => 'step', 'items' => [
+                    ['widget' => 'tabs', 'items' => [['widget' => 'tab', 'items' => [['name' => 'email']]]]],
+                ]],
+            ]],
+            ['widget' => 'confirm'],
+        ]];
+
+        // WHEN
+        try {
+            self::processor()->parse($document);
+            self::fail('Expected PresentationNotValid.');
+        } catch (PresentationNotValid $refused) {
+            // THEN it is said once, where the strip that cannot be there sits
+            self::assertCount(1, $refused->report->errors);
+            self::assertSame('presentation.tabs.nested', $refused->report->errors[0]->code);
+            self::assertSame('/items/0/items/0/items/0/widget', $refused->report->errors[0]->pointer->toString());
+        }
     }
 
     public function testAWizardInsideAWizardIsOneComplaint(): void

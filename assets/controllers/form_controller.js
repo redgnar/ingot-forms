@@ -645,7 +645,7 @@ export default class extends Controller {
         // there: a control on a hidden page cannot take it. Said at the control,
         // because whichever wizard holds it is the one that has to move — and
         // this controller does not know how one steps.
-        slot.dispatchEvent(new CustomEvent('wizard:reveal', { bubbles: true }));
+        slot.dispatchEvent(new CustomEvent('pager:reveal', { bubbles: true }));
 
         for (let form = slot.closest('details'); form !== null; form = form.parentElement?.closest('details') ?? null) {
             form.open = true;

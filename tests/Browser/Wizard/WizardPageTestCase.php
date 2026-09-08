@@ -147,7 +147,7 @@ abstract class WizardPageTestCase extends PantherTestCase
         self::assertFalse($this->disabled('[data-wizard-next]'));
 
         // WHEN somebody goes to the last page by pressing its mark
-        $this->click('[data-wizard-mark="3"]');
+        $this->click('[data-page-mark="3"]');
 
         // THEN there is nothing beyond it, and the words say as much
         self::assertTrue($this->eventually(fn(): ?bool => $this->disabled('[data-wizard-next]') ? true : null));
@@ -159,7 +159,7 @@ abstract class WizardPageTestCase extends PantherTestCase
      */
     final protected function steps(): array
     {
-        return array_values($this->browser->findElements(WebDriverBy::cssSelector('[data-wizard] [data-step]')));
+        return array_values($this->browser->findElements(WebDriverBy::cssSelector('[data-pager] [data-page]')));
     }
 
     /** Which page is being drawn, as its index among all of them. */
@@ -178,7 +178,7 @@ abstract class WizardPageTestCase extends PantherTestCase
     final protected function marked(): int
     {
         return \count(array_filter(
-            $this->browser->findElements(WebDriverBy::cssSelector('[data-wizard-mark]')),
+            $this->browser->findElements(WebDriverBy::cssSelector('[data-page-mark]')),
             static fn(WebDriverElement $mark): bool => $mark->isDisplayed(),
         ));
     }
@@ -186,7 +186,7 @@ abstract class WizardPageTestCase extends PantherTestCase
     /** The page somebody is on, as the mark that says so reads. */
     final protected function current(): string
     {
-        return trim($this->browser->findElement(WebDriverBy::cssSelector('[data-wizard-mark][aria-current="step"]'))->getText());
+        return trim($this->browser->findElement(WebDriverBy::cssSelector('[data-page-mark][aria-current="step"]'))->getText());
     }
 
     final protected function whereItSays(): string
