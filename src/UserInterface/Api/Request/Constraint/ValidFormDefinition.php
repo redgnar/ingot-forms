@@ -14,10 +14,4 @@ use Symfony\Component\Validator\Constraint;
  * in one violation list with its JSON Pointer intact.
  */
 #[\Attribute(\Attribute::TARGET_PARAMETER | \Attribute::TARGET_PROPERTY)]
-final class ValidFormDefinition extends Constraint
-{
-    public function getTargets(): string
-    {
-        return self::PROPERTY_CONSTRAINT;
-    }
-}
+final class ValidFormDefinition extends Constraint {}

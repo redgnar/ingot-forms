@@ -571,9 +571,11 @@ own pointer, carrying what was sent and saying what the answers come to.
 A calculated control is drawn **read-only** and worked out again after every keystroke — the same
 mechanism as a condition and in the same place. Chains settle whichever way they are written:
 entries before the scope that reads them, and within one scope a pass per level, so a total worked
-out from another total is right at the same keystroke rather than at the next one. It is collected and sent like any other answer,
-which is why a person never meets `form.value.miscalculated`: the page does the same arithmetic
-as the server.
+out from another total is right at the same keystroke rather than at the next one. It is collected
+and sent like any other answer, so a person should never meet `form.value.miscalculated`: the page
+does the same arithmetic as the server. The page words it anyway
+(`page.refusal.miscalculated`) — one pass where a chain needed several was enough to show one
+number and send another, and a refusal somebody can reach is one the page has to be able to say.
 
 Runnable, with assertions: [`tests/_requests/11-calculated.http`](../tests/_requests/11-calculated.http).
 

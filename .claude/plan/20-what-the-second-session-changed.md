@@ -1,7 +1,7 @@
 # 20 — what one session changed, and what using it corrected
 
-Seventeen commits here and three in the library, 151 files, +15394/−559, in eleven blocks.
-Seven have plans of their own and this is the index to them; **four have none, and that is why
+Twenty commits here and three in the library, 167 files, +18306/−582, in thirteen blocks.
+Eight have plans of their own and this is the index to them; **five have none, and that is why
 this file exists** — plan [13](13-what-one-session-changed.md) was written for the same reason
 after the first long session, and the same reason held again: a block of work with no plan
 leaves no record of *why* it happened.
@@ -15,10 +15,12 @@ leaves no record of *why* it happened.
 | A signature, and a record that shows it | `52715e7` | [17](17-signature.md) |
 | Questions asked only sometimes | `bf2956b`, ingot `a725922` | [18](18-conditions.md) |
 | One form on several pages | `6457399` | [19](19-wizard.md) |
+| A number worked out rather than typed | `b32c95b` | [21](21-calculated-values.md) |
 | Refusals that name everything | ingot `72e6767`, `4bb48ca` | this file |
 | Alternatives, reported as one | ingot `cfef0b3`, `c6d5563` | this file |
 | Documentation held to the code | `6250145`, `b3aa3f3`, `ff3d929`, `9483cc1`, `b136920`, `0e0a6fd` | this file |
 | What the owner found by using it | `ffeaf81`, `a6ab1e1`, and half of the above | this file |
+| Sweeping up after the last of it | the commit that carries this line | this file |
 
 **That last row is the shape of the session.** Roadmap [10](10-what-a-vendor-offers.md)'s list is
 finished — every one of its seven entries is built — and *most of what is recorded below was not
@@ -140,9 +142,37 @@ Four things, and none of them was on a list.
 - **`schema.*` codes are named after keywords**, so the published contract can refuse under a name
   this service never wrote down. The five `form.value.*` codes are ours and are spelled out; the
   rest grow with the schema.
-- **Calculated values, a survey matrix, an embeddable renderer, offline drafts** — the remaining
-  entries of [10](10-what-a-vendor-offers.md)'s comparison table, none of them on its ordered
-  list, and each still a decision rather than a task.
+- **A survey matrix, an embeddable renderer, offline drafts, tabs, `email` and `phone` as types
+  of their own** — the remaining entries of [10](10-what-a-vendor-offers.md)'s comparison table,
+  none of them on its ordered list, and each still a decision rather than a task. Calculated
+  values were on this line until the session's last block took them off it.
+
+## Sweeping up after the last of it
+
+The block with no feature in it, and the reason it is recorded: three of the four things it found
+were **documents and configuration disagreeing with the code**, which is the same failure this
+session met six times over and the one nothing in the pipeline notices.
+
+- **Our own deprecation, logged and never read.** `ValidFormPresentation` handed `[]` to
+  `Constraint::__construct()`, which is symfony/validator 7.4's deprecated path — a constraint
+  that takes no options must hand it nothing at all. It had been in every `make docs` run for
+  weeks, at `INFO`, in JSON. Both constraints are the same minimal shape now (and
+  `ValidFormDefinition`'s `getTargets()` went with it: it restated the base class's own answer).
+- **Two variables a deployment could not know about.** `FORMS_SKIN` and `FORMS_WEBHOOK_TIMEOUT`
+  were documented in `.env.dist` — which is a developer's document — and absent from the
+  Operations chapter, which is the one whoever installs this reads. So
+  `DocumentedConfigurationTest` now holds both documents to what the code reads, in both
+  directions, because a variable nothing reads is a lie of the same size as an undocumented one.
+  It is `DocumentedWidgetsTest`'s argument applied to the other hand-written document, and it was
+  checked by taking a variable out of the chapter and watching it fail.
+- **Two sentences that survived the fix that falsified them.** Both kit documents still said a
+  chain settles in one pass, and that a person "never meets" `form.value.miscalculated` — the
+  claim the owner had disproved by meeting it. They now say *should*, and say why the page words
+  the refusal anyway.
+- **And the test byte store, which leaks by construction.** Bytes are in nobody's transaction, so
+  a rolled-back row cannot take committed bytes with it: 49 directories and 480 KB had
+  accumulated. `make storage-clean` is the sweep, `app:files:purge-temporary` is the same fact in
+  production, and `docs/architecture.md` says so now rather than leaving it to be rediscovered.
 
 ## The shape of the session, if it is worth copying
 

@@ -881,6 +881,9 @@ needs it.
   a module fetched cross-origin without it is refused by the browser with a perfectly good `200`).
   Both kits need it now: the plain kit's module moved out of `public/js/` so that it, too, follows
   the prefix and gets a digest. In dev and test the framework serves them.
+- **Deploy (how pages look):** **`FORMS_SKIN`** dresses every form whose own presentation names
+  no skin — `default`, `material`, `flatly` or `lux`. A document naming one wins, which is the
+  rule rather than a courtesy: a skin may never change what a document may say.
 - **Deploy (where the service stands):** nothing, if it stands at the root of a host or its gateway
   strips the prefix and sends `X-Forwarded-Prefix`. Otherwise **`FORMS_BASE_PATH`**, which is read
   when the container is built — so it belongs in the image or the build, and a change to it needs
@@ -888,7 +891,10 @@ needs it.
   prefix included; diff that rather than trusting the variable.
   See [Where this service is installed](#where-this-service-is-installed).
 - **Deploy (webhooks):** set **`FORMS_WEBHOOK_SECRET`** if any form is to report itself — without
-  it such a form is refused at creation. Run a worker for the delivery nudge
+  it such a form is refused at creation. **`FORMS_WEBHOOK_TIMEOUT`** (5 seconds) is how long a
+  receiver has to answer and **`FORMS_WEBHOOK_ATTEMPTS`** (12) how many refusals one notification
+  gets before it is abandoned in the queue; both are a deployment's patience with its receivers
+  rather than anything a form can ask for. Run a worker for the delivery nudge
   (`bin/console messenger:consume forms_announcements`), or don't, and let cron do it: the rows are
   the truth and the message is only a nudge. `MESSENGER_TRANSPORT_DSN` says which queue carries it
   (`doctrine://default` needs no broker; its table comes with the migrations, because nothing here
@@ -979,7 +985,11 @@ the method under test. Three habits are worth copying:
   dama wraps the test process's connection while the server commits on its own — so without that
   every run leaves its fixtures behind for good. The cleanup is `DELETE /api/manage/forms/{id}`,
   through HTTP for the reason the fixture was, and a case with its own `tearDown()` has to alias
-  the trait's and call it.
+  the trait's and call it. **Bytes are not in anybody's transaction**, so a suite that uploads
+  leaves directories in the test store whatever it deletes — a rolled-back row cannot take
+  committed bytes with it, and a directory with no row is exactly what
+  `app:files:purge-temporary` is for. `make storage-clean` is the sweep; nothing depends on it,
+  which is why it is a chore and not a step.
 - **The item catalogue is tested by a battery**, one class per type on each side of the boundary:
   what a definition may carry, and a table of values with the pointer and code each must produce.
   That table is also what proves the server never refuses what its published schema accepts.

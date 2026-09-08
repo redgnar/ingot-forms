@@ -983,7 +983,8 @@ say exactly what the engines answer, and every control must be described in `kit
 the pipeline reads Markdown, so that test is the only thing that notices — and it exists because
 both documents had already fallen behind (a whole item type, `datetime`, was missing from the
 table for as long as it has existed). A new
-port, adapter, cache, command or env var → `architecture.md`. A new **address** — or anything
+port, adapter, cache, command or env var → `architecture.md` (and an env var → `.env.dist` too,
+which `DocumentedConfigurationTest` insists on). A new **address** — or anything
 that changes what a gateway must let through — → `deploying-behind-a-gateway.md` *and* the
 example beside it, because a rule nobody can run is a rule nobody checks. A rule the model keeps
 → this file *and* whichever of those documents describes it to its reader. The README grows a line only when the
@@ -1010,3 +1011,8 @@ thing is one of the first five facts about the project.
   the local copy with an `APP_SECRET` of its own. A new variable is added to `.env.dist` (and to
   `docs/architecture.md`, which is where operations reads); adding it only to your own `.env` is
   how the next person finds out it exists by reading a stack trace.
+  **`DocumentedConfigurationTest` holds all three to each other** — every `FORMS_*`/`FILES_*` the
+  code reads must be in both documents, and every one `.env.dist` offers must be read by
+  something. It exists because two variables were readable, documented for a developer and
+  invisible to a deployment; it is the same mechanism as `DocumentedWidgetsTest`, for the same
+  reason (nothing in the pipeline reads Markdown or dotenv files).
