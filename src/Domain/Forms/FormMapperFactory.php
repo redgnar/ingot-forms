@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Forms;
 
+use App\Domain\Forms\Definition\Calculation;
+use App\Domain\Forms\Definition\CalculationShapeValidator;
+use App\Domain\Forms\Definition\CalculationsMakeSenseValidator;
 use App\Domain\Forms\Definition\CollectionCountValidator;
 use App\Domain\Forms\Definition\CollectionDepthValidator;
 use App\Domain\Forms\Definition\CollectionField;
@@ -72,6 +75,9 @@ final class FormMapperFactory
             ->withValidator(FormDefinition::class, new CollectionDepthValidator())
             ->withValidator(NumberField::class, new NumberRangeValidator())
             ->withValidator(FileField::class, new FileAcceptValidator())
+            ->withValidator(Calculation::class, new CalculationShapeValidator())
+            ->withValidator(FormDefinition::class, new CalculationsMakeSenseValidator())
+            ->withValidator(CollectionField::class, new CalculationsMakeSenseValidator())
             ->withValidator(DateField::class, new DateRangeValidator())
             ->withValidator(DateTimeField::class, new DateTimeRangeValidator())
             ->withSchema(PresentationDocument::class, Schema::fromFile(MetaSchema::Presentation->file()))

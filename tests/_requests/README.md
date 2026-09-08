@@ -30,6 +30,7 @@ These are **not** part of the PHPUnit suites (`make test` only looks at `tests/D
 | `08-files.http` | bytes in, the description echoed into the values, the download, and every way a file is refused or thrown away |
 | `09-history.http` | every accepted save, read back — and restoring one, whole or in part, as the ordinary draft save it is |
 | `10-conditions.http` | questions asked only sometimes: what a condition derives into, how it behaves **inside a list** (every row decides for itself), and every way one is refused |
+| `11-calculated.http` | numbers worked out from the answers: what the contract says, who does the arithmetic, and every way a calculation is refused |
 
 `04-state-and-expiry.http` is the one file to run by hand rather than in one go: it
 creates a form that expires in five seconds, so the last requests only answer `410`

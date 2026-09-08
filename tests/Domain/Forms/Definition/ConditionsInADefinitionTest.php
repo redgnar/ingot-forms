@@ -297,6 +297,20 @@ final class ConditionsInADefinitionTest extends TestCase
             'schema.additionalProperties',
         ];
 
+        yield 'a question asked on the strength of a total' => [
+            self::form(
+                ['type' => 'number', 'name' => 'net', 'decimals' => 2],
+                ['type' => 'number', 'name' => 'vat', 'decimals' => 2],
+                ['type' => 'number', 'name' => 'total', 'decimals' => 2, 'calculated' => ['sum' => ['net', 'vat']]],
+                // Hiding an answer changes the total, and the total changing
+                // changes the question — a page evaluating that would flap.
+                ['type' => 'text', 'name' => 'why', 'maxLength' => 40,
+                    'askedWhen' => ['item' => 'total', 'is' => 0]],
+            ),
+            '/items/3/askedWhen/item',
+            'form.condition.on-a-calculated-number',
+        ];
+
         yield 'a multiple choice compared to one of its options' => [
             self::form(
                 ['type' => 'multiselect', 'name' => 'tags', 'options' => ['urgent', 'legal']],

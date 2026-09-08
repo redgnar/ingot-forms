@@ -52,6 +52,11 @@ versioning and multi-submission forms are deliberately out of scope.
   reads like, and in which language, belongs to whatever draws the form. The definition says
   what is asked (`name`, `type`) and what an answer must satisfy — a client keys its own copy
   by the item's name.
+- **A number may be worked out rather than typed.** `calculated` on a `number` says it is a
+  `sum`, a `product` or a `count` of named answers — `over` a list to add them up entry by entry.
+  The client works it out and sends it like any other answer, and the server refuses a wrong one:
+  the total is in the document, so every reader sees the same number
+  ([calculated values](docs/configuring-forms.md#numbers-worked-out-from-the-answers)).
 - **A question may be asked only sometimes.** Any item can carry `askedWhen` and
   `requiredWhen` — a condition written as data, never as an expression: a test of another
   answer, or `all`/`any`/`none` of such tests. Both are derived into the published schema, so

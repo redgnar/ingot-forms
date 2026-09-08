@@ -23,6 +23,7 @@ page:
         format: 'This is not the shape this answer takes.'
         decimals: 'Too many decimal places for this answer.'
         range: 'This answer is outside what this form takes.'
+        miscalculated: 'This number is worked out from the other answers, and it does not match them.'
         invalid: 'This answer is not one this form takes.'
         list:
             minItems: 'At least {n} of these are needed.'

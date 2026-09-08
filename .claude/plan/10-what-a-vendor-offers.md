@@ -168,7 +168,11 @@ all; the conditional logic (2) in [18](18-conditions.md), where the split this e
 settled first is exactly the split that was built — the condition lives in the definition and is
 derived into the published schema, and no part of it is an expression; and the wizard (5) in
 [19](19-wizard.md), which was presentation-only exactly as this entry said, down to the
-definition not moving a line. **That is the whole list.** The gateway that
+definition not moving a line. **That is the whole list.** Since then the comparison table's largest remaining gap has gone too:
+*calculated values* are built in [21](21-calculated-values.md), as three words of data rather than
+an expression — and the decision that shaped them is the one this table could not see, that the
+number is **stored** and the client works it out, because a server filling members in would make
+the stored document something the client never sent. The gateway that
 ["a permission system of our own"](#what-not-to-copy-and-why) delegates to has its recipe and a
 runnable example in [09](09-access.md) — the deployment itself is still somebody's to do.
 

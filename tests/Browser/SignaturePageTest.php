@@ -31,6 +31,9 @@ final class SignaturePageTest extends PantherTestCase
 
     private HttpClientInterface $api;
 
+    /** The form this case planted, so a failure can say what the service holds for it. */
+    private ?string $signing = null;
+
     protected function setUp(): void
     {
         $this->browser = self::createPantherClient(['browser' => static::CHROME]);
@@ -317,6 +320,34 @@ final class SignaturePageTest extends PantherTestCase
         }
 
         $action->release()->perform();
+
+        // Signing is not over when the driver stops moving the mouse: a stroke
+        // has to land on the canvas, the canvas has to be encoded, and the bytes
+        // have to be uploaded before the widget holds anything. Waiting for the
+        // end of that is what a person does — you watch the signature appear and
+        // then press save — and it is what keeps this battery honest twice over.
+        //
+        // Without it, every later wait can be waiting for something that is
+        // never coming (a press that missed the canvas leaves no ink at all),
+        // and the *save* can be clicked while the page is still moving: the
+        // upload landing puts a preview where there was a progress bar, which
+        // takes the button out from under the cursor between the driver
+        // measuring it and pressing it. Both were real, and both looked like a
+        // slow machine.
+        $held = $this->eventually(function (): ?string {
+            /** @var string|null $description */
+            $description = $this->browser->executeScript(
+                "const w = document.querySelector('[data-controller~=\"file\"]');"
+                . " const ink = document.querySelector('[data-signature-target=\"pad\"]')?.toDataURL().length ?? 0;"
+                . " const held = w?.querySelector('[data-name]')?.value ?? '';"
+                . " return ink > 0 && held !== '' && w?.filePending == null ? held : null;",
+            );
+
+            return $description;
+        });
+
+        self::assertIsString($held);
+        self::assertStringContainsString('signature.png', $held);
     }
 
     /** The description the page is holding, as the text of the hidden control. */
@@ -362,7 +393,7 @@ final class SignaturePageTest extends PantherTestCase
         self::assertIsArray($body);
         self::assertIsString($body['id']);
 
-        return $this->planted($body['id']);
+        return $this->signing = $this->planted($body['id']);
     }
 
     /**
@@ -396,6 +427,12 @@ final class SignaturePageTest extends PantherTestCase
      * touches the pad). It stays generous, because a wait costs nothing when
      * things work — but a timeout here is a bug and not a slow machine.
      */
+    /** What the service holds for the form this case planted, for a failure that has to say why. */
+    private function lastPlanted(): mixed
+    {
+        return $this->signing === null ? 'nothing planted' : ($this->values($this->signing) ?? 'nothing at all');
+    }
+
     private function eventually(callable $ready, float $seconds = 20.0): mixed
     {
         $deadline = microtime(true) + $seconds;
@@ -414,6 +451,25 @@ final class SignaturePageTest extends PantherTestCase
             usleep(100_000);
         } while (microtime(true) < $deadline);
 
-        self::fail('The page did not get there within the time given.');
+        // What the page was showing when the time ran out. A signature is the
+        // longest chain in this suite and every link of it can be the one that
+        // broke — the stroke, the encoding, the upload, the save — so a failure
+        // that says only "it did not get there" is a failure somebody has to
+        // reproduce before they can read it. This is that reproduction, kept.
+        self::fail(\sprintf(
+            'The page did not get there within the time given. The form holds %s. The browser said %s. It was showing: %s',
+            json_encode($this->lastPlanted()),
+            json_encode($this->browser->getWebDriver()->manage()->getLog('browser')),
+            json_encode(
+                $this->browser->executeScript(
+                    "const w = document.querySelector('[data-controller~=\"file\"]');"
+                . " return {held: w?.querySelector('[data-name]')?.value ?? null,"
+                . " pending: w?.filePending !== null && w?.filePending !== undefined,"
+                . " said: w?.closest('[data-item]')?.querySelector('[data-error]')?.textContent?.trim() ?? null,"
+                . " problem: document.querySelector('[data-form-target=\"problemText\"]')?.textContent?.trim() ?? null,"
+                . " ink: document.querySelector('[data-signature-target=\"pad\"]')?.toDataURL().length ?? 0};",
+                ),
+            )
+        ));
     }
 }

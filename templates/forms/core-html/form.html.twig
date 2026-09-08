@@ -616,12 +616,18 @@
         {% elseif node.widget == 'checkbox' or node.widget == 'switch' %}
             <input{{ html.attributes(common|merge({'type': 'checkbox', 'checked': node.value ? true : false}))|raw }}>
         {% elseif node.widget == 'number' %}
+            {# A number worked out from other answers is not typed into: the page
+               does the arithmetic after every keystroke and sends the result like
+               any other answer. `readonly` rather than `disabled`, because a
+               disabled control is one the collector would have to know about. #}
             <input{{ html.attributes(common|merge({
                 'type': 'number',
                 'min': node.min,
                 'max': node.max,
                 'step': node.step,
                 'value': node.value,
+                'data-calculated': node.calculated,
+                'readonly': node.calculated is not null,
             }))|raw }}>
         {% elseif node.widget == 'date' %}
             <input{{ html.attributes(common|merge({'type': 'date', 'min': node.min, 'max': node.max, 'value': node.value}))|raw }}>

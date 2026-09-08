@@ -321,6 +321,89 @@ document.getElementById('form').addEventListener('click', (event) => {
     move(wizard, trigger.dataset.wizardNext !== undefined ? 1 : -1, event.isTrusted);
 });
 
+// A number worked out from the other answers.
+//
+// The client does this arithmetic and sends the result like any other answer,
+// because the server checks it rather than filling it in — so what a page shows
+// and what it saves are the same number, and a document nobody has opened in a
+// browser can still be right.
+//
+// Three words and one modifier ({@see Calculation} in the domain): `sum` and
+// `product` name answers, `count` names a list, and `over` reads the named
+// answers once per entry of that list. Nothing nests, so there is nothing to
+// parse here either.
+function worthOf(calculation, scope) {
+    const list = calculation.count ?? calculation.over ?? null;
+
+    if (list === null) return inOneScope(calculation, scope);
+
+    const entries = Array.isArray(scope[list]) ? scope[list] : [];
+
+    if (calculation.count !== undefined) return entries.length;
+
+    // Once per entry, and the results added — the same whether the entry adds or
+    // multiplies inside itself.
+    return entries.reduce((worth, entry) => worth + inOneScope(calculation, entry ?? {}), 0);
+}
+
+function inOneScope(calculation, scope) {
+    if (calculation.product !== undefined) {
+        return calculation.product.reduce((worth, name) => worth * numberIn(scope, name), 1);
+    }
+
+    return (calculation.sum ?? []).reduce((worth, name) => worth + numberIn(scope, name), 0);
+}
+
+// An answer nobody has given counts as nothing: a list somebody is still filling
+// in has entries with no amount in them, and the total of what is there so far is
+// the number to show — and the number the server expects.
+function numberIn(scope, name) {
+    return typeof scope[name] === 'number' ? scope[name] : 0;
+}
+
+// How many places to write, read off the control's own `step` — which is where
+// the definition's `decimals` already is, so nothing carries it twice.
+function placesOf(control) {
+    return (String(control.step ?? '').split('.')[1] ?? '').length;
+}
+
+// Deepest first: a line's own total is worked out before the form's total reads
+// it, and the form's total is read from the markup the line total has just been
+// written into.
+function total(scope = document.getElementById('form')) {
+    for (const list of ownLists(scope)) {
+        for (const entry of entriesOf(list)) total(entry);
+    }
+
+    const totals = [...scope.querySelectorAll('[data-calculated]')].filter(
+        (control) => listOwning(control, scope) === null,
+    );
+
+    if (totals.length === 0) return;
+
+    // A chain settles in as many passes as it is long, and the answers are read
+    // again on each of them: a total may be worked out from a number worked out
+    // *here*, in either order — `total` reads `net`, and a document is free to
+    // declare `total` first. One pass would leave the second one a keystroke
+    // behind, which is a page that shows one number and saves another. Rings are
+    // refused at creation, so this always settles.
+    for (let pass = 0; pass < totals.length; pass++) {
+        const answers = collect(scope);
+        let moved = false;
+
+        for (const control of totals) {
+            const worth = worthOf(JSON.parse(control.dataset.calculated), answers).toFixed(placesOf(control));
+
+            if (control.value !== worth) {
+                control.value = worth;
+                moved = true;
+            }
+        }
+
+        if (!moved) break;
+    }
+}
+
 // Which questions this page is asking, worked out again after every keystroke:
 // what decides a question may be an answer somebody is typing now.
 //
@@ -355,6 +438,11 @@ function ask(scope = document.getElementById('form')) {
 // per entry.
 function evaluate() {
     ask();
+    // Then the totals, and once: a condition may not be asked on the strength of
+    // a calculated number ({@see ConditionsMakeSenseValidator}), so nothing a
+    // total changes can change which questions are asked — which is what makes
+    // one pass enough rather than a loop that has to be shown to settle.
+    total();
     refreshSteppers();
 }
 

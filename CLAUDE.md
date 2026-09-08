@@ -72,6 +72,26 @@ collection (an empty list satisfies it, which is why `required` is refused there
 expression language, no `oneOf` (it reads as `any` to everybody who has not checked), no
 conditional `min`, and no cross-scope test — deliberately.
 
+**How a number can be worked out rather than typed.** A `number` may carry `calculated` — three
+words and one modifier, data like a condition and for the same reason: `sum` or `product` of named
+answers, `count` of a list's entries, and `over` naming the list those answers are read in, once
+per entry. Chains are allowed and rings are refused. **The value is stored and the client works it
+out**: the server refuses a wrong one (`CalculationsAgree`, `form.value.miscalculated`), which is
+the **third gate stricter than the published contract** — no schema can say "this equals the sum of
+that across that list", so the derived schema *describes* the calculation. A server that filled the
+member in would make the stored document something the client never sent, and one that worked it out
+at read time would make a `GET` assemble rather than serve; so the number is in the document, and
+every reader — an owner, the record, the page — sees the same one. A missing answer counts as
+nothing (a half-filled list has a total of what is there so far), and `decimals` is **required**,
+because comparing sums of binary floats exactly is a coin toss. **A calculation reaches into a list
+and a condition may not**: a condition asks about *an* answer, which in a list of three entries is
+three answers, while an aggregate asks about all of them at once — and neither may reach *out* of
+its scope. **A condition may not test a calculated number** (`form.condition.on-a-calculated-number`):
+hiding an answer changes the total and the total changes the question, so the page would flap; the
+two mechanisms are ordered instead — conditions from what somebody typed, totals afterwards, one
+pass each. Deliberately absent: division, percentages, subtraction, rounding modes, a conditional
+calculation, and anything reading another form.
+
 **How history works.** Every accepted save is kept — and a save that stores what is already
 stored is not one: the aggregate compares the documents (member order does not matter, entry
 order does) and records nothing when they say the same thing, so putting back the version

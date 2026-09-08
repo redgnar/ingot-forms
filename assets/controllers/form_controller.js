@@ -2,6 +2,46 @@ import { Controller } from '@hotwired/stimulus';
 import { withOffset } from '../moments.js';
 
 /**
+ * A number worked out from the other answers.
+ *
+ * The client does this arithmetic and sends the result like any other answer,
+ * because the server checks it rather than filling it in — so what a page shows
+ * and what it saves are the same number. Three words and one modifier: `sum` and
+ * `product` name answers, `count` names a list, and `over` reads the named
+ * answers once per entry of that list. Nothing nests, so there is nothing to
+ * parse.
+ *
+ * Outside the controller for the reason `holds` is: it is about a document rather
+ * than about a page, and the plain kit has the same thirty lines of its own.
+ */
+function worthOf(calculation, scope) {
+    const list = calculation.count ?? calculation.over ?? null;
+
+    if (list === null) return inOneScope(calculation, scope);
+
+    const entries = Array.isArray(scope[list]) ? scope[list] : [];
+
+    if (calculation.count !== undefined) return entries.length;
+
+    return entries.reduce((worth, entry) => worth + inOneScope(calculation, entry ?? {}), 0);
+}
+
+function inOneScope(calculation, scope) {
+    if (calculation.product !== undefined) {
+        return calculation.product.reduce((worth, name) => worth * numberIn(scope, name), 1);
+    }
+
+    return (calculation.sum ?? []).reduce((worth, name) => worth + numberIn(scope, name), 0);
+}
+
+// An answer nobody has given counts as nothing: a list somebody is still filling
+// in has entries with no amount in them, and the total of what is there so far is
+// the number to show — and the number the server expects.
+function numberIn(scope, name) {
+    return typeof scope[name] === 'number' ? scope[name] : 0;
+}
+
+/**
  * Whether a condition holds of a document.
  *
  * The same question the server asks of the same data — `Condition::holds()` in
@@ -96,9 +136,9 @@ export default class extends Controller {
 
             // Drawn by the server, which asked the same conditions of the
             // document it holds — and then filled back in from a draft nobody
-            // saved, which it could not have known about. So the questions are
-            // worked out again before anything is measured.
-            this.#ask();
+            // saved, which it could not have known about. So everything that
+            // follows an answer is worked out again before anything is measured.
+            this.#evaluate();
 
             // Whatever the page holds now — drawn by the server, or drawn and then
             // filled back in — is the baseline the next detour is measured against.
@@ -170,11 +210,11 @@ export default class extends Controller {
     touched() {
         if (this.hasSavedTarget) this.savedTarget.classList.add('d-none');
 
-        // Which questions are asked follows what has been answered, so it is
-        // worked out again after anything that changes an answer: typing,
-        // picking, ticking, and adding or removing an entry — which brings a
-        // whole scope of answers with it.
-        this.#ask();
+        // Which questions are asked, and what the numbers come to, follow what
+        // has been answered — so both are worked out again after anything that
+        // changes an answer: typing, picking, ticking, and adding or removing an
+        // entry, which brings a whole scope of answers with it.
+        this.#evaluate();
     }
 
     // Structure carries identity: what a control answers is read from where it
@@ -337,11 +377,72 @@ export default class extends Controller {
         for (let pass = 0; pass <= blocks.length; pass++) {
             if (!this.#askOnce(scope, blocks)) break;
         }
+    }
 
-        // Which pages of a wizard are worth showing follows from which questions
-        // are asked, and a whole page can be emptied by a condition. Announced
-        // rather than reached for: this controller knows nothing about stepping.
+    /**
+     * What follows an answer changing, in the order it follows: which questions
+     * are asked, then what the numbers worked out from them come to, then which
+     * pages of a wizard are worth showing.
+     *
+     * One pass each, and that is a property of the model rather than luck: a
+     * condition may not be asked on the strength of a calculated number, so
+     * nothing a total changes can change which questions are asked.
+     *
+     * Called from here rather than from inside `#ask()`, which returns early on a
+     * form that carries no conditions at all — and a form with a total and no
+     * conditions is an ordinary form.
+     */
+    #evaluate() {
+        this.#ask();
+        this.#total();
+
+        // Announced rather than reached for: this controller knows nothing about
+        // stepping.
         this.dispatch('asked', { target: document });
+    }
+
+    /**
+     * Deepest first: a line's own total is worked out before the form's total
+     * reads it, and the form's total is read from the markup the line total has
+     * just been written into.
+     */
+    #total(scope = this.element) {
+        for (const list of this.#ownLists(scope)) {
+            for (const entry of this.#entriesOf(list)) this.#total(entry);
+        }
+
+        const totals = this.controlTargets.filter(
+            (control) => scope.contains(control)
+                && control.dataset.calculated !== undefined
+                && this.#listOwning(control, scope) === null,
+        );
+
+        if (totals.length === 0) return;
+
+        // A chain settles in as many passes as it is long, and the answers are
+        // read again on each of them: a total may be worked out from a number
+        // worked out *here*, in either order — `total` reads `net`, and a
+        // document is free to declare `total` first. One pass would leave the
+        // second one a keystroke behind, which is a page that shows one number
+        // and saves another. Rings are refused at creation, so this settles.
+        for (let pass = 0; pass < totals.length; pass++) {
+            const answers = this.#collect(scope);
+            let moved = false;
+
+            for (const control of totals) {
+                // The places are read off the control's own `step`, which is
+                // where the definition's `decimals` already is.
+                const places = (String(control.step ?? '').split('.')[1] ?? '').length;
+                const worth = worthOf(JSON.parse(control.dataset.calculated), answers).toFixed(places);
+
+                if (control.value !== worth) {
+                    control.value = worth;
+                    moved = true;
+                }
+            }
+
+            if (!moved) break;
+        }
     }
 
     // Returns whether anything moved, which is what the pass above counts.

@@ -792,6 +792,8 @@
                 </p>
             </div>
         {% elseif node.widget == 'number' %}
+            {# A number worked out from other answers is not typed into ({@see
+               the plain kit, which says the same about the same attribute). #}
             <input{{ html.attributes(common|merge({
                 'type': 'number',
                 'class': 'form-control',
@@ -799,6 +801,8 @@
                 'max': node.max,
                 'step': node.step,
                 'value': node.value,
+                'data-calculated': node.calculated,
+                'readonly': node.calculated is not null,
             }))|raw }}>
         {% elseif node.widget == 'date' %}
             <input{{ html.attributes(common|merge({

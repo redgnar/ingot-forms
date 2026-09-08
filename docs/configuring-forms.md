@@ -27,6 +27,7 @@ answered is a form whose answers were given to the questions it had.
 - [Creating one](#creating-one)
 - [The definition: what is asked](#the-definition-what-is-asked)
 - [Questions asked only sometimes](#questions-asked-only-sometimes)
+- [Numbers worked out from the answers](#numbers-worked-out-from-the-answers)
 - [Files](#files)
 - [The presentation: how it is shown](#the-presentation-how-it-is-shown)
 - [One form on several pages](#one-form-on-several-pages)
@@ -122,7 +123,7 @@ because it brings rules of its own — never to tell a frontend which widget to 
 | `text` | JSON string (non-empty when required) | `maxLength`, `pattern` |
 | `select` | one of the declared options | `options` — at least one, no repeats |
 | `multiselect` | JSON array of the declared options, each at most once | `options` — at least one, no repeats; `min`, `max` — how many ticks |
-| `number` | JSON number | `min`, `max`, `decimals` |
+| `number` | JSON number | `min`, `max`, `decimals`, `calculated` |
 | `date` | `YYYY-MM-DD`, a day that exists | `min`, `max` — calendar dates, `min` no later than `max` |
 | `datetime` | RFC 3339 with an offset: `2026-03-01T14:30:00+01:00` | `min`, `max` — moments, `min` no later than `max` |
 | `checkbox` | JSON boolean | `mustBeChecked` |
@@ -476,6 +477,105 @@ what decides a question may be an answer somebody is typing now:
 - **Not conditional counting.** `min` on a list or a multiple choice is not conditional; a
   whole list can be asked for or not, and that is the whole of it.
 - **Not cross-scope.** An entry's condition cannot reach out of its entry.
+
+## Numbers worked out from the answers
+
+A `number` item may say what it is worked out from instead of being typed in. **Three words and
+one modifier**, and nothing that has to be parsed:
+
+```json
+{"type": "number", "name": "amount",  "decimals": 2, "calculated": {"product": ["quantity", "price"]}}
+{"type": "number", "name": "net",     "decimals": 2, "calculated": {"sum": ["amount"], "over": "lines"}}
+{"type": "number", "name": "total",   "decimals": 2, "calculated": {"sum": ["net", "vat"]}}
+{"type": "number", "name": "howMany", "decimals": 0, "calculated": {"count": "lines"}}
+```
+
+- **`sum`** names one answer or several; **`product`** names at least two. Both take names and
+  nothing else.
+- **`over`** makes it an aggregate: the named answers are read in *every entry* of that list and
+  the results added. Without it they are answers standing beside the calculated one.
+- **`count`** is how many entries a list holds.
+
+Those four lines are a working invoice: a line works out its own amount, the net adds the lines
+up, the total adds the vat to it, and the count says how many lines there are. Chains are fine —
+a calculated number may read another — and a ring is refused.
+
+**Deliberately absent**: division, percentages, subtraction, rounding modes, a calculation that
+depends on a condition, and anything reading another form. Every one of them is the first step of
+an expression language, and this model refuses one by name — the same reason conditions are data.
+
+### The value is stored, and the client works it out
+
+This is the part to design around. A calculated number is **a member of the values document like
+any other answer**, and the client sends it; the server refuses a wrong one with
+`form.value.miscalculated` at that member's own pointer.
+
+Why not have the server fill it in? Because the document this service stores is exactly the JSON
+that passed validation, handed back byte for byte — a server that added members would make the
+stored document something the client never sent. And why not work it out when the form is read?
+Because a `GET` serves what is stored rather than something assembled per request. So the number
+is in the document, every reader sees the same one, and nobody recomputes it: an owner reading
+`form.confirmed`, the printed record and the page all agree because there is one number.
+
+What a client that cannot add up sends: nothing. A calculated member is owed exactly like any
+other — `required` at confirmation, absent in a draft — so a half-filled form is storable and a
+*wrong* number never is.
+
+**A missing answer counts as nothing.** A list somebody is still filling in has entries with no
+price in them, and the total of what is there so far is the number the page shows and the number
+the server expects. The alternative — declining to judge until every entry is complete — would
+make a wrong total storable for as long as anything was missing.
+
+**Precision is required.** A calculated number must declare `decimals`: the comparison is decimal
+to that many places, because comparing sums of binary floats exactly is a coin toss (`0.1 + 0.2`
+is not `0.3`). It is the same rounding the `decimals` gate already does, and a question a person
+can check by hand.
+
+### Where a calculation may look
+
+A calculation names answers **declared beside it**, and with `over` it names a list beside it and
+answers **inside that list's entries**. That is the one place a rule in this service reaches into
+a scope below, and it is worth saying beside the conditions' opposite rule: a condition asks about
+*an* answer — "the amount" in a list of three entries is three answers, so the question has no
+meaning — while an aggregate asks about *all* of them at once, which is exactly why it has one.
+Neither may reach *out* of its own scope: an item inside an entry may total a list that entry
+declares and may not read the form around it.
+
+**A condition may not test a calculated number** (`form.condition.on-a-calculated-number`), and
+the reason is a loop rather than a taste: hiding an answer takes it out of the document, which
+changes the total, which changes the question, which shows the answer again. Ordering the two —
+conditions from what somebody typed, totals afterwards — is what makes a page settle in one pass.
+
+### What is refused, and where
+
+`calculated` on an item that is not a `number` is refused by the mapper at its own pointer
+(`mapping.unexpected_key`), because the member belongs to the number item. The rest, at creation:
+
+| Code | Pointer | What it means |
+|---|---|---|
+| `form.calculated.needs-decimals` | `…/decimals` | a calculated number with no precision to compare at |
+| `form.calculated.empty` | the calculation | no `sum`, no `product`, no `count` — an `over` on its own says nothing |
+| `form.calculated.ambiguous` | the calculation, or `…/over` | two of the three at once, or an `over` beside a `count` |
+| `form.calculated.unknown-item` | `…/sum`, `…/product`, `…/over` | a name that is not declared where the calculation can see it |
+| `form.calculated.not-a-list` | `…/over`, `…/count` | working across something that is not a `collection` |
+| `form.calculated.not-a-number` | `…/sum`, `…/product` | adding up or multiplying something that is not a number |
+| `form.calculated.self-reference` | `…/sum`, `…/product` | a number worked out from itself |
+| `form.calculated.cycle` | the item | a ring of them: a page working that out would never settle |
+| `mapping.min_items`, `mapping.unique_items` | the member, or the repeat | an empty `sum`, a `product` of one, or the same name twice |
+
+And on the way in, from the gate: **`form.value.miscalculated`**, in every scope, at the member's
+own pointer, carrying what was sent and saying what the answers come to.
+
+### On the page
+
+A calculated control is drawn **read-only** and worked out again after every keystroke — the same
+mechanism as a condition and in the same place. Chains settle whichever way they are written:
+entries before the scope that reads them, and within one scope a pass per level, so a total worked
+out from another total is right at the same keystroke rather than at the next one. It is collected and sent like any other answer,
+which is why a person never meets `form.value.miscalculated`: the page does the same arithmetic
+as the server.
+
+Runnable, with assertions: [`tests/_requests/11-calculated.http`](../tests/_requests/11-calculated.http).
 
 ## Files
 
@@ -1455,6 +1555,8 @@ multiple choice cannot be ticked, exactly as a text box will not take a characte
 | `form.condition.cycle` | items each waiting on the next, in a ring |
 | `form.condition.not-comparable` | a value the item could never hold |
 | `form.condition.too-deep` | combinators nested more than three deep |
+| `form.condition.on-a-calculated-number` | a question asked on the strength of a number worked out from answers |
+| `form.calculated.*` | a calculation that could never work out a number — explained one by one in [numbers worked out from the answers](#numbers-worked-out-from-the-answers) |
 
 The eight `form.condition.*` codes are explained one by one in
 [Questions asked only sometimes](#questions-asked-only-sometimes).
@@ -1497,6 +1599,7 @@ The eight `form.condition.*` codes are explained one by one in
 | `form.value.decimals` | more decimal places than the item allows — the one rule that cannot be published ([`decimals`](#the-definition-what-is-asked)) |
 | `form.value.range` | outside the item's own range |
 | `form.value.type` | not the kind of value the item holds |
+| `form.value.miscalculated` | a number that says what it is worked out from, worked out differently ([numbers worked out from the answers](#numbers-worked-out-from-the-answers)) |
 | `form.value.unknown_field` | a member the form does not declare, as that gate names it |
 | `form.value.invalid` | anything else that gate refuses |
 | `form.file.unknown` | the values name a file this form does not have |

@@ -19,6 +19,12 @@ final readonly class NumberField extends Field
         // nothing at all.
         #[Constraints(minimum: 0, maximum: 8)]
         public ?int $decimals = null,
+        /**
+         * What this number is worked out from, when it is not typed in
+         * ({@see Calculation}). The client works it out and sends it like any
+         * other answer; a wrong one is refused.
+         */
+        public ?Calculation $calculated = null,
         ?Condition $askedWhen = null,
         ?Condition $requiredWhen = null,
     ) {

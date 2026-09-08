@@ -685,6 +685,15 @@ condition left unasked is stepped over and drops off the track (its number goes 
 refusal about another page brings that page forward before the caret goes there — a message on a
 page nobody is drawing is no message at all.
 
+**A number worked out from the answers is worked out by the page.** A definition may say
+`calculated` on a `number` (see
+[numbers worked out from the answers](configuring-forms.md#numbers-worked-out-from-the-answers)),
+and both kits draw that control **read-only** and add up again after every keystroke — deepest
+first, so a line's own amount is worked out before the total that reads it, and a chain settles in
+one pass. It is collected and sent like any other answer, because the document carries the number;
+the server checks the arithmetic rather than filling it in, which is why a person never meets
+`form.value.miscalculated` — the page and the server do the same sums.
+
 **A ceiling is held before it is met.** Every maximum that would refuse a *draft* is enforced in
 the page: `maxlength` on text, `max` on a number, a dead *add* button at a list's `max`, and
 unticked options disabled at a multiple choice's `max` (the searchable one hands the number to

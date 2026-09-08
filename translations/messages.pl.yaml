@@ -19,6 +19,7 @@ page:
         format: 'Ta odpowiedź ma inny kształt niż wymagany.'
         decimals: 'Za dużo miejsc po przecinku.'
         range: 'Ta odpowiedź jest poza tym, co ten formularz przyjmuje.'
+        miscalculated: 'Ta liczba jest wyliczana z pozostałych odpowiedzi i nie zgadza się z nimi.'
         invalid: 'Tej odpowiedzi ten formularz nie przyjmuje.'
         list:
             minItems: 'Potrzebne są co najmniej {n}.'

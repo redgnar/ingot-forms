@@ -51,6 +51,7 @@ final readonly class RefusalWords
         'schema.const',
         'schema.format',
         'form.value.required',
+        'form.value.miscalculated',
         'form.value.decimals',
         'form.value.range',
         'form.value.invalid',

@@ -1,0 +1,273 @@
+# A number worked out from the other answers, instead of typed in. Three words
+# and one modifier: `sum` and `product` name answers, `count` names a list, and
+# `over` reads the named answers once per entry of that list.
+#
+# The part worth running is who does the arithmetic. **The client works the number
+# out and sends it**, and the server refuses a wrong one — because the document
+# this service stores is exactly the JSON that passed validation, so a server that
+# filled members in would hand back something the client never sent. Open the id
+# below at {{host}}/forms/{id}: the page is a client and does the same sums after
+# every keystroke, which is why nobody filling a form in ever sees the refusal.
+
+### An invoice: a line works out its own amount, the net adds the lines up, the total adds the vat.
+# @name createCalculatedForm
+POST {{host}}/api/manage/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      {
+        "type": "collection",
+        "name": "lines",
+        "min": 1,
+        "max": 9,
+        "items": [
+          { "type": "text", "name": "sku", "required": true, "maxLength": 8 },
+          { "type": "number", "name": "quantity", "required": true, "decimals": 0, "min": 1 },
+          { "type": "number", "name": "price", "required": true, "decimals": 2, "min": 0 },
+          { "type": "number", "name": "amount", "decimals": 2, "calculated": { "product": ["quantity", "price"] } }
+        ]
+      },
+      { "type": "number", "name": "net", "decimals": 2, "calculated": { "sum": ["amount"], "over": "lines" } },
+      { "type": "number", "name": "vat", "decimals": 2, "min": 0 },
+      { "type": "number", "name": "total", "decimals": 2, "calculated": { "sum": ["net", "vat"] } },
+      { "type": "number", "name": "howMany", "decimals": 0, "calculated": { "count": "lines" } }
+    ]
+  },
+  "presentation": {
+    "engine": "bootstrap",
+    "defaultLocale": "en",
+    "items": [
+      { "name": "lines", "widget": "table", "label": "t.lines", "columns": ["sku", "amount"], "items": [
+        { "name": "sku", "widget": "text", "label": "t.sku" },
+        { "name": "quantity", "widget": "number", "label": "t.qty" },
+        { "name": "price", "widget": "number", "label": "t.price" },
+        { "name": "amount", "widget": "number", "label": "t.amount" }
+      ]},
+      { "name": "net", "widget": "number", "label": "t.net" },
+      { "name": "vat", "widget": "number", "label": "t.vat" },
+      { "name": "total", "widget": "number", "label": "t.total" },
+      { "name": "howMany", "widget": "number", "label": "t.howMany" },
+      { "widget": "save", "label": "t.save" },
+      { "widget": "confirm", "label": "t.send" }
+    ],
+    "translations": {
+      "en": {
+        "t.lines": "Lines", "t.sku": "Code", "t.qty": "How many", "t.price": "Price",
+        "t.amount": "Amount", "t.net": "Net", "t.vat": "VAT", "t.total": "Total",
+        "t.howMany": "Lines in all", "t.save": "Save for later", "t.send": "Send"
+      }
+    }
+  }
+}
+
+> {%
+    client.global.set("calculatedFormId", response.body.id);
+
+    client.test("201 — a definition with calculations is an ordinary definition", function () {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+%}
+
+### The published contract says what the number is, without pretending to assert it.
+GET {{host}}/api/forms/{{calculatedFormId}}/schema
+
+> {%
+    client.test("a number with its own rules, and the calculation described", function () {
+        const net = response.body.properties.net;
+
+        client.assert(net.type === "number", "Expected an ordinary number");
+        // No JSON Schema can say "this equals the sum of that across that list",
+        // so the contract says it in words and a gate of our own asks it.
+        client.assert(net.description.indexOf("Worked out from the answers") !== -1, "Expected the calculation to be described");
+        client.assert(net.description.indexOf('{"sum":["amount"],"over":"lines"}') !== -1, "Expected the calculation itself");
+    });
+%}
+
+### Two lines, every number worked out correctly.
+PUT {{host}}/api/forms/{{calculatedFormId}}/data
+Content-Type: application/json
+
+{
+  "lines": [
+    { "sku": "A-1", "quantity": 2, "price": 10.50, "amount": 21.00 },
+    { "sku": "B-2", "quantity": 3, "price": 1.15, "amount": 3.45 }
+  ],
+  "net": 24.45,
+  "vat": 5.62,
+  "total": 30.07,
+  "howMany": 2
+}
+
+> {%
+    client.test("204 — the client added up the way the server does", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+### A total that does not add up.
+PUT {{host}}/api/forms/{{calculatedFormId}}/data
+Content-Type: application/json
+
+{ "lines": [{ "sku": "A-1", "quantity": 2, "price": 10.50, "amount": 21.00 }], "net": 20.00, "howMany": 1 }
+
+> {%
+    client.test("422 form.value.miscalculated, saying what it comes to", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/net", "Expected the total to be named");
+        client.assert(response.body.errors[0].code === "form.value.miscalculated", "Expected form.value.miscalculated");
+        client.assert(response.body.errors[0].message.indexOf("21.00") !== -1, "Expected the message to say the answer");
+    });
+%}
+
+### A line that multiplies wrongly — named inside its own entry.
+PUT {{host}}/api/forms/{{calculatedFormId}}/data
+Content-Type: application/json
+
+{ "lines": [{ "sku": "A-1", "quantity": 3, "price": 1.15, "amount": 3.44 }] }
+
+> {%
+    client.test("422 at /lines/0/amount", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/lines/0/amount", "Expected the line to be named");
+        client.assert(response.body.errors[0].code === "form.value.miscalculated", "Expected form.value.miscalculated");
+    });
+%}
+
+### A draft owes no total at all, and totals what is there so far.
+PUT {{host}}/api/forms/{{calculatedFormId}}/data
+Content-Type: application/json
+
+{ "lines": [{ "sku": "A-1", "quantity": 2 }], "net": 0, "howMany": 1 }
+
+> {%
+    client.test("204 — an answer nobody has given counts as nothing", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}
+
+### A calculated number with no precision to compare at.
+POST {{host}}/api/manage/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "number", "name": "a", "decimals": 2 },
+      { "type": "number", "name": "b", "decimals": 2 },
+      { "type": "number", "name": "total", "calculated": { "sum": ["a", "b"] } }
+    ]
+  }
+}
+
+> {%
+    client.test("422 form.calculated.needs-decimals", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/definition/items/2/decimals", "Expected the member to be named");
+        // Comparing sums of binary floats exactly is a coin toss: 0.1 + 0.2 is
+        // not 0.3 in any of the languages this document will be read by.
+        client.assert(response.body.errors[0].code === "form.calculated.needs-decimals", "Expected form.calculated.needs-decimals");
+    });
+%}
+
+### Adding up something that is not a number.
+POST {{host}}/api/manage/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "text", "name": "note", "maxLength": 8 },
+      { "type": "number", "name": "total", "decimals": 2, "calculated": { "sum": ["note"] } }
+    ]
+  }
+}
+
+> {%
+    client.test("422 form.calculated.not-a-number", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].pointer === "/definition/items/1/calculated/sum", "Expected the calculation to be named");
+        client.assert(response.body.errors[0].code === "form.calculated.not-a-number", "Expected form.calculated.not-a-number");
+    });
+%}
+
+### A total reaching into a list it did not name.
+POST {{host}}/api/manage/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "collection", "name": "lines", "items": [{ "type": "number", "name": "amount", "decimals": 2 }] },
+      { "type": "number", "name": "net", "decimals": 2, "calculated": { "sum": ["amount"] } }
+    ]
+  }
+}
+
+> {%
+    client.test("422 — without `over`, `amount` is a name beside the total", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "form.calculated.unknown-item", "Expected form.calculated.unknown-item");
+    });
+%}
+
+### A ring: two numbers worked out from each other.
+POST {{host}}/api/manage/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "number", "name": "a", "decimals": 2, "calculated": { "sum": ["b"] } },
+      { "type": "number", "name": "b", "decimals": 2, "calculated": { "sum": ["a"] } }
+    ]
+  }
+}
+
+> {%
+    client.test("422 form.calculated.cycle — a page working that out would never settle", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        client.assert(response.body.errors[0].code === "form.calculated.cycle", "Expected form.calculated.cycle");
+    });
+%}
+
+### A question asked on the strength of a total.
+POST {{host}}/api/manage/forms
+Content-Type: application/json
+
+{
+  "expireDate": "2030-01-31T23:59:59+00:00",
+  "definition": {
+    "items": [
+      { "type": "number", "name": "net", "decimals": 2 },
+      { "type": "number", "name": "vat", "decimals": 2 },
+      { "type": "number", "name": "total", "decimals": 2, "calculated": { "sum": ["net", "vat"] } },
+      { "type": "text", "name": "why", "maxLength": 40, "askedWhen": { "item": "total", "is": 0 } }
+    ]
+  }
+}
+
+> {%
+    client.test("422 form.condition.on-a-calculated-number", function () {
+        client.assert(response.status === 422, "Expected 422, got " + response.status);
+        // Hiding an answer changes the total, and the total changing changes the
+        // question: a page evaluating that would flap. The two are ordered
+        // instead — conditions from what somebody typed, totals afterwards.
+        client.assert(response.body.errors[0].code === "form.condition.on-a-calculated-number", "Expected form.condition.on-a-calculated-number");
+    });
+%}
+
+### Take the form away again.
+DELETE {{host}}/api/manage/forms/{{calculatedFormId}}
+
+> {%
+    client.test("204", function () {
+        client.assert(response.status === 204, "Expected 204, got " + response.status);
+    });
+%}

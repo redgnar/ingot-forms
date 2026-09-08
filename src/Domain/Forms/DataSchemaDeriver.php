@@ -339,6 +339,20 @@ final class DataSchemaDeriver
                 );
             }
 
+            // Said, not asserted, for the same reason and in the same place: no
+            // schema can state "this equals the sum of that across that list",
+            // so the contract says what the number is and a gate of our own
+            // checks that it is ({@see \App\Infrastructure\Validation\CalculationsAgree}).
+            // A client reading this knows what to send without being able to
+            // discover it from the keywords.
+            if ($field->calculated !== null) {
+                $schema['description'] = trim(\sprintf(
+                    '%s Worked out from the answers: %s. Not stated as a rule: JSON Schema cannot express an aggregate.',
+                    $schema['description'] ?? '',
+                    json_encode($field->calculated->document(), \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES),
+                ));
+            }
+
             if ($field->min !== null) {
                 $schema['minimum'] = $field->min;
             }

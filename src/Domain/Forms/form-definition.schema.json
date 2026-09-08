@@ -21,11 +21,23 @@
                 "type": {"type": "string", "minLength": 1},
                 "name": {"type": "string", "minLength": 1},
                 "required": {"type": "boolean"},
+                "calculated": {"$ref": "#/$defs/calculation"},
                 "askedWhen": {"$ref": "#/$defs/condition"},
                 "requiredWhen": {"$ref": "#/$defs/condition"},
                 "items": {"$ref": "#/$defs/items"}
             },
             "additionalProperties": true
+        },
+        "calculation": {
+            "description": "What a number is worked out from: \"sum\" or \"product\" of named answers, or \"count\" of a list's entries, with \"over\" naming the list they are read in. Exactly one of the three, which item may be named where, and that a calculated number declares its decimals are semantic rules, reported with form.calculated.* codes.",
+            "type": "object",
+            "properties": {
+                "sum": {"type": "array", "items": {"type": "string", "minLength": 1}},
+                "product": {"type": "array", "items": {"type": "string", "minLength": 1}},
+                "count": {"type": "string", "minLength": 1},
+                "over": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
         },
         "condition": {
             "description": "When a question is asked, or when its answer is owed. One object is either a test of one item or one combinator of other conditions; which members may stand together, how deep combinators may nest, and whether an item can hold the value it is compared to are semantic rules, reported with form.condition.* codes.",

@@ -154,7 +154,23 @@ final class ConditionsMakeSenseValidator implements ObjectValidator
         array &$mentions,
     ): void {
         $mentions[$owner->name] = [...$mentions[$owner->name] ?? [], $about->name];
-        $this->refuseWhatCannotBeCompared($condition, $about, $path, $context);
+
+        // A number worked out from other answers cannot decide which questions
+        // are asked, and the reason is a loop rather than a taste: hiding an
+        // answer takes it out of the document, which changes the number, which
+        // changes the question, which shows the answer again. A page evaluating
+        // that would flap, and the two mechanisms are ordered exactly so that it
+        // cannot — conditions from what somebody typed, totals afterwards.
+        if ($about instanceof NumberField && $about->calculated !== null) {
+            $context->addError(
+                $path . '/item',
+                'form.condition.on-a-calculated-number',
+                \sprintf('Item "%s" is worked out from other answers, so it cannot decide which questions are asked.', $about->name),
+                $about->name,
+            );
+        } else {
+            $this->refuseWhatCannotBeCompared($condition, $about, $path, $context);
+        }
     }
 
     private function refuseWhatCannotBeCompared(

@@ -44,6 +44,7 @@ final class StagedValuesValidator implements ValuesValidator
         private readonly SymfonyFormValues $form,
         private readonly UnknownFieldTypes $unknownFieldTypes,
         private readonly NumbersFitTheirPrecision $precision,
+        private readonly CalculationsAgree $calculations,
         private readonly ReferencedFilesExist $files,
     ) {}
 
@@ -100,6 +101,16 @@ final class StagedValuesValidator implements ValuesValidator
 
         if (!$precisionReport->isEmpty()) {
             return $precisionReport;
+        }
+
+        // After the precision, because a number with too many places is a
+        // different complaint and a clearer one — and because this gate rounds
+        // to those places to ask its own question. In both modes: what a number
+        // is worked out from is a rule about the value.
+        $calculationReport = $this->calculations->validate($model, $values);
+
+        if (!$calculationReport->isEmpty()) {
+            return $calculationReport;
         }
 
         // Both contracts hold in both modes: a draft naming a file that is not

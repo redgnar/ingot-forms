@@ -54,6 +54,8 @@ final readonly class ValueNode extends PresentedNode
         /** The conditions as the documents they were written as, for a page to ask again after every keystroke — null when there are none. */
         public ?string $askedWhen = null,
         public ?string $requiredWhen = null,
+        /** What this number is worked out from, as the document it was written as — null for one somebody types. */
+        public ?string $calculated = null,
     ) {
         parent::__construct('value', $widget, $label, $hint, $options);
     }

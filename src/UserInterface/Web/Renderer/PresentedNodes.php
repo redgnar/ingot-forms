@@ -215,6 +215,13 @@ final class PresentedNodes
                 $field->askedWhen?->holds($values) ?? true,
                 self::conditionJson($field->askedWhen),
                 self::conditionJson($field->requiredWhen),
+                // A number worked out from other answers: the page does the
+                // arithmetic after every keystroke and sends the result like any
+                // other answer, because the server checks it rather than filling
+                // it in ({@see \App\Infrastructure\Validation\CalculationsAgree}).
+                $field instanceof NumberField && $field->calculated !== null
+                    ? json_encode($field->calculated->document(), \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES)
+                    : null,
             );
         }
 

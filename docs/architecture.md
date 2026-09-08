@@ -449,6 +449,15 @@ would be a different question. What still arrives in two rounds is a scope reach
 `properties`/`items`: inside a list entry, an answer the entry always owes is reported before a
 conditional one in the same entry.
 
+4. the **calculations** (`CalculationsAgree`) — every `number` that says what it is worked out
+   from is worked out again from the same document and compared, rounded to the places the item
+   declares. Findings carry `form.value.miscalculated`, at the member's own pointer, in every
+   scope. This is the **third place the server is stricter than its published contract**, and the
+   reason is the same as the other two: no schema can state "this equals the sum of that across
+   that list". The client works the number out and sends it, because a server that filled the
+   member in would make the stored document something the client never sent — and the page is a
+   client, so it does the same arithmetic after every keystroke.
+
 Values refused by the schema never reach the form: on this project's example definition the
 schema answers in ~60 µs where building and running the form costs ~670 µs, so a payload
 that was never going to fit is rejected without that work. The store is asked last, so
@@ -568,6 +577,17 @@ nothing moves: a question may be asked on the strength of an answer to a questio
 being asked, and an unasked answer is no answer at all. A ring is refused at creation, so it
 always settles. `data-unasked` is the fact the collector reads, which is what keeps a page from
 ever producing a document the schema's `else` would refuse.
+
+**A number worked out from the answers is worked out on the page too**, and in a fixed order:
+conditions first, then the totals, then which pages of a wizard are worth showing. One pass each,
+and that is a property of the model rather than luck — a condition may not be asked on the
+strength of a calculated number (`form.condition.on-a-calculated-number`), so nothing a total
+changes can change which questions are asked. Within the totals it is deepest first — a line's own
+amount before the scope that reads it — and inside one scope a pass per level, because a total may
+be worked out from a total and a document may declare them in either order; it terminates because
+rings are refused at creation. The control is `readonly` and carries
+`data-calculated`; the places to write are read off its own `step`, which is where the
+definition's `decimals` already is.
 
 **A wizard is presentation, and the invariant that says so is in the markup.** `wizard` and
 `step` are container widgets both kits declare (the first two containers they share: a fieldset
