@@ -18,6 +18,7 @@ leaves no record of *why* it happened.
 | A number worked out rather than typed | `b32c95b` | [21](21-calculated-values.md) |
 | One form in sections, side by side | `cf58565` | [22](22-tabs.md) |
 | An address and a number, as types | `8b6e2b9` | [23](23-email-and-phone.md) |
+| The same form, on paper | the commit that carries this line | [24](24-on-paper.md) |
 | Refusals that name everything | ingot `72e6767`, `4bb48ca` | this file |
 | Alternatives, reported as one | ingot `cfef0b3`, `c6d5563` | this file |
 | Documentation held to the code | `6250145`, `b3aa3f3`, `ff3d929`, `9483cc1`, `b136920`, `0e0a6fd` | this file |
@@ -202,6 +203,24 @@ client because nothing here reformats what it was sent.
 It also found a guard not guarding: `DocumentedWidgetsTest` asks its questions of a **hand-written**
 list of item types, so a new type was invisible to the test that exists to notice exactly that. It
 now reads the union's own discriminator map and fails when the two lists differ.
+
+## The same form, on paper
+
+Recorded in [24](24-on-paper.md), and it is the block where **the caveat I raised turned out to be
+wrong**, which is worth more than the feature. I said out loud that a print stylesheet was the one
+thing here with no test story, because WebDriver cannot emulate a medium. It can: Chrome's protocol
+does, chromedriver exposes it, and `matchMedia('print')` answers true afterwards — so eight tests
+now ask a real browser what it would put on paper. The rest of the block was three measurements
+that each contradicted a rule I had already written: no CSS opens a folded `details` (four rules
+tried, `::details-content` included), a Bootstrap background utility is `!important` on a class so
+an element selector loses however late it comes, and an emulated medium outlives the test that set
+it — Panther keeps one browser, so the first case that asked for paper laid every later case out
+for paper too.
+
+The design half worth keeping is one convention instead of two lists: everything that *acts*
+rather than says something is marked `data-chrome` in the markup, so the sheet is one rule per kit
+and the next widget that draws a button is covered by the marker rather than by somebody
+remembering to extend a selector list.
 
 ## The shape of the session, if it is worth copying
 

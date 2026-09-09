@@ -30,6 +30,7 @@ page:
         dark: 'Ciemne kolory'
         contrast: 'Wysoki kontrast'
         text: 'Większy tekst'
+        print: 'Drukuj'
     stepper:
         less: 'Mniej'
         more: 'Więcej'

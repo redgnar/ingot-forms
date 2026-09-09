@@ -1189,6 +1189,17 @@ Two places in the document, and both are optional. This is the whole of it:
 The same two widgets work in `core-html`, minus the row (that kit groups with `fieldset` only,
 so they stack).
 
+Beside the three switches, both kits draw a **Print** button in the same panel. It is not a
+switch and nothing about it is remembered — a printed page is asked for once — and what it
+produces is a sheet written for paper: every part of a paged form on it (a wizard's pages and a
+strip's panels are all in the markup, and printing one of five would be a lie about what the form
+holds), folded groups opened, the palette forced to ink on white whatever the reader chose, the
+switches and triggers gone, and a question nobody was asked still off the paper. `Ctrl+P` gets
+the same sheet; the button is there because that shortcut is one a page cannot advertise. It is
+not the [archival record](#the-record-of-a-confirmed-form), which is a confirmed form laid out on
+the management side — this is the form in front of a person, printed to fill in by hand or to
+keep.
+
 Both kits draw all three switches folded away behind one summary until somebody wants them — the
 richer kit as toggle buttons behind an icon, the plain kit as checkboxes — and both remember the
 choice **in that browser only**. Nothing is sent to the server: this service records who filled a

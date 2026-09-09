@@ -519,7 +519,20 @@ Rules that follow from it, and that the tooling checks:
   nothing when there is only one. Both are `decorations` — they stand alone and say nothing
   about the form — and both are marked as detours, so unsaved answers travel with the reader. Contrast is **not** a skin but an overlay on top
   of whichever one the document chose: an accessibility preference outranks an aesthetic one.
-  Both kits offer all three: the richer one as a bar of buttons driven by a Stimulus
+  Beside them sits **Print**, in the same panel and for the same reason (printing is the
+  reader's affair, and `Ctrl+P` is a shortcut a page cannot advertise) — not a switch, nothing
+  remembered. What it produces is `@media print` in both kits: every `[data-page]` revealed
+  (printing one part of a paged form would be a lie about what it holds), folds opened on
+  `beforeprint` because **no stylesheet can open one** (measured, `::details-content` included),
+  the palette forced to ink on white, controls flattened to a line, and everything marked
+  `data-chrome` hidden — one markup convention rather than a list of selectors per kit, so the
+  next widget that draws a button is covered by it. `[data-unasked]` stays hidden, which is the
+  one thing print must *not* undo: a line beside a question nobody was asked reads as an answer
+  somebody withheld, exactly as the record has it. It is **not** the archival record (`GET …/pdf`),
+  and it is testable — `Emulation.setEmulatedMedia` through chromedriver's `goog/cdp/execute`
+  lays a real browser out for paper, and the medium has to be handed back in `tearDown()` because
+  Panther keeps one browser for the whole run.
+  Both kits offer all three switches: the richer one as a bar of buttons driven by a Stimulus
   controller, the plain one as radios and checkboxes its own module reads — "no machinery"
   always meant no framework, and that kit has had a hand-written module since it was born. With
   nothing chosen both fall back to `prefers-color-scheme`, `prefers-contrast` and

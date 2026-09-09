@@ -1082,6 +1082,34 @@ document.getElementById('form').addEventListener('click', (event) => {
 // is a fact about a screen and a pair of eyes rather than about a form.
 const comfort = document.querySelector('[data-comfort]');
 
+// Printing is the browser's own, and the stylesheet has already said what a page
+// looks like on paper. This is only the invitation: a reader who never learnt
+// `Ctrl+P` has no other way to find out the page prints properly.
+document.querySelector('[data-comfort-print]')?.addEventListener('click', () => window.print());
+
+// A fold is a way of looking at a long page, and paper is not long in that way.
+// **No stylesheet can undo one**: the content of a closed `details` is out of
+// CSS's reach (`display`, `content-visibility` and `::details-content` were all
+// measured and all leave it hidden), so this is the one part of printing that
+// needs a line of script — and the browser's own invitation is where it belongs.
+//
+// What was folded goes back to being folded afterwards: somebody who printed a
+// page did not ask to have it rearranged.
+addEventListener('beforeprint', () => {
+    for (const folded of document.querySelectorAll('details:not([open]):not([data-chrome])')) {
+        folded.dataset.foldedBack = '';
+        folded.open = true;
+    }
+});
+
+addEventListener('afterprint', () => {
+    for (const folded of document.querySelectorAll('details[data-folded-back]')) {
+        delete folded.dataset.foldedBack;
+        folded.open = false;
+    }
+});
+
+
 if (comfort !== null) {
     const root = document.documentElement;
     // Each switch is a plain on/off: the attribute it sets on <html>, what "on"

@@ -136,7 +136,8 @@
    is, so the only place a person's own setting can live is the browser they are
    reading in. #}
 {% macro comfort() %}
-    <details class="mb-4" data-controller="comfort">
+    <details class="mb-4" data-controller="comfort" data-chrome
+             data-action="beforeprint@window->comfort#unfold afterprint@window->comfort#fold">
         {# Folded away, because three switches somebody may never touch should not
            be the first thing above every form. The browser folds it on its own,
            the way this kit folds everything else. #}
@@ -149,6 +150,12 @@
                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false"
                         data-comfort-target="{{ switch }}" data-action="comfort#{{ switch }}">{{ code|trans }}</button>
             {% endfor %}
+            {# Not a switch and nothing to remember, which is why it carries no
+               `aria-pressed`: a printed page is a thing somebody asks for once.
+               It sits here because printing is the reader's own affair, like the
+               three beside it. #}
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-comfort-print
+                    data-action="comfort#print">{{ 'page.comfort.print'|trans }}</button>
         </div>
     </details>
 {% endmacro %}
@@ -159,7 +166,7 @@
    with a single catalogue draws nothing here. #}
 {% macro language(node, chrome) %}
     {% if node.languages is not empty %}
-        <nav class="language d-flex flex-wrap align-items-center gap-2 mb-4 small" aria-label="{{ 'page.language'|trans }}">
+        <nav class="language d-flex flex-wrap align-items-center gap-2 mb-4 small" data-chrome aria-label="{{ 'page.language'|trans }}">
             {% for one in node.languages %}
                 {% if one.current %}
                     <span class="fw-semibold" aria-current="true">{{ one.text }}</span>
@@ -224,10 +231,10 @@
             {{ _self.history(node, chrome) }}
         {% elseif not readOnly %}
             {% if node.appearance == 'link' %}
-                <a href="#" class="btn btn-link px-0 me-3" data-action="click->form#{{ node.widget }}">{{ node.label }}</a>
+                <a href="#" class="btn btn-link px-0 me-3" data-action="click->form#{{ node.widget }}" data-chrome>{{ node.label }}</a>
             {% else %}
                 <button type="button" class="btn {{ node.widget == 'confirm' ? 'btn-primary' : 'btn-outline-secondary' }} me-2 mb-2 d-inline-flex align-items-center gap-2"
-                        data-action="click->form#{{ node.widget }}">
+                        data-action="click->form#{{ node.widget }}" data-chrome>
                     {%- if node.widget == 'confirm' %}{{ ux_icon('tabler:send', {class: 'icon'}) }}{% endif %}{{ node.label }}</button>
             {% endif %}
         {% endif %}
@@ -271,7 +278,7 @@
            first shape this took and wrong twice over — they looked exactly like
            the choice buttons underneath, so a control that changes the page read
            as an answer, and five pages wrapped onto a second row. #}
-        <nav class="wizard-nav" data-wizard-nav aria-label="{{ 'page.wizard.steps'|trans }}">
+        <nav class="wizard-nav" data-wizard-nav data-chrome aria-label="{{ 'page.wizard.steps'|trans }}">
             <ol class="wizard-track">
                 {% for step in steps %}
                     <li class="wizard-place">
@@ -284,7 +291,7 @@
             </ol>
         </nav>
         {# Where somebody is, for a reader who cannot see which pill is lit. #}
-        <p class="text-body-secondary small" data-wizard-status data-pager-target="status"
+        <p class="text-body-secondary small" data-wizard-status data-chrome data-pager-target="status"
            aria-live="polite">{{ 'page.wizard.status'|trans|replace({'{n}': 1, '{m}': steps|length}) }}</p>
 
         {% for step in steps %}
@@ -295,7 +302,7 @@
             </section>
         {% endfor %}
 
-        <div class="d-flex gap-2 mt-3">
+        <div class="d-flex gap-2 mt-3" data-chrome>
             <button type="button" class="btn btn-outline-secondary" data-wizard-back data-pager-target="back"
                     data-action="click->pager#back">{{ 'page.wizard.back'|trans }}</button>
             <button type="button" class="btn btn-outline-primary" data-wizard-next data-pager-target="next"
@@ -319,7 +326,7 @@
     {% set pages = node.children %}
     <div class="mb-4" data-pager="tabs" data-controller="pager"
          data-action="form:asked@document->pager#refresh pager:reveal->pager#reveal keydown->pager#steer">
-        <ul class="nav nav-tabs" role="tablist" aria-label="{{ node.label ?? 'page.tabs.sections'|trans }}">
+        <ul class="nav nav-tabs" role="tablist" data-chrome aria-label="{{ node.label ?? 'page.tabs.sections'|trans }}">
             {% for page in pages %}
                 <li class="nav-item" role="presentation">
                     <button type="button" class="nav-link tab-mark" role="tab"
@@ -381,7 +388,7 @@
                     <tr>
                         <td colspan="{{ node.columns|length + 1 }}" class="border-0">
                             <button type="button" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2"
-                                    data-action="click->entries#add" data-entries-target="add">
+                                    data-action="click->entries#add" data-entries-target="add" data-chrome>
                                 {{ ux_icon('tabler:plus', {class: 'icon'}) }}{{ 'page.entry.add'|trans }}
                             </button>
                         </td>
@@ -412,7 +419,7 @@
             <td class="text-end">
                 {% if not readOnly %}
                     <button type="button" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-2"
-                            data-action="click->entries#remove" data-entries-target="remove">
+                            data-action="click->entries#remove" data-entries-target="remove" data-chrome>
                         {{ ux_icon('tabler:minus', {class: 'icon'}) }}{{ 'page.entry.remove'|trans }}
                     </button>
                 {% endif %}
@@ -438,7 +445,7 @@
    everything; nothing is fetched until somebody opens it; and every row is a clone
    of the template below. #}
 {% macro history(node, chrome) %}
-    <details class="border rounded mb-4 bg-body"{{ chrome.version is not null ? ' open' : '' }} data-history data-controller="history"
+    <details class="border rounded mb-4 bg-body"{{ chrome.version is not null ? ' open' : '' }} data-history data-chrome data-controller="history"
              data-history-api-value="{{ chrome.api|json_encode }}" data-history-page-value="{{ chrome.page }}"
              data-action="toggle->history#opened form:saved@window->history#load">
         <summary class="px-3 py-2 fw-semibold">{{ node.label }}</summary>
@@ -815,7 +822,7 @@
                     {# How far the upload has got, said as well as drawn: a bar is
                        a picture of a number, and the number is what a screen
                        reader can read out. #}
-                    <div class="progress mt-2 d-none" data-file-target="progress">
+                    <div class="progress mt-2 d-none" data-file-target="progress" data-chrome>
                         <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
                              aria-valuenow="0" aria-label="{{ 'page.file.uploading'|trans }}"
                              data-file-target="bar" style="width: 0"></div>
@@ -827,7 +834,7 @@
                     <a data-file-target="download" data-file-download href="{{ node.download }}">{{ node.value.name ?? '' }}</a>
                     {% if not readOnly %}
                         <button type="button" class="btn btn-sm btn-outline-secondary py-0"
-                                data-action="file#forget">{{ 'page.file.remove'|trans }}</button>
+                                data-action="file#forget" data-chrome>{{ 'page.file.remove'|trans }}</button>
                     {% endif %}
                 </p>
             </div>

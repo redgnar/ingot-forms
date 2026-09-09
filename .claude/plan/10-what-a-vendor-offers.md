@@ -111,7 +111,7 @@ model. Ours states rules declaratively and **publishes them** — the per-form J
 | Collecting what nobody saved | no equivalent | **have** | A file no stored document names has no download route at all, and `app:files:purge-temporary` removes what no save ever named. |
 | PDF generation | their core business: a PDF server, a template designer, overlaying fields on an existing PDF, PDF translations, PDF Plus | **gap** | The single largest thing we do not have in any form, and the most common reason a company buys a platform like this. |
 | Cryptographic e-signature of the data | Enterprise | **gap** | We have an immutable history and a confirmation with a subject, but nothing that can be shown to a third party. |
-| Print / export one form | Enterprise print-to-PDF | **partial** | The page prints from a browser and that is the whole mechanism — no print stylesheet, no archival rendering. |
+| Print / export one form | Enterprise print-to-PDF | **partial** | The page prints from a browser and that is the whole mechanism — no print stylesheet, no archival rendering. (Both halves built since: the archival one in [16](16-the-record.md), the stylesheet in [24](24-on-paper.md) — where "prints from a browser" turned out to mean *one page of a paged form, folded groups closed, in the reader's dark colours*.) |
 
 ## Integrations and automation
 

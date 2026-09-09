@@ -274,12 +274,17 @@ stand alone, hold nothing and take no `name`.
 
 ### `comfort` — the reader's own switches
 
-- **Draws:** a `<details>` folded away, holding three checkboxes: dark colours, high contrast, larger text
+- **Draws:** a `<details>` folded away, holding three checkboxes — dark colours, high contrast,
+  larger text — and a **Print** button
 - **Options:** —
 - **Notes:** placing it is how a document decides *where* the switches go. Leaving it out is not
   how a document decides they are gone: a page with no `comfort` widget still draws them at the
   top. What they control — colours, contrast, text size — is the reader's, and a document that
   could delete the control would be deciding somebody else's contrast for them.
+  **Print** sits with them for the same reason — printing is the reader's affair, and `Ctrl+P` is
+  a shortcut a page cannot advertise — but it is not a switch and nothing about it is remembered:
+  a printed page is asked for once. What it produces is described under
+  [on paper](#on-paper) below.
 
 ### `language` — the same page, in another language
 
@@ -634,12 +639,18 @@ stand alone, hold nothing and take no `name`.
 
 ### `comfort` — the reader's own switches
 
-- **Draws:** a `<details>` folded away behind one icon, holding three toggle buttons — dark colours, high contrast, larger text ([Buttons](https://getbootstrap.com/docs/5.3/components/buttons/))
+- **Draws:** a `<details>` folded away behind one icon, holding three toggle buttons — dark colours,
+  high contrast, larger text — and a **Print** button
+  ([Buttons](https://getbootstrap.com/docs/5.3/components/buttons/))
 - **Options:** —
 - **Notes:** placing it is how a document decides *where* the switches go. Leaving it out is not
   how a document decides they are gone: a page with no `comfort` widget still draws them at the
   top. What they control — colours, contrast, text size — is the reader's, and a document that
   could delete the control would be deciding somebody else's contrast for them.
+  **Print** sits with them for the same reason — printing is the reader's affair, and `Ctrl+P` is
+  a shortcut a page cannot advertise — but it is not a switch and nothing about it is remembered:
+  a printed page is asked for once. What it produces is described under
+  [on paper](#on-paper) below.
 
 ### `language` — the same page, in another language
 
@@ -801,6 +812,24 @@ Tom Select, which owns the adding). Floors are never enforced — too few is all
 is still filling the form in, and blocking them from unticking their own answer would be a trap.
 The server still decides; this only saves a person from being told no for a reason the page could
 see coming.
+
+<a id="on-paper"></a>
+**The same form prints properly, in both kits.** `Ctrl+P` — or the **Print** button in the
+reader's own panel — gets a sheet written for paper rather than the screen as it stood. Four
+things happen, and each of them undoes something the screen was right about: **every part of the
+form is printed** (a wizard's pages and a strip's panels are all in the markup with `hidden` on
+all but one, and a printout of one part would be a lie about what the form holds), **a folded
+group is opened** and folded again afterwards, **the palette becomes ink on white** whatever the
+reader chose to look at it with, and **everything that acts disappears** — the switches, the
+triggers, the language links, the panel of earlier versions, the strip of tabs, *add*, *remove*,
+an upload's progress. All of it is marked `data-chrome` in the markup rather than listed as
+selectors, so the next widget that draws a button is covered by the marker instead of needing a
+line in a list. A control is flattened to a line, because the box is how a screen says "type
+here" and a line is what a printed blank form needs; and an entry, a group or a page is kept
+whole on one sheet. **A question nobody was asked stays off the paper**, for the reason it stays
+out of the archival record: printed with a line beside it, it reads as an answer somebody
+withheld. This is not that record — `GET /api/manage/forms/{id}/pdf` is a confirmed form laid out
+by a library, on the management side; this is the form in front of a person.
 
 **A refusal lands where it belongs.** The `errors[]` pointer names an item, so the message goes
 under that control, the entry it is in unfolds, every row on the way is marked, the control says

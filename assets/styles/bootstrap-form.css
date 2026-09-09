@@ -580,3 +580,86 @@ input.form-control[type="file"]:active {
 .nav-tabs .nav-item:has(> .tab-mark[hidden]) {
     display: none;
 }
+
+/* On paper.
+
+   A form printed from a browser is not the archival record — that is
+   `GET /api/manage/forms/{id}/pdf`, a confirmed form laid out by a library. This
+   is the other thing somebody wants: the form in front of them, either to fill in
+   by hand or to keep. The rules are the plain kit's, word for word, because paper
+   is not a place two kits should differ. */
+@media print {
+    /* Ink on white, whatever the reader chose to look at it with — and whatever
+       skin the document named. A preference about a screen is not a preference
+       about a page. */
+    :root,
+    :root[data-theme="dark"],
+    :root[data-contrast="high"] {
+        color-scheme: light;
+        --bs-body-bg: #fff;
+        --bs-body-color: #000;
+        --bs-secondary-color: #444;
+        --bs-border-color: #999;
+    }
+
+    :root[data-text="large"] {
+        font-size: 100%;
+    }
+
+    /* `body` carries `.bg-body-tertiary`, and every Bootstrap background utility
+       is `!important` on a class — so an element selector loses however late it
+       comes. The same lesson as the buttons above, in its utility form. */
+    body,
+    body.bg-body-tertiary,
+    .bg-body,
+    .bg-body-secondary,
+    .bg-body-tertiary,
+    .card,
+    .card-header,
+    .accordion-item,
+    .table {
+        background-color: #fff !important;
+        color: #000 !important;
+    }
+
+    /* Everything that acts rather than says something. One convention rather than
+       a list of selectors, because a list is what falls behind the next widget. */
+    [data-chrome] {
+        display: none !important;
+    }
+
+    /* Every part of the form, not the one that happened to be open: a wizard's
+       pages and a strip's panels are all in the markup with `hidden` on all but
+       one, which is what makes paging presentation. */
+    [data-page][hidden] {
+        display: block !important;
+    }
+
+    details:not([open]) > *:not(summary) {
+        display: revert !important;
+    }
+
+    /* A question nobody was asked stays off the paper, for the reason it stays
+       out of the record. */
+    [data-unasked] {
+        display: none !important;
+    }
+
+    /* An answer should read as an answer: the box is how a screen says "type
+       here", and a line is what a printed blank form needs. */
+    .form-control,
+    .form-select {
+        background: transparent !important;
+        border: 0 !important;
+        border-bottom: 1px solid #999 !important;
+        border-radius: 0 !important;
+        padding-left: 0 !important;
+    }
+
+    .card,
+    .accordion,
+    [data-entry],
+    tr {
+        break-inside: avoid;
+    }
+}

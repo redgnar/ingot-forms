@@ -92,6 +92,38 @@ export default class extends Controller {
         this.#remember(how.stash, wanted ? how.on : how.off);
     }
 
+    /**
+     * Printing is the browser's own, and the stylesheet has already said what a
+     * page looks like on paper. This is only the invitation: a reader who never
+     * learnt `Ctrl+P` has no other way to find out the page prints properly.
+     */
+    print() {
+        window.print();
+    }
+
+    /**
+     * A fold is a way of looking at a long page, and paper is not long in that
+     * way. **No stylesheet can undo one**: the content of a closed `details` is
+     * out of CSS's reach (`display`, `content-visibility` and
+     * `::details-content` were all measured and all leave it hidden), so this is
+     * the one part of printing that needs a line of script — on the browser's own
+     * invitation, which is where it belongs.
+     */
+    unfold() {
+        for (const folded of document.querySelectorAll('details:not([open]):not([data-chrome])')) {
+            folded.dataset.foldedBack = '';
+            folded.open = true;
+        }
+    }
+
+    /** What was folded goes back to being folded: printing is not rearranging. */
+    fold() {
+        for (const folded of document.querySelectorAll('details[data-folded-back]')) {
+            delete folded.dataset.foldedBack;
+            folded.open = false;
+        }
+    }
+
     #reflect(button, on) {
         button.setAttribute('aria-pressed', on ? 'true' : 'false');
         button.classList.toggle('active', on);

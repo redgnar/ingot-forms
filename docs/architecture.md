@@ -561,6 +561,7 @@ convention:
 | `data-page`, `data-page-mark` | one of those parts, and the thing pressed to reach it |
 | `data-wizard-nav`, `data-wizard-status` | a wizard's own chrome: the track, and where somebody is in words |
 | `data-wizard-back`, `data-wizard-next` | the two buttons a wizard draws for itself, and tabs do not |
+| `data-chrome` | this element *acts* rather than says something: a switch, a trigger, a pager's own navigation, an upload's progress. Hidden on paper, and marked rather than listed so the next widget is covered by the convention |
 | `PresentedNodes::PENDING` | the token a blank entry carries where its own scope would be |
 
 **Structure carries identity.** Values are collected scope by scope in the order entries appear,
@@ -619,6 +620,21 @@ the way to it, marks each entry it is inside so the row still says "look here" o
 up, sets `aria-invalid` on the control, and moves the caret there. A page of a pager hides a
 message the same way, so the refusal brings that page forward first — said at the control
 (`pager:reveal`), because whichever pager holds it is the one that has to move.
+
+**The same page prints, and the sheet that says how is short because of one convention.** No
+print styles existed until [24](../.claude/plan/24-on-paper.md): `Ctrl+P` printed the screen as it
+stood, which for a paged form meant one part of it. `@media print` in both kits now reveals every
+`[data-page]`, forces the palette to ink on white whatever the reader chose, flattens a control to
+a line, keeps an entry whole on a sheet, and hides everything marked `data-chrome` — one rule
+instead of a list of selectors per kit. Two rules could not be written in CSS at all and are
+worth knowing about: **a question nobody was asked stays hidden** (the same rule the archival
+record keeps, and the one thing print must not undo), and **a folded `details` cannot be opened by
+a stylesheet** — measured, including `::details-content` — so each kit opens folds on
+`beforeprint` and closes them again on `afterprint`. It is testable, which was the surprise:
+Chrome's `Emulation.setEmulatedMedia` through chromedriver's `goog/cdp/execute` makes a real
+browser lay the page out for paper, and the battery asks the layout rather than the stylesheet.
+This is **not** the record (`GET …/pdf`): that is a confirmed form laid out by a library, on the
+management prefix, with the author and the confirmer on it.
 
 **A page is read in one language, and the document decides which.** What the
 framework negotiates (`?lang=`, then `Accept-Language`, then the configured default) is what the

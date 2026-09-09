@@ -34,6 +34,7 @@ page:
         dark: 'Dark colours'
         contrast: 'High contrast'
         text: 'Larger text'
+        print: 'Print'
     stepper:
         less: 'Less'
         more: 'More'
