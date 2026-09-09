@@ -1,7 +1,7 @@
 # 20 — what one session changed, and what using it corrected
 
-Twenty-five commits here and three in the library, 186 files, +21553/−619, in sixteen blocks.
-Eleven have plans of their own and this is the index to them; **five have none, and that is why
+Twenty-seven commits here and three in the library, 204 files, +22370/−656, in seventeen blocks.
+Twelve have plans of their own and this is the index to them; **five have none, and that is why
 this file exists** — plan [13](13-what-one-session-changed.md) was written for the same reason
 after the first long session, and the same reason held again: a block of work with no plan
 leaves no record of *why* it happened.
@@ -19,6 +19,7 @@ leaves no record of *why* it happened.
 | One form in sections, side by side | `cf58565` | [22](22-tabs.md) |
 | An address and a number, as types | `8b6e2b9` | [23](23-email-and-phone.md) |
 | The same form, on paper | `63661c1` | [24](24-on-paper.md) |
+| What was done to a form | `d50af77` | [25](25-what-happened-to-this-form.md) |
 | Refusals that name everything | ingot `72e6767`, `4bb48ca` | this file |
 | Alternatives, reported as one | ingot `cfef0b3`, `c6d5563` | this file |
 | Documentation held to the code | `6250145`, `b3aa3f3`, `ff3d929`, `9483cc1`, `b136920`, `0e0a6fd` | this file |
@@ -221,6 +222,21 @@ The design half worth keeping is one convention instead of two lists: everything
 rather than says something is marked `data-chrome` in the markup, so the sheet is one rule per kit
 and the next widget that draws a button is covered by the marker rather than by somebody
 remembering to extend a selector list.
+
+## What was done to a form
+
+Recorded in [25](25-what-happened-to-this-form.md). The decision worth keeping is the one that
+took the least code: **a log rather than a table**, because the entry the vendor row is really
+asking for — who deleted this form — is about a row that no longer exists, and everything a table
+would need beside it (a cascade exception, a limit, a purge, an address) is mechanism a deployment
+already has as log retention.
+
+What the building corrected was sharper than what it built. The first version read the form to
+learn whether it may name anybody, which made a form whose stored document no longer maps
+**undeletable** — and the test that said so was written for another reason entirely, long before.
+*A record of what happened may never be the reason something does not.* It also exposed a fake
+that refused what production allows, which is the one direction a fake must never be wrong in:
+the unit suite would have agreed with the bug.
 
 ## The shape of the session, if it is worth copying
 
