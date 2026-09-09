@@ -1,7 +1,7 @@
 # 20 — what one session changed, and what using it corrected
 
-Twenty-three commits here and three in the library, 181 files, +20808/−595, in fifteen blocks.
-Ten have plans of their own and this is the index to them; **five have none, and that is why
+Twenty-five commits here and three in the library, 186 files, +21553/−619, in sixteen blocks.
+Eleven have plans of their own and this is the index to them; **five have none, and that is why
 this file exists** — plan [13](13-what-one-session-changed.md) was written for the same reason
 after the first long session, and the same reason held again: a block of work with no plan
 leaves no record of *why* it happened.
@@ -18,7 +18,7 @@ leaves no record of *why* it happened.
 | A number worked out rather than typed | `b32c95b` | [21](21-calculated-values.md) |
 | One form in sections, side by side | `cf58565` | [22](22-tabs.md) |
 | An address and a number, as types | `8b6e2b9` | [23](23-email-and-phone.md) |
-| The same form, on paper | the commit that carries this line | [24](24-on-paper.md) |
+| The same form, on paper | `63661c1` | [24](24-on-paper.md) |
 | Refusals that name everything | ingot `72e6767`, `4bb48ca` | this file |
 | Alternatives, reported as one | ingot `cfef0b3`, `c6d5563` | this file |
 | Documentation held to the code | `6250145`, `b3aa3f3`, `ff3d929`, `9483cc1`, `b136920`, `0e0a6fd` | this file |
