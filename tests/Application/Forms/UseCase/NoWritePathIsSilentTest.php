@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Application\Forms\UseCase;
 
+use App\Application\Forms\Operations;
 use App\Application\Forms\UseCase\ConfirmForm;
 use App\Application\Forms\UseCase\CreateForm;
 use App\Application\Forms\UseCase\DeleteForm;
@@ -26,6 +27,7 @@ use App\Tests\Application\Forms\Fake\RecordingWebhook;
 use App\Tests\Domain\Forms\Fake\SpyParser;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 /**
  * Everything that can queue a notification asks a worker to get on with it.
@@ -88,7 +90,7 @@ final class NoWritePathIsSilentTest extends TestCase
         $announcer = new RecordingAnnouncer();
 
         // WHEN
-        new SaveFormData(new ImmediateTransactions(), $forms, new StubValues(), $announcer)($id, self::values());
+        new SaveFormData(new ImmediateTransactions(), $forms, new StubValues(), $announcer, new Operations(new NullLogger()))($id, self::values());
 
         // THEN
         self::assertSame(1, $announcer->hurried);
@@ -103,7 +105,7 @@ final class NoWritePathIsSilentTest extends TestCase
         $announcer = new RecordingAnnouncer();
 
         // WHEN
-        new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues(), $announcer)($id);
+        new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues(), $announcer, new Operations(new NullLogger()))($id);
 
         // THEN
         self::assertSame(1, $announcer->hurried);
@@ -117,7 +119,7 @@ final class NoWritePathIsSilentTest extends TestCase
         $announcer = new RecordingAnnouncer();
 
         // WHEN
-        new DeleteForm($forms, new InMemoryFileStore(), $announcer)($id);
+        new DeleteForm($forms, new InMemoryFileStore(), $announcer, new Operations(new NullLogger()))($id);
 
         // THEN — this is the one that shipped silent, and a deletion is the
         // notification an owner cannot get any other way once the form is gone
@@ -136,7 +138,7 @@ final class NoWritePathIsSilentTest extends TestCase
         $announcer = new RecordingAnnouncer();
 
         // WHEN
-        self::assertSame(1, new PurgeExpiredForms($forms, new InMemoryFileStore(), $announcer)());
+        self::assertSame(1, new PurgeExpiredForms($forms, new InMemoryFileStore(), $announcer, new Operations(new NullLogger()))());
 
         // THEN — the path that matters most, because nobody is watching it: the
         // purge is how a form goes away when nobody asked
@@ -152,6 +154,7 @@ final class NoWritePathIsSilentTest extends TestCase
             new StubValues(),
             $announcer,
             new RecordingWebhook(),
+            new Operations(new NullLogger()),
         );
     }
 

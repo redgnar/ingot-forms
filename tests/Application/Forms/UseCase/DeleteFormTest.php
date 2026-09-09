@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Application\Forms\UseCase;
 
+use App\Application\Forms\Operations;
 use App\Application\Forms\UseCase\DeleteForm;
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
@@ -17,6 +18,7 @@ use App\Tests\Application\Forms\Fake\InMemoryForms;
 use App\Tests\Application\Forms\Fake\RecordingAnnouncer;
 use App\Tests\Domain\Forms\Fake\SpyParser;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 /**
  * Deleting a form, and the order that keeps it safe: the row first, the bytes
@@ -38,7 +40,7 @@ final class DeleteFormTest extends TestCase
         $files->hold($id, $file, 'invoice.pdf', 'bytes', 'application/pdf');
 
         // WHEN
-        new DeleteForm($forms, $files, new RecordingAnnouncer())($id);
+        new DeleteForm($forms, $files, new RecordingAnnouncer(), new Operations(new NullLogger()))($id);
 
         // THEN nothing of it is left in either place
         self::assertSame(0, $files->countFor($id));
@@ -57,7 +59,7 @@ final class DeleteFormTest extends TestCase
 
         // WHEN
         try {
-            new DeleteForm($forms, $files, new RecordingAnnouncer())($id);
+            new DeleteForm($forms, $files, new RecordingAnnouncer(), new Operations(new NullLogger()))($id);
             self::fail('Expected the store to refuse.');
         } catch (\RuntimeException) {
             // THEN the row went first, so what is left over is a directory
@@ -82,7 +84,7 @@ final class DeleteFormTest extends TestCase
         // WHEN / THEN deletion sees what every read sees, and the files stay for
         // the purge
         try {
-            new DeleteForm($forms, $files, new RecordingAnnouncer())($id);
+            new DeleteForm($forms, $files, new RecordingAnnouncer(), new Operations(new NullLogger()))($id);
             self::fail('Expected FormGone.');
         } catch (FormGone) {
             self::assertSame(1, $files->countFor($id));
@@ -94,7 +96,7 @@ final class DeleteFormTest extends TestCase
         // GIVEN / WHEN / THEN
         $this->expectException(FormNotFound::class);
 
-        new DeleteForm(new InMemoryForms(), new InMemoryFileStore(), new RecordingAnnouncer())(FormId::next());
+        new DeleteForm(new InMemoryForms(), new InMemoryFileStore(), new RecordingAnnouncer(), new Operations(new NullLogger()))(FormId::next());
     }
 
     private static function plant(InMemoryForms $forms): FormId
@@ -119,7 +121,7 @@ final class DeleteFormTest extends TestCase
         $announcer = new RecordingAnnouncer();
 
         // WHEN it is deleted
-        new DeleteForm($forms, $files, $announcer)($id);
+        new DeleteForm($forms, $files, $announcer, new Operations(new NullLogger()))($id);
 
         // THEN a worker is nudged. The list of things that nudge one has to grow
         // with the list of things that queue one, and it did not: a deletion sat

@@ -8,6 +8,7 @@ use App\Application\Forms\Exception\FileBudgetSpent;
 use App\Application\Forms\Exception\FileEmpty;
 use App\Application\Forms\Exception\FileTooLarge;
 use App\Application\Forms\File\IncomingFile;
+use App\Application\Forms\Operations;
 use App\Application\Forms\UseCase\UploadFormFile;
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormLocked;
@@ -22,6 +23,7 @@ use App\Tests\Application\Forms\Fake\InMemoryForms;
 use App\Tests\Domain\Forms\Fake\SpyParser;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 /**
  * What taking bytes for a form orchestrates: the guards that decide whether
@@ -55,7 +57,7 @@ final class UploadFormFileTest extends TestCase
         $id = self::plant($forms);
 
         // WHEN bytes arrive for it
-        $descriptor = new UploadFormFile($forms, $files, 50, 1024)($id, $this->upload('invoice.pdf', 'the bytes'));
+        $descriptor = new UploadFormFile($forms, $files, 50, 1024, new Operations(new NullLogger()))($id, $this->upload('invoice.pdf', 'the bytes'));
 
         // THEN the description is the store's, and the store holds the file
         self::assertSame('invoice.pdf', $descriptor->name);
@@ -80,7 +82,7 @@ final class UploadFormFileTest extends TestCase
         // WHEN / THEN
         $this->expectException(FormLocked::class);
 
-        new UploadFormFile($forms, new InMemoryFileStore(), 50, 1024)($id, $this->upload('a.pdf', 'bytes'));
+        new UploadFormFile($forms, new InMemoryFileStore(), 50, 1024, new Operations(new NullLogger()))($id, $this->upload('a.pdf', 'bytes'));
     }
 
     public function testAnExpiredFormTakesNoBytes(): void
@@ -93,7 +95,7 @@ final class UploadFormFileTest extends TestCase
         // WHEN / THEN
         $this->expectException(FormGone::class);
 
-        new UploadFormFile($forms, new InMemoryFileStore(), 50, 1024)($id, $this->upload('a.pdf', 'bytes'));
+        new UploadFormFile($forms, new InMemoryFileStore(), 50, 1024, new Operations(new NullLogger()))($id, $this->upload('a.pdf', 'bytes'));
     }
 
     public function testThereIsNowhereToUploadToWithoutAForm(): void
@@ -101,7 +103,7 @@ final class UploadFormFileTest extends TestCase
         // GIVEN / WHEN / THEN
         $this->expectException(FormNotFound::class);
 
-        new UploadFormFile(new InMemoryForms(), new InMemoryFileStore(), 50, 1024)(FormId::next(), $this->upload('a.pdf', 'bytes'));
+        new UploadFormFile(new InMemoryForms(), new InMemoryFileStore(), 50, 1024, new Operations(new NullLogger()))(FormId::next(), $this->upload('a.pdf', 'bytes'));
     }
 
     public function testAnEmptyFileIsNotAnUpload(): void
@@ -114,7 +116,7 @@ final class UploadFormFileTest extends TestCase
         // one byte and a form must never name one that has none
         $this->expectException(FileEmpty::class);
 
-        new UploadFormFile($forms, new InMemoryFileStore(), 50, 1024)($id, $this->upload('empty.pdf', ''));
+        new UploadFormFile($forms, new InMemoryFileStore(), 50, 1024, new Operations(new NullLogger()))($id, $this->upload('empty.pdf', ''));
     }
 
     public function testMoreBytesThanTheDeploymentAcceptsAreRefused(): void
@@ -126,7 +128,7 @@ final class UploadFormFileTest extends TestCase
         // WHEN / THEN
         $this->expectException(FileTooLarge::class);
 
-        new UploadFormFile($forms, new InMemoryFileStore(), 50, 8)($id, $this->upload('a.pdf', 'nine byte'));
+        new UploadFormFile($forms, new InMemoryFileStore(), 50, 8, new Operations(new NullLogger()))($id, $this->upload('a.pdf', 'nine byte'));
     }
 
     public function testTheBoundaryOfTheCeilingIsTheCeilingItself(): void
@@ -137,7 +139,7 @@ final class UploadFormFileTest extends TestCase
         $id = self::plant($forms);
 
         // WHEN
-        $descriptor = new UploadFormFile($forms, $files, 50, 8)($id, $this->upload('a.pdf', '12345678'));
+        $descriptor = new UploadFormFile($forms, $files, 50, 8, new Operations(new NullLogger()))($id, $this->upload('a.pdf', '12345678'));
 
         // THEN the limit is reachable, not only its far side
         self::assertSame(8, $descriptor->size);
@@ -155,7 +157,7 @@ final class UploadFormFileTest extends TestCase
         // whose id somebody holds is not an unbounded place to put bytes
         $this->expectException(FileBudgetSpent::class);
 
-        new UploadFormFile($forms, $files, 1, 1024)($id, $this->upload('second.pdf', 'bytes'));
+        new UploadFormFile($forms, $files, 1, 1024, new Operations(new NullLogger()))($id, $this->upload('second.pdf', 'bytes'));
     }
 
     private static function plant(InMemoryForms $forms): FormId

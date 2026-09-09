@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Application\Forms\UseCase;
 
+use App\Application\Forms\Operations;
 use App\Application\Forms\Port\Announcer;
 use App\Application\Forms\Port\Transactions;
+use App\Domain\Forms\Exception\CarriesFindings;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\ValuesNotValid;
@@ -26,6 +28,7 @@ final class ConfirmForm
         private readonly FormRepository  $forms,
         private readonly ValuesValidator $valuesValidator,
         private readonly Announcer       $announcer,
+        private readonly Operations      $operations,
     ) {}
 
     /**
@@ -39,8 +42,17 @@ final class ConfirmForm
     {
         $this->transactions->run(function () use ($id, $confirmer, $expected): void {
             $form = $this->forms->getForUpdate($id);
-            $form->confirm($this->valuesValidator, $confirmer, $expected);
+
+            try {
+                $form->confirm($this->valuesValidator, $confirmer, $expected);
+            } catch (CarriesFindings $refused) {
+                $this->operations->refused($id, $form->identityMode(), 'confirm', self::firstCode($refused), $confirmer);
+
+                throw $refused;
+            }
+
             $this->forms->save($form);
+            $this->operations->confirmed($form, $confirmer);
         });
 
         // Committed. Whatever this form owes is a row now, so a worker is asked
@@ -50,5 +62,17 @@ final class ConfirmForm
         // happened. Failing to nudge costs latency and nothing else
         // ({@see \App\Application\Forms\Port\Announcer}).
         $this->announcer->hurry();
+    }
+    /**
+     * Which rule refused, as one word for a log line.
+     *
+     * The report itself belongs in the answer to whoever called — every finding,
+     * at its own pointer — and a log line wants the first code and nothing else:
+     * enough to see *why* saves are failing on a form, and never enough to
+     * reconstruct what somebody typed.
+     */
+    private static function firstCode(CarriesFindings $refused): string
+    {
+        return $refused->report->errors[0]->code ?? 'unknown';
     }
 }

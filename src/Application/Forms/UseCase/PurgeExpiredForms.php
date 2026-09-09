@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Forms\UseCase;
 
+use App\Application\Forms\Operations;
 use App\Application\Forms\Port\Announcer;
 use App\Application\Forms\Port\FileStore;
 use App\Domain\Forms\Port\FormRepository;
@@ -31,6 +32,7 @@ final class PurgeExpiredForms
         private readonly FormRepository $forms,
         private readonly FileStore $files,
         private readonly Announcer $announcer,
+        private readonly Operations $operations,
     ) {}
 
     /** How many forms were removed. */
@@ -45,6 +47,7 @@ final class PurgeExpiredForms
                 // be loud. The row is already gone, so nothing is lost either way
                 // and the next run starts after this form rather than before it.
                 $this->files->forget($id);
+                $this->operations->expired($id);
                 ++$purged;
             }
 

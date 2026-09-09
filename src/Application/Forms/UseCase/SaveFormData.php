@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Application\Forms\UseCase;
 
+use App\Application\Forms\Operations;
 use App\Application\Forms\Port\Announcer;
 use App\Application\Forms\Port\Transactions;
+use App\Domain\Forms\Exception\CarriesFindings;
 use App\Domain\Forms\Exception\FormLocked;
 use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\Port\FormRepository;
@@ -37,6 +39,7 @@ final class SaveFormData
         private readonly FormRepository $forms,
         private readonly ValuesValidator $valuesValidator,
         private readonly Announcer $announcer,
+        private readonly Operations $operations,
     ) {}
 
     /**
@@ -60,8 +63,21 @@ final class SaveFormData
     {
         $this->transactions->run(function () use ($id, $values, $filler, $expected): void {
             $form = $this->forms->getForUpdate($id);
-            $form->saveDraft($values, $this->valuesValidator, $filler, $expected);
+
+            try {
+                $form->saveDraft($values, $this->valuesValidator, $filler, $expected);
+            } catch (CarriesFindings $refused) {
+                // Written down here rather than where refusals are mapped onto
+                // statuses, because only this scope knows all three things a
+                // line needs: the form, whether it records anybody, and who was
+                // asserted for this request.
+                $this->operations->refused($id, $form->identityMode(), 'save', self::firstCode($refused), $filler);
+
+                throw $refused;
+            }
+
             $this->forms->save($form);
+            $this->operations->saved($form, $filler);
         });
 
         // Committed. Whatever this form owes is a row now, so a worker is asked
@@ -71,5 +87,17 @@ final class SaveFormData
         // happened. Failing to nudge costs latency and nothing else
         // ({@see \App\Application\Forms\Port\Announcer}).
         $this->announcer->hurry();
+    }
+    /**
+     * Which rule refused, as one word for a log line.
+     *
+     * The report itself belongs in the answer to whoever called — every finding,
+     * at its own pointer — and a log line wants the first code and nothing else:
+     * enough to see *why* saves are failing on a form, and never enough to
+     * reconstruct what somebody typed.
+     */
+    private static function firstCode(CarriesFindings $refused): string
+    {
+        return $refused->report->errors[0]->code ?? 'unknown';
     }
 }

@@ -51,7 +51,7 @@ none of them, which is why the "not wanted" column below is long and not defensi
 | Draft / save for later | core, plus Enterprise auto-save | **have** | `empty → draft → confirmed` with a lenient contract while filling in. Browser-side auto-save would be a thin client of the same endpoint. |
 | Collision control | Enterprise | **gap** | Our row lock means no corrupt data, but a second filler silently overwrites the first. The fix is a conditional save ("I hold revision *n*"), not a lock held across requests. |
 | Expiry and physical deletion | not in the product | **have** | `expire_date` is required, `410 Gone` past it, and `app:forms:purge-expired` deletes the row and then the bytes. |
-| Who did what | Enterprise audit and action logs | **partial** | We record author, confirmer and who entered every save (or nobody, in `anonymous`). There is no log of operations. |
+| Who did what | Enterprise audit and action logs | **partial** | We record author, confirmer and who entered every save (or nobody, in `anonymous`). There is no log of operations. (There is now: [25](25-what-happened-to-this-form.md) — a *log* and not a table, because the entry this row is really asking for is the one whose row is gone.) |
 
 ## The item catalogue
 

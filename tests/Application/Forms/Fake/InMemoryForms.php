@@ -43,6 +43,15 @@ final class InMemoryForms implements FormRepository
     {
         $form = $this->forms[(string) $id] ?? throw new FormNotFound($id);
 
+        // A stored document whose rules have moved on refuses every read, not
+        // only a collector's — which is what makes "a form nobody can read can
+        // still be deleted" a property worth a test rather than an accident.
+        if ($this->unreadable) {
+            throw new FormUnreadable($id, ErrorReport::of(
+                new MappingError(JsonPointer::fromString('/items/0/type'), 'mapping.unknown_variant', 'This type is no longer known.'),
+            ));
+        }
+
         if ($form->hasExpired(new \DateTimeImmutable())) {
             throw new FormGone($id);
         }
@@ -59,7 +68,18 @@ final class InMemoryForms implements FormRepository
 
     public function remove(FormId $id): void
     {
-        $this->get($id);
+        $form = $this->forms[(string) $id] ?? throw new FormNotFound($id);
+
+        if ($form->hasExpired(new \DateTimeImmutable())) {
+            throw new FormGone($id);
+        }
+
+        // Deliberately *not* the unreadable check above: the real adapter removes
+        // a **row** rather than an aggregate, which is what makes a form whose
+        // stored document no longer maps still something somebody can get rid
+        // of. This fake refused it until a case needed the difference, and a fake
+        // that refuses what production allows hides exactly the regression the
+        // integration suite then catches.
         unset($this->forms[(string) $id]);
     }
 

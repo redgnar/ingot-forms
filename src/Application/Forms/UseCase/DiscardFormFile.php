@@ -7,6 +7,7 @@ namespace App\Application\Forms\UseCase;
 use App\Application\Forms\Exception\FileAttached;
 use App\Application\Forms\Exception\FileMissing;
 use App\Application\Forms\File\FormFiles;
+use App\Application\Forms\Operations;
 use App\Application\Forms\Port\FileStore;
 use App\Application\Forms\Port\Transactions;
 use App\Domain\Forms\Port\FormRepository;
@@ -36,6 +37,7 @@ final class DiscardFormFile
         private readonly FormRepository $forms,
         private readonly FileStore $files,
         private readonly FormFiles $named,
+        private readonly Operations $operations,
     ) {}
 
     /**
@@ -58,6 +60,7 @@ final class DiscardFormFile
             }
 
             $this->files->delete($id, $file);
+            $this->operations->fileDiscarded($form, $file);
         });
     }
 }

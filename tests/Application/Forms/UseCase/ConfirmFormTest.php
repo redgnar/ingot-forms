@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Application\Forms\UseCase;
 
+use App\Application\Forms\Operations;
 use App\Application\Forms\UseCase\ConfirmForm;
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
@@ -19,6 +20,7 @@ use App\Tests\Application\Forms\Fake\RecordingAnnouncer;
 use App\Tests\Domain\Forms\Fake\SpyParser;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 /**
  * Confirmation is the one-way door: the stored values are judged strictly, and
@@ -37,7 +39,7 @@ final class ConfirmFormTest extends TestCase
         $forms->get($id)->saveDraft(self::values('{"email": "ada@example.com"}'), new StubValues());
 
         // WHEN
-        (new ConfirmForm(new ImmediateTransactions(), $forms, $values, new RecordingAnnouncer()))($id);
+        (new ConfirmForm(new ImmediateTransactions(), $forms, $values, new RecordingAnnouncer(), new Operations(new NullLogger())))($id);
 
         // THEN
         self::assertSame(FormStatus::Confirmed, $forms->get($id)->status());
@@ -53,7 +55,7 @@ final class ConfirmFormTest extends TestCase
         // WHEN / THEN
         $this->expectException(FormHasNoData::class);
 
-        (new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues(), new RecordingAnnouncer()))($id);
+        (new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues(), new RecordingAnnouncer(), new Operations(new NullLogger())))($id);
     }
 
     public function testConfirmingTwiceIsRefused(): void
@@ -67,7 +69,7 @@ final class ConfirmFormTest extends TestCase
         // WHEN / THEN
         $this->expectException(FormAlreadyConfirmed::class);
 
-        (new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues(), new RecordingAnnouncer()))($id);
+        (new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues(), new RecordingAnnouncer(), new Operations(new NullLogger())))($id);
     }
 
     public function testAWorkerIsAskedToGetOnWithItOnceTheFormIsClosed(): void
@@ -79,7 +81,7 @@ final class ConfirmFormTest extends TestCase
         $announcer = new RecordingAnnouncer();
 
         // WHEN it is confirmed
-        new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues(), $announcer)($id);
+        new ConfirmForm(new ImmediateTransactions(), $forms, new StubValues(), $announcer, new Operations(new NullLogger()))($id);
 
         // THEN a worker is nudged, after the write: whoever owns this form is
         // owed the news that somebody finished with it, which is the whole

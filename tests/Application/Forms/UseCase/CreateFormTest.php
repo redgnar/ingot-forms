@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Application\Forms\UseCase;
 
 use App\Application\Forms\Exception\WebhooksNotSignable;
+use App\Application\Forms\Operations;
 use App\Application\Forms\UseCase\CreateForm;
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Exception\ValuesNotValid;
@@ -22,6 +23,7 @@ use App\Tests\Application\Forms\Fake\RecordingAnnouncer;
 use App\Tests\Application\Forms\Fake\RecordingWebhook;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 /**
  * What creating a form orchestrates — and, since a form may be born holding
@@ -122,6 +124,7 @@ final class CreateFormTest extends TestCase
             new StubValues(),
             $announcer,
             new RecordingWebhook(),
+            new Operations(new NullLogger()),
         )(self::DEFINITION, self::tomorrow());
 
         // THEN a worker is still nudged. It was gated on `$data` while the only
@@ -179,6 +182,7 @@ final class CreateFormTest extends TestCase
             $values,
             new RecordingAnnouncer(),
             $webhook ?? new RecordingWebhook(),
+            new Operations(new NullLogger()),
         );
     }
 

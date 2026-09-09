@@ -927,6 +927,21 @@ needs it.
   the truth and the message is only a nudge. `MESSENGER_TRANSPORT_DSN` says which queue carries it
   (`doctrine://default` needs no broker; its table comes with the migrations, because nothing here
   creates tables at runtime).
+- **What is written down when something happens.** Beside the delivery lines below, every
+  operation that **changed** a form is a structured line on stderr, JSON like the rest:
+  `A form was created.` / `A draft was stored.` / `A form was confirmed.` / `A form was deleted.`
+  / `An expired form was collected.` / `A file was uploaded to a form.` / `A file was discarded
+  before any save named it.` at `info`, and `A change to a form was refused.` at **`warning`** —
+  somebody's work did not get stored, which is worth seeing, and nothing is broken. Each carries
+  the form's id and, depending on the line, the revision, the reason, the file id and what the
+  server measured about it, or the code that refused. **A log and not a table**, because the entry
+  anybody asks for afterwards is the one whose row is gone (who deleted this form), and because
+  retention, rotation and shipping are things a deployment already has — there is no setting here
+  and no address to read them from. Two rules bound what a line may say: **the actor follows the
+  form's own mode** (an `anonymous` form names nobody, however loudly a proxy asserted somebody —
+  a log that wrote it would rebuild what that mode exists to discard), and **no line carries what
+  anybody typed or the name of a file they attached** (a log is shipped and indexed; a filename is
+  often a person's name). `App\Application\Forms\Operations` is the one place that shapes them.
 - **Cron:** `bin/console app:webhooks:deliver` — tells whoever is owed. It is the sweep for two
   things a nudge cannot cover: a delivery whose endpoint asked to be tried later, and one whose
   nudge was lost. What it prints is worth watching rather than filing: `told` and `retried` are a

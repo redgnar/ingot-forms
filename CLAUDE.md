@@ -294,6 +294,26 @@ event. Deliberately absent: a
 deployment-wide endpoint, per-event subscriptions, `form.created` (the creator was handed the id),
 ordering guarantees, and any API for the queue.
 
+**What was done to a form is written down.** Three columns say who a form *belongs* to; every
+operation that **changed** it is a structured log line as it happens (`Operations`, over
+`psr/log`): created, saved, confirmed, deleted, expired-collected, a file uploaded or discarded at
+`info`, and a refused change at **`warning`** — somebody's work did not get stored, and nothing is
+broken. **A log and not a table**, deliberately: the entry anybody asks for afterwards is the one
+whose row is gone (*who deleted this form*), a table would either cascade and lose exactly that or
+need `webhook_announcements`' deliberate exception plus a limit, a purge, an address and a
+lifecycle, and retention is a deployment's business — the delivery lines have been written this way
+since the queue shipped, so a second mechanism for one question is drift. Two rules bound a line:
+**the actor follows the form's own mode** (an `anonymous` form names nobody however loudly a proxy
+asserted somebody — the log would otherwise rebuild what the mode exists to discard) and **nothing
+anybody typed** is in it, nor a file's name (a log is shipped and kept; a filename is often a
+person's name). A line names who did *that* operation, not who owns the form. **A refusal is
+logged in the use case** rather than where refusals are mapped onto statuses, because only there
+are the form, its mode and the asserted actor all in hand — and **the log may never be the reason
+an operation is refused**: a form whose stored document no longer maps is still deletable, so the
+mode is asked for and not insisted on (unreadable names nobody). Deliberately absent: a table, an
+address, a retention setting, a correlation id of our own, a line per read, and any line carrying
+an answer.
+
 **How a file works.** A `file` item's value is not bytes but the **description** of them —
 `{id, name, size, type}`, all four measured by the server when the upload landed and echoed
 back by the client verbatim. That is the whole design, and everything else follows: values stay

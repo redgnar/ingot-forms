@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Application\Forms\UseCase;
 
+use App\Application\Forms\Operations;
 use App\Application\Forms\UseCase\SaveFormData;
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Exception\FormLocked;
@@ -19,6 +20,7 @@ use App\Tests\Application\Forms\Fake\RecordingAnnouncer;
 use App\Tests\Domain\Forms\Fake\SpyParser;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 /**
  * What saving a draft orchestrates: one transaction, a locked read, the draft
@@ -92,7 +94,7 @@ final class SaveFormDataTest extends TestCase
         $announcer = new RecordingAnnouncer();
 
         // WHEN a draft is stored
-        new SaveFormData(new ImmediateTransactions(), $forms, new StubValues(), $announcer)($id, self::values('{"email": "ada@example.com"}'));
+        new SaveFormData(new ImmediateTransactions(), $forms, new StubValues(), $announcer, new Operations(new NullLogger()))($id, self::values('{"email": "ada@example.com"}'));
 
         // THEN a worker is nudged — once, and after the write rather than inside
         // it: a nudge handled before its transaction lands would find nothing
@@ -110,7 +112,7 @@ final class SaveFormDataTest extends TestCase
 
         // WHEN the save is refused
         try {
-            new SaveFormData(new ImmediateTransactions(), $forms, new StubValues(refuse: true), $announcer)($id, self::values('{"email": "ada@example.com"}'));
+            new SaveFormData(new ImmediateTransactions(), $forms, new StubValues(refuse: true), $announcer, new Operations(new NullLogger()))($id, self::values('{"email": "ada@example.com"}'));
             self::fail('Expected ValuesNotValid.');
         } catch (ValuesNotValid) {
             // THEN nothing was asked of a worker: the refusal left the
@@ -124,7 +126,7 @@ final class SaveFormDataTest extends TestCase
         InMemoryForms $forms,
         StubValues $values,
     ): SaveFormData {
-        return new SaveFormData($transactions, $forms, $values, new RecordingAnnouncer());
+        return new SaveFormData($transactions, $forms, $values, new RecordingAnnouncer(), new Operations(new NullLogger()));
     }
 
     private static function plant(InMemoryForms $forms): FormId

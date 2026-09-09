@@ -8,6 +8,7 @@ use App\Application\Forms\Exception\FileBudgetSpent;
 use App\Application\Forms\Exception\FileEmpty;
 use App\Application\Forms\Exception\FileTooLarge;
 use App\Application\Forms\File\IncomingFile;
+use App\Application\Forms\Operations;
 use App\Application\Forms\Port\FileStore;
 use App\Domain\Forms\Exception\FormLocked;
 use App\Domain\Forms\FormStatus;
@@ -39,6 +40,7 @@ final class UploadFormFile
         private readonly int $budget,
         /** What this deployment accepts, in bytes. */
         private readonly int $maxUpload,
+        private readonly Operations $operations,
     ) {}
 
     /**
@@ -71,6 +73,12 @@ final class UploadFormFile
             throw new FileBudgetSpent($id, $this->budget);
         }
 
-        return $this->files->put($id, FileId::next(), $upload);
+        $held = $this->files->put($id, FileId::next(), $upload);
+        // The id and what the server measured. Never the name the browser sent:
+        // a log is shipped and kept, and `contract-jan-kowalski.pdf` is a
+        // person's name in a place nobody meant to put one.
+        $this->operations->fileUploaded($form, $held->id, $held->size, (string) $held->type);
+
+        return $held;
     }
 }

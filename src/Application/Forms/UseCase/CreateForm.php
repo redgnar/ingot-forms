@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Application\Forms\UseCase;
 
 use App\Application\Forms\Exception\WebhooksNotSignable;
+use App\Application\Forms\Operations;
 use App\Application\Forms\Port\Announcer;
 use App\Application\Forms\Port\Webhook;
+use App\Domain\Forms\Exception\CarriesFindings;
 use App\Domain\Forms\Exception\DefinitionNotValid;
 use App\Domain\Forms\Exception\PresentationNotValid;
 use App\Domain\Forms\Form;
@@ -49,6 +51,7 @@ final class CreateForm
          * {@see WebhooksNotSignable}.
          */
         private readonly Webhook $webhook,
+        private readonly Operations $operations,
     ) {}
 
     /**
@@ -91,10 +94,20 @@ final class CreateForm
         // and a filler, and on this one call they are the same person: nobody
         // else has been near it yet.
         if ($data !== null) {
-            $form->saveDraft($data, $this->values, $author);
+            try {
+                $form->saveDraft($data, $this->values, $author);
+            } catch (CarriesFindings $refused) {
+                // Nothing was stored, so there is no form to name and none to
+                // ask about recording anybody: the mode this request wanted is
+                // what decides whether the author is written down.
+                $this->operations->creationRefused($identity, $refused->report->errors[0]->code ?? 'unknown', $author);
+
+                throw $refused;
+            }
         }
 
         $this->forms->add($form);
+        $this->operations->created($form, bornADraft: $data !== null);
 
         // A form that has just come into being may already owe somebody two
         // pieces of news: that it exists, and — when it was born a draft — what

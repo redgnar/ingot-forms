@@ -7,6 +7,7 @@ namespace App\Tests\Application\Forms\UseCase;
 use App\Application\Forms\Exception\FileAttached;
 use App\Application\Forms\Exception\FileMissing;
 use App\Application\Forms\File\FormFiles;
+use App\Application\Forms\Operations;
 use App\Application\Forms\UseCase\DiscardFormFile;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\FormDefinition;
@@ -24,6 +25,7 @@ use App\Tests\Application\Forms\Fake\InMemoryForms;
 use App\Tests\Domain\Forms\Fake\SpyParser;
 use App\Tests\Domain\Forms\Fake\StubValues;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 /**
  * Throwing away an upload nobody saved: what it may take, what it may not, and
@@ -182,7 +184,7 @@ final class DiscardFormFileTest extends TestCase
 
     private function discard(ImmediateTransactions $transactions, InMemoryForms $forms, InMemoryFileStore $files): DiscardFormFile
     {
-        return new DiscardFormFile($transactions, $forms, $files, new FormFiles(new FileReferences(), $this->history));
+        return new DiscardFormFile($transactions, $forms, $files, new FormFiles(new FileReferences(), $this->history), new Operations(new NullLogger()));
     }
 
     /**
