@@ -13,6 +13,11 @@ use Ingot\Attribute\Discriminator;
  */
 #[Discriminator('type', map: [
     'text' => TextField::class,
+    // Text with a shape the item owns rather than the author: an address is
+    // `format: email` — a word JSON Schema has and a `text` cannot say — and a
+    // telephone number is E.164, one canonical form for every country.
+    'email' => EmailField::class,
+    'phone' => PhoneField::class,
     'select' => SelectField::class,
     // Several of the same closed list, as one value: a set with a count, which
     // is what makes it a type of its own rather than a way of drawing a select.

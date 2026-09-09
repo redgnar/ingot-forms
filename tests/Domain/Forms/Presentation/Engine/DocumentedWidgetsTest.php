@@ -8,15 +8,18 @@ use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateTimeField;
+use App\Domain\Forms\Definition\EmailField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
+use App\Domain\Forms\Definition\PhoneField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\Presentation\Engine\BootstrapEngine;
 use App\Domain\Forms\Presentation\Engine\CoreHtmlEngine;
 use App\Domain\Forms\Presentation\Engine\PresentationEngine;
+use Ingot\Attribute\Discriminator;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -105,9 +108,31 @@ final class DocumentedWidgetsTest extends TestCase
         ]));
     }
 
+    public function testThisBatteryKnowsEveryTypeThereIs(): void
+    {
+        // GIVEN the catalogue itself: the union's own discriminator map, which is
+        // the only list of item types that cannot fall behind
+        $discriminator = new \ReflectionClass(Field::class)->getAttributes(Discriminator::class)[0] ?? null;
+        self::assertNotNull($discriminator);
+        /** @var array<string, class-string> $catalogue */
+        $catalogue = $discriminator->newInstance()->map;
+
+        // THEN this battery asks about every one of them. The list below is
+        // written by hand — an item of each type needs its own arguments — and a
+        // hand-written list is exactly what this class exists to distrust: two
+        // types went in before anybody noticed the guard was not asking about
+        // them.
+        self::assertSame(
+            array_keys($catalogue),
+            array_keys(self::items()),
+            'a type in the union that this battery does not ask about is a type no document holds it to',
+        );
+    }
+
     /**
      * One item of every kind the catalogue has — which is what "every kind of
-     * value" means to a kit.
+     * value" means to a kit. In the union's own order, because the test above
+     * compares the two lists as they stand.
      *
      * @return array<string, Field>
      */
@@ -115,14 +140,16 @@ final class DocumentedWidgetsTest extends TestCase
     {
         return [
             'text' => new TextField('a'),
+            'email' => new EmailField('k'),
+            'phone' => new PhoneField('l'),
             'select' => new SelectField('b', ['one']),
             'multiselect' => new MultiSelectField('c', ['one']),
             'number' => new NumberField('d'),
             'date' => new DateField('e'),
             'datetime' => new DateTimeField('f'),
             'checkbox' => new CheckboxField('g'),
-            'collection' => new CollectionField('h', [new TextField('i')]),
             'file' => new FileField('j', ['application/pdf'], 1024),
+            'collection' => new CollectionField('h', [new TextField('i')]),
         ];
     }
 

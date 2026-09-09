@@ -781,6 +781,20 @@ Rules that follow from it, and that the tooling checks:
   (`datetime-local` has no offset in it), so the moment travels in `data-moment*` and each kit
   turns it into the reader's own reading and back — the browser being the only party that knows
   which wall it is standing next to.
+- **Two types own their shape rather than letting an author write it.** `email` publishes
+  `format: email` **and** a pattern — the reason a `datetime` publishes one beside
+  `format: date-time`: plain Ajv ignores a format and the validators that read one differ in the
+  fringes, so the pattern is chosen so that what it accepts is what this server accepts (measured
+  over the divergent cases, none left). `phone` publishes E.164 (`^\+[1-9]\d{6,14}$`) and no
+  format, there being no word for it and a plain regex being the one thing every implementation
+  computes identically. Neither takes a `pattern` of its own (two rules about one value can come
+  to disagree), neither publishes `minLength` when required (the pattern already refuses an empty
+  string), and the second gate adds **nothing** — every rule is in the contract and enforced by
+  the first. `phone` takes no options at all: the standard settles the length, formatting is the
+  client's (nothing here parses, trims or reformats), and a national format is `text` with a
+  pattern. Deliberately absent: `region`, a phone-number library, deliverability checks, and the
+  vendor's other semantic fields (`url`, `currency`, `tags`, `address`, `day`, `time`), none of
+  which brings a rule this model cannot state.
 - **A definition says what is asked, never how it looks.** There is no presentation in it:
   `textarea` is one way to show a text item, `radio` one way to show a select, and both are
   the client's business. So an item type is added when it brings **rules of its own** — a date

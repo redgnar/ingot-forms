@@ -8,10 +8,12 @@ use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateTimeField;
+use App\Domain\Forms\Definition\EmailField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
+use App\Domain\Forms\Definition\PhoneField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\Presentation\PresentationActions;
@@ -30,6 +32,11 @@ final class CoreHtmlEngine implements PresentationEngine
     /** @var array<class-string<Field>, list<string>> */
     private const array CONTROLS = [
         TextField::class => ['text', 'textarea', 'hidden'],
+        // One widget each, named after the type: what they bring over a text box
+        // is the browser's own keyboard and its autofill, which is a consequence
+        // of the item's rule rather than a reason for it.
+        EmailField::class => ['email'],
+        PhoneField::class => ['phone'],
         SelectField::class => ['select', 'radio'],
         // Two ways of asking for several: a list of ticks, and the browser's own
         // multiple-choice list. They are different questions to answer — one

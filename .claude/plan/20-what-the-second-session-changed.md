@@ -17,6 +17,7 @@ leaves no record of *why* it happened.
 | One form on several pages | `6457399` | [19](19-wizard.md) |
 | A number worked out rather than typed | `b32c95b` | [21](21-calculated-values.md) |
 | One form in sections, side by side | `cf58565` | [22](22-tabs.md) |
+| An address and a number, as types | the commit that carries this line | [23](23-email-and-phone.md) |
 | Refusals that name everything | ingot `72e6767`, `4bb48ca` | this file |
 | Alternatives, reported as one | ingot `cfef0b3`, `c6d5563` | this file |
 | Documentation held to the code | `6250145`, `b3aa3f3`, `ff3d929`, `9483cc1`, `b136920`, `0e0a6fd` | this file |
@@ -143,10 +144,10 @@ Four things, and none of them was on a list.
 - **`schema.*` codes are named after keywords**, so the published contract can refuse under a name
   this service never wrote down. The five `form.value.*` codes are ours and are spelled out; the
   rest grow with the schema.
-- **A survey matrix, an embeddable renderer, offline drafts, `email` and `phone` as types of
-  their own** — the remaining entries of [10](10-what-a-vendor-offers.md)'s comparison table,
-  none of them on its ordered list, and each still a decision rather than a task. Calculated
-  values and tabs were on this line until the session's last blocks took them off it.
+- **A survey matrix, an embeddable renderer, offline drafts** — the remaining entries of
+  [10](10-what-a-vendor-offers.md)'s comparison table, none of them on its ordered list, and each
+  still a decision rather than a task. Calculated values, tabs, and `email` and `phone` were on
+  this line until the session's last blocks took them off it.
 
 ## Sweeping up after the last of it
 
@@ -186,6 +187,21 @@ from the answer: one mechanism under two looks is one name (`data-pager`, `data-
 `pager_controller.js`, `PagesBelongToTheirPagerValidator`), paid once here rather than doubled.
 Generalizing the rule also closed a hole nobody had noticed — a wizard inside a *page* of a
 wizard used to be accepted, because one flag was answering two questions.
+
+## An address and a number, as types
+
+Recorded in [23](23-email-and-phone.md). The interesting half was not the two types but the
+measurement they needed: `format: email` is a keyword, and this server reads it with
+`FILTER_VALIDATE_EMAIL` while a client reads it with `ajv-formats`, with plain Ajv, or not at all.
+That is the shape of mistake `multipleOf` already made here, so the pattern published beside the
+format was **chosen against the filter** — 28 strings, the fringes included, no divergences — and
+that measurement is the whole reason both rules can be published at once. `phone` went the other
+way for the same reason: E.164 as a plain regex, no format, no options, and formatting left to the
+client because nothing here reformats what it was sent.
+
+It also found a guard not guarding: `DocumentedWidgetsTest` asks its questions of a **hand-written**
+list of item types, so a new type was invisible to the test that exists to notice exactly that. It
+now reads the union's own discriminator map and fails when the two lists differ.
 
 ## The shape of the session, if it is worth copying
 

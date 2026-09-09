@@ -578,7 +578,7 @@
         'disabled': readOnly,
         'aria-required': node.required ? 'true' : null,
         'aria-describedby': (node.hint ? id ~ '-hint ' : '') ~ id ~ '-error',
-        'placeholder': node.widget in ['text', 'textarea', 'number'] ? node.placeholder : null,
+        'placeholder': node.widget in ['text', 'textarea', 'number', 'email', 'phone'] ? node.placeholder : null,
     } %}
         {% if node.widget == 'textarea' %}
             <textarea{{ html.attributes(common|merge({'rows': node.options.rows|default(4), 'maxlength': node.maxLength}))|raw }}>{{ node.value }}</textarea>
@@ -732,6 +732,19 @@
                     {% endif %}
                 </p>
             </div>
+        {% elseif node.widget == 'email' or node.widget == 'phone' %}
+            {# The type is what earns the keyboard: on a telephone `tel` draws a
+               keypad and `email` draws the `@`, and `autocomplete` makes an
+               address somebody has typed a hundred times one tap. The pattern is
+               the item's own, the same one the published schema carries. #}
+            <input{{ html.attributes(common|merge({
+                'type': node.widget == 'email' ? 'email' : 'tel',
+                'inputmode': node.widget == 'email' ? 'email' : 'tel',
+                'autocomplete': node.widget == 'email' ? 'email' : 'tel',
+                'maxlength': node.maxLength,
+                'pattern': node.pattern,
+                'value': node.value,
+            }))|raw }}>
         {% else %}
             <input{{ html.attributes(common|merge({
                 'type': node.widget == 'hidden' ? 'hidden' : 'text',

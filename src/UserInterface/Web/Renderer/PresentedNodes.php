@@ -9,10 +9,12 @@ use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\Condition;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateTimeField;
+use App\Domain\Forms\Definition\EmailField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
+use App\Domain\Forms\Definition\PhoneField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\Presentation\PresentationActions;
@@ -198,8 +200,21 @@ final class PresentedNodes
                 self::lowerBound($field),
                 self::upperBound($field),
                 $field instanceof NumberField && $field->decimals !== null ? 10 ** -$field->decimals : null,
-                $field instanceof TextField ? $field->maxLength : null,
-                $field instanceof TextField ? $field->pattern : null,
+                match (true) {
+                    $field instanceof TextField => $field->maxLength,
+                    $field instanceof EmailField => $field->maxLength,
+                    default => null,
+                },
+                // The shape a control is held to. An address and a telephone
+                // number carry the one their type owns — the same constant the
+                // derived schema publishes, so the markup and the contract
+                // cannot come to say different things.
+                match (true) {
+                    $field instanceof TextField => $field->pattern,
+                    $field instanceof EmailField => EmailField::PATTERN,
+                    $field instanceof PhoneField => PhoneField::PATTERN,
+                    default => null,
+                },
                 // What a file item wants, so the page can refuse a file that
                 // could never be stored before it uploads one — and where the
                 // bytes it already holds can be fetched from.

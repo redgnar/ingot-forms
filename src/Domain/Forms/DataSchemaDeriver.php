@@ -9,11 +9,13 @@ use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\Condition;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateTimeField;
+use App\Domain\Forms\Definition\EmailField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
+use App\Domain\Forms\Definition\PhoneField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
 use Ingot\Schema\Schema;
@@ -205,6 +207,34 @@ final class DataSchemaDeriver
             }
 
             return $schema;
+        }
+
+        if ($field instanceof EmailField) {
+            // Both, and for the reason `datetime` says both: `format` is the
+            // word a client's validator understands, and the pattern is the part
+            // every reader computes the same way — plain Ajv ignores a format
+            // altogether, and the ones that do read it read it a little
+            // differently. The pattern is chosen so that what it accepts is what
+            // this server accepts, which was measured rather than assumed.
+            //
+            // No `minLength` when required: an empty string is already refused
+            // by the pattern, and two published rules saying one thing are two
+            // places for it to drift.
+            $schema = ['type' => 'string', 'format' => 'email', 'pattern' => EmailField::PATTERN];
+
+            if ($field->maxLength !== null) {
+                $schema['maxLength'] = $field->maxLength;
+            }
+
+            return $schema;
+        }
+
+        if ($field instanceof PhoneField) {
+            // One rule and no format: JSON Schema has no word for a telephone
+            // number, and E.164 as a regular expression is the one thing every
+            // implementation computes identically. The standard caps the length,
+            // so nothing else is said here either.
+            return ['type' => 'string', 'pattern' => PhoneField::PATTERN];
         }
 
         if ($field instanceof CheckboxField) {

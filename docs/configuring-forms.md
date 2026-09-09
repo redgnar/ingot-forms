@@ -121,6 +121,8 @@ because it brings rules of its own — never to tell a frontend which widget to 
 | `type` | value on the wire | its own options |
 |---|---|---|
 | `text` | JSON string (non-empty when required) | `maxLength`, `pattern` |
+| `email` | an address: `format: email` **and** a published pattern | `maxLength` |
+| `phone` | a telephone number in E.164: `+48123456789` | none — the standard settles them |
 | `select` | one of the declared options | `options` — at least one, no repeats |
 | `multiselect` | JSON array of the declared options, each at most once | `options` — at least one, no repeats; `min`, `max` — how many ticks |
 | `number` | JSON number | `min`, `max`, `decimals`, `calculated` |
@@ -131,7 +133,25 @@ because it brings rules of its own — never to tell a frontend which widget to 
 | `file` | the description of an uploaded file: `{id, name, size, type}` | `accept` (media types, at least one, no repeats), `maxSize` — both required |
 | anything else | whatever it came as | the plugin's own keys, kept in `extras` |
 
-Seven of those say something worth spelling out:
+Nine of those say something worth spelling out:
+
+- **`email` and `phone` own their shape, which is why they are types.** Neither takes a `pattern`
+  of its own: an item that lets an author restate its shape has two rules about one value, and two
+  rules can come to disagree. `email` publishes `format: email` *and* a pattern, for the reason a
+  `datetime` publishes a pattern beside `format: date-time` — plain Ajv ignores a format
+  altogether, and the validators that read one read it a little differently. The pattern is chosen
+  so that **what it accepts is what this server accepts**: measured over the fringe cases where
+  implementations differ (`a..b@example.com`, `.a@example.com`, `a@-b.com`, `user@localhost`,
+  `"a b"@example.com`, non-ASCII letters) with no divergence, so a client checking either rule —
+  or both — is never surprised. `phone` publishes one rule, `^\+[1-9]\d{6,14}$`, and no format:
+  JSON Schema has no word for a telephone number, and a plain regex is the one thing every
+  implementation computes identically. **Neither publishes `minLength` when required**, because
+  the pattern already refuses an empty string.
+- **A `phone` is canonical or refused, and formatting is the client's job.** `+48 123 456 789`,
+  `123456789` and `0048123456789` are all refused (`schema.pattern`) — this service never parses,
+  trims or reformats what it was sent, so it stores one shape and hands back exactly that. A form
+  that wants a national format asks for `text` with a pattern of its own; there is no `region`
+  option and no phone-number library behind this.
 
 - **`decimals` bounds precision.** `0` means whole numbers and is published as JSON Schema's
   `integer`. Above zero it is the one rule this API enforces without publishing it as a rule:
@@ -1028,6 +1048,8 @@ for its type — the first in each row below.
 | Item `type` | `core-html` | `bootstrap` |
 |---|---|---|
 | `text` | `text`, `textarea`, `hidden` | `text`, `textarea`, `hidden` |
+| `email` | `email` | `email` |
+| `phone` | `phone` | `phone` |
 | `select` | `select`, `radio` | `select`, `radio`, `radio-buttons`, `autocomplete` |
 | `multiselect` | `checkboxes`, `multi-select` | `checkboxes`, `checkbox-buttons`, `autocomplete` |
 | `number` | `number` | `number`, `range`, `stepper` |

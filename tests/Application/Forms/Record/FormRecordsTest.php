@@ -199,6 +199,40 @@ final class FormRecordsTest extends TestCase
         self::assertSame([], $lines[0]->entries);
     }
 
+    public function testAnAddressAndANumberArePrintedExactlyAsTheyWereGiven(): void
+    {
+        // GIVEN a form asking for both, answered canonically
+        $definition = ['items' => [
+            ['type' => 'email', 'name' => 'kontakt', 'required' => true],
+            ['type' => 'phone', 'name' => 'komorka'],
+        ]];
+
+        // WHEN the record is read
+        $rows = new FormRecords()->of(
+            self::form(
+                presented: false,
+                definition: $definition,
+                values: '{"kontakt": "Jan.Kowalski@Example.Test", "komorka": "+48123456789"}',
+            ),
+            'en',
+        )->rows;
+
+        // THEN character for character, capitals included. This service never
+        // reformats what it was sent — not a plus into a zero, not a capital
+        // into a lowercase — and an archival copy is the last place to start:
+        // it has to show what the person actually wrote.
+        self::assertSame(
+            ['kontakt' => 'Jan.Kowalski@Example.Test', 'komorka' => '+48123456789'],
+            array_combine(
+                array_map(static fn(RecordedRow $row): string => $row->label(), $rows),
+                array_map(
+                    static fn(RecordedRow $row): string|bool|null => $row instanceof Answered ? $row->answer : null,
+                    $rows,
+                ),
+            ),
+        );
+    }
+
     public function testAQuestionNobodyWasAskedIsNotInTheRecord(): void
     {
         // GIVEN a form asking one question only of somebody with a company, and

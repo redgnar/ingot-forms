@@ -8,10 +8,12 @@ use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateTimeField;
+use App\Domain\Forms\Definition\EmailField;
 use App\Domain\Forms\Definition\Field;
 use App\Domain\Forms\Definition\FileField;
 use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
+use App\Domain\Forms\Definition\PhoneField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\Presentation\PresentationActions;
@@ -53,6 +55,11 @@ final class BootstrapEngine implements PresentationEngine
     /** @var array<class-string<Field>, list<string>> */
     private const array CONTROLS = [
         TextField::class => ['text', 'textarea', 'hidden'],
+        // The same two names as the plain kit draws: an address and a telephone
+        // number are asked the same way in both, and a second name for one of
+        // them would be a widget that is only a restyling.
+        EmailField::class => ['email'],
+        PhoneField::class => ['phone'],
         SelectField::class => ['select', 'radio', 'radio-buttons', 'autocomplete'],
         // The same three ways this kit offers a single choice, asked of several:
         // ticks, a bar of toggles, and a box you type into. `multi-select` is

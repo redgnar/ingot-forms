@@ -68,6 +68,30 @@ for when a form is a form rather than a product.
   down: the server still requires every declared item to be shown somewhere, and this is how a
   document says "shown, but not to anybody".
 
+### `email` — the natural control for an `email` item
+
+- **Draws:** `<input type="email" inputmode="email" autocomplete="email">`
+- **From the definition:** `maxlength` (`maxLength`) and the item's **own** `pattern` — the same
+  constant the published schema carries, never a copy
+- **Options:** —
+- **From the item:** `placeholder`
+- **Notes:** the `type` is what earns the browser's keyboard (an `@` where a comma would be) and
+  its autofill, which is the visible half of why an address is a type. The pattern is the item's
+  and not the author's: a type that let a document restate its shape would have two rules about
+  one value.
+
+### `phone` — the natural control for a `phone` item
+
+- **Draws:** `<input type="tel" inputmode="tel" autocomplete="tel">`
+- **From the definition:** the item's own `pattern` — E.164, from the same constant the schema
+  publishes
+- **Options:** —
+- **From the item:** `placeholder`
+- **Notes:** `tel` and not `number`: a telephone number is not a quantity, and a numeric control
+  on one can be stepped, rounded and shown in exponent form. No `maxlength`, because the standard
+  settles the length. The page does not reformat what somebody types — the canonical form is what
+  is sent, and `+48 123 456 789` is refused with `schema.pattern` rather than quietly tidied.
+
 ### `select` — the natural control for a `select` item
 
 - **Draws:** `<select>` with an empty first option, then one per declared value
@@ -320,6 +344,19 @@ that the plain kit has no markup for.
   [floating label](https://getbootstrap.com/docs/5.3/forms/floating-labels/) was tried and
   removed: it can only float over a text box or a select, so any form with a choice group or a
   slider ends up labelled two ways at once.
+
+### `email`, `phone`
+
+- **Draws:** `<input type="email" class="form-control" inputmode="email" autocomplete="email">`
+  and `<input type="tel" class="form-control" inputmode="tel" autocomplete="tel">` —
+  [Form control](https://getbootstrap.com/docs/5.3/forms/form-control/)
+- **From the definition:** `maxlength` on the address, and each item's **own** `pattern`, the same
+  constant the published schema carries
+- **Options:** —
+- **From the item:** `placeholder`
+- **Notes:** the same as the plain kit's, down to the attributes — an address is asked the same
+  way whatever a page is dressed in, so a second name for either of these would be a widget that
+  is only a restyling. Bootstrap contributes the class and nothing else.
 
 ### `select`
 

@@ -8,9 +8,11 @@ use App\Domain\Forms\Definition\CheckboxField;
 use App\Domain\Forms\Definition\CollectionField;
 use App\Domain\Forms\Definition\DateField;
 use App\Domain\Forms\Definition\DateTimeField;
+use App\Domain\Forms\Definition\EmailField;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\MultiSelectField;
 use App\Domain\Forms\Definition\NumberField;
+use App\Domain\Forms\Definition\PhoneField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\DeriveMode;
@@ -52,6 +54,13 @@ final class FormValuesType extends AbstractType
             $strict = $mode === DeriveMode::Strict && !$field->isConditional();
             [$type, $fieldOptions] = match (true) {
                 $field instanceof TextField => [TextType::class, self::textOptions($field, $strict)],
+                // An address and a telephone number carry every rule they have
+                // in the published contract — the format, the pattern, the
+                // length — and that contract answers first. So this stage takes
+                // the text as it came: a `Regex` beside it would be a second
+                // reading of the same pattern, which is the one thing this gate
+                // exists not to do.
+                $field instanceof EmailField, $field instanceof PhoneField => [TextType::class, ['required' => false]],
                 $field instanceof SelectField => [ChoiceType::class, self::selectOptions($field, $strict)],
                 // Several of the same list. Everything about it is in the
                 // published schema — what may be picked, that nothing may be
