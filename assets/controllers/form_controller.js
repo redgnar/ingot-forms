@@ -105,8 +105,14 @@ export default class extends Controller {
     // generated, because a page that builds its own would stop being right the
     // moment this service is mounted anywhere but the root of a host. `id` stays
     // for what is nobody's address: the key this tab keeps unsaved answers under.
-    static values = { id: String, api: Object, page: String, version: Number, refused: String, refusals: Object };
-    static targets = ['saved', 'unsaved', 'problem', 'problemText', 'error', 'control'];
+    static values = {
+        id: String, api: Object, page: String, version: Number, revision: Number, refused: String, refusals: Object,
+    };
+
+    static targets = [
+        'saved', 'unsaved', 'problem', 'problemText', 'error', 'control',
+        'owed', 'owedSent', 'owedMoved', 'owedImpossible', 'owedRestore',
+    ];
 
     // Looking at an earlier version means leaving this page, and leaving a page
     // throws away what nobody saved. So what is on it goes with you: kept for the
@@ -126,12 +132,33 @@ export default class extends Controller {
         // yet does nothing at all.
         setTimeout(() => {
             const kept = this.#takeUnsaved();
+            const owed = this.#owedNow();
+            let looking = false;
+
+            try {
+                looking = sessionStorage.getItem(this.#lookingKey) !== null;
+                sessionStorage.removeItem(this.#lookingKey);
+            } catch {
+                // Then this is an ordinary load and the answers go back on the
+                // page, which is the safe way to be wrong.
+            }
 
             if (kept !== null) {
                 this.#fill(this.element, kept);
                 // A page that shows something other than what the server holds has
                 // to admit it.
                 if (this.hasUnsavedTarget) this.unsavedTarget.classList.remove('d-none');
+            } else if (owed !== null && !looking) {
+                // A save that never arrived is still what somebody typed, so the
+                // page shows it rather than the older document the server drew —
+                // and says which of the two this is.
+                this.#fill(this.element, owed.values);
+                this.#showNotice('owed');
+            } else if (owed !== null) {
+                // They asked to see what the form holds now. Their answers are
+                // kept and one press away, and the page says so.
+                this.#showNotice('owed');
+                this.#showNotice('owedRestore');
             }
 
             // Drawn by the server, which asked the same conditions of the
@@ -143,7 +170,15 @@ export default class extends Controller {
             // Whatever the page holds now — drawn by the server, or drawn and then
             // filled back in — is the baseline the next detour is measured against.
             this.asDrawn = JSON.stringify(this.#collect());
+
+            // Four moments to try again and no timer among them: this one, the
+            // browser saying the network is back, somebody pressing save, and
+            // nothing else. A page that retried on a schedule would be a
+            // background job in a tab.
+            if (owed !== null && !looking) this.#sendOwed();
         });
+
+        addEventListener('online', () => this.#sendOwed());
     }
 
     // On the way to an earlier version, and only there: the one navigation this
@@ -160,8 +195,21 @@ export default class extends Controller {
         event.preventDefault();
         await this.#settled();
 
-        if (!await this.#send(this.apiValue.data, 'PUT', this.#collect())) return;
+        const what = this.#collect();
+        const how = await this.#send(this.apiValue.data, 'PUT', what);
 
+        // Nothing arrived, so nothing is lost either: what was on the page is
+        // kept in this browser, with the revision it was drawn from, and sent
+        // when it can reach the form again.
+        if (how === 'undelivered') {
+            this.#keepOwed(what);
+
+            return;
+        }
+
+        if (how !== 'stored') return;
+
+        this.#forgetOwed();
         this.#forgetUnsaved();
         this.asDrawn = JSON.stringify(this.#collect());
         if (this.hasSavedTarget) this.savedTarget.classList.remove('d-none');
@@ -176,8 +224,19 @@ export default class extends Controller {
         event.preventDefault();
         await this.#settled();
 
-        if (await this.#send(this.apiValue.data, 'PUT', this.#collect())) {
-            if (await this.#send(this.apiValue.confirm, 'POST')) window.location.reload();
+        // A confirmation is never queued: closing a form for good is a decision
+        // to make while you can see what you are closing.
+        const what = this.#collect();
+        const how = await this.#send(this.apiValue.data, 'PUT', what);
+
+        if (how === 'undelivered') {
+            this.#keepOwed(what);
+
+            return;
+        }
+
+        if (how === 'stored' && (await this.#send(this.apiValue.confirm, 'POST')) === 'stored') {
+            window.location.reload();
         }
     }
 
@@ -200,7 +259,7 @@ export default class extends Controller {
         const seq = event.currentTarget.dataset.historyRestore;
         const response = await fetch(`${this.apiValue.history}/${seq}`);
 
-        if (response.ok && (await this.#send(this.apiValue.data, 'PUT', await response.json()))) {
+        if (response.ok && (await this.#send(this.apiValue.data, 'PUT', await response.json())) === 'stored') {
             window.location.assign(this.pageValue);
         }
     }
@@ -330,25 +389,200 @@ export default class extends Controller {
         );
     }
 
-    async #send(url, method, body) {
+    /**
+     * Three things can happen to a request, not two: it was stored, it was
+     * answered and refused, or **it never arrived**. That third one used to be
+     * silent — a rejected `fetch` in an `async` handler goes nowhere — so
+     * somebody pressing save on a train saw no message at all.
+     */
+    // ── A save that could not be delivered ──────────────────────────────────
+    //
+    // Kept in `localStorage` rather than beside the detour stash, and the
+    // difference is the question each answers: that one carries what is on a page
+    // across a look at an earlier version, in this tab, for as long as the trip
+    // takes. This one is a save that **did not happen**, and it has to outlive
+    // the tab — a laptop shut on a train is the whole case.
+    //
+    // One entry per form and never a queue of several: a form is one fillable
+    // document, so the newest answers are the only ones anybody wants.
+    get #owedKey() {
+        return `ingot-forms:owed:${this.idValue}`;
+    }
+
+    // Set for exactly one load, when somebody asked to see what the form holds
+    // now: their answers stay kept, and this is what stops the page putting them
+    // straight back over the top of what it came to show.
+    get #lookingKey() {
+        return `ingot-forms:looking:${this.idValue}`;
+    }
+
+    #keepOwed(values) {
+        try {
+            localStorage.setItem(this.#owedKey, JSON.stringify({
+                revision: this.hasRevisionValue ? this.revisionValue : 0,
+                at: new Date().toISOString(),
+                values,
+            }));
+        } catch {
+            // No storage to keep it in (a private window, storage turned off).
+            // The save still failed and the page still says so; what is lost is
+            // the second chance, which is the bargain the detour stash makes too.
+        }
+
+        this.#showNotice('owed');
+    }
+
+    #owedNow() {
+        try {
+            const kept = localStorage.getItem(this.#owedKey);
+
+            return kept === null ? null : JSON.parse(kept);
+        } catch {
+            return null;
+        }
+    }
+
+    #forgetOwed() {
+        try {
+            localStorage.removeItem(this.#owedKey);
+            sessionStorage.removeItem(this.#lookingKey);
+        } catch {
+            // Nothing was kept, so nothing is left behind.
+        }
+
+        for (const which of ['owed', 'owedSent', 'owedMoved', 'owedImpossible']) this.#hideNotice(which);
+    }
+
+    #showNotice(which) {
+        if (this[`has${which[0].toUpperCase()}${which.slice(1)}Target`]) {
+            this[`${which}Target`].classList.remove('d-none');
+        }
+    }
+
+    #hideNotice(which) {
+        if (this[`has${which[0].toUpperCase()}${which.slice(1)}Target`]) {
+            this[`${which}Target`].classList.add('d-none');
+        }
+    }
+
+    /**
+     * Sending what was kept. The one place `If-Match` is used, and the only place
+     * it belongs: this document was collected against a form that may since have
+     * moved on under somebody else's save.
+     */
+    async #sendOwed({ unconditionally = false } = {}) {
+        const kept = this.#owedNow();
+
+        if (kept === null) return;
+
+        for (const which of ['owedSent', 'owedMoved', 'owedImpossible']) this.#hideNotice(which);
+
+        const how = await this.#send(
+            this.apiValue.data,
+            'PUT',
+            kept.values,
+            unconditionally ? {} : { 'If-Match': `"${kept.revision}"` },
+        );
+
+        if (how === 'stored') {
+            this.#forgetOwed();
+            this.#forgetUnsaved();
+            this.asDrawn = JSON.stringify(this.#collect());
+            this.#showNotice('owedSent');
+            this.dispatch('saved', { prefix: 'form' });
+
+            return;
+        }
+
+        // Still nothing there. The answers stay kept and the notice stays true.
+        if (how === 'undelivered') {
+            this.#showNotice('owed');
+
+            return;
+        }
+
+        // Somebody else saved in the meantime. Neither merged nor chosen here:
+        // the two ways out are a person's to pick between.
+        if (how === 412) {
+            this.#hideNotice('owed');
+            this.#showNotice('owedMoved');
+
+            return;
+        }
+
+        // A form that has gone, expired or been confirmed will not take these
+        // answers on any later attempt either, so saying so once beats trying for
+        // ever. Anything else — a refusal about the values themselves — has been
+        // marked on the controls already and would be refused the same way again,
+        // so it stops being owed and stays on the page to be corrected.
+        this.#forgetOwed();
+
+        if ([404, 409, 410].includes(how)) this.#showNotice('owedImpossible');
+    }
+
+    /** Their answers over somebody else's save, because they said so. */
+    saveMineAnyway(event) {
+        event.preventDefault();
+        this.#sendOwed({ unconditionally: true });
+    }
+
+    /**
+     * A look at what the form holds, which costs them nothing: the answers stay
+     * kept, and the flag stops the next load putting them straight back.
+     */
+    lookAtTheForm(event) {
+        event.preventDefault();
+
+        try {
+            sessionStorage.setItem(this.#lookingKey, 'yes');
+        } catch {
+            // Then the next load puts the answers back, which is the safe way to
+            // be wrong: nothing is lost and the button can be pressed again.
+        }
+
+        window.location.assign(this.pageValue);
+    }
+
+    /** And the way back from that look. */
+    putMineBack(event) {
+        event.preventDefault();
+        const kept = this.#owedNow();
+
+        if (kept === null) return;
+
+        this.#fill(this.element, kept.values);
+        this.#hideNotice('owedRestore');
+        this.#evaluate();
+    }
+
+    async #send(url, method, body, headers = {}) {
         this.#clearMessages();
 
-        const response = await fetch(url, {
-            method,
-            headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
-            body: body === undefined ? undefined : JSON.stringify(body),
-        });
+        let response;
+
+        try {
+            response = await fetch(url, {
+                method,
+                headers: body === undefined ? headers : { 'Content-Type': 'application/json', ...headers },
+                body: body === undefined ? undefined : JSON.stringify(body),
+            });
+        } catch {
+            // No answer at all. Not `navigator.onLine`, which is not evidence:
+            // it says "true" on a captive portal, and it says "true" under a
+            // browser told to be offline.
+            return 'undelivered';
+        }
 
         // A save answers 204 and nothing else does, so nothing else is a save.
         // Something in front of this service can answer instead of it — a proxy
         // refusing, or an expired session redirecting to a login page, which
         // `fetch` follows and hands back as 200 with HTML — and `ok` would read
         // every one of those as answers that were stored.
-        if (response.status === 204) return true;
+        if (response.status === 204) return 'stored';
 
         this.#showErrors(await response.json().catch(() => ({})));
 
-        return false;
+        return response.status;
     }
 
     // Which questions this page is asking, worked out again after every

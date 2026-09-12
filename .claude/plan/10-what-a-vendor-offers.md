@@ -101,7 +101,7 @@ model. Ours states rules declaratively and **publishes them** — the per-form J
 | Translations | core i18n, Enterprise dynamic translations | **have** | The definition carries no display text at all: the presentation carries codes and a catalogue, and the page answers in the negotiated language. |
 | Accessibility | Enterprise ("automatic accessibility") | **have** | Not for sale and not switchable here: `aria-*`, choice groups as `radiogroup`, messages tied to controls, the caret moved to the first refusal, folded sections unfolded on the way. |
 | Reader's own comfort settings | no equivalent | **have** | Colours, contrast and larger text, kept in that browser, painted by us rather than by the skin. |
-| Offline mode | Enterprise | **gap** | Only half against our model — the draft exists; the browser-side queue does not. Large cost, narrow use. |
+| Offline mode | Enterprise | **gap** | Only half against our model — the draft exists; the browser-side queue does not. Large cost, narrow use. (Built in [26](26-a-save-that-could-not-be-delivered.md), and this row had the value in the wrong place: the queue was the third thing worth doing, after *saying* that a save did not happen — which was silent — and keeping what was typed. No service worker, which is the cost the row was really about.) |
 
 ## Files and documents
 

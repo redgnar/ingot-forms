@@ -58,6 +58,14 @@ page:
         next: 'Next'
     tabs:
         sections: 'Sections'
+    owed:
+        kept: 'That save did not get through. These answers are kept in this browser and will be sent when it can reach the form again.'
+        sent: 'The answers this browser was keeping are saved now.'
+        moved: 'This form was changed by somebody else while these answers were waiting, so they were not saved.'
+        anyway: 'Save mine anyway'
+        look: 'Show me what the form holds now'
+        restore: 'Put my answers back'
+        impossible: 'These answers cannot be saved any more: the form has been closed or has gone.'
     entry:
         add: 'Add'
         remove: 'Remove'

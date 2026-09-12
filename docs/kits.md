@@ -836,6 +836,30 @@ under that control, the entry it is in unfolds, every row on the way is marked, 
 it was refused (`aria-invalid`), and the caret moves there. Anything with no pointer to land on
 is shown once, at the top.
 
+**A save that could not be delivered says so, and is kept.** A network that is not there answers
+nothing, and a rejected request used to go nowhere: no message, no notice, no mark — somebody on a
+train pressed *save for later* twice and had no way to know whether either attempt landed. Now the
+page says it did not happen and keeps what was typed in that browser (`localStorage`, one entry per
+form, with the revision the page was drawn from), which is why closing the laptop costs nothing.
+It is sent again at four moments and no timer among them: when the browser says the network is back,
+when the page is opened again, when somebody presses save, and nothing else — a page that retried
+on a schedule would be a background job in a tab. `navigator.onLine` is never read: it says "true"
+on a captive portal and it said "true" under a browser told to be offline, so what drives this is
+what happened to a request.
+
+**A delayed save carries `If-Match`, and a form that moved on is a person's decision.** A save made
+now is about the form in front of somebody and goes unconditionally as it always has; a save that
+waited is about a form they last saw some time ago, so it carries the revision it was collected
+against. On `412` the page neither merges nor chooses — merging two people's answers is a decision
+no page can make — and offers the two ways out instead: **store mine anyway**, which is a
+deliberate overwrite worded as one, or **show me what the form holds now**, which reloads without
+losing anything and leaves their answers one press away (*put my answers back*). A form that has
+gone, expired or been confirmed is said once and dropped, because no later attempt will store those
+answers either. **An upload is never queued**: a values document may only name file ids the server
+issued, and issuing one means a request that reads the bytes — so a file picked while nothing can
+be reached is refused rather than pretended. Neither is a confirmation: closing a form for good is
+a decision to make while you can see what you are closing.
+
 **Unsaved answers survive a look at an earlier version.** Opening one is a navigation, and a
 navigation throws away what nobody saved — so what is on the page goes with you, is put back on
 return, and the page says plainly that those answers are still not saved. A save, a restore or a

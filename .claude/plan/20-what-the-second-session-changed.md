@@ -20,6 +20,7 @@ leaves no record of *why* it happened.
 | An address and a number, as types | `8b6e2b9` | [23](23-email-and-phone.md) |
 | The same form, on paper | `63661c1` | [24](24-on-paper.md) |
 | What was done to a form | `d50af77` | [25](25-what-happened-to-this-form.md) |
+| A save that could not be delivered | the commit that carries this line | [26](26-a-save-that-could-not-be-delivered.md) |
 | Refusals that name everything | ingot `72e6767`, `4bb48ca` | this file |
 | Alternatives, reported as one | ingot `cfef0b3`, `c6d5563` | this file |
 | Documentation held to the code | `6250145`, `b3aa3f3`, `ff3d929`, `9483cc1`, `b136920`, `0e0a6fd` | this file |
@@ -237,6 +238,22 @@ learn whether it may name anybody, which made a form whose stored document no lo
 *A record of what happened may never be the reason something does not.* It also exposed a fake
 that refused what production allows, which is the one direction a fake must never be wrong in:
 the unit suite would have agreed with the bug.
+
+## A save that could not be delivered
+
+Recorded in [26](26-a-save-that-could-not-be-delivered.md), and the roadmap row it closes had the
+value in the wrong place. It called this "offline mode" and priced it as a queue; the first
+measurement found something worse and cheaper to fix: **a save that could not reach the server was
+silent.** A rejected `fetch` in an `async` handler goes nowhere, so somebody pressed *save for
+later* on a train, saw nothing at all, and pressed it again. Saying it did not happen was the first
+line of value, keeping what was typed the second, and the queue only the third.
+
+The design question worth keeping is what a *delayed* save is about. An immediate one is about the
+form in front of somebody and goes unconditionally as it always has; one that waited is about a
+form they last saw some time ago, so it carries `If-Match` — and a `412` is answered by the person
+rather than by the page, because merging two people's answers is not a decision a page can make.
+Deliberately no service worker: that is the cost the row was really describing, and it would be a
+second way in.
 
 ## The shape of the session, if it is worth copying
 

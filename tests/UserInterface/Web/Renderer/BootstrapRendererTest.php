@@ -224,7 +224,14 @@ final class BootstrapRendererTest extends KernelTestCase
 
         // THEN a heading is a heading, and an alert carries the tone it asked for
         self::assertSame('Welcome aboard', $page->filter('h2')->text());
-        self::assertSame('Everything here can be finished later', $page->filter('.alert-warning')->text());
+        // `role="note"` is what tells a document's own alert apart from the
+        // page's: the chrome above the form uses the same Bootstrap tones (a save
+        // that did not arrive is a warning too), and a test that only named the
+        // colour was naming whichever came first in the markup.
+        self::assertSame(
+            'Everything here can be finished later',
+            $page->filter('.alert-warning[role="note"]')->text(),
+        );
         self::assertCount(1, $page->filter('hr'));
     }
 

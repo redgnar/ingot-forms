@@ -61,6 +61,10 @@
       data-form-api-value="{{ api|json_encode }}"
       data-form-page-value="{{ path('web_form_view', {id: id}) }}"
       data-form-version-value="{{ version ?? 0 }}"
+      {# Which form this page was drawn from. Used for one thing: a save that
+         could not be delivered is sent later with `If-Match`, and "later" is the
+         only case where the form may have moved on under somebody. #}
+      data-form-revision-value="{{ revision }}"
       data-form-refused-value="{{ 'page.refused'|trans }}"
       {# What a refused answer is told to a person. The refusal arrives in the
          browser from the API, whose own message is written for whoever is
@@ -112,6 +116,41 @@
         <div class="alert alert-danger d-none" role="alert" data-form-target="problem">
             <span class="d-flex align-items-center gap-2">
                 {{ ux_icon('tabler:alert-triangle', {class: 'icon'}) }}<span data-form-target="problemText"></span>
+            </span>
+        </div>
+        {# A save that never reached the server: it used to be silent, because a
+           rejected `fetch` in an `async` handler goes nowhere. #}
+        <div class="alert alert-warning d-none" role="status" data-form-target="owed" data-owed>
+            <span class="d-flex align-items-center gap-2">
+                {{ ux_icon('tabler:cloud-off', {class: 'icon'}) }}{{ 'page.owed.kept'|trans }}
+            </span>
+            {# Only after somebody asked to see what the form holds now: their own
+               answers are still kept, and this is the way back to them. #}
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-2 d-none" data-chrome
+                    data-form-target="owedRestore" data-owed-restore
+                    data-action="form#putMineBack">{{ 'page.owed.restore'|trans }}</button>
+        </div>
+        <div class="alert alert-success d-none" role="status" data-form-target="owedSent" data-owed-sent>
+            <span class="d-flex align-items-center gap-2">
+                {{ ux_icon('tabler:cloud-check', {class: 'icon'}) }}{{ 'page.owed.sent'|trans }}
+            </span>
+        </div>
+        {# The form moved on while these answers waited. Neither merged nor chosen
+           here: merging two people's answers is a decision no page can make. #}
+        <div class="alert alert-warning d-none" role="alert" data-form-target="owedMoved" data-owed-moved>
+            <span class="d-flex align-items-center gap-2">
+                {{ ux_icon('tabler:git-branch', {class: 'icon'}) }}{{ 'page.owed.moved'|trans }}
+            </span>
+            <span class="d-flex flex-wrap gap-2 mt-2">
+                <button type="button" class="btn btn-sm btn-primary" data-chrome data-owed-anyway
+                        data-action="form#saveMineAnyway">{{ 'page.owed.anyway'|trans }}</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-chrome data-owed-look
+                        data-action="form#lookAtTheForm">{{ 'page.owed.look'|trans }}</button>
+            </span>
+        </div>
+        <div class="alert alert-secondary d-none" role="alert" data-form-target="owedImpossible" data-owed-impossible>
+            <span class="d-flex align-items-center gap-2">
+                {{ ux_icon('tabler:circle-x', {class: 'icon'}) }}{{ 'page.owed.impossible'|trans }}
             </span>
         </div>
     {% endif %}

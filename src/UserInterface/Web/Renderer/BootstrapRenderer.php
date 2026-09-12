@@ -78,6 +78,11 @@ final class BootstrapRenderer implements FormRenderer
             // version is only being looked at — its restore is the way out.
             'confirmed' => $request->form->status() === FormStatus::Confirmed,
             'version' => $request->version,
+            // Which form this page is looking at, as a number. It is here for
+            // one thing: a save the page could not deliver is sent later with
+            // `If-Match`, and "later" is the only case where the form may have
+            // moved on under somebody ({@see \App\Domain\Forms\ValueObject\ExpectedRevision}).
+            'revision' => $request->form->revision(),
             'readOnly' => $request->form->status() === FormStatus::Confirmed || $request->version !== null,
             // A document that names no widget for a group gets this kit's plainest
             // way of grouping, and for a standalone item, a paragraph.

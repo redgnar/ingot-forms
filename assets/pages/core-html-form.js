@@ -725,25 +725,39 @@ function stand(slot) {
     if (list !== null) ownPart(list, '[data-action="add-entry"]')?.focus();
 }
 
-async function send(url, method, body) {
+// Three things can happen to a request, not two: it was stored, it was answered
+// and refused, or **it never arrived**. That third one used to be silent — a
+// rejected `fetch` in an `async` handler goes nowhere — so somebody pressing
+// save on a train saw no message at all and pressed it again.
+async function send(url, method, body, headers = {}) {
     clearMessages();
 
-    const response = await fetch(url, {
-        method,
-        headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
-        body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    let response;
+
+    try {
+        response = await fetch(url, {
+            method,
+            headers: body === undefined ? headers : { 'Content-Type': 'application/json', ...headers },
+            body: body === undefined ? undefined : JSON.stringify(body),
+        });
+    } catch {
+        // No answer at all: no route, a refused connection, a request that never
+        // finished. Not `navigator.onLine`, which is not evidence — it says
+        // "true" on a captive portal, and it says "true" under a browser told to
+        // be offline.
+        return 'undelivered';
+    }
 
     // A save answers 204 and nothing else does, so nothing else is a save.
     // Something in front of this service can answer instead of it — a proxy
     // refusing, or an expired session redirecting to a login page, which `fetch`
     // follows and hands back as 200 with HTML — and `ok` would read every one of
     // those as answers that were stored.
-    if (response.status === 204) return true;
+    if (response.status === 204) return 'stored';
 
     showErrors(await problem(response));
 
-    return false;
+    return response.status;
 }
 
 // Triggers are wherever the presentation put them, and there may be several of
@@ -752,12 +766,23 @@ for (const trigger of document.querySelectorAll('[data-action="save"]')) {
     trigger.addEventListener('click', async (event) => {
         event.preventDefault();
 
-        if (await send(api.data, 'PUT', collect())) {
+        const what = collect();
+        const how = await send(api.data, 'PUT', what);
+
+        if (how === 'stored') {
             forgetUnsaved();
+            forgetOwed();
             asDrawn = JSON.stringify(collect());
             if (saved) saved.hidden = false;
             if (versions !== null && versions.open) loadVersions();
+
+            return;
         }
+
+        // Nothing arrived, so nothing is lost either: what was on the page is
+        // kept here, with the revision it was drawn from, and sent when this
+        // browser can reach the form again.
+        if (how === 'undelivered') keepOwed(what);
     });
 }
 
@@ -1381,15 +1406,180 @@ function forgetUnsaved() {
     }
 }
 
+// ── A save that could not be delivered ─────────────────────────────────────
+//
+// Kept in `localStorage` rather than beside the detour stash above, and the
+// difference is the question each answers: that one carries what is on a page
+// across a look at an earlier version, in this tab, for as long as the trip
+// takes. This one is a save that **did not happen**, and it has to outlive the
+// tab — a laptop shut on a train is the whole case.
+//
+// One entry per form and never a queue of several: a form is one fillable
+// document, so the newest answers are the only ones anybody wants, and its
+// history is the server's to keep.
+const owedKey = `ingot-forms:owed:${formId}`;
+// Which form this page was drawn from. A save made *now* is about the form in
+// front of somebody and goes unconditionally, as it always has; a save that
+// waited is about a form they last saw some time ago, so it carries this and
+// the server decides whether it still fits.
+const drawnAt = Number(document.body.dataset.revision ?? 0);
+const owedNotice = document.querySelector('[data-owed]');
+const owedSent = document.querySelector('[data-owed-sent]');
+const owedMoved = document.querySelector('[data-owed-moved]');
+const owedImpossible = document.querySelector('[data-owed-impossible]');
+const owedRestore = document.querySelector('[data-owed-restore]');
+// Set for exactly one load, when somebody asked to see what the form holds now:
+// their answers stay kept, and this is what stops the page putting them straight
+// back over the top of what it came to show.
+const lookingKey = `ingot-forms:looking:${formId}`;
+
+function keepOwed(values) {
+    try {
+        localStorage.setItem(owedKey, JSON.stringify({ revision: drawnAt, at: new Date().toISOString(), values }));
+    } catch {
+        // No storage to keep it in (a private window, storage turned off). The
+        // save still failed and the page still says so; what is lost is only the
+        // second chance, which is the same bargain the detour stash makes.
+    }
+
+    show(owedNotice);
+}
+
+function owedNow() {
+    try {
+        const kept = localStorage.getItem(owedKey);
+
+        return kept === null ? null : JSON.parse(kept);
+    } catch {
+        return null;
+    }
+}
+
+function forgetOwed() {
+    try {
+        localStorage.removeItem(owedKey);
+        sessionStorage.removeItem(lookingKey);
+    } catch {
+        // Nothing was kept, so nothing is left behind.
+    }
+
+    for (const notice of [owedNotice, owedSent, owedMoved, owedImpossible]) hide(notice);
+}
+
+function show(element) {
+    if (element) element.hidden = false;
+}
+
+function hide(element) {
+    if (element) element.hidden = true;
+}
+
+// Sending what was kept. The one place `If-Match` is used, and the only place it
+// belongs: this document was collected against a form that may since have moved
+// on under somebody else's save.
+async function sendOwed({ unconditionally = false } = {}) {
+    const kept = owedNow();
+
+    if (kept === null) return;
+
+    for (const notice of [owedSent, owedMoved, owedImpossible]) hide(notice);
+
+    const how = await send(
+        api.data,
+        'PUT',
+        kept.values,
+        unconditionally ? {} : { 'If-Match': `"${kept.revision}"` },
+    );
+
+    if (how === 'stored') {
+        forgetOwed();
+        forgetUnsaved();
+        asDrawn = JSON.stringify(collect());
+        show(owedSent);
+
+        return;
+    }
+
+    // Still nothing there. The answers stay kept and the notice stays true.
+    if (how === 'undelivered') {
+        show(owedNotice);
+
+        return;
+    }
+
+    // Somebody else saved in the meantime. Neither merged nor chosen here: the
+    // two ways out are a person's to pick between.
+    if (how === 412) {
+        hide(owedNotice);
+        show(owedMoved);
+
+        return;
+    }
+
+    // A form that has gone, expired or been confirmed will not take these
+    // answers on any later attempt either, so saying so once beats trying for
+    // ever. Anything else — a refusal about the values themselves — has already
+    // been marked on the controls by `send`, and will be refused again the same
+    // way, so it stops being owed and stays on the page to be corrected.
+    forgetOwed();
+
+    if ([404, 409, 410].includes(how)) show(owedImpossible);
+}
+
+document.querySelector('[data-owed-anyway]')?.addEventListener('click', () => sendOwed({ unconditionally: true }));
+
+document.querySelector('[data-owed-look]')?.addEventListener('click', () => {
+    try {
+        sessionStorage.setItem(lookingKey, 'yes');
+    } catch {
+        // Then the page will put the answers back on the next load, which is the
+        // safe way to be wrong: nothing is lost, and the button can be pressed
+        // again.
+    }
+
+    window.location.assign(page);
+});
+
+document.querySelector('[data-owed-restore]')?.addEventListener('click', () => {
+    const kept = owedNow();
+
+    if (kept === null) return;
+
+    fill(document.getElementById('form'), kept.values);
+    hide(owedRestore);
+    evaluate();
+});
+
 // Back on the page somebody was typing in: put their answers back and say that
 // they are still not saved, because a page that shows something other than what
 // the server holds has to admit it.
 if (document.body.dataset.version === undefined) {
     const kept = takeUnsaved();
+    const owed = owedNow();
+    let looking = false;
+
+    try {
+        looking = sessionStorage.getItem(lookingKey) !== null;
+        sessionStorage.removeItem(lookingKey);
+    } catch {
+        // Then this is an ordinary load and the answers go back on the page,
+        // which is the safe way to be wrong.
+    }
 
     if (kept !== null) {
         fill(document.getElementById('form'), kept);
         if (unsaved) unsaved.hidden = false;
+    } else if (owed !== null && !looking) {
+        // A save that never arrived is still what somebody typed, so the page
+        // shows it rather than the older document the server drew — and says
+        // which of the two this is.
+        fill(document.getElementById('form'), owed.values);
+        show(owedNotice);
+    } else if (owed !== null) {
+        // They asked to see what the form holds now. Their answers are kept and
+        // one press away, and the page says so instead of quietly having them.
+        show(owedNotice);
+        show(owedRestore);
     }
 
     // Drawn by the server, which asked the same conditions of the document it
@@ -1398,6 +1588,13 @@ if (document.body.dataset.version === undefined) {
     // anything is measured, and the baseline is what is left.
     evaluate();
     asDrawn = JSON.stringify(collect());
+
+    // Four moments to try again and no timer among them: this one, the browser
+    // saying the network is back, somebody pressing save, and nothing else. A
+    // page that retried on a schedule would be a background job in a tab.
+    if (owed !== null && !looking) sendOwed();
+
+    addEventListener('online', () => sendOwed());
 }
 // On a version page, nothing is touched: what somebody typed is waiting for them
 // to come back, and this page is the middle of that trip rather than the end.
@@ -1409,7 +1606,7 @@ async function restoreVersion(seq) {
     forgetUnsaved();
     const response = await fetch(`${api.history}/${seq}`);
 
-    if (response.ok && (await send(api.data, 'PUT', await response.json()))) window.location.assign(page);
+    if (response.ok && (await send(api.data, 'PUT', await response.json())) === 'stored') window.location.assign(page);
 }
 
 document.addEventListener('click', (event) => {
@@ -1441,9 +1638,17 @@ for (const trigger of document.querySelectorAll('[data-action="confirm"]')) {
         event.preventDefault();
 
         // Confirming judges what the form holds, so what is on the page has to
-        // be in it first.
-        if (await send(api.data, 'PUT', collect())) {
-            if (await send(api.confirm, 'POST')) window.location.reload();
+        // be in it first. A confirmation is never queued: closing a form for
+        // good is a decision to make while you can see what you are closing.
+        const what = collect();
+        const how = await send(api.data, 'PUT', what);
+
+        if (how === 'undelivered') {
+            keepOwed(what);
+
+            return;
         }
+
+        if (how === 'stored' && (await send(api.confirm, 'POST')) === 'stored') window.location.reload();
     });
 }

@@ -54,6 +54,14 @@ page:
         next: 'Dalej'
     tabs:
         sections: 'Sekcje'
+    owed:
+        kept: 'Ten zapis nie doszedł. Te odpowiedzi są zachowane w tej przeglądarce i wyślemy je, kiedy znów będzie łączność z formularzem.'
+        sent: 'Odpowiedzi zachowane w tej przeglądarce są już zapisane.'
+        moved: 'Ten formularz zmienił ktoś inny, kiedy te odpowiedzi czekały — więc nie zostały zapisane.'
+        anyway: 'Zapisz jednak moje'
+        look: 'Pokaż, co formularz ma teraz'
+        restore: 'Przywróć moje odpowiedzi'
+        impossible: 'Tych odpowiedzi nie da się już zapisać: formularz został zamknięty albo usunięty.'
     entry:
         add: 'Dodaj'
         remove: 'Usuń'

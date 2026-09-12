@@ -636,6 +636,23 @@ browser lay the page out for paper, and the battery asks the layout rather than 
 This is **not** the record (`GET …/pdf`): that is a confirmed form laid out by a library, on the
 management prefix, with the author and the confirmer on it.
 
+**A save that never arrived is kept by the page, and sent with a precondition.** Both kits read
+three outcomes of a request rather than two — stored, refused, **never delivered** — because the
+third one used to be silent: a rejected `fetch` in an `async` handler goes nowhere, so nothing was
+said and nothing was kept. What is kept is the collected document, the revision the page was drawn
+from and the moment, in `localStorage` under `ingot-forms:owed:{id}` (one entry per form: a form is
+one fillable document, so the newest answers are the only ones anybody wants). It is retried when
+the browser fires `online`, when the page loads holding something owed, and when somebody presses
+save — never on a timer, and never on `navigator.onLine`, which is not evidence. A **delayed** send
+carries `If-Match` with that revision while an immediate save stays unconditional, which is the
+asymmetry the optional precondition exists for; a `412` is answered by the person, not by the page
+(*store mine anyway* or *show me what the form holds now*, the second costing nothing and leaving
+*put my answers back*), and `404`/`409`/`410` are said once and dropped. Uploads and confirmations
+are never queued. It is tested with the network actually taken away — Chrome's
+`Network.emulateNetworkConditions` through the same `goog/cdp/execute` the print battery uses — and
+a test that stages a conflict has to stage it **before** restoring the network, because the browser
+fires `online` by itself and the page retries at once.
+
 **A page is read in one language, and the document decides which.** What the
 framework negotiates (`?lang=`, then `Accept-Language`, then the configured default) is what the
 reader *asked* for; what the page is drawn in is what the presentation can answer in

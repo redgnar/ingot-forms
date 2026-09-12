@@ -651,6 +651,24 @@ Rules that follow from it, and that the tooling checks:
   it and mark each entry it is inside (`entry-invalid` in the plain kit, `table-danger` in the
   richer one), so the row still says "look here" after somebody folds it back up. Clearing the
   messages clears the marks.
+- **A save that could not be delivered is said and kept.** Both kits read three outcomes of a
+  request — stored, refused, **never delivered** — the third having been silent until
+  [26](.claude/plan/26-a-save-that-could-not-be-delivered.md): a rejected `fetch` in an `async`
+  handler goes nowhere. What is kept is the collected document, the revision the page was drawn
+  from and the moment (`localStorage`, `ingot-forms:owed:{id}`, one entry per form, every access
+  wrapped because storage can be off). Retried when the browser fires `online`, when a page loads
+  holding something owed, and when somebody presses save — **no timer** (that would be a background
+  job in a tab) and **never `navigator.onLine`**, which answers "true" on a captive portal and
+  answered "true" under a browser told to be offline. A **delayed** send carries `If-Match` with
+  that revision; an immediate save stays unconditional, which is what the optional precondition is
+  for — *a save made now is about the form in front of you, a save that waited is about a form you
+  last saw some time ago*. A `412` is **a person's decision**: store mine anyway (a deliberate
+  overwrite, worded as one) or look at what the form holds now (costing nothing, with *put my
+  answers back* one press away) — never a merge, which no page can make. `404`/`409`/`410` are said
+  once and dropped; a `422` shows its refusals and stops being owed. **Uploads are never queued**
+  (a values document may only name file ids the server issued) and neither are confirmations.
+  Deliberately absent: a service worker (a second way in, a lifecycle, a cache this service's own
+  headers say nothing about), IndexedDB, several queued saves for one form, and any automatic merge.
 - **A page never knows where this service is mounted.** Every address it carries is generated:
   the page and the four endpoints a kit writes to come from the router (`FormApi` is the one
   place naming those routes, handed over as `data-form-api-value` / `data-api`), and the module

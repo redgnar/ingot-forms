@@ -250,7 +250,7 @@
 {# Where this form is written to, and where the page itself lives. Both are the
    server's answer rather than a shape this template knows: the addresses move
    with the installation, the page does not have to. #}
-<body data-form="{{ id }}" data-api="{{ api|json_encode }}" data-page-url="{{ path('web_form_view', {id: id}) }}"
+<body data-form="{{ id }}" data-api="{{ api|json_encode }}" data-page-url="{{ path('web_form_view', {id: id}) }}" data-revision="{{ revision }}"
       {%- if version is not null %} data-version="{{ version }}"{% endif %}
       data-read-only="{{ readOnly ? 'yes' : 'no' }}" data-refused="{{ 'page.refused'|trans }}"
       {# What a refused answer is told to a person. The refusal arrives in the
@@ -289,6 +289,27 @@
        page owes them the truth about it: these answers are on the page and not in
        the form. #}
     <p class="notice" id="form-unsaved" data-unsaved hidden>{{ 'page.unsaved'|trans }}</p>
+    {# A save that never reached the server. Today it was silent — `fetch` rejects
+       and the rejection had nowhere to go — so the first thing this says is that
+       it did not happen, and the second is that nothing was lost. #}
+    <div class="notice" data-owed hidden>
+        <p>{{ 'page.owed.kept'|trans }}</p>
+        {# Only after somebody asked to see what the form holds now: their own
+           answers are still kept, and this is the way back to them. #}
+        <p><button type="button" data-owed-restore data-chrome hidden>{{ 'page.owed.restore'|trans }}</button></p>
+    </div>
+    <p class="flash" data-owed-sent hidden>{{ 'page.owed.sent'|trans }}</p>
+    {# The form moved on while these answers waited. The page neither merges nor
+       chooses: merging two people's answers is a decision no page can make, and
+       choosing silently is what the precondition exists to prevent. #}
+    <div class="notice" data-owed-moved hidden>
+        <p>{{ 'page.owed.moved'|trans }}</p>
+        <p>
+            <button type="button" data-owed-anyway data-chrome>{{ 'page.owed.anyway'|trans }}</button>
+            <button type="button" data-owed-look data-chrome>{{ 'page.owed.look'|trans }}</button>
+        </p>
+    </div>
+    <p class="notice" data-owed-impossible hidden>{{ 'page.owed.impossible'|trans }}</p>
 {% endif %}
 
 {# What a panel needs and a node cannot carry: which form this is, whether it can
