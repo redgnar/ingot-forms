@@ -377,7 +377,7 @@ and the structure parsed from it.
 
 ## Storage
 
-Storage is two tables, `forms` and `form_revisions`, mapped with portable types only (`uuid`,
+Storage is built on `forms` and `form_revisions`, mapped with portable types only (`uuid`,
 `text`, `datetime_immutable` in UTC) so the service installs on PostgreSQL, MySQL/MariaDB or
 SQLite alike — point `DATABASE_URL` at it and run the migration, which is built through Doctrine's
 schema API rather than raw SQL. The definition is stored **normalized**
@@ -403,6 +403,18 @@ the limit evicts the oldest, and a `MAX(seq)` over what is *kept* would start re
 the moment it did — besides being one more query on a row the save already holds locked. Neither the row nor the revision can be written without the other —
 both come from one `DraftSaved` — which is what makes "the current values are also the newest
 revision" true, and everything that asks what a form has **ever** named leans on it.
+
+**Two tables nothing reads yet.** `form_definitions` and `form_presentations` keep one document
+apiece — the same normalized JSON text, with an id of its own, when it was stored and who stored
+it — so that a definition used by ten thousand forms can be kept once rather than ten thousand
+times. They arrive empty and stay empty until the block that moves the bytes across: `forms` still
+answers from its own two columns, and nothing in the running service reads a row from either
+table. They are here early on purpose — the mapping, the migration and
+`DoctrineStoredDocuments` are exercised before anything depends on them, which is the half of
+that change that can be got wrong quietly. The port they fill
+(`App\Domain\Forms\Port\StoredDocuments`) has two ways to write and both of them *add*:
+a stored document is written once and superseded, never edited, because it is what a filled-in
+form's answers were judged against. `.claude/plan/27-templates.md` is the whole of the design.
 
 ## How values are judged
 
