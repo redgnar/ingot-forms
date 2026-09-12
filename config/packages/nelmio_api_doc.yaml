@@ -457,6 +457,32 @@ nelmio_api_doc:
                                         type: 'urn:problem:ingot-forms:form-not-found'
                                         title: Form not found.
                                         status: 404
+                FormTemplateNotFound:
+                    description: No form template with this id.
+                    content:
+                        application/problem+json:
+                            schema:
+                                $ref: '#/components/schemas/Problem'
+                            examples:
+                                form-template-not-found:
+                                    summary: Unknown id
+                                    value:
+                                        type: 'urn:problem:ingot-forms:form-template-not-found'
+                                        title: Form template not found.
+                                        status: 404
+                TemplateVersionNotFound:
+                    description: This template published no such version. A number is a place in one of its two histories, and an unknown one is a missing document rather than a bad request.
+                    content:
+                        application/problem+json:
+                            schema:
+                                $ref: '#/components/schemas/Problem'
+                            examples:
+                                template-version-not-found:
+                                    summary: A number this template never handed out
+                                    value:
+                                        type: 'urn:problem:ingot-forms:template-version-not-found'
+                                        title: The form template has no such version.
+                                        status: 404
                 FormGone:
                     description: The form has expired; its data is scheduled for physical deletion.
                     content:

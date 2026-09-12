@@ -14,12 +14,14 @@ use App\Application\Forms\Exception\RevisionNotFound;
 use App\Application\Forms\Exception\WebhooksNotSignable;
 use App\Domain\Forms\Exception\CarriesFindings;
 use App\Domain\Forms\Exception\DefinitionNotValid;
+use App\Domain\Forms\Exception\DocumentNotStored;
 use App\Domain\Forms\Exception\FormAlreadyConfirmed;
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
 use App\Domain\Forms\Exception\FormMovedOn;
 use App\Domain\Forms\Exception\FormNotFound;
+use App\Domain\Forms\Exception\FormTemplateNotFound;
 use App\Domain\Forms\Exception\FormUnreadable;
 use App\Domain\Forms\Exception\IdentityRequired;
 use App\Domain\Forms\Exception\PresentationNotSet;
@@ -67,6 +69,11 @@ final class ProblemExceptionListener
         // there — not a conflict, and not a form that is missing.
         PresentationNotSet::class => [404, 'presentation-not-set', 'The form has no presentation.'],
         FormNotFound::class => [404, 'form-not-found', 'Form not found.'],
+        FormTemplateNotFound::class => [404, 'form-template-not-found', 'Form template not found.'],
+        // A number is a place in one of a template's two histories, so one it
+        // never handed out is a document that is not there — the same answer as
+        // for a revision number nobody saved, and for the same reason.
+        DocumentNotStored::class => [404, 'template-version-not-found', 'The form template has no such version.'],
         // The store holds no such file for this form — the same answer whether it
         // never existed or was thrown away, deliberately: a caller learns nothing
         // about another form's ids either way.

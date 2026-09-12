@@ -1707,8 +1707,17 @@ or not one of the words offered — `form.identity.unknown` is the same kind of 
 `identity` that is neither `recorded` nor `anonymous`), `400` for malformed JSON, `415` for a
 body that is not JSON.
 
+**Refusals about a template:** `template.name.blank` (a name that is empty or nothing but
+space — judged for blankness after trimming, though what is stored is what was typed),
+`template.name.too-long` (past 255 characters, counted in characters and not in bytes),
+`template.version.not-a-version` (a version number below 1; a history is numbered from 1 and
+only ever grows). A presentation that does not fit the definition it is judged against is
+reported the way any presentation is — `presentation.item.unknown` and the rest, pointing at the
+item rather than saying the pair is bad — whether that happens when it is published or when a
+pair is put in use.
+
 **Status codes:** `204` a write that worked · `400` malformed JSON · `404` unknown form,
-revision or file · `409` state conflicts (locked, already confirmed, nothing to confirm, a file
+revision, file, template or template version · `409` state conflicts (locked, already confirmed, nothing to confirm, a file
 some save still names) · `410` an expired form, on every endpoint · `413` a body over this
 deployment's limit · `415` a non-JSON body · `422` a validation report · `500` an opaque
 fallback.

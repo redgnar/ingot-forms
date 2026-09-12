@@ -34,7 +34,7 @@ the same ones.
 | 1 | `/api/schemas/` | anybody, deliberately — a contract stated once has to be reachable | GET |
 | 2 | `FORMS_ASSETS_PREFIX` (`/assets/` by default) | anybody; not a route, served as files, cacheable, holds no form data | GET |
 | 3 | `/api/manage/forms` | the system that owns the forms — **never the open internet** | POST |
-| 4 | `/api/manage/**` | the same system: the envelope, the history with actors, the deliveries, the PDF record, delete | any |
+| 4 | `/api/manage/**` | the same system: the envelope, the history with actors, the deliveries, the PDF record, delete — **and the template catalogue**, see below | any |
 | 5 | `/api/forms/{id}/**` | whoever that system let through to *that* form | GET reads, `POST …/confirm` confirms, other mutating methods fill |
 | 6 | `/forms/{id}` and `/forms/{id}/versions/{seq}` | the same person, in a browser | GET |
 
@@ -42,6 +42,21 @@ Four of the five permissions from the plan are a path and a method, with no code
 anywhere: create is rule 3, manage is rule 4, read is `GET` under rules 5–6,
 confirm is its own address, and filling is the mutating methods under rule 5. The
 fifth — "this caller, for *this* form" — is the question below.
+
+**The catalogue is inside rule 4, and you may want it out.**
+`/api/manage/form-templates/` is where form templates are administered — creating
+one, publishing a version into it, and putting a pair in use. That last call
+changes what **every form created from that template afterwards** asks, which is
+a different power from creating a form, and a deployment may well want to give it
+to fewer callers. It is a prefix inside the management one, so a rule written for
+`/api/manage/` already covers it: to separate the two, carve it out explicitly.
+Where your gateway picks the **longest matching prefix** (nginx does) adding the
+more specific location is enough; where it matches rules **in the order they are
+written** (many do), the carve-out has to come first, or the broad rule swallows
+it and nothing about that looks wrong from either side.
+
+If you do not want to separate them, do nothing: the catalogue is management and
+rule 4 is already right.
 
 **Rule 2 is the one people forget.** A gateway that passes the forms through and
 drops their stylesheet has followed every other rule to the letter. And if several

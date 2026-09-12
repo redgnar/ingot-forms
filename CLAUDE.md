@@ -929,6 +929,15 @@ Rules that follow from it, and that the tooling checks:
   (`template_id IS NULL`), belonging to the single form it was created with — no flag, because a
   column saying the same thing is a second answer that can come to disagree. A pair is stated
   whole: naming no presentation means none, not "keep the one you had".
+  Administered under **`/api/manage/form-templates/`** — inside the management prefix, because the
+  system that owns the forms owns what they are made of, so `RouteGroup` keeps its four cases and
+  no template route names its parameters `{id}` (they are `{template}` and `{seq}`, since
+  `/api/manage/forms/{id}` is where a decision point outside reads a *form* id). The catalogue
+  listing has no paging, deliberately: there is no endpoint listing forms because forms arrive by
+  the machine-load, while every template is one somebody sat down and made. A deployment wanting
+  template administration held to fewer callers than form management carves the prefix out **in
+  front** — it is a prefix *inside* the management one, so a rule for `/api/manage/` already
+  covers it.
 - **A form names its two documents rather than holding them.** They are rows of their own
   (`form_definitions`, `form_presentations`), so a definition used by ten thousand forms is kept
   once — which is what the catalogue in [27](.claude/plan/27-templates.md) is built on. Three

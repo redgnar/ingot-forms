@@ -449,6 +449,111 @@ final class OpenApiComplianceTest extends WebTestCase
             ['DELETE', '/api/forms/{id}/files/{fileId}', 410, true, '', static function (self $test): void {
                 $test->client->request('DELETE', \sprintf('/api/forms/%s/files/%s', $test->expiredForm(), Uuid::v7()->toRfc4122()));
             }],
+
+            // The catalogue. Every documented answer of every template address,
+            // because this test is what stops the contract describing a response
+            // nobody ever triggers.
+            ['GET', '/api/manage/form-templates', 200, true, '', static function (self $test): void {
+                $test->createTemplate();
+                $test->client->request('GET', '/api/manage/form-templates');
+            }],
+            ['POST', '/api/manage/form-templates', 201, true, '', static function (self $test): void {
+                $test->postJson('/api/manage/form-templates', self::templatePayload());
+            }],
+            ['POST', '/api/manage/form-templates', 400, false, '', static function (self $test): void {
+                $test->postJson('/api/manage/form-templates', '{broken');
+            }],
+            ['POST', '/api/manage/form-templates', 415, false, '', static function (self $test): void {
+                $test->client->request('POST', '/api/manage/form-templates', server: ['CONTENT_TYPE' => 'text/plain'], content: self::templatePayload());
+            }],
+            ['POST', '/api/manage/form-templates', 422, true, '', static function (self $test): void {
+                // A name of nothing but space: a valid string as far as the
+                // contract can say, and not a name.
+                $test->postJson('/api/manage/form-templates', json_encode(['name' => '   ', 'definition' => self::DEFINITION], \JSON_THROW_ON_ERROR));
+            }],
+            ['GET', '/api/manage/form-templates/{template}', 200, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/form-templates/%s', $test->createTemplate()));
+            }],
+            ['GET', '/api/manage/form-templates/{template}', 404, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/form-templates/%s', Uuid::v7()->toRfc4122()));
+            }],
+            ['PUT', '/api/manage/form-templates/{template}/name', 204, true, '', static function (self $test): void {
+                $test->putJson(\sprintf('/api/manage/form-templates/%s/name', $test->createTemplate()), '{"name":"Claim"}');
+            }],
+            ['PUT', '/api/manage/form-templates/{template}/name', 404, true, '', static function (self $test): void {
+                $test->putJson(\sprintf('/api/manage/form-templates/%s/name', Uuid::v7()->toRfc4122()), '{"name":"Claim"}');
+            }],
+            ['PUT', '/api/manage/form-templates/{template}/name', 422, true, '', static function (self $test): void {
+                $test->putJson(\sprintf('/api/manage/form-templates/%s/name', $test->createTemplate()), '{"name":"   "}');
+            }],
+            ['POST', '/api/manage/form-templates/{template}/definitions', 201, true, '', static function (self $test): void {
+                $test->postJson(\sprintf('/api/manage/form-templates/%s/definitions', $test->createTemplate()), json_encode(['definition' => self::DEFINITION], \JSON_THROW_ON_ERROR));
+            }],
+            ['POST', '/api/manage/form-templates/{template}/definitions', 404, true, '', static function (self $test): void {
+                $test->postJson(\sprintf('/api/manage/form-templates/%s/definitions', Uuid::v7()->toRfc4122()), json_encode(['definition' => self::DEFINITION], \JSON_THROW_ON_ERROR));
+            }],
+            ['POST', '/api/manage/form-templates/{template}/definitions', 415, false, '', static function (self $test): void {
+                $test->client->request('POST', \sprintf('/api/manage/form-templates/%s/definitions', $test->createTemplate()), server: ['CONTENT_TYPE' => 'text/plain'], content: '{}');
+            }],
+            ['POST', '/api/manage/form-templates/{template}/definitions', 422, true, '', static function (self $test): void {
+                // Two items with one name: a definition the meta-schema takes
+                // and a semantic rule refuses.
+                $test->postJson(
+                    \sprintf('/api/manage/form-templates/%s/definitions', $test->createTemplate()),
+                    json_encode(['definition' => ['items' => [['type' => 'text', 'name' => 'email'], ['type' => 'text', 'name' => 'email']]]], \JSON_THROW_ON_ERROR),
+                );
+            }],
+            ['POST', '/api/manage/form-templates/{template}/presentations', 201, true, '', static function (self $test): void {
+                $test->postJson(\sprintf('/api/manage/form-templates/%s/presentations', $test->createTemplate()), json_encode(['presentation' => self::templatePresentation()], \JSON_THROW_ON_ERROR));
+            }],
+            ['POST', '/api/manage/form-templates/{template}/presentations', 404, true, '', static function (self $test): void {
+                $test->postJson(\sprintf('/api/manage/form-templates/%s/presentations', Uuid::v7()->toRfc4122()), json_encode(['presentation' => self::templatePresentation()], \JSON_THROW_ON_ERROR));
+            }],
+            ['POST', '/api/manage/form-templates/{template}/presentations', 415, false, '', static function (self $test): void {
+                $test->client->request('POST', \sprintf('/api/manage/form-templates/%s/presentations', $test->createTemplate()), server: ['CONTENT_TYPE' => 'text/plain'], content: '{}');
+            }],
+            ['POST', '/api/manage/form-templates/{template}/presentations', 422, true, '', static function (self $test): void {
+                // Showing an item the definition in use does not declare, which
+                // is refused at publication rather than at the pointer.
+                $test->postJson(
+                    \sprintf('/api/manage/form-templates/%s/presentations', $test->createTemplate()),
+                    json_encode(['presentation' => ['engine' => 'core-html', 'items' => [['name' => 'nickname', 'widget' => 'text'], ['widget' => 'confirm']]]], \JSON_THROW_ON_ERROR),
+                );
+            }],
+            ['GET', '/api/manage/form-templates/{template}/definitions', 200, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/form-templates/%s/definitions', $test->createTemplate()));
+            }],
+            ['GET', '/api/manage/form-templates/{template}/definitions', 404, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/form-templates/%s/definitions', Uuid::v7()->toRfc4122()));
+            }],
+            ['GET', '/api/manage/form-templates/{template}/presentations', 200, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/form-templates/%s/presentations', $test->createTemplate()));
+            }],
+            ['GET', '/api/manage/form-templates/{template}/presentations', 404, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/form-templates/%s/presentations', Uuid::v7()->toRfc4122()));
+            }],
+            ['GET', '/api/manage/form-templates/{template}/definitions/{seq}', 200, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/form-templates/%s/definitions/1', $test->createTemplate()));
+            }],
+            ['GET', '/api/manage/form-templates/{template}/definitions/{seq}', 404, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/form-templates/%s/definitions/9', $test->createTemplate()));
+            }],
+            ['GET', '/api/manage/form-templates/{template}/presentations/{seq}', 200, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/form-templates/%s/presentations/1', $test->createTemplate()));
+            }],
+            ['GET', '/api/manage/form-templates/{template}/presentations/{seq}', 404, true, '', static function (self $test): void {
+                $test->client->request('GET', \sprintf('/api/manage/form-templates/%s/presentations/9', $test->createTemplate()));
+            }],
+            ['PUT', '/api/manage/form-templates/{template}/current', 204, true, '', static function (self $test): void {
+                $test->putJson(\sprintf('/api/manage/form-templates/%s/current', $test->createTemplate()), '{"definition":1,"presentation":1}');
+            }],
+            ['PUT', '/api/manage/form-templates/{template}/current', 404, true, '', static function (self $test): void {
+                $test->putJson(\sprintf('/api/manage/form-templates/%s/current', $test->createTemplate()), '{"definition":9}');
+            }],
+            ['PUT', '/api/manage/form-templates/{template}/current', 422, true, '', static function (self $test): void {
+                // 0 is no version: a history is numbered from 1 and only grows.
+                $test->putJson(\sprintf('/api/manage/form-templates/%s/current', $test->createTemplate()), '{"definition":0}');
+            }],
         ];
 
         foreach ($cases as [$method, $path, $status, $requestIsValid, $variant, $stage]) {
@@ -598,6 +703,43 @@ final class OpenApiComplianceTest extends WebTestCase
         self::assertResponseStatusCodeSame(204);
 
         return $id;
+    }
+
+    /**
+     * A template holding the definition and presentation these scenarios use,
+     * already in use — which is every template, since one is born usable.
+     */
+    private function createTemplate(): string
+    {
+        $this->postJson('/api/manage/form-templates', self::templatePayload());
+        $body = json_decode((string) $this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        self::assertIsArray($body);
+        self::assertIsString($body['id'] ?? null);
+
+        return $body['id'];
+    }
+
+    private static function templatePayload(): string
+    {
+        return json_encode([
+            'name' => 'Damage report',
+            'definition' => self::DEFINITION,
+            'presentation' => self::templatePresentation(),
+        ], \JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * The same presentation the form scenarios use, as a structure — it fits
+     * {@see DEFINITION}, which is what a template's first pair has to do.
+     *
+     * @return array<string, mixed>
+     */
+    private static function templatePresentation(): array
+    {
+        // No `assertIsArray` here: the source is a literal, so static analysis
+        // already knows the shape and an assertion that cannot fail proves
+        // nothing the line above it did not.
+        return json_decode(self::PRESENTATION, true, 512, \JSON_THROW_ON_ERROR);
     }
 
     private function createForm(): string

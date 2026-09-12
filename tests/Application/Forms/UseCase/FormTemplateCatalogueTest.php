@@ -22,6 +22,7 @@ use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\FormTemplateId;
 use App\Tests\Application\Forms\Fake\ImmediateTransactions;
+use App\Tests\Application\Forms\Fake\InMemoryFormTemplateCatalogue;
 use App\Tests\Application\Forms\Fake\InMemoryFormTemplates;
 use App\Tests\Application\Forms\Fake\InMemoryStoredDocuments;
 use App\Tests\Application\Forms\Fake\RecordingLogger;
@@ -49,6 +50,8 @@ final class FormTemplateCatalogueTest extends TestCase
 
     private ImmediateTransactions $transactions;
 
+    private InMemoryFormTemplateCatalogue $catalogue;
+
     private RecordingLogger $logger;
 
     protected function setUp(): void
@@ -56,6 +59,7 @@ final class FormTemplateCatalogueTest extends TestCase
         $this->templates = new InMemoryFormTemplates();
         $this->documents = new InMemoryStoredDocuments();
         $this->transactions = new ImmediateTransactions();
+        $this->catalogue = new InMemoryFormTemplateCatalogue();
         $this->logger = new RecordingLogger();
     }
 
@@ -286,7 +290,7 @@ final class FormTemplateCatalogueTest extends TestCase
 
     private function read(): ReadFormTemplate
     {
-        return new ReadFormTemplate($this->templates, $this->documents);
+        return new ReadFormTemplate($this->templates, $this->documents, $this->catalogue, $this->documents);
     }
 
     private static function rules(): PresentationRules

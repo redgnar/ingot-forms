@@ -10,6 +10,32 @@ servers:
   -
     url: /
 paths:
+  '/api/manage/form-templates/{template}/current':
+    put:
+      summary: 'Put a pair of versions in use'
+      description: 'The pair is stated whole: naming a definition and no presentation means this template shows nothing from here on, not that it keeps the presentation it had. Going back to an earlier pair is this same call pointing the other way, and costs no new version.'
+      operationId: activateTemplateVersions
+      parameters:
+        -
+          name: template
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivateVersionsRequest'
+      responses:
+        '204':
+          description: 'In use.'
+        '404':
+          $ref: '#/components/responses/TemplateVersionNotFound'
+        '422':
+          description: 'The pair does not fit: the findings point at the item the presentation shows and the definition does not declare.'
   '/api/forms/{id}/confirm':
     post:
       summary: 'Confirm the stored values'
@@ -120,6 +146,52 @@ paths:
                 presentation-not-valid:
                   summary: 'The presentation shows an item the definition does not declare'
                   value: { type: 'urn:problem:ingot-forms:presentation-not-valid', title: 'Form presentation is not valid.', status: 422, errors: [{ pointer: /presentation/items/0/name, code: presentation.item.unknown, message: 'This form declares no item named "nickname".', input: nickname }] }
+  /api/manage/form-templates:
+    get:
+      summary: 'List the form templates'
+      description: 'Newest first. Each entry names the pair of versions new forms made from it are given — as numbers, which is what the two history addresses take.'
+      operationId: listFormTemplates
+      responses:
+        '200':
+          description: 'Every template in the catalogue.'
+          content:
+            application/json:
+              schema:
+                properties:
+                  templates: { type: array, items: { properties: { id: { type: string, format: uuid }, name: { type: string }, createdAt: { type: string, format: date-time }, createdBy: { type: [string, 'null'] }, definition: { type: integer }, presentation: { type: [integer, 'null'] } }, type: object } }
+                type: object
+    post:
+      summary: 'Create a form template'
+      description: 'A template is a name and the one pair of documents new forms made from it get. Both documents arrive here and become version 1 of their own history, already in use. Everything afterwards publishes into one history at a time and is put in use as its own deliberate act.'
+      operationId: createFormTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFormTemplateRequest'
+      responses:
+        '201':
+          description: 'Template created, holding version 1 of each document and using them.'
+          headers:
+            Location:
+              description: 'Path of the created template.'
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                properties:
+                  id: { type: string, format: uuid }
+                  definition: { type: integer, example: 1 }
+                  presentation: { type: [integer, 'null'], example: 1 }
+                type: object
+        '400':
+          $ref: '#/components/responses/MalformedJson'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          description: 'The request, the definition, or the presentation beside it is not valid — including a presentation that does not fit the definition it came with.'
   '/api/manage/forms/{id}':
     get:
       summary: 'Read a form'
@@ -253,6 +325,108 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '410':
           $ref: '#/components/responses/FormGone'
+  '/api/manage/form-templates/{template}/definitions':
+    get:
+      summary: "List a template's definitions"
+      description: 'Newest first, holding the numbers and how each got there — never the documents. Which of these is in use is `GET …/{template}`.'
+      operationId: listTemplateDefinitions
+      parameters:
+        -
+          name: template
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      responses:
+        '200':
+          description: 'The definition history.'
+        '404':
+          $ref: '#/components/responses/FormTemplateNotFound'
+    post:
+      summary: 'Publish a definition into a template'
+      description: 'The answer is the number it was published as, which is the one thing the client could not know. Forms created now are still made of whatever `PUT …/current` last named.'
+      operationId: publishTemplateDefinition
+      parameters:
+        -
+          name: template
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishDefinitionRequest'
+      responses:
+        '201':
+          description: 'Published. Nothing in use has changed.'
+          content:
+            application/json:
+              schema:
+                properties:
+                  definition: { type: integer, example: 2 }
+                type: object
+        '404':
+          $ref: '#/components/responses/FormTemplateNotFound'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          description: 'The definition breaks the meta-schema or a semantic rule.'
+  '/api/manage/form-templates/{template}/presentations':
+    get:
+      summary: "List a template's presentations"
+      description: 'The other history, numbered apart from the definitions — a relabelled option is not a new model, and the two counts say so.'
+      operationId: listTemplatePresentations
+      parameters:
+        -
+          name: template
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      responses:
+        '200':
+          description: 'The presentation history.'
+        '404':
+          $ref: '#/components/responses/FormTemplateNotFound'
+    post:
+      summary: 'Publish a presentation into a template'
+      description: 'The answer is the number it was published as. It is judged against the definition currently in use — a presentation showing an item that definition does not declare is refused here, with the findings pointing at the item — and nothing about what is in use changes.'
+      operationId: publishTemplatePresentation
+      parameters:
+        -
+          name: template
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishPresentationRequest'
+      responses:
+        '201':
+          description: 'Published. Nothing in use has changed.'
+          content:
+            application/json:
+              schema:
+                properties:
+                  presentation: { type: integer, example: 4 }
+                type: object
+        '404':
+          $ref: '#/components/responses/FormTemplateNotFound'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          description: 'The presentation breaks its meta-schema, or does not fit the definition currently in use.'
   '/api/forms/{id}/data':
     get:
       summary: 'Read the current values'
@@ -558,6 +732,36 @@ paths:
                   value: { type: 'urn:problem:ingot-forms:revision-not-found', title: 'The form has no such save.', status: 404 }
         '410':
           $ref: '#/components/responses/FormGone'
+  '/api/manage/form-templates/{template}':
+    get:
+      summary: 'Read a form template'
+      description: 'The pair in use is given as version numbers, which is what `PUT …/current` takes and what the two history addresses read. `forms` counts what is made of any version this template has ever published — the number a delete is refused over.'
+      operationId: readFormTemplate
+      parameters:
+        -
+          name: template
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      responses:
+        '200':
+          description: 'The template.'
+          content:
+            application/json:
+              schema:
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+                  createdAt: { type: string, format: date-time }
+                  createdBy: { type: [string, 'null'] }
+                  definition: { description: 'The definition version new forms are made of.', type: integer }
+                  presentation: { description: 'The presentation version that shows them, or null when this template shows nothing.', type: [integer, 'null'] }
+                  forms: { description: 'How many forms are made of any version this template ever published.', type: integer }
+                type: object
+        '404':
+          $ref: '#/components/responses/FormTemplateNotFound'
   '/api/schemas/{document}':
     get:
       summary: 'Read the meta-schema of a definition or a presentation'
@@ -587,6 +791,56 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  '/api/manage/form-templates/{template}/definitions/{seq}':
+    get:
+      summary: 'Read one published definition'
+      description: 'The document as it was accepted, byte for byte.'
+      operationId: readTemplateDefinition
+      parameters:
+        -
+          name: template
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+        -
+          name: seq
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9]+'
+      responses:
+        '200':
+          description: 'The definition.'
+        '404':
+          $ref: '#/components/responses/TemplateVersionNotFound'
+  '/api/manage/form-templates/{template}/presentations/{seq}':
+    get:
+      summary: 'Read one published presentation'
+      description: 'The document as it was accepted, byte for byte.'
+      operationId: readTemplatePresentation
+      parameters:
+        -
+          name: template
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+        -
+          name: seq
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9]+'
+      responses:
+        '200':
+          description: 'The presentation.'
+        '404':
+          $ref: '#/components/responses/TemplateVersionNotFound'
   '/api/forms/{id}/schema':
     get:
       summary: 'Read the values schema derived from the definition'
@@ -635,6 +889,32 @@ paths:
                 request-not-valid:
                   summary: 'A mode outside the enum'
                   value: { type: 'urn:problem:ingot-forms:request-not-valid', title: 'Request is not valid.', status: 422, errors: [{ pointer: /mode, code: request.choice, message: 'mode must be one of: strict, draft.', input: bogus }] }
+  '/api/manage/form-templates/{template}/name':
+    put:
+      summary: 'Rename a form template'
+      description: 'The label only. A name is never an identifier here — nothing looks a template up by it — so this changes nothing about what forms made from this template ask or how they are shown.'
+      operationId: renameFormTemplate
+      parameters:
+        -
+          name: template
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameTemplateRequest'
+      responses:
+        '204':
+          description: Renamed.
+        '404':
+          $ref: '#/components/responses/FormTemplateNotFound'
+        '422':
+          description: 'The name is blank or longer than the column keeps.'
   '/api/forms/{id}/files':
     post:
       summary: 'Upload a file for this form'
@@ -1077,6 +1357,25 @@ components:
             $ref: '#/components/schemas/ProblemError'
       type: object
       additionalProperties: false
+    ActivateVersionsRequest:
+      required:
+        - definition
+      properties:
+        definition:
+          description: 'Which published definition new forms are made of from here on.'
+          type: integer
+          example: 3
+          exclusiveMinimum: 0
+        presentation:
+          description: 'Which published presentation shows them. Leave it out and this template shows nothing — the pair is stated whole, so an omitted presentation means none rather than the one in use.'
+          type:
+            - integer
+            - 'null'
+          example: 7
+          default: null
+          exclusiveMinimum: 0
+      type: object
+      additionalProperties: false
     CreateFormRequest:
       required:
         - expireDate
@@ -1136,6 +1435,76 @@ components:
           default: null
       type: object
       additionalProperties: false
+    CreateFormTemplateRequest:
+      required:
+        - name
+        - definition
+      properties:
+        name:
+          description: 'What to call this template where a person reads it. A label and never an identifier: nothing looks a template up by name, two templates may share one, and it can be changed afterwards without anything a form asks changing with it.'
+          type: string
+          example: 'Damage report'
+          maxLength: 255
+        definition:
+          description: 'The first definition this template publishes, per the meta-schema this API serves at `GET /api/schemas/definition`. It becomes version 1 and is put in use at once.'
+          minProperties: 1
+          type: object
+          example:
+            items:
+              -
+                type: text
+                name: email
+                required: true
+        presentation:
+          description: 'The first presentation, judged against the definition beside it. Optional — a template a system only ever fills in over JSON needs none, and one published later can be added to the other history.'
+          type:
+            - object
+            - 'null'
+          example:
+            engine: core-html
+            items:
+              -
+                name: email
+                widget: text
+              -
+                widget: confirm
+          default: null
+      type: object
+      additionalProperties: false
+    PublishDefinitionRequest:
+      required:
+        - definition
+      properties:
+        definition:
+          description: "The definition to publish, per `GET /api/schemas/definition`. It is added to this template's definition history with the next number and changes nothing about what forms created now are made of."
+          minProperties: 1
+          type: object
+          example:
+            items:
+              -
+                type: text
+                name: email
+                required: true
+      type: object
+      additionalProperties: false
+    PublishPresentationRequest:
+      required:
+        - presentation
+      properties:
+        presentation:
+          description: 'The presentation to publish, per `GET /api/schemas/presentation`. Judged against the definition currently in use; a presentation showing an item that definition does not declare is refused here, with the findings pointing at the item.'
+          minProperties: 1
+          type: object
+          example:
+            engine: core-html
+            items:
+              -
+                name: email
+                widget: text
+              -
+                widget: confirm
+      type: object
+      additionalProperties: false
     RecordQuery:
       properties:
         lang:
@@ -1157,6 +1526,17 @@ components:
             - strict
             - draft
       type: object
+    RenameTemplateRequest:
+      required:
+        - name
+      properties:
+        name:
+          description: 'What to call this template from now on. A label and never an identifier, so changing it changes nothing else.'
+          type: string
+          example: 'Damage report (2027)'
+          maxLength: 255
+      type: object
+      additionalProperties: false
     stdClass:
       type: object
     SaveFormDataRequest:
@@ -1205,6 +1585,32 @@ components:
               value:
                 type: 'urn:problem:ingot-forms:form-not-found'
                 title: 'Form not found.'
+                status: 404
+    FormTemplateNotFound:
+      description: 'No form template with this id.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            form-template-not-found:
+              summary: 'Unknown id'
+              value:
+                type: 'urn:problem:ingot-forms:form-template-not-found'
+                title: 'Form template not found.'
+                status: 404
+    TemplateVersionNotFound:
+      description: 'This template published no such version. A number is a place in one of its two histories, and an unknown one is a missing document rather than a bad request.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            template-version-not-found:
+              summary: 'A number this template never handed out'
+              value:
+                type: 'urn:problem:ingot-forms:template-version-not-found'
+                title: 'The form template has no such version.'
                 status: 404
     FormGone:
       description: 'The form has expired; its data is scheduled for physical deletion.'

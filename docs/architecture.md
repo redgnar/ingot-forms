@@ -458,6 +458,17 @@ when published, against the definition in use, so a document that could never be
 refused where somebody can fix it, and again whenever a pointer moves. The pair is stated whole:
 naming no presentation means none. Nothing reaches any of this through an address yet.
 
+The catalogue is administered under **`/api/manage/form-templates/`** — inside the management
+prefix, because the system that owns the forms owns what they are made of, so `RouteGroup` keeps
+its four cases. Eleven addresses across seven actions: the catalogue and one template, a rename,
+two histories to list and read from, two to publish into, and `PUT …/current` to put a pair in
+use. No template route names its parameters `{id}` (they are `{template}` and `{seq}`), because
+`/api/manage/forms/{id}` is where a decision point outside reads a **form** id with one pattern —
+and `RouteGroupsTest` fails on any route carrying `{id}` outside its group's `idPrefix()`, so that
+enforces itself. A deployment that wants template administration held to fewer callers than form
+management carves the prefix out in front; `docs/deploying-behind-a-gateway.md` says how, and what
+goes wrong when a gateway matches rules in declaration order.
+
 `.claude/plan/27-templates.md` is the whole of the design.
 
 ## How values are judged

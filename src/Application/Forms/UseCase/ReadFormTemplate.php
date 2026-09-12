@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Application\Forms\UseCase;
 
+use App\Application\Forms\Port\FormTemplateCatalogue;
 use App\Application\Forms\Port\TemplateVersions;
+use App\Application\Forms\Template\CataloguedTemplate;
 use App\Application\Forms\Template\PublishedVersion;
 use App\Domain\Forms\Document\StoredDefinition;
 use App\Domain\Forms\Document\StoredPresentation;
 use App\Domain\Forms\Exception\DocumentNotStored;
 use App\Domain\Forms\Exception\FormTemplateNotFound;
 use App\Domain\Forms\Port\FormTemplates;
+use App\Domain\Forms\Port\StoredDocuments;
 use App\Domain\Forms\Template\FormTemplate;
 use App\Domain\Forms\ValueObject\FormTemplateId;
 
@@ -27,6 +30,8 @@ final class ReadFormTemplate
     public function __construct(
         private readonly FormTemplates $templates,
         private readonly TemplateVersions $history,
+        private readonly FormTemplateCatalogue $catalogue,
+        private readonly StoredDocuments $documents,
     ) {}
 
     /**
@@ -35,6 +40,49 @@ final class ReadFormTemplate
     public function __invoke(FormTemplateId $id): FormTemplate
     {
         return $this->templates->get($id);
+    }
+
+    /**
+     * One template in the shape the catalogue lists them in — the pair in use as
+     * the **numbers** an administrator reads, rather than the ids the storage
+     * holds.
+     *
+     * The same type both endpoints answer with, so "a template as somebody reads
+     * it" has one shape. The numbers are resolved through the documents rather
+     * than kept on the template row: a number belongs to the version, and a copy
+     * beside the pointer would be a second truth to keep in step with it.
+     *
+     * @throws FormTemplateNotFound
+     */
+    public function inUse(FormTemplateId $id): CataloguedTemplate
+    {
+        $template = $this->templates->get($id);
+        $presentation = $template->presentation();
+
+        return new CataloguedTemplate(
+            $template->id(),
+            $template->name(),
+            $template->createdAt(),
+            // A template's definition is always a published version, so this is
+            // always a number; the fallback is what a type cannot say.
+            $this->documents->definition($template->definition())->version()?->seq() ?? 0,
+            $presentation === null ? null : $this->documents->presentation($presentation)->version()?->seq(),
+            $template->createdBy(),
+        );
+    }
+
+    /**
+     * How many forms are made of any version this template has ever published —
+     * which is what a delete would refuse over, so it is worth seeing before
+     * trying.
+     *
+     * @throws FormTemplateNotFound
+     */
+    public function formsMadeFrom(FormTemplateId $id): int
+    {
+        $this->templates->get($id);
+
+        return $this->catalogue->formsMadeFrom($id);
     }
 
     /**

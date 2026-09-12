@@ -14,12 +14,19 @@ this reference cannot drift from the implementation.
 
 | Method & path | Operation | Purpose | Responses |
 |---|---|---|---|
+| [`PUT /api/manage/form-templates/{template}/current`](#put-apimanageform-templatestemplatecurrent) | `activateTemplateVersions` | Put a pair of versions in use | `204`, `404`, `422` |
 | [`POST /api/forms/{id}/confirm`](#post-apiformsidconfirm) | `confirmForm` | Confirm the stored values | `204`, `404`, `409`, `412`, `410`, `422` |
 | [`POST /api/manage/forms`](#post-apimanageforms) | `createForm` | Create a form | `201`, `400`, `415`, `422` |
+| [`GET /api/manage/form-templates`](#get-apimanageform-templates) | `listFormTemplates` | List the form templates | `200` |
+| [`POST /api/manage/form-templates`](#post-apimanageform-templates) | `createFormTemplate` | Create a form template | `201`, `400`, `415`, `422` |
 | [`GET /api/manage/forms/{id}`](#get-apimanageformsid) | `getForm` | Read a form | `200`, `404`, `409`, `410` |
 | [`DELETE /api/manage/forms/{id}`](#delete-apimanageformsid) | `deleteForm` | Delete a form | `204`, `404`, `410` |
 | [`GET /api/forms/{id}/files/{fileId}`](#get-apiformsidfilesfileid) | `readFormFile` | Download a file this form holds | `200`, `404`, `410` |
 | [`DELETE /api/forms/{id}/files/{fileId}`](#delete-apiformsidfilesfileid) | `discardFormFile` | Throw away an uploaded file this form has not saved | `204`, `404`, `409`, `410` |
+| [`GET /api/manage/form-templates/{template}/definitions`](#get-apimanageform-templatestemplatedefinitions) | `listTemplateDefinitions` | List a template's definitions | `200`, `404` |
+| [`POST /api/manage/form-templates/{template}/definitions`](#post-apimanageform-templatestemplatedefinitions) | `publishTemplateDefinition` | Publish a definition into a template | `201`, `404`, `415`, `422` |
+| [`GET /api/manage/form-templates/{template}/presentations`](#get-apimanageform-templatestemplatepresentations) | `listTemplatePresentations` | List a template's presentations | `200`, `404` |
+| [`POST /api/manage/form-templates/{template}/presentations`](#post-apimanageform-templatestemplatepresentations) | `publishTemplatePresentation` | Publish a presentation into a template | `201`, `404`, `415`, `422` |
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
 | [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `412`, `415`, `410`, `422` |
 | [`GET /api/manage/forms/{id}/deliveries`](#get-apimanageformsiddeliveries) | `getFormDeliveries` | List what this form still owes, and what it could not deliver | `200`, `404`, `410` |
@@ -28,11 +35,37 @@ this reference cannot drift from the implementation.
 | [`GET /api/forms/{id}/presentation`](#get-apiformsidpresentation) | `getFormPresentation` | Read how the form is shown | `200`, `404`, `410` |
 | [`GET /api/manage/forms/{id}/pdf`](#get-apimanageformsidpdf) | `getFormRecord` | Download a confirmed form as a PDF | `200`, `404`, `409`, `410`, `422` |
 | [`GET /api/forms/{id}/history/{seq}`](#get-apiformsidhistoryseq) | `getFormRevision` | Read one save of this form | `200`, `404`, `410` |
+| [`GET /api/manage/form-templates/{template}`](#get-apimanageform-templatestemplate) | `readFormTemplate` | Read a form template | `200`, `404` |
 | [`GET /api/schemas/{document}`](#get-apischemasdocument) | `getMetaSchema` | Read the meta-schema of a definition or a presentation | `200`, `404` |
+| [`GET /api/manage/form-templates/{template}/definitions/{seq}`](#get-apimanageform-templatestemplatedefinitionsseq) | `readTemplateDefinition` | Read one published definition | `200`, `404` |
+| [`GET /api/manage/form-templates/{template}/presentations/{seq}`](#get-apimanageform-templatestemplatepresentationsseq) | `readTemplatePresentation` | Read one published presentation | `200`, `404` |
 | [`GET /api/forms/{id}/schema`](#get-apiformsidschema) | `getFormDataSchema` | Read the values schema derived from the definition | `200`, `404`, `410`, `422` |
+| [`PUT /api/manage/form-templates/{template}/name`](#put-apimanageform-templatestemplatename) | `renameFormTemplate` | Rename a form template | `204`, `404`, `422` |
 | [`POST /api/forms/{id}/files`](#post-apiformsidfiles) | `uploadFormFile` | Upload a file for this form | `201`, `404`, `409`, `410`, `413`, `422` |
 
 ## Operations
+
+### PUT /api/manage/form-templates/{template}/current
+
+`operationId: activateTemplateVersions` — Put a pair of versions in use
+
+The pair is stated whole: naming a definition and no presentation means this template shows nothing from here on, not that it keeps the presentation it had. Going back to an earlier pair is this same call pointing the other way, and costs no new version.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `template` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Request body** (`application/json`, required): [`ActivateVersionsRequest`](#activateversionsrequest)
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `204` | — | empty | In use. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | This template published no such version. A number is a place in one of its two histories, and an unknown one is a missing document rather than a bad request. |
+| `422` | — | empty | The pair does not fit: the findings point at the item the presentation shows and the definition does not declare. |
 
 ### POST /api/forms/{id}/confirm
 
@@ -74,6 +107,35 @@ Both documents a form is made of arrive here: what it asks, and optionally how i
 | `400` | `application/problem+json` | [`Problem`](#problem) | The request body is not valid JSON, or its media type is missing. |
 | `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | The request envelope, the definition, the presentation or the values the form would be born with are not valid. |
+
+### GET /api/manage/form-templates
+
+`operationId: listFormTemplates` — List the form templates
+
+Newest first. Each entry names the pair of versions new forms made from it are given — as numbers, which is what the two history addresses take.
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | `application/json` | `object` | Every template in the catalogue. |
+
+### POST /api/manage/form-templates
+
+`operationId: createFormTemplate` — Create a form template
+
+A template is a name and the one pair of documents new forms made from it get. Both documents arrive here and become version 1 of their own history, already in use. Everything afterwards publishes into one history at a time and is put in use as its own deliberate act.
+
+**Request body** (`application/json`, required): [`CreateFormTemplateRequest`](#createformtemplaterequest)
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `201` | `application/json` | `object` | Template created, holding version 1 of each document and using them. |
+| `400` | `application/problem+json` | [`Problem`](#problem) | The request body is not valid JSON, or its media type is missing. |
+| `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
+| `422` | — | empty | The request, the definition, or the presentation beside it is not valid — including a presentation that does not fit the definition it came with. |
 
 ### GET /api/manage/forms/{id}
 
@@ -156,6 +218,90 @@ For an upload that was replaced or picked by mistake. A file the stored values n
 | `404` | `application/problem+json` | [`Problem`](#problem) | No such form, or this form holds no such file. |
 | `409` | `application/problem+json` | [`Problem`](#problem) | The stored values name this file. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
+
+### GET /api/manage/form-templates/{template}/definitions
+
+`operationId: listTemplateDefinitions` — List a template's definitions
+
+Newest first, holding the numbers and how each got there — never the documents. Which of these is in use is `GET …/{template}`.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `template` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | — | empty | The definition history. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form template with this id. |
+
+### POST /api/manage/form-templates/{template}/definitions
+
+`operationId: publishTemplateDefinition` — Publish a definition into a template
+
+The answer is the number it was published as, which is the one thing the client could not know. Forms created now are still made of whatever `PUT …/current` last named.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `template` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Request body** (`application/json`, required): [`PublishDefinitionRequest`](#publishdefinitionrequest)
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `201` | `application/json` | `object` | Published. Nothing in use has changed. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form template with this id. |
+| `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
+| `422` | — | empty | The definition breaks the meta-schema or a semantic rule. |
+
+### GET /api/manage/form-templates/{template}/presentations
+
+`operationId: listTemplatePresentations` — List a template's presentations
+
+The other history, numbered apart from the definitions — a relabelled option is not a new model, and the two counts say so.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `template` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | — | empty | The presentation history. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form template with this id. |
+
+### POST /api/manage/form-templates/{template}/presentations
+
+`operationId: publishTemplatePresentation` — Publish a presentation into a template
+
+The answer is the number it was published as. It is judged against the definition currently in use — a presentation showing an item that definition does not declare is refused here, with the findings pointing at the item — and nothing about what is in use changes.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `template` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Request body** (`application/json`, required): [`PublishPresentationRequest`](#publishpresentationrequest)
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `201` | `application/json` | `object` | Published. Nothing in use has changed. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form template with this id. |
+| `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
+| `422` | — | empty | The presentation breaks its meta-schema, or does not fit the definition currently in use. |
 
 ### GET /api/forms/{id}/data
 
@@ -327,6 +473,25 @@ The values as that save stored them, byte for byte — exactly as `GET /api/form
 | `404` | `application/problem+json` | [`Problem`](#problem) | Unknown form, or a form with no such save. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 
+### GET /api/manage/form-templates/{template}
+
+`operationId: readFormTemplate` — Read a form template
+
+The pair in use is given as version numbers, which is what `PUT …/current` takes and what the two history addresses read. `forms` counts what is made of any version this template has ever published — the number a delete is refused over.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `template` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | `application/json` | `object` | The template. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form template with this id. |
+
 ### GET /api/schemas/{document}
 
 `operationId: getMetaSchema` — Read the meta-schema of a definition or a presentation
@@ -345,6 +510,46 @@ The JSON Schema 2020-12 document `POST /api/forms` judges that half of its body 
 |---|---|---|---|
 | `200` | `application/schema+json` | `object` | The meta-schema, as the server holds it. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | This API publishes no such meta-schema. |
+
+### GET /api/manage/form-templates/{template}/definitions/{seq}
+
+`operationId: readTemplateDefinition` — Read one published definition
+
+The document as it was accepted, byte for byte.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `template` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+| `seq` | path | yes | `string` (pattern `[0-9]+`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | — | empty | The definition. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | This template published no such version. A number is a place in one of its two histories, and an unknown one is a missing document rather than a bad request. |
+
+### GET /api/manage/form-templates/{template}/presentations/{seq}
+
+`operationId: readTemplatePresentation` — Read one published presentation
+
+The document as it was accepted, byte for byte.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `template` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+| `seq` | path | yes | `string` (pattern `[0-9]+`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | — | empty | The presentation. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | This template published no such version. A number is a place in one of its two histories, and an unknown one is a missing document rather than a bad request. |
 
 ### GET /api/forms/{id}/schema
 
@@ -367,6 +572,28 @@ The JSON Schema 2020-12 document the server validates submitted values against �
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 | `422` | `application/problem+json` | [`Problem`](#problem) | Unknown schema mode. |
+
+### PUT /api/manage/form-templates/{template}/name
+
+`operationId: renameFormTemplate` — Rename a form template
+
+The label only. A name is never an identifier here — nothing looks a template up by it — so this changes nothing about what forms made from this template ask or how they are shown.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `template` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Request body** (`application/json`, required): [`RenameTemplateRequest`](#renametemplaterequest)
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `204` | — | empty | Renamed. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form template with this id. |
+| `422` | — | empty | The name is blank or longer than the column keeps. |
 
 ### POST /api/forms/{id}/files
 
@@ -588,6 +815,15 @@ RFC 9457 problem details. `type` is a URN `urn:problem:ingot-forms:<slug>`; vali
 
 No other properties are allowed.
 
+### ActivateVersionsRequest
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `definition` | `integer` (> 0) | yes | Which published definition new forms are made of from here on. |
+| `presentation` | `integer \| null` (> 0) | no | Which published presentation shows them. Leave it out and this template shows nothing — the pair is stated whole, so an omitted presentation means none rather than the one in use. |
+
+No other properties are allowed.
+
 ### CreateFormRequest
 
 | Property | Type | Required | Description |
@@ -598,6 +834,32 @@ No other properties are allowed.
 | `data` | `object \| null` | no | What the form already holds, keyed by item name — for values a client knows before anybody opens the form. Optional. Judged against this form's own definition under the *draft* contract, so an incomplete document is fine and `required` items may be left out; a value that breaks its item's rules is reported at `/data/<item>`. A form created with this is born a draft: it can be filled in further, and confirmed when it is complete. |
 | `identity` | `string` (`recorded` \| `anonymous`) | no | Whether this form records who fills it in. `recorded` (the default) stores the identity a gateway asserted with every accepted save, and refuses a save that can name nobody. `anonymous` stores nobody — and *discards* an asserted identity rather than refusing it, so a deployment whose proxy asserts on every request cannot build a record by accident. Immutable, like the definition. There is deliberately no third value: an "optional" mode would make one column mean both "nobody was there" and "somebody was and did not say". |
 | `webhooks` | `object \| null` | no | Where this form reports what happens to it. All members are optional and independent: `created` is told when the form comes into being (for a receiver that is not whoever created it), `save` when a draft save was accepted, `confirm` when the form was confirmed, `deleted` when it stops existing (deleted, or reaped for having expired — the notification says which in `reason`). What arrives there is a notification and never the values — `{event, form, occurredAt, revision?, actor?}` — so a receiver reads the document through this API, signed with this deployment's secret in `X-Forms-Signature`. Immutable with the definition: changing where a form reports means deleting it and creating a new one. Omit it, or omit either member, and nobody is told. |
+
+No other properties are allowed.
+
+### CreateFormTemplateRequest
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` (max length 255) | yes | What to call this template where a person reads it. A label and never an identifier: nothing looks a template up by name, two templates may share one, and it can be changed afterwards without anything a form asks changing with it. |
+| `definition` | `object` | yes | The first definition this template publishes, per the meta-schema this API serves at `GET /api/schemas/definition`. It becomes version 1 and is put in use at once. |
+| `presentation` | `object \| null` | no | The first presentation, judged against the definition beside it. Optional — a template a system only ever fills in over JSON needs none, and one published later can be added to the other history. |
+
+No other properties are allowed.
+
+### PublishDefinitionRequest
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `definition` | `object` | yes | The definition to publish, per `GET /api/schemas/definition`. It is added to this template's definition history with the next number and changes nothing about what forms created now are made of. |
+
+No other properties are allowed.
+
+### PublishPresentationRequest
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `presentation` | `object` | yes | The presentation to publish, per `GET /api/schemas/presentation`. Judged against the definition currently in use; a presentation showing an item that definition does not declare is refused here, with the findings pointing at the item. |
 
 No other properties are allowed.
 
@@ -612,6 +874,14 @@ No other properties are allowed.
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `mode` | `string` (`strict` \| `draft`) | no | Which contract the returned schema enforces: `strict` is the confirmation contract, `draft` relaxes what would block storing partial progress. |
+
+### RenameTemplateRequest
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` (max length 255) | yes | What to call this template from now on. A label and never an identifier, so changing it changes nothing else. |
+
+No other properties are allowed.
 
 ### stdClass
 
