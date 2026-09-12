@@ -9,6 +9,7 @@ use App\Domain\Forms\IdentityMode;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\FileId;
 use App\Domain\Forms\ValueObject\FormId;
+use App\Domain\Forms\ValueObject\FormTemplateId;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -172,6 +173,86 @@ final readonly class Operations
 
     /**
      * Whoever it was, if this form records anybody at all.
+     *
+     * @return array<string, mixed>
+     */
+    /**
+     * The catalogue, whose lines answer a different question from a form's:
+     * **what somebody changed about what every form made from here will ask.**
+     *
+     * Whoever did it is recorded whenever a gateway asserted them, with no mode
+     * to consult — a template has no anonymity to keep, because it holds nobody's
+     * answers. The **name is not logged**, only the id: the rule is that no line
+     * carries what anybody typed, and a label is close enough to that line to
+     * stay behind it.
+     */
+    public function templateCreated(FormTemplateId $id, bool $shown, ?Actor $by = null): void
+    {
+        $this->logger->info('A form template was created.', [
+            'template' => (string) $id,
+            'shown' => $shown,
+        ] + self::by($by));
+    }
+
+    /** A version was published — which changes nothing about what is in use. */
+    public function templateVersionPublished(FormTemplateId $id, string $stream, int $seq, ?Actor $by = null): void
+    {
+        $this->logger->info('A form template published a version.', [
+            'template' => (string) $id,
+            'stream' => $stream,
+            'seq' => $seq,
+        ] + self::by($by));
+    }
+
+    /**
+     * The pair in use moved, which is the line that matters: from here on, forms
+     * created from this template are made of something else.
+     */
+    public function templateCurrentMoved(FormTemplateId $id, int $definition, ?int $presentation, ?Actor $by = null): void
+    {
+        $this->logger->info('A form template put a different pair in use.', [
+            'template' => (string) $id,
+            'definition' => $definition,
+            'presentation' => $presentation,
+        ] + self::by($by));
+    }
+
+    public function templateRenamed(FormTemplateId $id, ?Actor $by = null): void
+    {
+        $this->logger->info('A form template was renamed.', ['template' => (string) $id] + self::by($by));
+    }
+
+    /**
+     * A change to the catalogue that did not happen, at `warning` for the reason
+     * a refused change to a form is: somebody's work did not get stored, and
+     * nothing is broken.
+     *
+     * The template may be null, because the one refusal with no template to name
+     * is the creation of one.
+     */
+    public function templateRefused(?FormTemplateId $id, string $what, string $code, ?Actor $by = null): void
+    {
+        $this->logger->warning('A change to a form template was refused.', [
+            'template' => $id === null ? null : (string) $id,
+            'operation' => $what,
+            'refused' => $code,
+        ] + self::by($by));
+    }
+
+    /**
+     * Whoever did something to the catalogue, when anything asserted them.
+     *
+     * @return array<string, mixed>
+     */
+    private static function by(?Actor $who): array
+    {
+        return $who === null ? [] : ['actor' => (string) $who];
+    }
+
+    /**
+     * Whoever it was, if this form records anybody at all — the discard the mode
+     * promises, applied to the log as well, so a line can never rebuild what a
+     * form went out of its way not to keep.
      *
      * @return array<string, mixed>
      */

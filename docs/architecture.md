@@ -393,7 +393,7 @@ save already holds, because a sequence of the database's own would number across
 things bound it, and both are the database's rather than a caller's: `form_id` references
 `forms.id` **ON DELETE CASCADE**, so a form can never outlive the history it used to have — a
 constraint the ORM cannot declare, because a foreign key comes with an *association* and a
-revision deliberately has none, so `RevisionsLeaveWithTheirForm` states it on
+revision deliberately has none, so `ConstraintsTheMappingCannotDeclare` states it on
 `postGenerateSchema` instead and `SchemaInSyncTest` keeps the mapping and the migrated database
 agreeing about it; and
 `FORMS_HISTORY_LIMIT` is how many saves one form keeps, the oldest leaving in the same statement
@@ -424,7 +424,8 @@ copy that a bad migration could orphan. And `FormRecord` holds **ids and not ass
 form's documents are read by a query of their own that takes **no lock**, because a `JOIN FETCH`
 under `PESSIMISTIC_WRITE` locks the joined rows on PostgreSQL, which would queue every save of
 every form sharing a definition behind one another. The constraints the mapping therefore cannot
-declare are stated by `RowsLeaveWithTheirForm` and held to the database by `SchemaInSyncTest`.
+declare are stated by `ConstraintsTheMappingCannotDeclare` and held to the database by
+`SchemaInSyncTest`.
 
 **A document lives as long as something needs it.** Every path that deletes a form — `DeleteForm`,
 and the purge that reaps an expired one — goes through one private step in the repository, in one
@@ -437,6 +438,25 @@ instead of racing. A document something still points at is simply left where it 
 failure to collect. The transaction is what the documents buy by going last: an orphaned document
 would be invisible and harmless, but unlike a directory of bytes nothing would ever come along and
 collect it, and there is deliberately no sweep for these.
+
+**The catalogue.** `form_templates` is a name and the pair of documents new forms made from it
+get (`current_definition_id`, `current_presentation_id`, both foreign keys under `RESTRICT`); the
+two histories are the document rows themselves, carrying `template_id` and `seq`. Those two arrive
+together and mean nothing apart — a document with both is a published version, one with neither is
+the one-off of the single form it was created with — so **one-off needs no flag**: a column saying
+what `template_id IS NULL` already says is a second answer that can come to disagree with the
+first. `template_id` is deliberately *not* a foreign key: the two tables would otherwise point at
+each other, and of the two keys this is the one whose enforcement buys least (see
+`Version20260912110000`).
+
+A number is `max + 1` over a history, taken under the **template's** row lock and never a
+document's — `FormTemplates::getForUpdate()`, inside the use case's transaction. **Publishing is
+never activating**: `PublishTemplateVersion` adds to a history and moves nothing, and
+`ActivateTemplateVersions` moves the pointer and judges the pair with the same
+`PresentationRules` a form's own presentation is held to. A presentation is judged twice — once
+when published, against the definition in use, so a document that could never be activated is
+refused where somebody can fix it, and again whenever a pointer moves. The pair is stated whole:
+naming no presentation means none. Nothing reaches any of this through an address yet.
 
 `.claude/plan/27-templates.md` is the whole of the design.
 

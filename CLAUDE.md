@@ -418,6 +418,8 @@ src/Domain/Forms/          the model: Form (aggregate), FormStatus, IdentityMode
     Document/              StoredDefinition, StoredPresentation — a definition and a
                            presentation as they are kept: one row apiece, named by the forms
                            made of them, written once and never edited
+    Template/              FormTemplate — a name and the one pair of documents new forms
+                           made from it get; it keeps one rule, that the pair fits
     ValueObject/           FormId, ExpireDate, Values, Definition, Presentation, Webhooks,
                            Actor, ExpectedRevision, DefinitionId, PresentationId, FileId,
                            FileDescriptor, FileReference, MediaType
@@ -425,16 +427,19 @@ src/Domain/Forms/          the model: Form (aggregate), FormStatus, IdentityMode
                            FormNotFound, FormGone, FormLocked, FormAlreadyConfirmed,
                            FormHasNoData, FormMovedOn, IdentityRequired, …) and
                            CarriesFindings — which of them point at what is wrong
-    Port/                  FormRepository, StoredDocuments, ValuesValidator, DefinitionParser,
-                           PresentationParser — what the model needs from the outside to keep
-                           its own rules
+    Port/                  FormRepository, FormTemplates, StoredDocuments, ValuesValidator,
+                           DefinitionParser, PresentationParser — what the model needs from
+                           the outside to keep its own rules
 src/Application/Forms/
     UseCase/               one class per thing the system does, each with a single __invoke:
                            CreateForm, SaveFormData, ConfirmForm, DeleteForm, ReadForm,
                            UploadFormFile, ReadFormFile, DiscardFormFile, ReadFormHistory,
                            ReadFormRecord, ReadFormDeliveries, DeliverAnnouncements,
-                           PurgeExpiredForms, PurgeTemporaryFiles. This is where a transaction
-                           is opened and where the order of steps lives.
+                           PurgeExpiredForms, PurgeTemporaryFiles, and the catalogue's own —
+                           CreateFormTemplate, PublishTemplateVersion,
+                           ActivateTemplateVersions, RenameFormTemplate, ReadFormTemplate.
+                           This is where a transaction is opened and where the order of steps
+                           lives.
     File/                  IncomingFile, FileStream, CollectedFiles — an upload on its way
                            in, an open file on its way out, and what a collector took —
                            plus FormFiles: which files a form has ever named
@@ -455,10 +460,11 @@ src/Application/Forms/
                            cannot do itself
 src/Infrastructure/        the adapters filling those ports
     Persistence/           the rows (FormRecord, FormRevisionRecord, FormDefinitionRecord,
-                           FormPresentationRecord, WebhookAnnouncementRecord — public fields,
+                           FormPresentationRecord, FormTemplateRecord,
+                           WebhookAnnouncementRecord — public fields,
                            ORM attributes, no idea a form exists), the adapters over them, and
-                           RowsLeaveWithTheirForm: the cascades and references the mapping
-                           cannot declare
+                           ConstraintsTheMappingCannotDeclare: the cascades and the
+                           references the mapping has no way to say
     Cache/                 CachedDataSchemaProvider
     Files/                 FlysystemFileStore — keys, the sidecar of facts, sniffing, deletes
     Validation/            the schema gate, the Symfony form, the two gates stricter than the
@@ -914,6 +920,15 @@ Rules that follow from it, and that the tooling checks:
 - **Persistence stays platform-neutral**: portable Doctrine types only (`uuid`, `text`,
   `datetime_immutable` in UTC) on `FormRecord`, both documents stored as the exact JSON text
   that passed validation, migrations built through the schema API rather than raw SQL.
+- **A template is a name and the one pair of documents new forms get.** Two histories, numbered
+  apart because they fail differently — a presentation changes often and cheaply, a definition is
+  where compatibility breaks — and the pairing lives in the template's pointer, judged whenever it
+  moves, because a presentation is only ever valid against a definition. **Publishing is never
+  activating**, with one exception: a template is born holding version 1 of each and already using
+  them, there being nothing to activate away from. A **one-off** document is one in no template
+  (`template_id IS NULL`), belonging to the single form it was created with — no flag, because a
+  column saying the same thing is a second answer that can come to disagree. A pair is stated
+  whole: naming no presentation means none, not "keep the one you had".
 - **A form names its two documents rather than holding them.** They are rows of their own
   (`form_definitions`, `form_presentations`), so a definition used by ten thousand forms is kept
   once — which is what the catalogue in [27](.claude/plan/27-templates.md) is built on. Three

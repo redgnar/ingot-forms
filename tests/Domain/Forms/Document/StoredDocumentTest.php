@@ -13,8 +13,10 @@ use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\DefinitionId;
+use App\Domain\Forms\ValueObject\FormTemplateId;
 use App\Domain\Forms\ValueObject\Presentation;
 use App\Domain\Forms\ValueObject\PresentationId;
+use App\Domain\Forms\ValueObject\TemplateVersion;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -95,6 +97,65 @@ final class StoredDocumentTest extends TestCase
 
         // THEN
         self::assertNull($stored->createdBy());
+    }
+
+    public function testADocumentInNoTemplateIsTheOneOffOfTheFormItWasMadeFor(): void
+    {
+        // GIVEN a document created for a single form
+        // WHEN / THEN — there is no flag saying so: being in no history *is*
+        // what one-off means, which is one column and nothing to keep in step
+        $stored = new StoredDefinition(
+            DefinitionId::next(),
+            Definition::of(new FormDefinition([new TextField('email')]), self::DEFINITION),
+            new \DateTimeImmutable(),
+        );
+
+        self::assertNull($stored->version());
+        self::assertTrue($stored->isOneOff());
+    }
+
+    public function testAPublishedVersionKnowsWhichHistoryItIsInAndWhere(): void
+    {
+        // GIVEN the third definition a template published
+        $template = FormTemplateId::next();
+        $version = TemplateVersion::of($template, 3);
+
+        // WHEN
+        $stored = new StoredDefinition(
+            DefinitionId::next(),
+            Definition::of(new FormDefinition([new TextField('email')]), self::DEFINITION),
+            new \DateTimeImmutable(),
+            null,
+            $version,
+        );
+
+        // THEN it is not a one-off, and it says where it sits
+        self::assertFalse($stored->isOneOff());
+        self::assertSame($version, $stored->version());
+        self::assertSame(3, $stored->version()->seq());
+    }
+
+    public function testAPresentationAnswersTheSameWay(): void
+    {
+        // GIVEN one of each
+        $one = new StoredPresentation(
+            PresentationId::next(),
+            Presentation::of(self::processor()->presentationFromStored(self::PRESENTATION), self::PRESENTATION),
+            new \DateTimeImmutable(),
+        );
+        $published = new StoredPresentation(
+            PresentationId::next(),
+            Presentation::of(self::processor()->presentationFromStored(self::PRESENTATION), self::PRESENTATION),
+            new \DateTimeImmutable(),
+            null,
+            TemplateVersion::of(FormTemplateId::next(), 1),
+        );
+
+        // WHEN / THEN
+        self::assertTrue($one->isOneOff());
+        self::assertNull($one->version());
+        self::assertFalse($published->isOneOff());
+        self::assertSame(1, $published->version()?->seq());
     }
 
     private static function processor(): PresentationProcessor

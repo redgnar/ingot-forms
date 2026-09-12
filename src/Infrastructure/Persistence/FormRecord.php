@@ -39,7 +39,7 @@ class FormRecord
      * own that takes no lock — {@see DoctrineStoredDocuments} says why that
      * matters — and an association would put that decision somewhere nobody is
      * looking. The two constraints are stated by
-     * {@see RowsLeaveWithTheirForm} instead.
+     * {@see ConstraintsTheMappingCannotDeclare} instead.
      */
     #[ORM\Column(name: 'definition_id', type: 'uuid')]
     public Uuid $definitionId;

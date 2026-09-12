@@ -9,6 +9,7 @@ use App\Domain\Forms\Document\StoredPresentation;
 use App\Domain\Forms\Exception\DocumentNotStored;
 use App\Domain\Forms\Port\StoredDocuments;
 use App\Domain\Forms\ValueObject\DefinitionId;
+use App\Domain\Forms\ValueObject\FormTemplateId;
 use App\Domain\Forms\ValueObject\PresentationId;
 use PHPUnit\Framework\TestCase;
 
@@ -96,6 +97,25 @@ final class StoredDocumentsTest extends TestCase
         self::assertSame(
             \sprintf('No presentation is stored as "%s".', $presentation),
             DocumentNotStored::presentation($presentation)->getMessage(),
+        );
+    }
+
+    public function testAVersionNoTemplateEverPublishedIsSaidAsSuch(): void
+    {
+        // GIVEN a template asked for a number it never handed out
+        $template = FormTemplateId::next();
+
+        // WHEN / THEN — its own wording, because the two are different mistakes:
+        // an id that names nothing is a caller holding something stale, while a
+        // number is a caller asking about a history, and "no definition is
+        // stored as 3" would be a message about the wrong thing entirely
+        self::assertSame(
+            \sprintf('Form template "%s" has published no definition 3.', $template),
+            DocumentNotStored::definitionVersion($template, 3)->getMessage(),
+        );
+        self::assertSame(
+            \sprintf('Form template "%s" has published no presentation 7.', $template),
+            DocumentNotStored::presentationVersion($template, 7)->getMessage(),
         );
     }
 }

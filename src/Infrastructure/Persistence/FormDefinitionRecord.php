@@ -20,6 +20,7 @@ use Symfony\Component\Uid\Uuid;
  */
 #[ORM\Entity]
 #[ORM\Table(name: 'form_definitions')]
+#[ORM\UniqueConstraint(name: 'uniq_form_definitions_version', columns: ['template_id', 'seq'])]
 class FormDefinitionRecord
 {
     #[ORM\Id]
@@ -28,6 +29,22 @@ class FormDefinitionRecord
 
     #[ORM\Column(type: Types::TEXT)]
     public string $document;
+
+    /**
+     * Which template numbers this document, and what number it got. Both null
+     * together on a one-off — a document belonging to the single form it was
+     * created with — and both set on a published version; there is no third
+     * combination and no flag saying which of the two this is.
+     *
+     * `templateId` is a plain column and not an association: the two tables would
+     * otherwise point at each other, and `Version20260912110000` says which of
+     * the two keys gave way and why.
+     */
+    #[ORM\Column(name: 'template_id', type: 'uuid', nullable: true)]
+    public ?Uuid $templateId = null;
+
+    #[ORM\Column(type: Types::INTEGER, nullable: true)]
+    public ?int $seq = null;
 
     #[ORM\Column(name: 'created_at', type: Types::DATETIME_IMMUTABLE)]
     public \DateTimeImmutable $createdAt;

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Persistence;
 
+use App\Application\Forms\Port\TemplateVersions;
+use App\Application\Forms\Template\PublishedVersion;
 use App\Domain\Forms\Document\StoredDefinition;
 use App\Domain\Forms\Document\StoredPresentation;
 use App\Domain\Forms\Exception\DocumentNotStored;
@@ -13,8 +15,10 @@ use App\Domain\Forms\Port\StoredDocuments;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\DefinitionId;
+use App\Domain\Forms\ValueObject\FormTemplateId;
 use App\Domain\Forms\ValueObject\Presentation;
 use App\Domain\Forms\ValueObject\PresentationId;
+use App\Domain\Forms\ValueObject\TemplateVersion;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Uid\Uuid;
 
@@ -37,7 +41,7 @@ use Symfony\Component\Uid\Uuid;
  * actively wrong: a document shared by ten thousand forms is a row every one of
  * their saves would have to queue behind.
  */
-final class DoctrineStoredDocuments implements StoredDocuments
+final class DoctrineStoredDocuments implements StoredDocuments, TemplateVersions
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -52,6 +56,7 @@ final class DoctrineStoredDocuments implements StoredDocuments
         $record->document = (string) $definition->definition();
         $record->createdAt = $definition->createdAt();
         $record->createdBySubject = self::subject($definition->createdBy());
+        self::place($record, $definition->version());
 
         $this->entityManager->persist($record);
         $this->entityManager->flush();
@@ -64,6 +69,7 @@ final class DoctrineStoredDocuments implements StoredDocuments
         $record->document = (string) $presentation->presentation();
         $record->createdAt = $presentation->createdAt();
         $record->createdBySubject = self::subject($presentation->createdBy());
+        self::place($record, $presentation->version());
 
         $this->entityManager->persist($record);
         $this->entityManager->flush();
@@ -83,6 +89,7 @@ final class DoctrineStoredDocuments implements StoredDocuments
             Definition::stored($record->document, $this->definitions),
             $record->createdAt,
             self::actor($record->createdBySubject),
+            self::version($record->templateId, $record->seq),
         );
     }
 
@@ -96,6 +103,7 @@ final class DoctrineStoredDocuments implements StoredDocuments
             Presentation::stored($record->document, $this->presentations),
             $record->createdAt,
             self::actor($record->createdBySubject),
+            self::version($record->templateId, $record->seq),
         );
     }
 
@@ -134,6 +142,119 @@ final class DoctrineStoredDocuments implements StoredDocuments
             ))
             ->setParameter('id', $id)
             ->execute();
+    }
+
+    public function nextDefinitionSeq(FormTemplateId $template): int
+    {
+        return $this->next(FormDefinitionRecord::class, $template);
+    }
+
+    public function nextPresentationSeq(FormTemplateId $template): int
+    {
+        return $this->next(FormPresentationRecord::class, $template);
+    }
+
+    public function definitionAt(FormTemplateId $template, int $seq): StoredDefinition
+    {
+        $record = $this->entityManager->getRepository(FormDefinitionRecord::class)
+            ->findOneBy(['templateId' => $template->toUuid(), 'seq' => $seq]);
+
+        if (!$record instanceof FormDefinitionRecord) {
+            throw DocumentNotStored::definitionVersion($template, $seq);
+        }
+
+        return $this->definition(DefinitionId::of($record->id));
+    }
+
+    public function presentationAt(FormTemplateId $template, int $seq): StoredPresentation
+    {
+        $record = $this->entityManager->getRepository(FormPresentationRecord::class)
+            ->findOneBy(['templateId' => $template->toUuid(), 'seq' => $seq]);
+
+        if (!$record instanceof FormPresentationRecord) {
+            throw DocumentNotStored::presentationVersion($template, $seq);
+        }
+
+        return $this->presentation(PresentationId::of($record->id));
+    }
+
+    public function definitionsOf(FormTemplateId $template): array
+    {
+        return $this->published(FormDefinitionRecord::class, $template);
+    }
+
+    public function presentationsOf(FormTemplateId $template): array
+    {
+        return $this->published(FormPresentationRecord::class, $template);
+    }
+
+    /**
+     * The number the next version of this template gets.
+     *
+     * `max + 1` and not a count, because the two stop agreeing the moment
+     * anything is ever removed — and because a number that has been handed out
+     * must never be handed out again, whatever happened to the row that took it.
+     *
+     * @param class-string $document
+     */
+    private function next(string $document, FormTemplateId $template): int
+    {
+        /** @var int|null $highest */
+        $highest = $this->entityManager
+            ->createQuery(\sprintf('SELECT MAX(d.seq) FROM %s d WHERE d.templateId = :template', $document))
+            ->setParameter('template', $template->toUuid())
+            ->getSingleScalarResult();
+
+        return ($highest ?? 0) + 1;
+    }
+
+    /**
+     * What this template has published, newest first — the numbers and how each
+     * got there, never the documents. A listing is for choosing one.
+     *
+     * @param class-string $document
+     *
+     * @return list<PublishedVersion>
+     */
+    private function published(string $document, FormTemplateId $template): array
+    {
+        /** @var list<array{seq: int, createdAt: \DateTimeImmutable, createdBySubject: string|null}> $rows */
+        $rows = $this->entityManager
+            ->createQuery(\sprintf(
+                'SELECT d.seq, d.createdAt, d.createdBySubject FROM %s d WHERE d.templateId = :template ORDER BY d.seq DESC',
+                $document,
+            ))
+            ->setParameter('template', $template->toUuid())
+            ->getArrayResult();
+
+        return array_map(
+            static fn(array $row): PublishedVersion => new PublishedVersion(
+                $row['seq'],
+                $row['createdAt'],
+                self::actor($row['createdBySubject']),
+            ),
+            $rows,
+        );
+    }
+
+    /** Where a row sits in a history, or nothing at all when it sits in none. */
+    private static function version(?Uuid $template, ?int $seq): ?TemplateVersion
+    {
+        // Both or neither: the column pair says so and the value object refuses
+        // to be half of one, so a row that somehow held one would be read as the
+        // one-off it is not — which is why the two are written together and
+        // nothing ever writes one.
+        if ($template === null || $seq === null) {
+            return null;
+        }
+
+        return TemplateVersion::of(FormTemplateId::of($template), $seq);
+    }
+
+    private static function place(FormDefinitionRecord|FormPresentationRecord $record, ?TemplateVersion $version): void
+    {
+        $record->templateId = $version?->template()->toUuid();
+        $record->seq = $version?->seq();
     }
 
     private static function subject(?Actor $actor): ?string

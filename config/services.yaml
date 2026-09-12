@@ -170,6 +170,8 @@ services:
     # layer names an implementation.
     App\Domain\Forms\Port\FormRepository: '@App\Infrastructure\Persistence\DoctrineFormRepository'
     App\Domain\Forms\Port\StoredDocuments: '@App\Infrastructure\Persistence\DoctrineStoredDocuments'
+    App\Domain\Forms\Port\FormTemplates: '@App\Infrastructure\Persistence\DoctrineFormTemplates'
+    App\Application\Forms\Port\TemplateVersions: '@App\Infrastructure\Persistence\DoctrineStoredDocuments'
     App\Domain\Forms\Port\DefinitionParser: '@App\Domain\Forms\FormDefinitionProcessor'
     App\Domain\Forms\Port\PresentationParser: '@App\Domain\Forms\PresentationProcessor'
     App\Domain\Forms\Port\ValuesValidator: '@App\Infrastructure\Validation\StagedValuesValidator'

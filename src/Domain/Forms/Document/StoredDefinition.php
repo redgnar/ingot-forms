@@ -7,6 +7,7 @@ namespace App\Domain\Forms\Document;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\Definition;
 use App\Domain\Forms\ValueObject\DefinitionId;
+use App\Domain\Forms\ValueObject\TemplateVersion;
 
 /**
  * One definition as it is kept: the document itself, an identity of its own, and
@@ -36,7 +37,29 @@ final readonly class StoredDefinition
          * no proxy in front of whoever writes definitions.
          */
         private ?Actor $createdBy = null,
+        /**
+         * Where this sits in a template's history, or nothing at all — which is
+         * what a **one-off** is: a document in no template, belonging to the one
+         * form it was created with and leaving when that form does.
+         */
+        private ?TemplateVersion $version = null,
     ) {}
+
+    /** Where this sits in a template's history, or null when it is in none. */
+    public function version(): ?TemplateVersion
+    {
+        return $this->version;
+    }
+
+    /**
+     * Whether this belongs to one form rather than to a catalogue. Asked as a
+     * question about the version and not about anything else, so there is one
+     * answer and nothing to keep in step with it.
+     */
+    public function isOneOff(): bool
+    {
+        return $this->version === null;
+    }
 
     public function id(): DefinitionId
     {
