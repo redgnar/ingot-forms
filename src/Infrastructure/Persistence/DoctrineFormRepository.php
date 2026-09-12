@@ -6,6 +6,8 @@ namespace App\Infrastructure\Persistence;
 
 use App\Application\Forms\Port\Announcements;
 use App\Application\Forms\Webhook\Announcement;
+use App\Domain\Forms\Document\StoredDefinition;
+use App\Domain\Forms\Document\StoredPresentation;
 use App\Domain\Forms\Event\DraftSaved;
 use App\Domain\Forms\Event\FormConfirmed;
 use App\Domain\Forms\Event\FormCreated;
@@ -15,14 +17,13 @@ use App\Domain\Forms\Exception\FormNotFound;
 use App\Domain\Forms\Exception\FormUnreadable;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\IdentityMode;
-use App\Domain\Forms\Port\DefinitionParser;
 use App\Domain\Forms\Port\FormRepository;
-use App\Domain\Forms\Port\PresentationParser;
+use App\Domain\Forms\Port\StoredDocuments;
 use App\Domain\Forms\ValueObject\Actor;
-use App\Domain\Forms\ValueObject\Definition;
+use App\Domain\Forms\ValueObject\DefinitionId;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
-use App\Domain\Forms\ValueObject\Presentation;
+use App\Domain\Forms\ValueObject\PresentationId;
 use App\Domain\Forms\ValueObject\Values;
 use App\Domain\Forms\ValueObject\Webhooks;
 use Doctrine\DBAL\LockMode;
@@ -45,8 +46,13 @@ final class DoctrineFormRepository implements FormRepository
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly DefinitionParser $definitions,
-        private readonly PresentationParser $presentations,
+        /**
+         * Where the two documents a form is made of are kept, since they stopped
+         * being columns on its row. This adapter no longer parses either: it
+         * names them on the way in and asks for them on the way out, and what a
+         * stored document means is the other adapter's business.
+         */
+        private readonly StoredDocuments $documents,
         /**
          * Where what happened is written down for somebody else to be told.
          *
@@ -69,10 +75,15 @@ final class DoctrineFormRepository implements FormRepository
         // place that reads the form rather than what happened to it.
         $record = new FormRecord();
         $record->id = $form->id()->toUuid();
-        $record->definition = (string) $form->definition();
         $record->expireDate = $form->expireDate()->toDateTime();
         $record->createdAt = $form->createdAt();
-        $record->presentation = $form->presentation() === null ? null : (string) $form->presentation();
+        // Kept before the row that names them, and flushed by the port that
+        // keeps them: a form pointing at a document that has not reached the
+        // database is a foreign key waiting to fail. Every form created today
+        // brings documents of its own — nothing shares one yet — so this is one
+        // insert each, exactly where the column used to be written.
+        $record->definitionId = $this->keepDefinition($form)->toUuid();
+        $record->presentationId = $this->keepPresentation($form)?->toUuid();
         // A form can be born holding its first draft, and the whole row means
         // the whole row.
         $record->data = $form->valuesJson();
@@ -282,13 +293,18 @@ final class DoctrineFormRepository implements FormRepository
     {
         return Form::fromState(
             FormId::of($record->id),
-            Definition::stored($record->definition, $this->definitions),
+            // A query of its own, and deliberately not a join: a document shared
+            // by ten thousand forms must never be dragged into the lock a save
+            // holds on one row of `forms`.
+            $this->documents->definition(DefinitionId::of($record->definitionId))->definition(),
             ExpireDate::at($record->expireDate),
             $record->data === null ? null : Values::fromJson($record->data),
             $record->dataSavedAt,
             $record->confirmedAt,
             $record->createdAt,
-            $record->presentation === null ? null : Presentation::stored($record->presentation, $this->presentations),
+            $record->presentationId === null
+                ? null
+                : $this->documents->presentation(PresentationId::of($record->presentationId))->presentation(),
             // A mode nothing recognises is a row this deployment cannot judge,
             // and it is reported the way an unreadable definition is rather than
             // guessed at: guessing `anonymous` would quietly promise something,
@@ -456,6 +472,37 @@ final class DoctrineFormRepository implements FormRepository
         $revision->actorSubject = self::subject($event->filler);
 
         return $revision;
+    }
+
+    /**
+     * Keeps this form's definition and answers with the id the row will name it
+     * by.
+     *
+     * Who stored it is the form's author, which is the truth and not a guess:
+     * whoever created a form is whoever supplied the document it is made of. An
+     * anonymous form has already dropped its author, so nothing is recorded here
+     * that the form itself refused to hold.
+     */
+    private function keepDefinition(Form $form): DefinitionId
+    {
+        $id = DefinitionId::next();
+        $this->documents->addDefinition(new StoredDefinition($id, $form->definition(), $form->createdAt(), $form->author()));
+
+        return $id;
+    }
+
+    private function keepPresentation(Form $form): ?PresentationId
+    {
+        $presentation = $form->presentation();
+
+        if ($presentation === null) {
+            return null;
+        }
+
+        $id = PresentationId::next();
+        $this->documents->addPresentation(new StoredPresentation($id, $presentation, $form->createdAt(), $form->author()));
+
+        return $id;
     }
 
     private static function subject(?Actor $actor): ?string

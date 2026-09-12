@@ -11,8 +11,9 @@ use Doctrine\ORM\Tools\ToolEvents;
 /**
  * Tells the schema tool about the constraints the mapping cannot say.
  *
- * Two tables point at `forms.id` with `ON DELETE CASCADE`: what a form used to
- * hold ({@see FormRevisionRecord}, `Version20260824120000`) and what somebody is
+ * Two tables point at `forms.id` with `ON DELETE CASCADE`, and `forms` points at
+ * two of its own with `ON DELETE RESTRICT`. The cascades first: what a form used
+ * to hold ({@see FormRevisionRecord}, `Version20260824120000`) and what somebody is
  * still owed about it ({@see WebhookAnnouncementRecord}, `Version20260902160000`).
  * That is what makes "these leave with their form" a fact of the database rather
  * than an order of two statements. The ORM has no way to declare either: a
@@ -49,6 +50,24 @@ final class RowsLeaveWithTheirForm
         'webhook_announcements' => ['fk_webhook_announcements_live_form', 'live_form_id'],
     ];
 
+    /**
+     * And the two that point the other way: a form names the documents it is
+     * made of, `ON DELETE RESTRICT`, so a definition some form is made of cannot
+     * be deleted at all ({@see \DoctrineMigrations\Version20260912100200}).
+     *
+     * Here rather than in the mapping for the same reason as the cascades above,
+     * and with one more behind it: `FormRecord` holds ids and not associations
+     * on purpose, because a form's documents are read by a query of their own
+     * that takes no lock, and an association would hand that decision to
+     * Doctrine.
+     *
+     * @var array<string, array{string, string}>
+     */
+    private const array REFERENCES = [
+        'form_definitions' => ['fk_forms_definition', 'definition_id'],
+        'form_presentations' => ['fk_forms_presentation', 'presentation_id'],
+    ];
+
     public function __invoke(GenerateSchemaEventArgs $event): void
     {
         $schema = $event->getSchema();
@@ -82,6 +101,16 @@ final class RowsLeaveWithTheirForm
                 ['onDelete' => 'CASCADE'],
                 $key,
             );
+        }
+
+        $forms = $schema->getTable('forms');
+
+        foreach (self::REFERENCES as $table => [$key, $column]) {
+            if (!$schema->hasTable($table) || $forms->hasForeignKey($key)) {
+                continue;
+            }
+
+            $forms->addForeignKeyConstraint($table, [$column], ['id'], ['onDelete' => 'RESTRICT'], $key);
         }
     }
 }

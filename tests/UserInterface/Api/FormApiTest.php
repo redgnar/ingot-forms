@@ -13,6 +13,7 @@ use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
 use App\Infrastructure\Persistence\FormRecord;
+use App\Tests\Infrastructure\Persistence\WritesTheDocumentsARowNames;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -20,6 +21,8 @@ use Symfony\Component\Uid\Uuid;
 
 final class FormApiTest extends WebTestCase
 {
+    use WritesTheDocumentsARowNames;
+
     /** @var array<string, mixed> */
     private const array DEFINITION = [
         'items' => [
@@ -745,10 +748,14 @@ final class FormApiTest extends WebTestCase
         $record = new FormRecord();
         $record->identityMode = IdentityMode::Anonymous->value;
         $record->id = Uuid::fromString($id);
-        $record->definition = json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR);
         $record->expireDate = new \DateTimeImmutable('+1 day');
         $record->createdAt = new \DateTimeImmutable();
-        $record->presentation = '{"engine":"core-html","items":[{"name":"email","widget":"text"}]}';
+        self::documentsFor(
+            $entityManager,
+            $record,
+            json_encode(self::DEFINITION, \JSON_THROW_ON_ERROR),
+            '{"engine":"core-html","items":[{"name":"email","widget":"text"}]}',
+        );
 
         $entityManager->persist($record);
         $entityManager->flush();

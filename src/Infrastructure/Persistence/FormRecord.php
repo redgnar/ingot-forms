@@ -14,7 +14,9 @@ use Symfony\Component\Uid\Uuid;
  * repository's job; this only says what the table looks like.
  *
  * Columns use portable types only (`uuid`, `text`, `datetime_immutable` in
- * UTC), and both documents are kept as the exact JSON text that was validated.
+ * UTC). The values are kept as the exact JSON text that was validated; the two
+ * documents are named rather than held, and kept once however many forms are
+ * made of them.
  */
 #[ORM\Entity]
 #[ORM\Table(name: 'forms')]
@@ -25,17 +27,31 @@ class FormRecord
     #[ORM\Column(type: 'uuid')]
     public Uuid $id;
 
-    #[ORM\Column(type: Types::TEXT)]
-    public string $definition;
+    /**
+     * Which stored definition this form is made of, and which stored
+     * presentation shows it — ids and not documents, since
+     * `Version20260912100200`.
+     *
+     * Plain columns rather than associations, and that is the same decision
+     * {@see FormRevisionRecord} rests on: a `ManyToOne` would bring a foreign key
+     * the mapping could declare, and with it an entity Doctrine decides when to
+     * load. A form's documents are read once, deliberately, by a query of their
+     * own that takes no lock — {@see DoctrineStoredDocuments} says why that
+     * matters — and an association would put that decision somewhere nobody is
+     * looking. The two constraints are stated by
+     * {@see RowsLeaveWithTheirForm} instead.
+     */
+    #[ORM\Column(name: 'definition_id', type: 'uuid')]
+    public Uuid $definitionId;
+
+    #[ORM\Column(name: 'presentation_id', type: 'uuid', nullable: true)]
+    public ?Uuid $presentationId = null;
 
     #[ORM\Column(name: 'expire_date', type: Types::DATETIME_IMMUTABLE)]
     public \DateTimeImmutable $expireDate;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     public ?string $data = null;
-
-    #[ORM\Column(type: Types::TEXT, nullable: true)]
-    public ?string $presentation = null;
 
     #[ORM\Column(name: 'data_saved_at', type: Types::DATETIME_IMMUTABLE, nullable: true)]
     public ?\DateTimeImmutable $dataSavedAt = null;

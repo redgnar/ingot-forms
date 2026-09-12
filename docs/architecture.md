@@ -381,8 +381,8 @@ Storage is built on `forms` and `form_revisions`, mapped with portable types onl
 `text`, `datetime_immutable` in UTC) so the service installs on PostgreSQL, MySQL/MariaDB or
 SQLite alike — point `DATABASE_URL` at it and run the migration, which is built through Doctrine's
 schema API rather than raw SQL. The definition is stored **normalized**
-(`TreeMapper::normalize()` output) as the exact JSON text that passed validation, and so are
-the values: PHP arrays cannot tell an empty object from an empty list, and those bytes are
+(`TreeMapper::normalize()` output) as the exact JSON text that passed validation — in
+`form_definitions`, which the form names (below) — and so are the values: PHP arrays cannot tell an empty object from an empty list, and those bytes are
 handed back to clients verbatim. Status is derived from the row (`data IS NULL` /
 `confirmed_at`), never stored; state transitions run under `LockMode::PESSIMISTIC_WRITE`.
 
@@ -404,17 +404,30 @@ the moment it did — besides being one more query on a row the save already hol
 both come from one `DraftSaved` — which is what makes "the current values are also the newest
 revision" true, and everything that asks what a form has **ever** named leans on it.
 
-**Two tables nothing reads yet.** `form_definitions` and `form_presentations` keep one document
-apiece — the same normalized JSON text, with an id of its own, when it was stored and who stored
-it — so that a definition used by ten thousand forms can be kept once rather than ten thousand
-times. They arrive empty and stay empty until the block that moves the bytes across: `forms` still
-answers from its own two columns, and nothing in the running service reads a row from either
-table. They are here early on purpose — the mapping, the migration and
-`DoctrineStoredDocuments` are exercised before anything depends on them, which is the half of
-that change that can be got wrong quietly. The port they fill
-(`App\Domain\Forms\Port\StoredDocuments`) has two ways to write and both of them *add*:
-a stored document is written once and superseded, never edited, because it is what a filled-in
-form's answers were judged against. `.claude/plan/27-templates.md` is the whole of the design.
+**A form names its two documents rather than holding them.** `form_definitions` and
+`form_presentations` keep one document apiece — the same normalized JSON text, with an id of its
+own, when it was stored and who stored it — and `forms.definition_id` / `forms.presentation_id`
+point at them (`Version20260912100000`–`…100200`: expand, move, contract, because a migration
+cannot order DDL after its own DML — `DbalExecutor` runs everything `addSql()` added first and the
+schema diff afterwards). A definition used by ten thousand forms is one row, not ten thousand.
+Backfilled documents took the id of the form they came from, which is an artifact of that
+migration and means nothing: the two were 1:1, and reusing the id avoided minting a UUID per
+platform.
+
+Three things make this safe, and each replaces something the old layout gave away for free.
+The documents are **append-only** — the port that keeps them
+(`App\Domain\Forms\Port\StoredDocuments`, filled by `DoctrineStoredDocuments`) has two ways to
+write and both of them *add*, because a stored document is what a filled-in form's answers were
+judged against. Both foreign keys are **`ON DELETE RESTRICT`**, so a document some form is made of
+cannot be deleted at all — structurally impossible rather than checked, which is stronger than a
+copy that a bad migration could orphan. And `FormRecord` holds **ids and not associations**: a
+form's documents are read by a query of their own that takes **no lock**, because a `JOIN FETCH`
+under `PESSIMISTIC_WRITE` locks the joined rows on PostgreSQL, which would queue every save of
+every form sharing a definition behind one another. The constraints the mapping therefore cannot
+declare are stated by `RowsLeaveWithTheirForm` and held to the database by `SchemaInSyncTest`.
+
+Deleting a form does not yet collect the documents only it named; that is the next block.
+`.claude/plan/27-templates.md` is the whole of the design.
 
 ## How values are judged
 

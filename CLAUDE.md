@@ -415,14 +415,17 @@ src/Domain/Forms/          the model: Form (aggregate), FormStatus, IdentityMode
                            A deletion is announced from a row instead — there is no aggregate
                            left to record it
     File/                  FileReferences — which files one document names, and where
+    Document/              StoredDefinition, StoredPresentation — a definition and a
+                           presentation as they are kept: one row apiece, named by the forms
+                           made of them, written once and never edited
     ValueObject/           FormId, ExpireDate, Values, Definition, Presentation, Webhooks,
-                           Actor, ExpectedRevision, FileId, FileDescriptor, FileReference,
-                           MediaType
+                           Actor, ExpectedRevision, DefinitionId, PresentationId, FileId,
+                           FileDescriptor, FileReference, MediaType
     Exception/             what the model refuses (DefinitionNotValid, ValuesNotValid,
                            FormNotFound, FormGone, FormLocked, FormAlreadyConfirmed,
                            FormHasNoData, FormMovedOn, IdentityRequired, …) and
                            CarriesFindings — which of them point at what is wrong
-    Port/                  FormRepository, ValuesValidator, DefinitionParser,
+    Port/                  FormRepository, StoredDocuments, ValuesValidator, DefinitionParser,
                            PresentationParser — what the model needs from the outside to keep
                            its own rules
 src/Application/Forms/
@@ -451,10 +454,11 @@ src/Application/Forms/
                            Announcer, Webhook, RecordDocuments — what a use case needs and
                            cannot do itself
 src/Infrastructure/        the adapters filling those ports
-    Persistence/           the rows (FormRecord, FormRevisionRecord,
-                           WebhookAnnouncementRecord — public fields, ORM attributes, no idea
-                           a form exists), the adapters over them, and
-                           RowsLeaveWithTheirForm: the cascades the mapping cannot declare
+    Persistence/           the rows (FormRecord, FormRevisionRecord, FormDefinitionRecord,
+                           FormPresentationRecord, WebhookAnnouncementRecord — public fields,
+                           ORM attributes, no idea a form exists), the adapters over them, and
+                           RowsLeaveWithTheirForm: the cascades and references the mapping
+                           cannot declare
     Cache/                 CachedDataSchemaProvider
     Files/                 FlysystemFileStore — keys, the sidecar of facts, sniffing, deletes
     Validation/            the schema gate, the Symfony form, the two gates stricter than the

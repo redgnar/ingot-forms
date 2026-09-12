@@ -25,6 +25,7 @@ use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Presentation;
 use App\Infrastructure\Persistence\DoctrineAnnouncements;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
+use App\Infrastructure\Persistence\DoctrineStoredDocuments;
 use App\Infrastructure\Persistence\DoctrineTransactions;
 use App\Infrastructure\Persistence\FormRecord;
 use App\Infrastructure\Persistence\FormRevisionRecord;
@@ -34,6 +35,8 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 final class DoctrineFormRepositoryTest extends KernelTestCase
 {
+    use WritesTheDocumentsARowNames;
+
     private const string DEFINITION = '{"items": [{"type": "text", "name": "email", "required": true, "maxLength": null, "pattern": null}]}';
 
     private FormRepository $repository;
@@ -536,10 +539,9 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
         $record = new FormRecord();
         $record->identityMode = IdentityMode::Anonymous->value;
         $record->id = $id->toUuid();
-        $record->definition = self::DEFINITION;
         $record->expireDate = new \DateTimeImmutable('+1 day');
         $record->createdAt = new \DateTimeImmutable();
-        $record->presentation = $presentation;
+        self::documentsFor($entityManager, $record, self::DEFINITION, $presentation);
 
         $entityManager->persist($record);
         $entityManager->flush();
@@ -594,8 +596,7 @@ final class DoctrineFormRepositoryTest extends KernelTestCase
 
         return new DoctrineFormRepository(
             $entityManager,
-            new FormDefinitionProcessor($mapper),
-            new PresentationProcessor($mapper),
+            new DoctrineStoredDocuments($entityManager, new FormDefinitionProcessor($mapper), new PresentationProcessor($mapper)),
             new DoctrineAnnouncements($entityManager),
             $saves,
         );
