@@ -16,6 +16,7 @@ use App\Domain\Forms\ValueObject\DefinitionId;
 use App\Domain\Forms\ValueObject\Presentation;
 use App\Domain\Forms\ValueObject\PresentationId;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * The stored-documents port, backed by Doctrine ORM — portable types only, like
@@ -96,6 +97,43 @@ final class DoctrineStoredDocuments implements StoredDocuments
             $record->createdAt,
             self::actor($record->createdBySubject),
         );
+    }
+
+    public function collect(DefinitionId $definition, ?PresentationId $presentation): void
+    {
+        $this->forget(FormDefinitionRecord::class, 'definitionId', $definition->toUuid());
+
+        if ($presentation !== null) {
+            $this->forget(FormPresentationRecord::class, 'presentationId', $presentation->toUuid());
+        }
+    }
+
+    /**
+     * One statement, and the condition is inside it rather than in front of it.
+     *
+     * Asking first and deleting afterwards would be two questions with a gap in
+     * the middle, and the gap is where a form created from this very document
+     * would fit. As one statement the database settles it: a concurrent insert
+     * naming this row holds the key lock the delete needs, so the two take turns
+     * instead of racing, and whichever loses finds the world it was told about.
+     *
+     * `forms` is named here because being referred to from there is what "still
+     * needed" means today. When a template starts holding versions, this is the
+     * one place that learns a second answer.
+     *
+     * @param class-string $document
+     */
+    private function forget(string $document, string $reference, Uuid $id): void
+    {
+        $this->entityManager
+            ->createQuery(\sprintf(
+                'DELETE FROM %s d WHERE d.id = :id AND NOT EXISTS (SELECT f.id FROM %s f WHERE f.%s = :id)',
+                $document,
+                FormRecord::class,
+                $reference,
+            ))
+            ->setParameter('id', $id)
+            ->execute();
     }
 
     private static function subject(?Actor $actor): ?string

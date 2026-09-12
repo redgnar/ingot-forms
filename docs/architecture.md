@@ -426,7 +426,18 @@ under `PESSIMISTIC_WRITE` locks the joined rows on PostgreSQL, which would queue
 every form sharing a definition behind one another. The constraints the mapping therefore cannot
 declare are stated by `RowsLeaveWithTheirForm` and held to the database by `SchemaInSyncTest`.
 
-Deleting a form does not yet collect the documents only it named; that is the next block.
+**A document lives as long as something needs it.** Every path that deletes a form — `DeleteForm`,
+and the purge that reaps an expired one — goes through one private step in the repository, in one
+transaction and in one order: the news first, then the row (its history and its announcements
+leaving by their own cascades), then the documents it named. That order is forced twice over — the
+foreign key refuses a document some form is still made of, and "is anybody still made of this?" is
+a question about the rows that are *left* — and the condition is inside the delete statement rather
+than in front of it, so a form created from the same document while this runs takes its turn
+instead of racing. A document something still points at is simply left where it is, which is not a
+failure to collect. The transaction is what the documents buy by going last: an orphaned document
+would be invisible and harmless, but unlike a directory of bytes nothing would ever come along and
+collect it, and there is deliberately no sweep for these.
+
 `.claude/plan/27-templates.md` is the whole of the design.
 
 ## How values are judged

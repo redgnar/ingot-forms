@@ -914,6 +914,17 @@ Rules that follow from it, and that the tooling checks:
 - **Persistence stays platform-neutral**: portable Doctrine types only (`uuid`, `text`,
   `datetime_immutable` in UTC) on `FormRecord`, both documents stored as the exact JSON text
   that passed validation, migrations built through the schema API rather than raw SQL.
+- **A form names its two documents rather than holding them.** They are rows of their own
+  (`form_definitions`, `form_presentations`), so a definition used by ten thousand forms is kept
+  once — which is what the catalogue in [27](.claude/plan/27-templates.md) is built on. Three
+  things make the reference as safe as the column it replaces: a stored document is
+  **append-only** (`StoredDocuments` has two ways to write and both *add*), both keys are
+  **`ON DELETE RESTRICT`**, and `FormRecord` holds **ids and not associations** — a form's
+  documents are read by a query of their own that takes **no lock**, because a join under
+  `PESSIMISTIC_WRITE` locks the joined rows and would queue every save of every form sharing a
+  definition behind one another. **A document lives as long as something needs it**: deleting a
+  form takes, in the same transaction and last of all, whatever nothing points at any more, and
+  leaves anything still referenced where it is.
 - **ingot is consumed via a composer path repository** (`../ingot`, sibling checkout,
   mounted at `/ingot` in Docker so the relative symlink resolves). After pulling new ingot
   commits `make install` is enough — a symlink has nothing to fetch; `make update` is for

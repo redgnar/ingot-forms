@@ -39,9 +39,13 @@ final class StoredDocumentsTest extends TestCase
         );
         sort($methods);
 
-        // THEN these four and no others: two that add a document, two that
-        // answer with one, and nothing that takes one already stored
-        self::assertSame(['addDefinition', 'addPresentation', 'definition', 'presentation'], $methods);
+        // THEN these five and no others: two that add a document, two that
+        // answer with one, and one that takes a document's last reference away.
+        // `collect` is neither an edit nor a "delete this" — it asks whether
+        // anything still points at a document and does nothing when something
+        // does — so it leaves the invariant where it was: there is still no way
+        // to change what a stored document says.
+        self::assertSame(['addDefinition', 'addPresentation', 'collect', 'definition', 'presentation'], $methods);
     }
 
     public function testWritingIsAddingAndReadingAnswersWithADocument(): void
@@ -50,13 +54,23 @@ final class StoredDocumentsTest extends TestCase
         $port = new \ReflectionClass(StoredDocuments::class);
 
         // THEN each writer takes a whole document and answers nothing — there is
-        // no id-plus-new-content shape anywhere, which is what an edit looks like
+        // no id-plus-new-content shape anywhere, which is what an edit looks
+        // like, and `collect` takes ids and no content at all
         foreach (['addDefinition' => StoredDefinition::class, 'addPresentation' => StoredPresentation::class] as $name => $document) {
             $method = $port->getMethod($name);
             self::assertSame('void', (string) $method->getReturnType());
             self::assertCount(1, $method->getParameters());
             self::assertSame($document, (string) $method->getParameters()[0]->getType());
         }
+
+        // AND collecting takes ids and nothing else: it cannot carry a document,
+        // so it cannot be an edit wearing another name
+        $collect = $port->getMethod('collect');
+        self::assertSame('void', (string) $collect->getReturnType());
+        self::assertSame(
+            [DefinitionId::class, '?' . PresentationId::class],
+            array_map(static fn(\ReflectionParameter $p): string => (string) $p->getType(), $collect->getParameters()),
+        );
 
         // AND each reader takes an id and answers with what is kept under it
         foreach (['definition' => [DefinitionId::class, StoredDefinition::class], 'presentation' => [PresentationId::class, StoredPresentation::class]] as $name => [$id, $document]) {

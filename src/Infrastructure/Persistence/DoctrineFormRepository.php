@@ -158,17 +158,7 @@ final class DoctrineFormRepository implements FormRepository
      */
     public function remove(FormId $id): void
     {
-        $record = $this->liveRow($id, null);
-        // Whoever asked already knows, but a form may report its own
-        // disappearance to somebody else — queued before the row goes and in the
-        // same flush, so the notification and the deletion cannot disagree.
-        $this->announceGone($record, Announcement::REQUESTED);
-        // The history leaves with it, and the database is what says so
-        // (`fk_form_revisions_form`, ON DELETE CASCADE). One statement rather
-        // than two: there is no window in which a form that still exists has
-        // already lost what it used to hold.
-        $this->entityManager->remove($record);
-        $this->entityManager->flush();
+        $this->letGo($this->liveRow($id, null), Announcement::REQUESTED);
     }
 
     public function save(Form $form): void
@@ -213,9 +203,7 @@ final class DoctrineFormRepository implements FormRepository
         // This is the path the event is really for: nobody asked for this
         // deletion, so an owner waiting on the form has no other way to learn
         // that it has stopped existing.
-        $this->announceGone($record, Announcement::EXPIRED);
-        $this->entityManager->remove($record);
-        $this->entityManager->flush();
+        $this->letGo($record, Announcement::EXPIRED);
 
         // A statement goes straight to the database, so anything already loaded
         // would keep answering from memory for a row that is gone.
@@ -378,6 +366,38 @@ final class DoctrineFormRepository implements FormRepository
         $this->entityManager->persist($revision);
         $this->announce($event, $target, $revision->seq);
         $this->forgetBeyondTheLimit($event->formId, $revision->seq);
+    }
+
+    /**
+     * Everything that happens when a form stops existing, in the one order that
+     * works.
+     *
+     * The news goes first — queued before the row goes and in the same commit,
+     * so the notification and the deletion cannot disagree. Then the row, and
+     * the history leaves with it because the database says so
+     * (`fk_form_revisions_form`, ON DELETE CASCADE), which is one statement
+     * rather than two: there is no window in which a form that still exists has
+     * already lost what it used to hold. Then, and only then, the documents it
+     * named — because "is anybody still made of this?" is a question about the
+     * rows that are left, and while this form is one of them the answer is yes.
+     * The other order is a delete the foreign key refuses outright.
+     *
+     * All of it in one transaction, which is what the documents buy with their
+     * turn being last. An orphaned document would be invisible and harmless, but
+     * unlike a directory of bytes nothing would ever come along and collect it —
+     * there is no sweep for these and this plan does not want one.
+     */
+    private function letGo(FormRecord $record, string $reason): void
+    {
+        $definition = DefinitionId::of($record->definitionId);
+        $presentation = $record->presentationId === null ? null : PresentationId::of($record->presentationId);
+
+        $this->entityManager->wrapInTransaction(function () use ($record, $reason, $definition, $presentation): void {
+            $this->announceGone($record, $reason);
+            $this->entityManager->remove($record);
+            $this->entityManager->flush();
+            $this->documents->collect($definition, $presentation);
+        });
     }
 
     /**
