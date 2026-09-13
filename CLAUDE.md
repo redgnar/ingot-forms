@@ -6,9 +6,11 @@ built on the [ingot](https://github.com/redgnar/ingot) mapping engine. **What th
 `.claude/plan/` is the record of how it got here: the decisions, their reasons, and what each
 stage changed, in the words of the time. Read them for *why*, not for *what is*: paths, names and
 mechanisms in them have since moved on, and each stage's later sections say where. Start at
-`00-mvp.md` and `01-stage2.md`; `13` and `20` are the two session records, and each indexes the
-plans of its own session and holds the blocks that have none — which is what they are for, since
-work with no plan otherwise leaves no trace of why it happened.
+`00-mvp.md` and `01-stage2.md`; `13`, `20` and `28` are the session records. The first two index
+the plans of their own session and hold the blocks that have none — which is what they are for,
+since work with no plan otherwise leaves no trace of why it happened; `28` covers a session that
+was one plan end to end, so it records instead what belonged to no block: the decision it turned
+on, what the owner corrected before anything was built, and what only the running system found.
 
 ## Language
 
