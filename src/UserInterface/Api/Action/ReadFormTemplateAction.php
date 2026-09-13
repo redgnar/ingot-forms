@@ -48,17 +48,17 @@ final class ReadFormTemplateAction
     #[OA\Response(response: 404, ref: '#/components/responses/FormTemplateNotFound')]
     public function __invoke(Uuid $template): JsonResponse
     {
-        $id = FormTemplateId::of($template);
-        $found = $this->templates->inUse($id);
+        $found = ($this->templates)(FormTemplateId::of($template));
+        $catalogued = $found->template;
 
         return new JsonResponse([
-            'id' => (string) $found->id,
-            'name' => $found->name,
-            'createdAt' => $found->createdAt->format(\DateTimeInterface::ATOM),
-            'createdBy' => $found->createdBy === null ? null : (string) $found->createdBy,
-            'definition' => $found->definition,
-            'presentation' => $found->presentation,
-            'forms' => $this->templates->formsMadeFrom($id),
+            'id' => (string) $catalogued->id,
+            'name' => $catalogued->name,
+            'createdAt' => $catalogued->createdAt->format(\DateTimeInterface::ATOM),
+            'createdBy' => $catalogued->createdBy === null ? null : (string) $catalogued->createdBy,
+            'definition' => $catalogued->definition,
+            'presentation' => $catalogued->presentation,
+            'forms' => $found->forms,
         ]);
     }
 }

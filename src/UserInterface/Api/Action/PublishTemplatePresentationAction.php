@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\UserInterface\Api\Action;
 
-use App\Application\Forms\UseCase\PublishTemplateVersion;
+use App\Application\Forms\UseCase\PublishTemplatePresentation;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\FormTemplateId;
 use App\UserInterface\Api\Request\PublishPresentationRequest;
@@ -30,7 +30,7 @@ use Symfony\Component\Uid\Uuid;
 final class PublishTemplatePresentationAction
 {
     public function __construct(
-        private readonly PublishTemplateVersion $publish,
+        private readonly PublishTemplatePresentation $publish,
     ) {}
 
     #[Route('/api/manage/form-templates/{template}/presentations', name: 'api_form_template_publish_presentation', methods: ['POST'], requirements: ['template' => Requirement::UUID])]
@@ -57,7 +57,7 @@ final class PublishTemplatePresentationAction
         ?Actor $by,
     ): JsonResponse {
         return new JsonResponse(
-            ['presentation' => $this->publish->presentation(FormTemplateId::of($template), $request->presentation, $by)],
+            ['presentation' => ($this->publish)(FormTemplateId::of($template), $request->presentation, $by)],
             201,
         );
     }

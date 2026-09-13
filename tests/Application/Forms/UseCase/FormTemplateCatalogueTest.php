@@ -7,8 +7,10 @@ namespace App\Tests\Application\Forms\UseCase;
 use App\Application\Forms\Operations;
 use App\Application\Forms\UseCase\ActivateTemplateVersions;
 use App\Application\Forms\UseCase\CreateFormTemplate;
-use App\Application\Forms\UseCase\PublishTemplateVersion;
+use App\Application\Forms\UseCase\PublishTemplateDefinition;
+use App\Application\Forms\UseCase\PublishTemplatePresentation;
 use App\Application\Forms\UseCase\ReadFormTemplate;
+use App\Application\Forms\UseCase\ReadTemplateDefinitions;
 use App\Application\Forms\UseCase\RenameFormTemplate;
 use App\Domain\Forms\Exception\DocumentNotStored;
 use App\Domain\Forms\Exception\FormTemplateNotFound;
@@ -71,10 +73,10 @@ final class FormTemplateCatalogueTest extends TestCase
 
         // THEN it is usable at once, both documents are version 1 of their
         // stream, and the whole thing happened inside one transaction
-        $template = ($this->read())($id);
-        self::assertSame('Damage report', $template->name());
-        self::assertSame(1, $this->documents->definition($template->definition())->version()?->seq());
-        self::assertSame(1, $this->documents->presentation($template->presentation() ?? throw new \LogicException())->version()?->seq());
+        $template = ($this->read())($id)->template;
+        self::assertSame('Damage report', $template->name);
+        self::assertSame(1, $template->definition);
+        self::assertSame(1, $template->presentation);
         self::assertSame(1, $this->transactions->opened);
     }
 
@@ -100,16 +102,16 @@ final class FormTemplateCatalogueTest extends TestCase
     {
         // GIVEN a template in use
         $id = ($this->create())('Damage report', self::DEFINITION);
-        $was = ($this->read())($id)->definition();
+        $was = ($this->read())($id)->template->definition;
 
         // WHEN a second definition is published
-        $seq = $this->publish()->definition($id, self::OTHER_DEFINITION);
+        $seq = ($this->publishDefinition())($id, self::OTHER_DEFINITION);
 
         // THEN it is numbered 2 and forms made from this template are still made
         // of version 1 — which is what makes a definition change something to
         // prepare rather than something that happens to everybody at once
         self::assertSame(2, $seq);
-        self::assertTrue($was->equals(($this->read())($id)->definition()));
+        self::assertSame($was, ($this->read())($id)->template->definition);
         // AND the number was taken under the template's row lock
         self::assertSame(1, $this->templates->locked);
     }
@@ -123,7 +125,7 @@ final class FormTemplateCatalogueTest extends TestCase
         // THEN it is refused now, where somebody can still fix it, rather than
         // waiting at a pointer nobody will move
         try {
-            $this->publish()->presentation($id, ['engine' => 'core-html', 'items' => [['name' => 'nickname'], ['widget' => 'confirm']]]);
+            ($this->publishPresentation())($id, ['engine' => 'core-html', 'items' => [['name' => 'nickname'], ['widget' => 'confirm']]]);
             self::fail('A presentation that could never be activated was published.');
         } catch (PresentationNotValid $refused) {
             self::assertSame('presentation.item.unknown', $refused->report->errors[0]->code);
@@ -136,21 +138,20 @@ final class FormTemplateCatalogueTest extends TestCase
     {
         // GIVEN a template with a second definition prepared
         $id = ($this->create())('Damage report', self::DEFINITION);
-        $this->publish()->definition($id, self::OTHER_DEFINITION);
+        ($this->publishDefinition())($id, self::OTHER_DEFINITION);
 
         // WHEN it is put in use
         ($this->activate())($id, 2);
 
         // THEN that is what forms are made of from here on
-        $in = ($this->read())($id)->definition();
-        self::assertSame(2, $this->documents->definition($in)->version()?->seq());
+        self::assertSame(2, ($this->read())($id)->template->definition);
     }
 
     public function testGoingBackCostsNoNewVersion(): void
     {
         // GIVEN a template that moved on
         $id = ($this->create())('Damage report', self::DEFINITION);
-        $this->publish()->definition($id, self::OTHER_DEFINITION);
+        ($this->publishDefinition())($id, self::OTHER_DEFINITION);
         ($this->activate())($id, 2);
 
         // WHEN the pointer goes back
@@ -158,8 +159,8 @@ final class FormTemplateCatalogueTest extends TestCase
 
         // THEN version 1 is in use again and the history still holds two — a
         // rollback is the same act pointing the other way
-        self::assertSame(1, $this->documents->definition(($this->read())($id)->definition())->version()?->seq());
-        self::assertCount(2, ($this->read())->definitions($id));
+        self::assertSame(1, ($this->read())($id)->template->definition);
+        self::assertCount(2, ($this->readDefinitions())($id));
     }
 
     public function testAPairThatDoesNotFitCannotBePutInUse(): void
@@ -167,7 +168,7 @@ final class FormTemplateCatalogueTest extends TestCase
         // GIVEN a template showing an email, and a definition that stops asking
         // for one — which is a perfectly reasonable thing to prepare
         $id = ($this->create())('Damage report', self::DEFINITION, self::SHOWS_EMAIL);
-        $this->publish()->definition($id, self::OTHER_DEFINITION);
+        ($this->publishDefinition())($id, self::OTHER_DEFINITION);
 
         // WHEN the new definition is put in use beside the presentation that
         // still shows the old item
@@ -180,7 +181,7 @@ final class FormTemplateCatalogueTest extends TestCase
             self::assertSame('presentation.item.unknown', $refused->report->errors[0]->code);
         }
 
-        self::assertSame(1, $this->documents->definition(($this->read())($id)->definition())->version()?->seq());
+        self::assertSame(1, ($this->read())($id)->template->definition);
     }
 
     public function testAVersionNobodyPublishedCannotBePutInUse(): void
@@ -201,21 +202,21 @@ final class FormTemplateCatalogueTest extends TestCase
         // answers and a caller acts differently on them
         $this->expectException(FormTemplateNotFound::class);
 
-        ($this->read())->definitions(FormTemplateId::next());
+        ($this->readDefinitions())(FormTemplateId::next());
     }
 
     public function testRenamingChangesTheLabelAndNothingAboutWhatIsAsked(): void
     {
         // GIVEN
         $id = ($this->create())('Damage report', self::DEFINITION);
-        $was = ($this->read())($id)->definition();
+        $was = ($this->read())($id)->template->definition;
 
         // WHEN
         ($this->rename())($id, 'Claim');
 
         // THEN
-        self::assertSame('Claim', ($this->read())($id)->name());
-        self::assertTrue($was->equals(($this->read())($id)->definition()));
+        self::assertSame('Claim', ($this->read())($id)->template->name);
+        self::assertSame($was, ($this->read())($id)->template->definition);
     }
 
     public function testEveryChangeToTheCatalogueLeavesALine(): void
@@ -223,7 +224,7 @@ final class FormTemplateCatalogueTest extends TestCase
         // GIVEN a catalogue somebody worked on
         $by = Actor::of('sso:ada');
         $id = ($this->create())('Damage report', self::DEFINITION, null, $by);
-        $this->publish()->definition($id, self::OTHER_DEFINITION, $by);
+        ($this->publishDefinition())($id, self::OTHER_DEFINITION, $by);
         ($this->activate())($id, 2, null, $by);
         ($this->rename())($id, 'Claim', $by);
 
@@ -258,10 +259,21 @@ final class FormTemplateCatalogueTest extends TestCase
         );
     }
 
-    private function publish(): PublishTemplateVersion
+    private function publishDefinition(): PublishTemplateDefinition
     {
-        return new PublishTemplateVersion(
+        return new PublishTemplateDefinition(
             self::definitions(),
+            $this->templates,
+            $this->documents,
+            $this->documents,
+            $this->transactions,
+            new Operations($this->logger),
+        );
+    }
+
+    private function publishPresentation(): PublishTemplatePresentation
+    {
+        return new PublishTemplatePresentation(
             self::presentations(),
             self::rules(),
             $this->templates,
@@ -290,7 +302,12 @@ final class FormTemplateCatalogueTest extends TestCase
 
     private function read(): ReadFormTemplate
     {
-        return new ReadFormTemplate($this->templates, $this->documents, $this->catalogue, $this->documents);
+        return new ReadFormTemplate($this->templates, $this->documents, $this->catalogue);
+    }
+
+    private function readDefinitions(): ReadTemplateDefinitions
+    {
+        return new ReadTemplateDefinitions($this->templates, $this->documents);
     }
 
     private static function rules(): PresentationRules

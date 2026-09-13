@@ -460,7 +460,9 @@ naming no presentation means none. Nothing reaches any of this through an addres
 
 The catalogue is administered under **`/api/manage/form-templates/`** — inside the management
 prefix, because the system that owns the forms owns what they are made of, so `RouteGroup` keeps
-its four cases. Eleven addresses across seven actions: the catalogue and one template, a rename,
+its four cases. Eleven addresses, eleven actions and one use case behind each — a class per
+endpoint and a single `__invoke` per thing the system does, as everywhere else here: the catalogue
+and one template, a rename,
 two histories to list and read from, two to publish into, and `PUT …/current` to put a pair in
 use. No template route names its parameters `{id}` (they are `{template}` and `{seq}`), because
 `/api/manage/forms/{id}` is where a decision point outside reads a **form** id with one pattern —

@@ -428,7 +428,7 @@ paths:
   '/api/manage/form-templates/{template}/presentations':
     get:
       summary: "List a template's presentations"
-      description: 'The other history, numbered apart from the definitions — a relabelled option is not a new model, and the two counts say so.'
+      description: 'Newest first, holding the numbers and how each got there — never the documents. Which of these is in use is `GET …/{template}`.'
       operationId: listTemplatePresentations
       parameters:
         -

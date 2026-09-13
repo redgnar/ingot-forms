@@ -306,7 +306,7 @@ The answer is the number it was published as, which is the one thing the client 
 
 `operationId: listTemplatePresentations` — List a template's presentations
 
-The other history, numbered apart from the definitions — a relabelled option is not a new model, and the two counts say so.
+Newest first, holding the numbers and how each got there — never the documents. Which of these is in use is `GET …/{template}`.
 
 **Parameters**
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\UserInterface\Api\Action;
 
-use App\Application\Forms\UseCase\PublishTemplateVersion;
+use App\Application\Forms\UseCase\PublishTemplateDefinition;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\FormTemplateId;
 use App\UserInterface\Api\Request\PublishDefinitionRequest;
@@ -28,7 +28,7 @@ use Symfony\Component\Uid\Uuid;
 final class PublishTemplateDefinitionAction
 {
     public function __construct(
-        private readonly PublishTemplateVersion $publish,
+        private readonly PublishTemplateDefinition $publish,
     ) {}
 
     #[Route('/api/manage/form-templates/{template}/definitions', name: 'api_form_template_publish_definition', methods: ['POST'], requirements: ['template' => Requirement::UUID])]
@@ -55,7 +55,7 @@ final class PublishTemplateDefinitionAction
         ?Actor $by,
     ): JsonResponse {
         return new JsonResponse(
-            ['definition' => $this->publish->definition(FormTemplateId::of($template), $request->definition, $by)],
+            ['definition' => ($this->publish)(FormTemplateId::of($template), $request->definition, $by)],
             201,
         );
     }

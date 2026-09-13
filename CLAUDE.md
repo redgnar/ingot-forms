@@ -438,8 +438,12 @@ src/Application/Forms/
                            UploadFormFile, ReadFormFile, DiscardFormFile, ReadFormHistory,
                            ReadFormRecord, ReadFormDeliveries, DeliverAnnouncements,
                            PurgeExpiredForms, PurgeTemporaryFiles, and the catalogue's own —
-                           CreateFormTemplate, PublishTemplateVersion,
-                           ActivateTemplateVersions, RenameFormTemplate, ReadFormTemplate.
+                           CreateFormTemplate, PublishTemplateDefinition,
+                           PublishTemplatePresentation, ActivateTemplateVersions,
+                           RenameFormTemplate, DeleteFormTemplate, PurgeTemplateForms,
+                           ListFormTemplates, ReadFormTemplate, ReadTemplateDefinitions,
+                           ReadTemplatePresentations, ReadTemplateDefinition,
+                           ReadTemplatePresentation.
                            This is where a transaction is opened and where the order of steps
                            lives.
     File/                  IncomingFile, FileStream, CollectedFiles — an upload on its way
