@@ -8,6 +8,7 @@ use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\Port\ValuesValidator;
 use App\Domain\Forms\ValueObject\Definition;
+use App\Domain\Forms\ValueObject\DefinitionId;
 use App\Domain\Forms\ValueObject\FormId;
 use Ingot\Error\ErrorReport;
 use Ingot\Error\MappingError;
@@ -31,8 +32,13 @@ final class StubValues implements ValuesValidator
         private readonly bool $refuse = false,
     ) {}
 
-    public function assertFit(Definition $definition, mixed $values, DeriveMode $mode, FormId $formId): void
-    {
+    public function assertFit(
+        Definition $definition,
+        mixed $values,
+        DeriveMode $mode,
+        FormId $formId,
+        DefinitionId $definitionId,
+    ): void {
         $this->modes[] = $mode;
         $this->asked[] = [$formId, $definition, $values];
 

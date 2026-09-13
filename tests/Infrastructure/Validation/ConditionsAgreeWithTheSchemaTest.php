@@ -7,7 +7,7 @@ namespace App\Tests\Infrastructure\Validation;
 use App\Domain\Forms\Definition\Condition;
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\FormDefinitionProcessor;
-use App\Domain\Forms\ValueObject\FormId;
+use App\Domain\Forms\ValueObject\DefinitionId;
 use App\Infrastructure\Validation\DerivedSchemaValues;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestDox;
@@ -105,7 +105,7 @@ final class ConditionsAgreeWithTheSchemaTest extends KernelTestCase
         self::assertInstanceOf(\stdClass::class, $document);
 
         $accepted = self::service(DerivedSchemaValues::class)
-            ->validate($definition->structure(), $document, DeriveMode::Draft, FormId::next())
+            ->validate($definition->structure(), $document, DeriveMode::Draft, DefinitionId::next())
             ->isEmpty();
 
         // THEN the two say the same thing. An answer the schema will not carry

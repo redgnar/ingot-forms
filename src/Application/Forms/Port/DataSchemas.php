@@ -6,6 +6,7 @@ namespace App\Application\Forms\Port;
 
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\DeriveMode;
+use App\Domain\Forms\ValueObject\DefinitionId;
 use App\Domain\Forms\ValueObject\FormId;
 use Ingot\Schema\Schema;
 
@@ -19,8 +20,9 @@ use Ingot\Schema\Schema;
  * row lock — so making it read the form again to get back what it has would be
  * the one avoidable cost on the hottest path there is.
  *
- * Definitions are immutable, so an implementation is free to cache a derived
- * document for as long as the rules that derive it hold — no longer.
+ * Definitions are immutable and a definition id is never reused, so an
+ * implementation is free to cache a derived document under one for as long as
+ * the rules that derive it hold — no longer.
  */
 interface DataSchemas
 {
@@ -32,6 +34,14 @@ interface DataSchemas
      */
     public function json(FormId $formId, DeriveMode $mode): string;
 
-    /** The same schema, ready to validate against, for a caller that already holds the definition. */
-    public function schemaFor(FormId $formId, FormDefinition $definition, DeriveMode $mode): Schema;
+    /**
+     * The same schema, ready to validate against, for a caller that already holds
+     * the definition.
+     *
+     * It names a **definition** and no form, which is what a schema actually is a
+     * function of. A form was the only identity there was before a definition had
+     * one of its own, and it made every form made from one template compile its
+     * own copy of one document.
+     */
+    public function schemaFor(DefinitionId $definitionId, FormDefinition $definition, DeriveMode $mode): Schema;
 }

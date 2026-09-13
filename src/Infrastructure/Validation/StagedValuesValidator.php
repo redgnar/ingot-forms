@@ -9,6 +9,7 @@ use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\Port\ValuesValidator;
 use App\Domain\Forms\UnknownFieldTypes;
 use App\Domain\Forms\ValueObject\Definition;
+use App\Domain\Forms\ValueObject\DefinitionId;
 use App\Domain\Forms\ValueObject\FormId;
 use Ingot\Error\ErrorReport;
 use Ingot\Error\MappingError;
@@ -51,17 +52,27 @@ final class StagedValuesValidator implements ValuesValidator
     /**
      * @throws ValuesNotValid when the values do not fit the form
      */
-    public function assertFit(Definition $definition, mixed $values, DeriveMode $mode, FormId $formId): void
-    {
-        $report = $this->check($definition, $values, $mode, $formId);
+    public function assertFit(
+        Definition $definition,
+        mixed $values,
+        DeriveMode $mode,
+        FormId $formId,
+        DefinitionId $definitionId,
+    ): void {
+        $report = $this->check($definition, $values, $mode, $formId, $definitionId);
 
         if (!$report->isEmpty()) {
             throw new ValuesNotValid($report);
         }
     }
 
-    private function check(Definition $definition, mixed $values, DeriveMode $mode, FormId $formId): ErrorReport
-    {
+    private function check(
+        Definition $definition,
+        mixed $values,
+        DeriveMode $mode,
+        FormId $formId,
+        DefinitionId $definitionId,
+    ): ErrorReport {
         // Before the definition is even parsed: a payload that is not an
         // object at all cannot be judged against any definition.
         if (!$values instanceof \stdClass) {
@@ -83,7 +94,10 @@ final class StagedValuesValidator implements ValuesValidator
             }
         }
 
-        $schemaReport = $this->schema->validate($model, $values, $mode, $formId);
+        // The schema is keyed by the definition — what it is derived from —
+        // while the files below are the form's, which is what a reference is
+        // only good inside.
+        $schemaReport = $this->schema->validate($model, $values, $mode, $definitionId);
 
         if (!$schemaReport->isEmpty()) {
             return $schemaReport;

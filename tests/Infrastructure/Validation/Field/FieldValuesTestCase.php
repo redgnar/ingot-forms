@@ -9,6 +9,7 @@ use App\Domain\Forms\Exception\ValuesNotValid;
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\Port\ValuesValidator;
 use App\Domain\Forms\ValueObject\Definition;
+use App\Domain\Forms\ValueObject\DefinitionId;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Infrastructure\Validation\DerivedSchemaValues;
 use App\Infrastructure\Validation\SymfonyFormValues;
@@ -75,7 +76,7 @@ abstract class FieldValuesTestCase extends KernelTestCase
 
         // WHEN the values are judged
         try {
-            $this->values->assertFit($definition, self::values($json), $mode, $this->formId());
+            $this->values->assertFit($definition, self::values($json), $mode, $this->formId(), DefinitionId::next());
             $refusal = null;
         } catch (ValuesNotValid $exception) {
             $refusal = $exception->report->errors[0];
@@ -101,7 +102,7 @@ abstract class FieldValuesTestCase extends KernelTestCase
         $values = self::values($json);
 
         // WHEN each is asked on its own
-        $publishedContractAccepts = $this->schema->validate($structure, $values, $mode, $this->formId())->isEmpty();
+        $publishedContractAccepts = $this->schema->validate($structure, $values, $mode)->isEmpty();
         $formAccepts = $this->form->validate($structure, $values, $mode)->isEmpty();
 
         // THEN the form may not refuse what the schema accepts: a server

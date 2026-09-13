@@ -12,6 +12,7 @@ use App\Domain\Forms\Form;
 use App\Domain\Forms\FormDefinitionProcessor;
 use App\Domain\Forms\FormMapperFactory;
 use App\Domain\Forms\ValueObject\Definition;
+use App\Domain\Forms\ValueObject\DefinitionId;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Infrastructure\Cache\CachedDataSchemaProvider;
@@ -69,7 +70,7 @@ final class CachedDataSchemaProviderTest extends TestCase
         $first = $this->schemas->json($id, DeriveMode::Strict);
 
         // WHEN the entry in the pool is replaced by hand
-        $item = $this->pool->getItem(\sprintf('form_schema.%s.%s', $id, 'Strict'));
+        $item = $this->pool->getItem(\sprintf('form_schema.%s.%s', $this->forms->get($id)->definitionId(), 'Strict'));
         $this->pool->save($item->set('{"planted":true}'));
 
         // THEN that is what comes back: an entry is trusted, so a change to the
@@ -86,7 +87,7 @@ final class CachedDataSchemaProviderTest extends TestCase
 
         // WHEN the validation path asks for the schema it already holds the
         // definition for
-        $schema = $this->schemas->schemaFor($id, $form->definition()->structure(), DeriveMode::Draft);
+        $schema = $this->schemas->schemaFor($form->definitionId(), $form->definition()->structure(), DeriveMode::Draft);
 
         // THEN it is the same document the endpoint serves, not a second
         // derivation of it
@@ -94,6 +95,25 @@ final class CachedDataSchemaProviderTest extends TestCase
             $this->schemas->json($id, DeriveMode::Draft),
             json_encode($schema->document, \JSON_THROW_ON_ERROR),
         );
+    }
+
+    public function testTwoFormsMadeOfOneDefinitionShareOneEntry(): void
+    {
+        // GIVEN two forms made of the same stored definition — which is what a
+        // template's forms are
+        $first = $this->form();
+        $shared = $this->forms->get($first)->definitionId();
+        $second = $this->form(definitionId: $shared);
+
+        // WHEN the first one's schema is asked for and then planted over
+        $this->schemas->json($first, DeriveMode::Draft);
+        $item = $this->pool->getItem(\sprintf('form_schema.%s.%s', $shared, 'Draft'));
+        $this->pool->save($item->set('{"shared":true}'));
+
+        // THEN the second one reads the same entry, because the key is the
+        // definition and not the form. Ten thousand forms from one template
+        // compile one document per mode instead of ten thousand identical ones
+        self::assertSame('{"shared":true}', $this->schemas->json($second, DeriveMode::Draft));
     }
 
     public function testAFormThatIsNotThereIsStillReportedMissing(): void
@@ -121,10 +141,19 @@ final class CachedDataSchemaProviderTest extends TestCase
         $this->schemas->json($id, DeriveMode::Strict);
     }
 
-    private function form(): FormId
+    /**
+     * A form, optionally made of a definition that is already stored — which is
+     * what every form created from a template is.
+     */
+    private function form(?DefinitionId $definitionId = null): FormId
     {
         $id = FormId::fromString(Uuid::v7()->toRfc4122());
-        $this->forms->add(new Form($id, self::definition(), ExpireDate::at(new \DateTimeImmutable('+1 day'))));
+        $this->forms->add(new Form(
+            $id,
+            self::definition(),
+            ExpireDate::at(new \DateTimeImmutable('+1 day')),
+            definitionId: $definitionId,
+        ));
 
         return $id;
     }

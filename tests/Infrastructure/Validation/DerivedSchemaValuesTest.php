@@ -9,7 +9,7 @@ use App\Domain\Forms\Definition\NumberField;
 use App\Domain\Forms\Definition\SelectField;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\DeriveMode;
-use App\Domain\Forms\ValueObject\FormId;
+use App\Domain\Forms\ValueObject\DefinitionId;
 use App\Infrastructure\Validation\DerivedSchemaValues;
 use Ingot\Error\ErrorReport;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -90,17 +90,18 @@ final class DerivedSchemaValuesTest extends KernelTestCase
         );
     }
 
-    public function testTheSchemaComesFromTheCacheWhenTheFormIsKnown(): void
+    public function testTheSchemaComesFromTheCacheWhenTheDefinitionIsKnown(): void
     {
-        // GIVEN a form id, as every real request has
-        $formId = FormId::next();
+        // GIVEN the id of a stored definition, as every real save has
+        $definitionId = DefinitionId::next();
 
         // WHEN the same values are judged twice
-        $first = $this->validator->validate(self::definition(), self::values('{"age": 7}'), DeriveMode::Draft, $formId);
-        $second = $this->validator->validate(self::definition(), self::values('{"age": 7}'), DeriveMode::Draft, $formId);
+        $first = $this->validator->validate(self::definition(), self::values('{"age": 7}'), DeriveMode::Draft, $definitionId);
+        $second = $this->validator->validate(self::definition(), self::values('{"age": 7}'), DeriveMode::Draft, $definitionId);
 
         // THEN the cached schema answers exactly like the derived one — the
-        // entry is keyed by form and mode, and a definition never changes
+        // entry is keyed by the **definition** and the mode, so every form made
+        // of this one definition shares it, and a stored document never changes
         self::assertSame(self::byPointer($first), self::byPointer($second));
         self::assertSame(['/age' => 'schema.minimum'], self::byPointer($second));
     }

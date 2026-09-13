@@ -6,6 +6,7 @@ namespace App\Tests\Infrastructure\Validation\Field;
 
 use App\Domain\Forms\DeriveMode;
 use App\Domain\Forms\Exception\ValuesNotValid;
+use App\Domain\Forms\ValueObject\DefinitionId;
 use App\Domain\Forms\ValueObject\FormId;
 use Ingot\Error\MappingError;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -99,7 +100,7 @@ final class ConditionalValuesTest extends FieldValuesTestCase
         // GIVEN a document that owes more than one answer
         // WHEN it is judged
         try {
-            $this->values->assertFit(self::definition(), self::values($json), DeriveMode::Strict, FormId::next());
+            $this->values->assertFit(self::definition(), self::values($json), DeriveMode::Strict, FormId::next(), DefinitionId::next());
             self::fail('Expected the values to be refused.');
         } catch (ValuesNotValid $refused) {
             // THEN every one of them is in the one refusal, each pointed at its

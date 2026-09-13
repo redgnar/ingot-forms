@@ -895,7 +895,9 @@ Rules that follow from it, and that the tooling checks:
   have to be spelled out one by one, while a definition nested five hundred deep fits in a few
   kilobytes and every walk over it recurses once per level.
 - **A cached artifact is only as current as the code that derived it.** `cache.data_schema`
-  keys on the form's UUID and the mode, `cache.ingot_mapper` on class names — neither key
+  keys on the **stored definition's** id and the mode — what a schema is actually a function of,
+  so every form made of one definition shares one entry instead of compiling its own copy —
+  `cache.ingot_mapper` on class names; neither key
   says a word about the rules behind the entry, so a changed rule leaves both serving
   yesterday's document. Change what a definition derives and `make cache-clear` is part of
   the change, not an afterthought; a deploy runs the same command. In dev both pools are

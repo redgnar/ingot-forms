@@ -8,7 +8,7 @@ use App\Application\Forms\Port\DataSchemas;
 use App\Domain\Forms\DataSchemaDeriver;
 use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\DeriveMode;
-use App\Domain\Forms\ValueObject\FormId;
+use App\Domain\Forms\ValueObject\DefinitionId;
 use Ingot\Error\ErrorReport;
 use Ingot\Schema\OpisSchemaValidator;
 use Ingot\Schema\SchemaValidator;
@@ -37,14 +37,16 @@ final class DerivedSchemaValues
     ) {}
 
     /**
-     * @param ?FormId $formId the form the values belong to; when it is known the
-     *                      schema comes from the cache the schema endpoint fills
+     * @param ?DefinitionId $definitionId which stored definition this is; when it
+     *                                   is known the schema comes from the cache
+     *                                   the schema endpoint fills, shared with
+     *                                   every other form made of the same one
      */
-    public function validate(FormDefinition $definition, \stdClass $values, DeriveMode $mode, ?FormId $formId = null): ErrorReport
+    public function validate(FormDefinition $definition, \stdClass $values, DeriveMode $mode, ?DefinitionId $definitionId = null): ErrorReport
     {
-        $schema = $formId === null
+        $schema = $definitionId === null
             ? $this->deriver->derive($definition, $mode)
-            : $this->schemas->schemaFor($formId, $definition, $mode);
+            : $this->schemas->schemaFor($definitionId, $definition, $mode);
 
         return $this->schemaValidator->validate($values, $schema);
     }

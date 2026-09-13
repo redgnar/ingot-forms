@@ -311,7 +311,7 @@ final class Form
 
         $filler = $this->attribute($filler);
 
-        $validator->assertFit($this->definition(), $values, DeriveMode::Draft, $this->id());
+        $validator->assertFit($this->definition(), $values, DeriveMode::Draft, $this->id(), $this->definitionId);
 
         $saved = Values::fromDecoded($values);
 
@@ -369,7 +369,7 @@ final class Form
 
         $values = $this->values() ?? throw new FormHasNoData($this->id());
 
-        $validator->assertFit($this->definition(), $values->document(), DeriveMode::Strict, $this->id());
+        $validator->assertFit($this->definition(), $values->document(), DeriveMode::Strict, $this->id(), $this->definitionId);
 
         $this->confirmedAt = self::utc($now ?? new \DateTimeImmutable());
         $this->confirmedBy = $confirmer;

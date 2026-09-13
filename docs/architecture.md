@@ -519,7 +519,7 @@ other, and the findings are rooted at `/template`, because the document is nowhe
 derives the per-form JSON Schema published to clients. **Submitted values pass three gates**
 (`src/Infrastructure/Validation/`), cheapest first:
 
-1. the **derived schema**, cached per form and mode — the same document
+1. the **derived schema**, cached per stored **definition** and mode — the same document
    `GET /api/forms/{id}/schema` serves, so the server can never be looser than its own
    published contract. Findings carry `schema.*` codes. The cache holds something this code
    derived, so it is thrown away whenever those rules change (`make cache-clear`); in dev it
@@ -1024,7 +1024,11 @@ needs it.
 - **Deploy:** clear the pools that hold what this code derived — `bin/console
   cache:pool:clear --all`, which is what `make cache-clear` runs. Neither pool's key says
   anything about the rules behind the entry: `cache.ingot_mapper` keys on class names, and
-  `cache.data_schema` on the form UUID and the mode. Both entries stay right for as long as
+  `cache.data_schema` on the stored definition's id and the mode — a schema is a function of a
+  definition and of nothing else, so ten thousand forms made from one template share one entry per
+  mode rather than compiling ten thousand identical documents; an entry outlives any one form that
+  used it and becomes unreachable when the last form made of that definition takes the document
+  with it. Both entries stay right for as long as
   the code that produced them does, and a tightened or relaxed rule that is not followed by a
   clear is served from yesterday's document. In dev both pools are in-memory for exactly that
   reason.
