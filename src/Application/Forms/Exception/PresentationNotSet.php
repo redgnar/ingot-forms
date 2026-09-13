@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Forms\Exception;
+namespace App\Application\Forms\Exception;
 
 use App\Domain\Forms\ValueObject\FormId;
 

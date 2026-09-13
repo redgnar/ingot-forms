@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Application\Forms\UseCase;
 
+use App\Application\Forms\Exception\FormTemplateInUse;
 use App\Application\Forms\Operations;
 use App\Application\Forms\UseCase\DeleteForm;
 use App\Application\Forms\UseCase\DeleteFormTemplate;
@@ -12,7 +13,6 @@ use App\Domain\Forms\Definition\FormDefinition;
 use App\Domain\Forms\Definition\TextField;
 use App\Domain\Forms\Document\StoredDefinition;
 use App\Domain\Forms\Exception\FormNotFound;
-use App\Domain\Forms\Exception\FormTemplateInUse;
 use App\Domain\Forms\Exception\FormTemplateNotFound;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\Presentation\Engine\CoreHtmlEngine;

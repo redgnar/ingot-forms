@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Application\Forms\UseCase;
 
+use App\Application\Forms\Exception\FormTemplateInUse;
 use App\Application\Forms\Operations;
 use App\Application\Forms\Port\FormTemplateCatalogue;
 use App\Application\Forms\Port\Transactions;
-use App\Domain\Forms\Exception\FormTemplateInUse;
 use App\Domain\Forms\Exception\FormTemplateNotFound;
 use App\Domain\Forms\Port\FormTemplates;
 use App\Domain\Forms\Port\StoredDocuments;

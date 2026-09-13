@@ -763,7 +763,10 @@ Rules that follow from it, and that the tooling checks:
   about stops the write rather than vanishing from it. An insert is the exception: a new row
   is written whole. A refused transition records nothing.
 - **Exceptions live in `Exception/` next to the layer that raises them**, carry the id they
-  are about, and say nothing about HTTP. Which status a refusal deserves is decided in
+  are about, and say nothing about HTTP. "The layer that raises them" is the test, not the layer
+  they are *about*: a refusal no domain rule states and no port declares belongs to the use case
+  that states it, however much it reads like a fact about a form — `PresentationNotSet` and
+  `FormTemplateInUse` sat in the model for exactly that reason until somebody looked. Which status a refusal deserves is decided in
   `ProblemExceptionListener` (or in an action, where the same state means different things —
   no data is 404 on a read, 409 on a confirm).
 - **One error format**: every error response is RFC 9457 `application/problem+json`; validation

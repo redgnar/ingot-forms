@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Forms\UseCase;
 
-use App\Domain\Forms\Exception\PresentationNotSet;
+use App\Application\Forms\Exception\PresentationNotSet;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\ValueObject\FormId;
 
