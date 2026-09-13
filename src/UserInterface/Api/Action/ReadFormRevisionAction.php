@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\UserInterface\Api\Action;
 
-use App\Application\Forms\UseCase\ReadFormHistory;
+use App\Application\Forms\UseCase\ReadFormRevision;
 use App\Domain\Forms\ValueObject\FormId;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -24,7 +24,7 @@ use Symfony\Component\Uid\Uuid;
 final class ReadFormRevisionAction
 {
     public function __construct(
-        private readonly ReadFormHistory $readFormHistory,
+        private readonly ReadFormRevision $readRevision,
     ) {}
 
     #[Route('/api/forms/{id}/history/{seq}', methods: ['GET'], requirements: [
@@ -59,6 +59,6 @@ final class ReadFormRevisionAction
     #[OA\Response(response: 410, ref: '#/components/responses/FormGone')]
     public function __invoke(Uuid $id, int $seq): JsonResponse
     {
-        return JsonResponse::fromJsonString($this->readFormHistory->document(FormId::of($id), $seq));
+        return JsonResponse::fromJsonString(($this->readRevision)(FormId::of($id), $seq));
     }
 }

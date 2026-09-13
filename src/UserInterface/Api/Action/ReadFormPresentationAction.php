@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\UserInterface\Api\Action;
 
-use App\Application\Forms\UseCase\ReadForm;
+use App\Application\Forms\UseCase\ReadFormPresentation;
 use App\Domain\Forms\ValueObject\FormId;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -18,7 +18,7 @@ use Symfony\Component\Uid\Uuid;
 final class ReadFormPresentationAction
 {
     public function __construct(
-        private readonly ReadForm $readForm,
+        private readonly ReadFormPresentation $readPresentation,
     ) {}
 
     #[Route('/api/forms/{id}/presentation', methods: ['GET'], requirements: ['id' => Requirement::UUID])]
@@ -50,6 +50,6 @@ final class ReadFormPresentationAction
     #[OA\Response(response: 410, ref: '#/components/responses/FormGone')]
     public function __invoke(Uuid $id): JsonResponse
     {
-        return JsonResponse::fromJsonString($this->readForm->presentationJson(FormId::of($id)));
+        return JsonResponse::fromJsonString(($this->readPresentation)(FormId::of($id)));
     }
 }

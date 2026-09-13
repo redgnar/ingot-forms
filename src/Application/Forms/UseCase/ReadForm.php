@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Application\Forms\UseCase;
 
-use App\Domain\Forms\Exception\PresentationNotSet;
 use App\Domain\Forms\Form;
 use App\Domain\Forms\Port\FormRepository;
 use App\Domain\Forms\ValueObject\FormId;
 
 /**
- * Reads a form, or one of the documents it holds.
+ * Reads a form. How it is shown is {@see ReadFormPresentation}, and what it used
+ * to hold is {@see ReadFormHistory}: one class per thing somebody asks for.
  */
 final class ReadForm
 {
@@ -21,17 +21,5 @@ final class ReadForm
     public function __invoke(FormId $id): Form
     {
         return $this->forms->get($id);
-    }
-
-    /**
-     * How the form is shown, as the JSON document it was set with.
-     *
-     * @throws PresentationNotSet
-     */
-    public function presentationJson(FormId $id): string
-    {
-        $presentation = $this->forms->get($id)->presentation() ?? throw new PresentationNotSet($id);
-
-        return (string) $presentation;
     }
 }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\UserInterface\Web\Action;
 
 use App\Application\Forms\UseCase\ReadForm;
-use App\Application\Forms\UseCase\ReadFormHistory;
+use App\Application\Forms\UseCase\ReadFormRevision;
 use App\Domain\Forms\Exception\PresentationNotSet;
 use App\Domain\Forms\Presentation\Words;
 use App\Domain\Forms\ValueObject\FormId;
@@ -41,7 +41,7 @@ final class ViewFormAction
 {
     public function __construct(
         private readonly ReadForm $readForm,
-        private readonly ReadFormHistory $readFormHistory,
+        private readonly ReadFormRevision $readRevision,
         private readonly Renderers $renderers,
         /** Set to the language the document can answer in, which is what every `|trans` on the page then reads. */
         private readonly LocaleAwareInterface $translator,
@@ -81,7 +81,7 @@ final class ViewFormAction
             $form,
             $locale,
             $seq,
-            $seq === null ? null : $this->readFormHistory->document($formId, $seq),
+            $seq === null ? null : ($this->readRevision)($formId, $seq),
         )));
 
         // The body depends on the header when nothing pinned the language, so

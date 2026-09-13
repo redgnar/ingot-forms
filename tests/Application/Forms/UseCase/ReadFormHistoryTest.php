@@ -6,6 +6,7 @@ namespace App\Tests\Application\Forms\UseCase;
 
 use App\Application\Forms\Exception\RevisionNotFound;
 use App\Application\Forms\UseCase\ReadFormHistory;
+use App\Application\Forms\UseCase\ReadFormRevision;
 use App\Domain\Forms\Exception\FormGone;
 use App\Domain\Forms\Exception\FormNotFound;
 use App\Domain\Forms\Form;
@@ -81,7 +82,7 @@ final class ReadFormHistoryTest extends TestCase
         $history->append($id, '{"email":"ada@example.com"}');
 
         // WHEN / THEN byte for byte, exactly as the current values are served
-        self::assertSame('{"email":"ada@example.com"}', new ReadFormHistory($forms, $history)->document($id, 1));
+        self::assertSame('{"email":"ada@example.com"}', new ReadFormRevision($forms, $history)($id, 1));
     }
 
     public function testASaveThatNeverHappenedIsNotThere(): void
@@ -95,7 +96,7 @@ final class ReadFormHistoryTest extends TestCase
         // WHEN / THEN
         $this->expectException(RevisionNotFound::class);
 
-        new ReadFormHistory($forms, $history)->document($id, 2);
+        new ReadFormRevision($forms, $history)($id, 2);
     }
 
     public function testAnUnknownFormHasNoHistoryToRead(): void

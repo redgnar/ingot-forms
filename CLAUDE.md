@@ -433,8 +433,10 @@ src/Domain/Forms/          the model: Form (aggregate), FormStatus, IdentityMode
                            DefinitionParser, PresentationParser — what the model needs from
                            the outside to keep its own rules
 src/Application/Forms/
-    UseCase/               one class per thing the system does, each with a single __invoke:
+    UseCase/               one class per thing the system does, each with a single __invoke —
+                           no exceptions, and the two that had a second read no longer do:
                            CreateForm, SaveFormData, ConfirmForm, DeleteForm, ReadForm,
+                           ReadFormPresentation, ReadFormRevision,
                            UploadFormFile, ReadFormFile, DiscardFormFile, ReadFormHistory,
                            ReadFormRecord, ReadFormDeliveries, DeliverAnnouncements,
                            PurgeExpiredForms, PurgeTemporaryFiles, and the catalogue's own —
