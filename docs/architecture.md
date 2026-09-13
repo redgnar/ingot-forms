@@ -670,7 +670,7 @@ convention:
 | `data-page`, `data-page-mark` | one of those parts, and the thing pressed to reach it |
 | `data-wizard-nav`, `data-wizard-status` | a wizard's own chrome: the track, and where somebody is in words |
 | `data-wizard-back`, `data-wizard-next` | the two buttons a wizard draws for itself, and tabs do not |
-| `data-chrome` | this element *acts* rather than says something: a switch, a trigger, a pager's own navigation, an upload's progress. Hidden on paper, and marked rather than listed so the next widget is covered by the convention |
+| `data-chrome` | this element belongs to the page rather than to the document: a switch, a trigger, a pager's own navigation, an upload's progress — and every notice about **this browser's attempt** (stored, not stored, waiting, refused). Hidden on paper, and marked rather than listed so the next widget is covered by the convention |
 | `PresentedNodes::PENDING` | the token a blank entry carries where its own scope would be |
 
 **Structure carries identity.** Values are collected scope by scope in the order entries appear,
@@ -739,7 +739,12 @@ instead of a list of selectors per kit. Two rules could not be written in CSS at
 worth knowing about: **a question nobody was asked stays hidden** (the same rule the archival
 record keeps, and the one thing print must not undo), and **a folded `details` cannot be opened by
 a stylesheet** — measured, including `::details-content` — so each kit opens folds on
-`beforeprint` and closes them again on `afterprint`. It is testable, which was the surprise:
+`beforeprint` and closes them again on `afterprint`. **Which notices print is a line drawn once**: one about *this browser's attempt* — stored, not
+stored, waiting, refused — is `data-chrome` and does not, while one about what the form *is* does.
+That is not "notices never print", and the difference is the reason: a printed closed form carrying
+no mark reads exactly like a printed draft, and a printed old version like the current one, so
+taking those two off the page would make the paper lie by omission — the same failure
+`[data-unasked]` is kept hidden to avoid. It is testable, which was the surprise:
 Chrome's `Emulation.setEmulatedMedia` through chromedriver's `goog/cdp/execute` makes a real
 browser lay the page out for paper, and the battery asks the layout rather than the stylesheet.
 This is **not** the record (`GET …/pdf`): that is a confirmed form laid out by a library, on the

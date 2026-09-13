@@ -87,6 +87,41 @@ abstract class PrintedPageTestCase extends PantherTestCase
         self::assertSame(3, $this->shown('[data-name]:not([data-out-of-sight])'));
     }
 
+    public function testWhatThisBrowserDidIsNotOnThePaper(): void
+    {
+        // GIVEN somebody who has just saved a draft, so the page is saying so
+        $id = $this->plant();
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+        $this->click('[data-action="save"], [data-action="click->form#save"]');
+        self::assertSame(1, $this->eventually(fn(): ?int => $this->shown('[data-saved]') === 1 ? 1 : null));
+
+        // WHEN the page is laid out for paper
+        $this->onPaper();
+
+        // THEN it is not on it. "Stored" is the page talking about *this
+        // browser's own attempt*, and a sheet of paper carrying it says
+        // something that was true for a second in somebody else's session
+        self::assertSame(0, $this->shown('[data-saved]'));
+    }
+
+    public function testWhatTheFormIsStaysOnThePaper(): void
+    {
+        // GIVEN a form somebody closed
+        $id = $this->plant();
+        $this->confirm($id);
+        $this->browser->request('GET', \sprintf('/forms/%s', $id));
+
+        // WHEN it is laid out for paper
+        $this->onPaper();
+
+        // THEN the notice that it is closed is still on it. This is the other
+        // half of the rule above and the reason it is not simply "no notices
+        // print": a printed closed form with no mark on it reads exactly like a
+        // printed draft, so taking this off the page would make the paper lie by
+        // omission — the same thing `[data-unasked]` is kept hidden to avoid
+        self::assertSame(1, $this->shown('[data-read-only-notice]'));
+    }
+
     public function testAGroupFoldedOnScreenIsOpenOnPaper(): void
     {
         // GIVEN a form whose second part holds a group somebody folded away —
@@ -225,6 +260,17 @@ abstract class PrintedPageTestCase extends PantherTestCase
      * nobody is being asked and an answer already given — every case the sheet
      * has to get right, in one document.
      */
+    final protected function click(string $selector): void
+    {
+        $this->browser->findElement(WebDriverBy::cssSelector($selector))->click();
+    }
+
+    /** Closes a form through the API, the way anything else closes one. */
+    final protected function confirm(string $id): void
+    {
+        self::assertSame(204, $this->api->request('POST', \sprintf('/api/forms/%s/confirm', $id))->getStatusCode());
+    }
+
     final protected function plant(): string
     {
         $engine = static::engine();

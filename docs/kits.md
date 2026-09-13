@@ -822,9 +822,13 @@ all but one, and a printout of one part would be a lie about what the form holds
 group is opened** and folded again afterwards, **the palette becomes ink on white** whatever the
 reader chose to look at it with, and **everything that acts disappears** — the switches, the
 triggers, the language links, the panel of earlier versions, the strip of tabs, *add*, *remove*,
-an upload's progress. All of it is marked `data-chrome` in the markup rather than listed as
+an upload's progress — **and every notice about what this browser just did**: stored, not stored,
+waiting to be sent, refused. All of it is marked `data-chrome` in the markup rather than listed as
 selectors, so the next widget that draws a button is covered by the marker instead of needing a
-line in a list. A control is flattened to a line, because the box is how a screen says "type
+line in a list. What a notice has to be about to *stay* on the paper is the form rather than the
+attempt: that it is closed, or that this is an earlier version of it. A printed closed form
+carrying no mark reads exactly like a printed draft, and a printed old version like the current
+one. A control is flattened to a line, because the box is how a screen says "type
 here" and a line is what a printed blank form needs; and an entry, a group or a page is kept
 whole on one sheet. **A question nobody was asked stays off the paper**, for the reason it stays
 out of the archival record: printed with a line beside it, it reads as an answer somebody

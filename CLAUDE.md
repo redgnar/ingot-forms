@@ -558,7 +558,11 @@ Rules that follow from it, and that the tooling checks:
   `beforeprint` because **no stylesheet can open one** (measured, `::details-content` included),
   the palette forced to ink on white, controls flattened to a line, and everything marked
   `data-chrome` hidden — one markup convention rather than a list of selectors per kit, so the
-  next widget that draws a button is covered by it. `[data-unasked]` stays hidden, which is the
+  next widget that draws a button is covered by it. **A notice is chrome when it is about this
+  browser's attempt** (stored, not stored, waiting, refused) and not when it is about what the
+  form *is*: a printed closed form carrying no mark reads exactly like a printed draft, and a
+  printed old version like the current one, so those two stay — taking them off would make the
+  paper lie by omission. `[data-unasked]` stays hidden, which is the
   one thing print must *not* undo: a line beside a question nobody was asked reads as an answer
   somebody withheld, exactly as the record has it. It is **not** the archival record (`GET …/pdf`),
   and it is testable — `Emulation.setEmulatedMedia` through chromedriver's `goog/cdp/execute`

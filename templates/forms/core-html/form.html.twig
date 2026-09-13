@@ -278,38 +278,44 @@
 {% if not comfortPlaced %}{{ _self.comfort() }}{% endif %}
 
 {% if confirmed %}
-    <p class="notice">{{ 'page.confirmed'|trans }}</p>
+    <p class="notice" data-read-only-notice>{{ 'page.confirmed'|trans }}</p>
 {% elseif version is null %}
     {# Page chrome, not part of the presentation: what somebody is told about
        their own progress is this adapter's business, so no document has to
        carry a code for it. Shown by the script once a draft is stored, and
-       hidden again the moment it stops being true. #}
-    <p class="flash" id="form-saved" hidden>{{ 'page.saved'|trans }}</p>
+       hidden again the moment it stops being true.
+
+       All of these carry `data-chrome`, so none of them goes on paper: they are
+       the page talking about **this browser's own attempt**. The notice above —
+       that the form is closed — stays printable, because it is about what the
+       form *is*, and a printed closed form with no mark on it reads exactly like
+       a printed draft. #}
+    <p class="flash" id="form-saved" data-chrome data-saved hidden>{{ 'page.saved'|trans }}</p>
     {# What somebody typed and carried across a look at an earlier version. The
        page owes them the truth about it: these answers are on the page and not in
        the form. #}
-    <p class="notice" id="form-unsaved" data-unsaved hidden>{{ 'page.unsaved'|trans }}</p>
+    <p class="notice" id="form-unsaved" data-chrome data-unsaved hidden>{{ 'page.unsaved'|trans }}</p>
     {# A save that never reached the server. Today it was silent — `fetch` rejects
        and the rejection had nowhere to go — so the first thing this says is that
        it did not happen, and the second is that nothing was lost. #}
-    <div class="notice" data-owed hidden>
+    <div class="notice" data-chrome data-owed hidden>
         <p>{{ 'page.owed.kept'|trans }}</p>
         {# Only after somebody asked to see what the form holds now: their own
            answers are still kept, and this is the way back to them. #}
         <p><button type="button" data-owed-restore data-chrome hidden>{{ 'page.owed.restore'|trans }}</button></p>
     </div>
-    <p class="flash" data-owed-sent hidden>{{ 'page.owed.sent'|trans }}</p>
+    <p class="flash" data-chrome data-owed-sent hidden>{{ 'page.owed.sent'|trans }}</p>
     {# The form moved on while these answers waited. The page neither merges nor
        chooses: merging two people's answers is a decision no page can make, and
        choosing silently is what the precondition exists to prevent. #}
-    <div class="notice" data-owed-moved hidden>
+    <div class="notice" data-chrome data-owed-moved hidden>
         <p>{{ 'page.owed.moved'|trans }}</p>
         <p>
             <button type="button" data-owed-anyway data-chrome>{{ 'page.owed.anyway'|trans }}</button>
             <button type="button" data-owed-look data-chrome>{{ 'page.owed.look'|trans }}</button>
         </p>
     </div>
-    <p class="notice" data-owed-impossible hidden>{{ 'page.owed.impossible'|trans }}</p>
+    <p class="notice" data-chrome data-owed-impossible hidden>{{ 'page.owed.impossible'|trans }}</p>
 {% endif %}
 
 {# What a panel needs and a node cannot carry: which form this is, whether it can

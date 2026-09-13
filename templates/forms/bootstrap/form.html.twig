@@ -89,38 +89,46 @@
                 {{ ux_icon('tabler:clock', {class: 'icon'}) }}{{ 'page.history.viewing'|trans }}
             </p>
             {% if not confirmed %}
-                <button type="button" class="btn btn-sm btn-primary me-2" data-history-restore="{{ version }}"
+                <button type="button" class="btn btn-sm btn-primary me-2" data-chrome data-history-restore="{{ version }}"
                         data-action="click->form#restoreVersion">{{ 'page.history.restore'|trans }}</button>
             {% endif %}
             <a class="btn btn-sm btn-outline-secondary" href="{{ path('web_form_view', {id: id}) }}"
-               data-history-back>{{ 'page.history.back'|trans }}</a>
+               data-chrome data-history-back>{{ 'page.history.back'|trans }}</a>
         </div>
     {% endif %}
 
     {% if confirmed %}
-        <div class="alert alert-secondary d-flex align-items-center gap-2" role="status">
+        <div class="alert alert-secondary d-flex align-items-center gap-2" role="status" data-read-only-notice>
             {{ ux_icon('tabler:lock', {class: 'icon'}) }}{{ 'page.confirmed'|trans }}
         </div>
     {% elseif version is null %}
+        {# Everything below is the page talking about **this browser's own
+           attempt** — stored, not stored, waiting, refused — so none of it goes
+           on paper: `data-chrome`. What stays printable is the two statements
+           above, because they are about what the form *is*. A printed closed
+           form with no mark on it reads exactly like a printed draft, and a
+           printed old version exactly like the current one; taking those off the
+           page would make the paper lie by omission, which is the one thing
+           print must not do. #}
         {# What somebody typed and carried across a look at an earlier version. #}
-        <div class="alert alert-secondary d-none" role="status" data-form-target="unsaved" data-unsaved>
+        <div class="alert alert-secondary d-none" role="status" data-chrome data-form-target="unsaved" data-unsaved>
             <span class="d-flex align-items-center gap-2">
                 {{ ux_icon('tabler:clock', {class: 'icon'}) }}{{ 'page.unsaved'|trans }}
             </span>
         </div>
-        <div class="alert alert-success d-none" role="status" data-form-target="saved">
+        <div class="alert alert-success d-none" role="status" data-chrome data-form-target="saved" data-saved>
             <span class="d-flex align-items-center gap-2">
                 {{ ux_icon('tabler:circle-check', {class: 'icon'}) }}{{ 'page.saved'|trans }}
             </span>
         </div>
-        <div class="alert alert-danger d-none" role="alert" data-form-target="problem">
+        <div class="alert alert-danger d-none" role="alert" data-chrome data-form-target="problem">
             <span class="d-flex align-items-center gap-2">
                 {{ ux_icon('tabler:alert-triangle', {class: 'icon'}) }}<span data-form-target="problemText"></span>
             </span>
         </div>
         {# A save that never reached the server: it used to be silent, because a
            rejected `fetch` in an `async` handler goes nowhere. #}
-        <div class="alert alert-warning d-none" role="status" data-form-target="owed" data-owed>
+        <div class="alert alert-warning d-none" role="status" data-chrome data-form-target="owed" data-owed>
             <span class="d-flex align-items-center gap-2">
                 {{ ux_icon('tabler:cloud-off', {class: 'icon'}) }}{{ 'page.owed.kept'|trans }}
             </span>
@@ -130,14 +138,14 @@
                     data-form-target="owedRestore" data-owed-restore
                     data-action="form#putMineBack">{{ 'page.owed.restore'|trans }}</button>
         </div>
-        <div class="alert alert-success d-none" role="status" data-form-target="owedSent" data-owed-sent>
+        <div class="alert alert-success d-none" role="status" data-chrome data-form-target="owedSent" data-owed-sent>
             <span class="d-flex align-items-center gap-2">
                 {{ ux_icon('tabler:cloud-check', {class: 'icon'}) }}{{ 'page.owed.sent'|trans }}
             </span>
         </div>
         {# The form moved on while these answers waited. Neither merged nor chosen
            here: merging two people's answers is a decision no page can make. #}
-        <div class="alert alert-warning d-none" role="alert" data-form-target="owedMoved" data-owed-moved>
+        <div class="alert alert-warning d-none" role="alert" data-chrome data-form-target="owedMoved" data-owed-moved>
             <span class="d-flex align-items-center gap-2">
                 {{ ux_icon('tabler:git-branch', {class: 'icon'}) }}{{ 'page.owed.moved'|trans }}
             </span>
@@ -148,7 +156,7 @@
                         data-action="form#lookAtTheForm">{{ 'page.owed.look'|trans }}</button>
             </span>
         </div>
-        <div class="alert alert-secondary d-none" role="alert" data-form-target="owedImpossible" data-owed-impossible>
+        <div class="alert alert-secondary d-none" role="alert" data-chrome data-form-target="owedImpossible" data-owed-impossible>
             <span class="d-flex align-items-center gap-2">
                 {{ ux_icon('tabler:circle-x', {class: 'icon'}) }}{{ 'page.owed.impossible'|trans }}
             </span>
