@@ -25,10 +25,12 @@ use App\Domain\Forms\Presentation\PresentationRules;
 use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\Definition;
+use App\Domain\Forms\ValueObject\DefinitionId;
 use App\Domain\Forms\ValueObject\ExpectedRevision;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Presentation;
+use App\Domain\Forms\ValueObject\PresentationId;
 use App\Domain\Forms\ValueObject\Values;
 use App\Domain\Forms\ValueObject\Webhooks;
 use App\Tests\Domain\Forms\Fake\SpyParser;
@@ -296,6 +298,88 @@ final class FormTest extends TestCase
             ExpireDate::at(new \DateTimeImmutable('+1 day')),
             self::presentation('text'),
         );
+    }
+
+    public function testARestoredFormHasNoDocumentsToWrite(): void
+    {
+        // GIVEN a form as storage hands it back, naming the two documents it is
+        // made of
+        $definition = DefinitionId::next();
+        $presentation = PresentationId::next();
+        $form = Form::fromState(
+            FormId::next(),
+            Definition::stored(self::DEFINITION, new SpyParser()),
+            ExpireDate::at(new \DateTimeImmutable('+1 day')),
+            null,
+            null,
+            null,
+            new \DateTimeImmutable(),
+            self::presentation('text'),
+            definitionId: $definition,
+            presentationId: $presentation,
+        );
+
+        // THEN it names them and brings nothing to store: its documents are
+        // already there, whatever they are, and nothing about a form being read
+        // is a reason to write one again
+        self::assertTrue($definition->equals($form->definitionId()));
+        self::assertTrue($presentation->equals($form->presentationId() ?? throw new \LogicException()));
+        self::assertFalse($form->hasItsOwnDocuments());
+    }
+
+    public function testAFormMadeOfDocumentsThatAlreadyExistKeepsTheIdsItWasGiven(): void
+    {
+        // GIVEN two documents somebody else already stored — a template's
+        $definition = DefinitionId::next();
+        $presentation = PresentationId::next();
+
+        // WHEN a form is made of them
+        $form = new Form(
+            FormId::next(),
+            Definition::stored(self::DEFINITION, new SpyParser()),
+            ExpireDate::at(new \DateTimeImmutable('+1 day')),
+            self::presentation('text'),
+            self::rules(),
+            definitionId: $definition,
+            presentationId: $presentation,
+        );
+
+        // THEN it points at exactly those, and says it brought none of its own —
+        // which is what stops the write from storing over a catalogue's
+        self::assertTrue($definition->equals($form->definitionId()));
+        self::assertTrue($presentation->equals($form->presentationId() ?? throw new \LogicException()));
+        self::assertFalse($form->hasItsOwnDocuments());
+    }
+
+    public function testAFormNobodyNamedDocumentsForMintsItsOwn(): void
+    {
+        // GIVEN nothing but a definition
+        // WHEN
+        $form = new Form(
+            FormId::next(),
+            Definition::stored(self::DEFINITION, new SpyParser()),
+            ExpireDate::at(new \DateTimeImmutable('+1 day')),
+            self::presentation('text'),
+            self::rules(),
+        );
+
+        // THEN it has ids of its own and says they are its to write — which is
+        // what every form's documents were before there was a catalogue
+        self::assertTrue($form->hasItsOwnDocuments());
+        self::assertNotNull($form->presentationId());
+    }
+
+    public function testAFormThatShowsNothingNamesNoPresentation(): void
+    {
+        // GIVEN / WHEN a form with no presentation at all
+        $form = new Form(
+            FormId::next(),
+            Definition::stored(self::DEFINITION, new SpyParser()),
+            ExpireDate::at(new \DateTimeImmutable('+1 day')),
+        );
+
+        // THEN there is nothing to name, rather than an id pointing at nothing
+        self::assertNull($form->presentationId());
     }
 
     public function testARestoredFormRemembersHowItIsShownWithoutBeingJudgedAgain(): void

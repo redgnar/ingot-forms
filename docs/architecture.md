@@ -493,6 +493,24 @@ belongs to the template that numbered it, which points at the pair in use under 
 to let it go, so collecting it with the last form made of it fails the constraint in the middle of
 a deletion that has already happened.
 
+**A form is made of documents written into the request, or of a template's.** `POST
+/api/manage/forms` takes exactly one of `definition` and `template` (`FormSource` is that choice
+as a value; `form.source.missing` and `form.source.ambiguous` are the refusals, and a
+`presentation` beside a `template` is `form.source.presentation-with-template`). Written inline
+the documents are the form's **own** — stored beside its row and gone when it goes, which is what
+creating a form has always been. From a template they are **pointed at**, so two forms made from
+one template are two rows naming one definition. `Form::hasItsOwnDocuments()` is what the write
+asks: a form that brought its own has them stored in the same breath as its row, one that did not
+must never write over the catalogue's.
+
+The template is read under its **row lock**, inside the transaction that inserts the form. That is
+what makes "the pair in use" mean the pair in use *now*, and it is the same lock
+`DeleteFormTemplate` takes — so a template cannot be deleted between a form resolving it and that
+form existing. Naming no version takes the pair in use; naming one **states the pair whole**,
+exactly as `PUT …/current` does, so a pinned definition with no presentation named means none. A
+pinned pair the catalogue never put in use together is judged by the `Form` constructor like any
+other, and the findings are rooted at `/template`, because the document is nowhere in the request.
+
 `.claude/plan/27-templates.md` is the whole of the design.
 
 ## How values are judged

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Application\Forms\UseCase;
 
 use App\Application\Forms\Exception\WebhooksNotSignable;
+use App\Application\Forms\FormSource;
 use App\Application\Forms\Operations;
 use App\Application\Forms\UseCase\CreateForm;
 use App\Domain\Forms\DeriveMode;
@@ -18,7 +19,10 @@ use App\Domain\Forms\Presentation\Engine\Engines;
 use App\Domain\Forms\Presentation\PresentationRules;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\Webhooks;
+use App\Tests\Application\Forms\Fake\ImmediateTransactions;
 use App\Tests\Application\Forms\Fake\InMemoryForms;
+use App\Tests\Application\Forms\Fake\InMemoryFormTemplates;
+use App\Tests\Application\Forms\Fake\InMemoryStoredDocuments;
 use App\Tests\Application\Forms\Fake\RecordingAnnouncer;
 use App\Tests\Application\Forms\Fake\RecordingWebhook;
 use App\Tests\Domain\Forms\Fake\StubValues;
@@ -46,7 +50,7 @@ final class CreateFormTest extends TestCase
         $values = new StubValues();
 
         // WHEN
-        $id = self::createForm($forms, $values)(self::DEFINITION, self::tomorrow());
+        $id = self::createForm($forms, $values)(FormSource::documents(self::DEFINITION), self::tomorrow());
 
         // THEN there is nothing to judge, so nothing was asked
         self::assertSame(FormStatus::Empty, $forms->get($id)->status());
@@ -61,7 +65,7 @@ final class CreateFormTest extends TestCase
         $values = new StubValues();
 
         // WHEN a client creates a form with what it already knows
-        $id = self::createForm($forms, $values)(self::DEFINITION, self::tomorrow(), data: self::data('{"email": "ada@example.com"}'));
+        $id = self::createForm($forms, $values)(FormSource::documents(self::DEFINITION), self::tomorrow(), data: self::data('{"email": "ada@example.com"}'));
 
         // THEN the form starts as a draft holding it, byte for byte
         $form = $forms->get($id);
@@ -84,7 +88,7 @@ final class CreateFormTest extends TestCase
         // GIVEN / WHEN a client says "it holds nothing yet" rather than saying
         // nothing at all
         $forms = new InMemoryForms();
-        $id = self::createForm($forms, new StubValues())(self::DEFINITION, self::tomorrow(), data: self::data('{}'));
+        $id = self::createForm($forms, new StubValues())(FormSource::documents(self::DEFINITION), self::tomorrow(), data: self::data('{}'));
 
         // THEN that is a draft holding an empty document, and `{}` survives as
         // itself rather than becoming a list
@@ -99,7 +103,7 @@ final class CreateFormTest extends TestCase
 
         // WHEN
         try {
-            self::createForm($forms, new StubValues(refuse: true))(self::DEFINITION, self::tomorrow(), data: self::data('{"age": 7}'));
+            self::createForm($forms, new StubValues(refuse: true))(FormSource::documents(self::DEFINITION), self::tomorrow(), data: self::data('{"age": 7}'));
             self::fail('Expected ValuesNotValid.');
         } catch (ValuesNotValid $exception) {
             // THEN the report travels untouched, and no form exists at all: a
@@ -125,7 +129,11 @@ final class CreateFormTest extends TestCase
             $announcer,
             new RecordingWebhook(),
             new Operations(new NullLogger()),
-        )(self::DEFINITION, self::tomorrow());
+            new InMemoryFormTemplates(),
+            new InMemoryStoredDocuments(),
+            new InMemoryStoredDocuments(),
+            new ImmediateTransactions(),
+        )(FormSource::documents(self::DEFINITION), self::tomorrow());
 
         // THEN a worker is still nudged. It was gated on `$data` while the only
         // thing a creation could owe was the first draft's announcement, and
@@ -145,7 +153,7 @@ final class CreateFormTest extends TestCase
         // WHEN a form is created naming where it reports itself
         try {
             self::createForm($forms, new StubValues(), $webhook)(
-                self::DEFINITION,
+                FormSource::documents(self::DEFINITION),
                 self::tomorrow(),
                 webhooks: Webhooks::of(null, 'https://receiver.test/confirmed'),
             );
@@ -166,7 +174,7 @@ final class CreateFormTest extends TestCase
         $webhook->signing = false;
 
         // WHEN a form that reports itself nowhere is created
-        self::createForm($forms, new StubValues(), $webhook)(self::DEFINITION, self::tomorrow());
+        self::createForm($forms, new StubValues(), $webhook)(FormSource::documents(self::DEFINITION), self::tomorrow());
 
         // THEN nothing is refused: the check is about a promise, and this form
         // made none
@@ -183,6 +191,10 @@ final class CreateFormTest extends TestCase
             new RecordingAnnouncer(),
             $webhook ?? new RecordingWebhook(),
             new Operations(new NullLogger()),
+            new InMemoryFormTemplates(),
+            new InMemoryStoredDocuments(),
+            new InMemoryStoredDocuments(),
+            new ImmediateTransactions(),
         );
     }
 

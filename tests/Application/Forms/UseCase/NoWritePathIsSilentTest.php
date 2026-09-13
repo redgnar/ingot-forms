@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Application\Forms\UseCase;
 
+use App\Application\Forms\FormSource;
 use App\Application\Forms\Operations;
 use App\Application\Forms\UseCase\ConfirmForm;
 use App\Application\Forms\UseCase\CreateForm;
@@ -22,6 +23,8 @@ use App\Domain\Forms\ValueObject\FormId;
 use App\Tests\Application\Forms\Fake\ImmediateTransactions;
 use App\Tests\Application\Forms\Fake\InMemoryFileStore;
 use App\Tests\Application\Forms\Fake\InMemoryForms;
+use App\Tests\Application\Forms\Fake\InMemoryFormTemplates;
+use App\Tests\Application\Forms\Fake\InMemoryStoredDocuments;
 use App\Tests\Application\Forms\Fake\RecordingAnnouncer;
 use App\Tests\Application\Forms\Fake\RecordingWebhook;
 use App\Tests\Domain\Forms\Fake\SpyParser;
@@ -64,7 +67,7 @@ final class NoWritePathIsSilentTest extends TestCase
         $announcer = new RecordingAnnouncer();
 
         // WHEN
-        self::creating(new InMemoryForms(), $announcer)(self::DEFINITION, self::tomorrow());
+        self::creating(new InMemoryForms(), $announcer)(FormSource::documents(self::DEFINITION), self::tomorrow());
 
         // THEN
         self::assertSame(1, $announcer->hurried);
@@ -76,7 +79,7 @@ final class NoWritePathIsSilentTest extends TestCase
         $announcer = new RecordingAnnouncer();
 
         // WHEN
-        self::creating(new InMemoryForms(), $announcer)(self::DEFINITION, self::tomorrow(), data: self::values());
+        self::creating(new InMemoryForms(), $announcer)(FormSource::documents(self::DEFINITION), self::tomorrow(), data: self::values());
 
         // THEN one look, not one per thing owed: a worker drains what is there
         self::assertSame(1, $announcer->hurried);
@@ -155,6 +158,10 @@ final class NoWritePathIsSilentTest extends TestCase
             $announcer,
             new RecordingWebhook(),
             new Operations(new NullLogger()),
+            new InMemoryFormTemplates(),
+            new InMemoryStoredDocuments(),
+            new InMemoryStoredDocuments(),
+            new ImmediateTransactions(),
         );
     }
 

@@ -1707,6 +1707,13 @@ or not one of the words offered — `form.identity.unknown` is the same kind of 
 `identity` that is neither `recorded` nor `anonymous`), `400` for malformed JSON, `415` for a
 body that is not JSON.
 
+**Refusals about where a form comes from:** `form.source.missing` (neither `definition` nor
+`template`), `form.source.ambiguous` (both), `form.source.presentation-with-template` (a
+presentation written beside a template — the pair a template offers is its own),
+`form.template.not-an-id` (a `template.id` that is not a UUID) and `form.template.half-a-pair`
+(a `template.presentation` named without a `template.definition`: naming a version states the
+pair whole, so half of one is refused rather than completed from whatever is in use).
+
 **Refusals about a template:** `template.name.blank` (a name that is empty or nothing but
 space — judged for blankness after trimming, though what is stored is what was typed),
 `template.name.too-long` (past 255 characters, counted in characters and not in bytes),

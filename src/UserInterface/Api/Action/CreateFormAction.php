@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\UserInterface\Api\Action;
 
+use App\Application\Forms\FormSource;
 use App\Application\Forms\UseCase\CreateForm;
 use App\Domain\Forms\Exception\DefinitionNotValid;
 use App\Domain\Forms\Exception\PresentationNotValid;
@@ -12,6 +13,7 @@ use App\Domain\Forms\IdentityMode;
 use App\Domain\Forms\PresentationProcessor;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\ExpireDate;
+use App\Domain\Forms\ValueObject\FormTemplateId;
 use App\Domain\Forms\ValueObject\Webhooks;
 use App\UserInterface\Api\Problem\ProblemException;
 use App\UserInterface\Api\Request\CreateFormRequest;
@@ -150,20 +152,31 @@ final class CreateFormAction
         // without a line of new code.
         ?Actor $author,
     ): JsonResponse {
+        $template = $request->template;
+
         try {
             $id = ($this->createForm)(
-                // Judged twice on purpose, and it must stay that way: the
-                // constraint on the DTO parses it so its findings arrive in the
-                // same report as the rest of the envelope's — a client should not
-                // have to fix `expireDate` before being told about its
-                // definition — and the aggregate parses what it is actually
-                // built from, because nothing may reach it unproved. Making
-                // either side trust the other's work would cost one of those two.
-                $request->definition,
+                $template === null
+                    // Judged twice on purpose, and it must stay that way: the
+                    // constraint on the DTO parses it so its findings arrive in
+                    // the same report as the rest of the envelope's — a client
+                    // should not have to fix `expireDate` before being told about
+                    // its definition — and the aggregate parses what it is
+                    // actually built from, because nothing may reach it unproved.
+                    // Making either side trust the other's work would cost one of
+                    // those two.
+                    ? FormSource::documents(
+                        $request->definition ?? throw new \LogicException('A source was neither a definition nor a template.'),
+                        $request->presentation === null
+                            ? null
+                            : $this->presentations->document($this->presentations->parse($request->presentation)),
+                    )
+                    : FormSource::template(
+                        FormTemplateId::fromString($template->id),
+                        $template->definition,
+                        $template->presentation,
+                    ),
                 self::expiring($request->expireDate),
-                $request->presentation === null
-                    ? null
-                    : $this->presentations->document($this->presentations->parse($request->presentation)),
                 $request->data,
                 IdentityMode::from($request->identity),
                 $author,
@@ -185,7 +198,12 @@ final class CreateFormAction
             // other two, rather than answering about a document nobody sent.
             throw new DefinitionNotValid(self::rootedAt('/definition', $exception->report));
         } catch (PresentationNotValid $exception) {
-            throw new PresentationNotValid(self::rootedAt('/presentation', $exception->report));
+            // A pair a template offered is rooted where the client pointed at
+            // it: the document is nowhere in this request, so `/presentation`
+            // would name a member nobody sent. It can only happen for a pinned
+            // pair — one the catalogue never put in use together — which is
+            // exactly the case worth being told about precisely.
+            throw new PresentationNotValid(self::rootedAt($template === null ? '/presentation' : '/template', $exception->report));
         } catch (ValuesNotValid $exception) {
             // Refused before the form exists: a form is never created holding
             // something it would not have accepted later.

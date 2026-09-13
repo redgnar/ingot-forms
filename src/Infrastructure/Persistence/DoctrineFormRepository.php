@@ -77,13 +77,17 @@ final class DoctrineFormRepository implements FormRepository
         $record->id = $form->id()->toUuid();
         $record->expireDate = $form->expireDate()->toDateTime();
         $record->createdAt = $form->createdAt();
-        // Kept before the row that names them, and flushed by the port that
-        // keeps them: a form pointing at a document that has not reached the
-        // database is a foreign key waiting to fail. Every form created today
-        // brings documents of its own — nothing shares one yet — so this is one
-        // insert each, exactly where the column used to be written.
-        $record->definitionId = $this->keepDefinition($form)->toUuid();
-        $record->presentationId = $this->keepPresentation($form)?->toUuid();
+        // The form says which documents it is made of; whether they need
+        // writing is its own question. A form that brought its own has them
+        // kept first — a row pointing at a document that has not reached the
+        // database is a foreign key waiting to fail — while one made from a
+        // template points at a catalogue's and must not write over them.
+        $record->definitionId = $form->definitionId()->toUuid();
+        $record->presentationId = $form->presentationId()?->toUuid();
+
+        if ($form->hasItsOwnDocuments()) {
+            $this->keepDocumentsOf($form);
+        }
         // A form can be born holding its first draft, and the whole row means
         // the whole row.
         $record->data = $form->valuesJson();
@@ -313,6 +317,8 @@ final class DoctrineFormRepository implements FormRepository
             $record->confirmNotifiedAt,
             $record->createdNotifiedAt,
             $record->revision,
+            DefinitionId::of($record->definitionId),
+            $record->presentationId === null ? null : PresentationId::of($record->presentationId),
         );
     }
 
@@ -495,34 +501,35 @@ final class DoctrineFormRepository implements FormRepository
     }
 
     /**
-     * Keeps this form's definition and answers with the id the row will name it
-     * by.
+     * Writes the documents a form brought with it, under the ids it already
+     * names them by.
      *
-     * Who stored it is the form's author, which is the truth and not a guess:
-     * whoever created a form is whoever supplied the document it is made of. An
-     * anonymous form has already dropped its author, so nothing is recorded here
-     * that the form itself refused to hold.
+     * They are **one-offs**: in no template, belonging to this form and leaving
+     * when it does. Who stored them is the form's author, which is the truth and
+     * not a guess — whoever created a form is whoever supplied what it is made
+     * of — and an anonymous form has already dropped its author, so nothing is
+     * recorded here that the form itself refused to hold.
      */
-    private function keepDefinition(Form $form): DefinitionId
+    private function keepDocumentsOf(Form $form): void
     {
-        $id = DefinitionId::next();
-        $this->documents->addDefinition(new StoredDefinition($id, $form->definition(), $form->createdAt(), $form->author()));
+        $this->documents->addDefinition(new StoredDefinition(
+            $form->definitionId(),
+            $form->definition(),
+            $form->createdAt(),
+            $form->author(),
+        ));
 
-        return $id;
-    }
-
-    private function keepPresentation(Form $form): ?PresentationId
-    {
         $presentation = $form->presentation();
+        $presentationId = $form->presentationId();
 
-        if ($presentation === null) {
-            return null;
+        if ($presentation !== null && $presentationId !== null) {
+            $this->documents->addPresentation(new StoredPresentation(
+                $presentationId,
+                $presentation,
+                $form->createdAt(),
+                $form->author(),
+            ));
         }
-
-        $id = PresentationId::next();
-        $this->documents->addPresentation(new StoredPresentation($id, $presentation, $form->createdAt(), $form->author()));
-
-        return $id;
     }
 
     private static function subject(?Actor $actor): ?string

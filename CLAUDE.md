@@ -945,6 +945,14 @@ Rules that follow from it, and that the tooling checks:
   gateway can refuse it to everybody. A form's documents are collected **only when they are in no
   template**: a published version belongs to the template that numbered it and leaves when that
   does.
+- **A form is made of documents written into the request, or of a template's.** Exactly one of
+  `definition` and `template` — which is why `definition` is nullable and why "an instance of the
+  DTO means a complete request" now reads "…after validation": "one of these two" is not something
+  a constructor signature can say. Inline documents are the form's **own**; a template's are
+  **pointed at**, read under that template's **row lock** inside the insert's transaction, so the
+  pair in use means the pair in use now and the template cannot be deleted in between. Naming no
+  version takes the pair in use; naming one states the pair whole, so a pinned definition with no
+  presentation means none.
 - **A form names its two documents rather than holding them.** They are rows of their own
   (`form_definitions`, `form_presentations`), so a definition used by ten thousand forms is kept
   once — which is what the catalogue in [27](.claude/plan/27-templates.md) is built on. Three

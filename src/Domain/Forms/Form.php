@@ -19,10 +19,12 @@ use App\Domain\Forms\Port\ValuesValidator;
 use App\Domain\Forms\Presentation\PresentationRules;
 use App\Domain\Forms\ValueObject\Actor;
 use App\Domain\Forms\ValueObject\Definition;
+use App\Domain\Forms\ValueObject\DefinitionId;
 use App\Domain\Forms\ValueObject\ExpectedRevision;
 use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\Presentation;
+use App\Domain\Forms\ValueObject\PresentationId;
 use App\Domain\Forms\ValueObject\Values;
 use App\Domain\Forms\ValueObject\Webhooks;
 
@@ -76,6 +78,24 @@ final class Form
     private int $revision = 0;
 
     private ?Presentation $presentation = null;
+
+    /**
+     * Which stored documents this form is made of, and whether they are its own.
+     *
+     * A form has always had exactly one definition; what is new is that another
+     * form may have the same one. **Nobody saying which means its own** — a
+     * document created for this form and leaving with it, which is what every
+     * form's definition was before there was a catalogue — and then the write
+     * has documents to store. A form made from a template is handed ids that
+     * already exist and stores nothing: two forms made of one definition are two
+     * rows pointing at one, which is the whole of what the catalogue buys and
+     * what makes "do these answer the same model?" one comparison.
+     */
+    private DefinitionId $definitionId;
+
+    private ?PresentationId $presentationId = null;
+
+    private bool $ownDocuments;
 
     private ?\DateTimeImmutable $dataSavedAt = null;
 
@@ -145,8 +165,14 @@ final class Form
         IdentityMode $identity = IdentityMode::Anonymous,
         ?Actor $author = null,
         ?Webhooks $webhooks = null,
+        ?DefinitionId $definitionId = null,
+        ?PresentationId $presentationId = null,
     ) {
         $this->id = $id;
+        // Its own unless somebody named documents that already exist, which is
+        // the only way two forms come to share one.
+        $this->ownDocuments = $definitionId === null;
+        $this->definitionId = $definitionId ?? DefinitionId::next();
         $this->definition = $definition;
         $this->expireDate = $expireDate;
         $this->createdAt = self::utc($now ?? new \DateTimeImmutable());
@@ -177,6 +203,7 @@ final class Form
             }
 
             $this->presentation = $presentation;
+            $this->presentationId = $presentationId ?? PresentationId::next();
         }
 
         $this->events[] = new FormCreated($id, $this->createdAt, $this->author);
@@ -212,8 +239,23 @@ final class Form
         ?\DateTimeImmutable $confirmNotifiedAt = null,
         ?\DateTimeImmutable $createdNotifiedAt = null,
         int $revision = 0,
+        ?DefinitionId $definitionId = null,
+        ?PresentationId $presentationId = null,
     ): self {
-        $form = new self($id, $definition, $expireDate, now: $createdAt, identity: $identity, author: $author, webhooks: $webhooks);
+        $form = new self(
+            $id,
+            $definition,
+            $expireDate,
+            now: $createdAt,
+            identity: $identity,
+            author: $author,
+            webhooks: $webhooks,
+            definitionId: $definitionId,
+        );
+        // Read back, so its documents are in storage whatever they are: nothing
+        // about a form being read is a reason to write one again.
+        $form->ownDocuments = false;
+        $form->presentationId = $presentationId;
         $form->confirmedBy = $confirmedBy;
         $form->confirmNotifiedAt = $confirmNotifiedAt;
         $form->createdNotifiedAt = $createdNotifiedAt;
@@ -417,6 +459,31 @@ final class Form
     public function confirmNotifiedAt(): ?\DateTimeImmutable
     {
         return $this->confirmNotifiedAt;
+    }
+
+    /** Which stored definition this form is made of. */
+    public function definitionId(): DefinitionId
+    {
+        return $this->definitionId;
+    }
+
+    /** Which stored presentation shows it, or null while nobody has said. */
+    public function presentationId(): ?PresentationId
+    {
+        return $this->presentationId;
+    }
+
+    /**
+     * Whether the documents this form names are its own to be written, or ones
+     * that were already there.
+     *
+     * Asked by whatever stores a new form, and by nothing else. A form that
+     * brought its own needs them written in the same breath as its row; one made
+     * from a template points at a catalogue's and must not write over them.
+     */
+    public function hasItsOwnDocuments(): bool
+    {
+        return $this->ownDocuments;
     }
 
     /** How this form is shown, or null while nobody has said. */
