@@ -44,9 +44,9 @@ none of them, which is why the "not wanted" column below is long and not defensi
 
 | Feature | Form.io | Us | Note |
 |---|---|---|---|
-| Template collecting many submissions | core | **not wanted** | One form = one document is the axiom. Many fillings = many forms, created by the system that owns them. |
+| Template collecting many submissions | core | **not wanted** | One form = one document is the axiom. Many fillings = many forms, created by the system that owns them. A *template* here names documents and collects nothing ([27](27-templates.md)), which is the difference this whole row is about. |
 | Resources — data models with their own API | core | **not wanted** | That is the step into being an application's database. Our definition is one document's contract, not an entity schema. |
-| Definition versioning (Form Revisions) | Enterprise | **not wanted** | The definition is immutable; change means delete and recreate, which dissolves "which version were these answers given against". |
+| Definition versioning (Form Revisions) | Enterprise | **have** | Not as this row read it. A form's definition is still immutable — the question "which version were these answers given against" stays dissolved — but the documents themselves live in a catalogue with two histories, and a form points at one rather than copying it ([27](27-templates.md)). |
 | History of saved data | Enterprise (submission revisions, logs) | **have** | Every accepted save is a revision, bounded by `FORMS_HISTORY_LIMIT`, restored through the ordinary `PUT …/data`, with a page per version. |
 | Draft / save for later | core, plus Enterprise auto-save | **have** | `empty → draft → confirmed` with a lenient contract while filling in. Browser-side auto-save would be a thin client of the same endpoint. |
 | Collision control | Enterprise | **gap** | Our row lock means no corrupt data, but a second filler silently overwrites the first. The fix is a conditional save ("I hold revision *n*"), not a lock held across requests. |

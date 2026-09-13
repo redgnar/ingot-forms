@@ -1,5 +1,10 @@
 # Form templates: the documents a form is made of, stored once
 
+**Built 2026-09-12/13, in nine blocks.** What the code does now is in `CLAUDE.md`,
+`README.md`, `docs/configuring-forms.md` (the templates chapter) and
+`docs/architecture.md` (storage, and the addresses). What follows is the design as decided with
+the owner, and — at the end — what the building corrected.
+
 A form is one fillable document, and that does not change here. What changes is **where the two
 documents it is made of live**. Today they are columns on the form's own row, which means a system
 creating a thousand claim forms sends the same definition a thousand times and stores it a thousand
@@ -306,3 +311,53 @@ when a template changes; and any endpoint listing the forms created from a templ
 makes it nearly free: give the row a `template_id` and a `seq`, and the form that already points at
 it keeps pointing at it. It is one write and no data movement — the first thing to revisit if
 somebody asks "make this form's definition reusable".
+
+## What the building corrected
+
+- **Two tables wanted to point at each other.** A template names the pair it uses and a document
+  names the template numbering it, which is a cycle: neither row can be inserted first. One of
+  the two keys had to give and it is the document's — `template_id` is a plain indexed column.
+  "A template points at a version that exists" is worth having the database enforce; "a version
+  belongs to a template that exists" buys a cascade this plan does not want, since deleting a
+  template is refused while any form is made of one of its versions.
+- **The collector had to learn what the plan said it would, and did not.** Collecting a form's
+  documents asked "is anybody still made of this?" and meant *any form*; since templates arrived
+  a template points at the pair it uses too, under a key that refuses to let it go. Deleting the
+  last form made of a published version therefore tried to take a row the catalogue still named,
+  and the database said no **in the middle of a deletion that had already happened**. One clause
+  fixes it — a form's documents are collected only when they are in no template — and the unit
+  suite could never have found it, because fakes have no foreign keys. The endpoint test did, on
+  its first run.
+- **Emptying a template has to delete expired forms too.** The API treats an expired form as gone
+  everywhere, so `DeleteForm` refuses one — but a row is a row to a foreign key, and leaving it
+  would make the template undeletable until the reaper next ran. It leaves the reaper's way, with
+  `form.deleted` carrying `expired`, because its disappearance was promised before anybody asked
+  for this.
+- **Pinning a version states the pair whole.** The plan allowed pinning and did not say what
+  naming half of one meant. It means the other half is *none*, exactly as at the pointer: the
+  alternative would have the server judge a pair the request never named, and the answer would
+  change under the client the next time anybody moved the pointer.
+- **`Form` learnt which stored documents it is made of, and the default is what made that
+  cheap.** Nobody saying which means its own — which is what every form's definition was before
+  there was a catalogue — so not one of the seventy-eight places that construct a `Form` had to
+  change.
+- **`ValuesValidator::assertFit()` takes two identities now**, and that is the distinction rather
+  than clutter: the form is what the *files* a document names belong to, the definition is what
+  the schema is derived from. They were one argument only because there used to be one id.
+- **Two names stopped being true.** `RowsLeaveWithTheirForm` described cascades when that was all
+  it did; it now also states what a form and a template may not lose, and is
+  `ConstraintsTheMappingCannotDeclare`. And `template.pair.mismatch` was never invented: a pair
+  that does not fit is a presentation that does not fit a definition, which this service already
+  has a word and a report shape for.
+- **A fake lied in the one direction a fake must not.** `InMemoryFormTemplateCatalogue` counted
+  from a list a test had written, so it went on saying a template had two hundred forms after all
+  two hundred were deleted — and emptying reads that count *after* deleting, to say what is left.
+- **Three things the tooling caught that review had not.**
+  `testEveryDocumentedResponseIsExercised` refuses a documented response nobody triggers, and
+  twenty-nine of them had no traffic. Symfony's `NotBlank` does not consider `"   "` blank without
+  a normalizer, so a name of nothing but space reached the model and became a 500. And mutation
+  testing found the same gap twice — a new exception's **message** is what tests forget, since
+  `expectException` says nothing about it — plus two assertions that checked *there is something*
+  where they should have checked *it is that one*.
+- **The nudge moved out of the transaction.** Creating a form opened none before this, so nothing
+  had ever asked a worker to look at rows that were not committed yet.

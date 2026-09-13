@@ -4,8 +4,9 @@ Backend-only forms management service built on the [ingot](https://github.com/re
 mapping engine. A **form is a single fillable document**: one JSON definition, one data set,
 a required expiry date. A form can hold files too — uploaded beside it and named from inside
 it, so the values stay one JSON document. It can also **draw itself for a person**: an optional
-second document says how, and two kits render it with no build step. Definition templates,
-versioning and multi-submission forms are deliberately out of scope.
+second document says how, and two kits render it with no build step. A definition can be kept in
+a **catalogue** and used again, with its own version history — but a form is still one document
+somebody fills in once: multi-submission forms are deliberately out of scope.
 
 ## Documentation
 
@@ -21,7 +22,8 @@ versioning and multi-submission forms are deliberately out of scope.
 
 ## Domain model
 
-- **One form = one definition + one data set.** No versions, no submission collections.
+- **One form = one definition + one data set.** No submission collections, and no versions of
+  the form itself — a form that must ask something else is a new form.
 - **The definition is immutable.** To change it, delete the form and create a new one.
 - **Data lifecycle: `empty → draft → confirmed`.** Saving a draft (`PUT …/data`) is
   repeatable and validates values leniently — an obligation waits, a rule about the value does
@@ -43,11 +45,19 @@ versioning and multi-submission forms are deliberately out of scope.
   keeps, and past it the oldest leaves as the newest arrives — `0` keeps every one of them.
 - **`expire_date` is required.** Past it, the form answers `410 Gone` everywhere, and
   `bin/console app:forms:purge-expired` (run it from cron) physically deletes the row.
-- **The definition has no name of its own.** It belongs to exactly one form, and that form
-  already has an identity — the UUID it is created with. With no templates and no versioning
-  there is nothing for a second name to group, look up or match, so what was once a required
-  `id` was only a label that could drift; the derived values schema now titles itself by the
-  contract it is (`Form values (strict contract)`) instead of borrowing that name.
+- **A definition can be kept and used again.** A **template** is a name and the one pair of
+  documents new forms made from it get, with a separately numbered history behind each half —
+  a presentation changes often and cheaply, a definition is where compatibility breaks.
+  Publishing a version changes nothing; putting a pair in use is its own deliberate act, so a
+  definition change is prepared in advance and a rollback costs no new version. A form created
+  from a template **points at** its documents rather than copying them, which is what makes "do
+  these two forms answer the same model?" one comparison
+  ([Templates](docs/configuring-forms.md#templates-a-definition-you-use-again)).
+- **The definition document has no name of its own.** It belongs to whoever points at it — one
+  form, or a template's history — and naming, grouping and looking one up is what a template is
+  for. What was once a required `id` inside the document would be a second name free to drift
+  from that; the derived values schema titles itself by the contract it is (`Form values (strict
+  contract)`) instead of borrowing one.
 - **The definition holds no display text.** No item label, no form title: what a question
   reads like, and in which language, belongs to whatever draws the form. The definition says
   what is asked (`name`, `type`) and what an answer must satisfy — a client keys its own copy

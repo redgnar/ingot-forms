@@ -40,10 +40,9 @@ change = delete + recreate. **Filling a form in through the API is the foundatio
 is a client of it — server-rendered interactivity (Live Components and the like) was weighed and
 refused in this session, because it would be a second way in and would move rules the definition
 owns into the presentation. Expired forms answer 410 everywhere; `app:forms:purge-expired`
-deletes them physically. No templates, no versioning, no multi-submission, and no name
-or id on the definition (it belongs to one form, which has a UUID of its own; nothing groups
-or looks definitions up, so a second name would only be a label that can drift) —
-deliberately.
+deletes them physically. No multi-submission and no `id` inside the definition document (naming,
+grouping and looking one up is what a **template** is for — see below — so a label in the
+document as well would be a second name free to drift from it) — deliberately.
 
 **How a question comes to be asked.** Any item may carry `askedWhen` (the question is only put
 when it holds) and `requiredWhen` (the answer is only owed then) — **a condition written as data
@@ -377,8 +376,9 @@ of that, not as a separate idea.
   serving both the published contract and the incoming check, one definition mapper as a
   service. A write never answers with the document a `GET` already serves — a second copy is
   a second truth.
-- **YAGNI**: the domain model says no on purpose (no templates, no versioning, no
-  multi-submission, no form list endpoint). Do not add a seam, an abstraction or a config
+- **YAGNI**: the domain model says no on purpose (no multi-submission, no form list endpoint, no
+  versioning of a *form* — a catalogue versions the documents forms are made of, and a form is
+  still one immutable definition). Do not add a seam, an abstraction or a config
   knob for a case nobody asked for; add it when the second caller appears.
 - **SOLID**: one action per endpoint and one `__invoke` per use case (S); the field catalogue
   grows by adding a variant, not by editing a switch (O); adapters are substitutable behind

@@ -6,8 +6,10 @@ and how it is shown — rather than for the person maintaining the service; that
 [architecture.md](architecture.md), and the generated endpoint reference in [api.md](api.md).
 
 A form here is **one fillable document**: one definition, one set of values, one expiry date,
-and optionally one description of how to draw it. There are no templates, no versions and no
-submission collections — one form is one thing somebody fills in once.
+and optionally one description of how to draw it. There are no submission collections — one form
+is one thing somebody fills in once. The documents it is made of can be kept in a catalogue and
+used by as many forms as you like ([Templates](#templates-a-definition-you-use-again)); what a
+form holds is still its own.
 
 Two documents describe it, and both are **immutable for the life of the form**:
 
@@ -36,6 +38,7 @@ answered is a form whose answers were given to the questions it had.
 - [Being told what happened](#being-told-what-happened)
 - [The record of a confirmed form](#the-record-of-a-confirmed-form)
 - [History](#history)
+- [Templates: a definition you use again](#templates-a-definition-you-use-again)
 - [Talking to the API](#talking-to-the-api)
 - [Saving without overwriting somebody](#saving-without-overwriting-somebody)
 - [When something is refused](#when-something-is-refused)
@@ -107,9 +110,20 @@ Content-Type: application/json
 that response would be a copy of what you just sent. `expireDate` is required and must be in
 the future. `presentation`, `data` and `webhooks` are optional.
 
-The id is a UUID and the form's only name. **The definition has no name of its own**: with no
-templates and no versioning there is nothing for a second name to group or look up, so it would
-only be a label free to drift.
+**The documents come from one of two places**, and exactly one of them is given. Written here as
+`definition` (and optionally `presentation`) they belong to this form alone: they are stored
+beside it and go when it goes. The alternative is `template`, which points at a definition the
+catalogue already holds, so a thousand forms of the same kind are a thousand rows naming one
+document rather than a thousand copies of it — see
+[Templates](#templates-a-definition-you-use-again).
+
+```http
+{ "expireDate": "2030-01-31T23:59:59+00:00", "template": { "id": "018f…" } }
+```
+
+The id is a UUID and the form's only name. **The definition document still has no name of its
+own**: naming, grouping and looking one up is what a template is for, and a label inside the
+document as well would be a second one free to drift from it.
 
 ## The definition: what is asked
 
@@ -1500,6 +1514,116 @@ whoever pressed the button that locked it, and **not whoever created it**. The m
 configuration, so asking for a form that records nobody is asking for that about your own system
 too — which costs nothing, since it knows perfectly well that it created the form. See [Who may do what](architecture.md#who-may-do-what) for where the identity
 comes from and what a deployment has to configure for it to arrive at all.
+
+## Templates: a definition you use again
+
+A form is one fillable document and that does not change. What a **template** adds is a place to
+keep the documents forms are made of, so that a thousand forms of the same kind point at one
+definition instead of carrying a thousand copies of it — and so that "do these two forms answer
+the same model?" is a question with an exact answer.
+
+A template is a **name** and the one **pair** of documents new forms made from it get, with a
+history behind each half. Everything about it lives under `/api/manage/form-templates/`.
+
+### Two histories, numbered apart
+
+Definitions and presentations are versioned **separately**, because they fail differently. A
+presentation changes often and cheaply — a relabelled option, a different widget, a fixed
+catalogue — while a definition is where compatibility breaks, being the model the answers are
+shaped by. Numbering them together would make every label fix look like a new model.
+
+```http
+POST /api/manage/form-templates
+{ "name": "Damage report", "definition": { "items": [ … ] }, "presentation": { … } }
+→ 201 { "id": "018f…", "definition": 1, "presentation": 1 }
+```
+
+A template is **born usable**: the documents it is created with become version 1 of each history
+and are in use at once. There is no half-made state for something to be forgotten in.
+
+### Publishing is never activating
+
+```http
+POST /api/manage/form-templates/{template}/definitions   → 201 { "definition": 2 }
+POST /api/manage/form-templates/{template}/presentations → 201 { "presentation": 2 }
+```
+
+Publishing adds to a history and **changes nothing about what forms are made of**. That is what
+makes a definition change something to prepare in advance, and a rollback something that costs no
+new version. Putting a pair in use is its own call:
+
+```http
+PUT /api/manage/form-templates/{template}/current
+{ "definition": 2, "presentation": 1 }
+→ 204
+```
+
+**The pair is stated whole.** Naming a definition and no presentation means this template shows
+nothing from here on — not that it keeps whichever presentation it had. "Does this presentation
+fit this definition?" has no answer about one of them alone, so a call that changed one and
+inherited the other would be asking about a pair nobody wrote down. Going back to an earlier pair
+is this same call pointing the other way.
+
+A presentation is judged **twice**: when it is published, against the definition then in use — so
+a document that could never be activated is refused where you can still fix it — and again
+whenever a pointer moves. Either way the findings are the ordinary presentation ones, pointing at
+the item rather than saying the pair is bad.
+
+`GET /api/manage/form-templates` lists the catalogue; `GET …/{template}` gives one template, the
+pair in use as version numbers, and **how many forms are made of it**. The two histories are at
+`GET …/{template}/definitions` and `…/presentations`, newest first and holding numbers rather than
+documents; one document at a time comes from `…/definitions/{seq}`, byte for byte as it was
+accepted. `PUT …/{template}/name` changes the label and nothing else — a name is never an
+identifier here.
+
+### Making a form from one
+
+```http
+POST /api/manage/forms
+{ "expireDate": "2030-01-31T23:59:59+00:00", "template": { "id": "018f…" } }
+```
+
+Naming no version takes the pair the template has **in use at that moment**, resolved as the form
+is created rather than as the request was written — so two forms created either side of an
+activation each hold what was current when they were made. Naming a version pins it, and states
+the pair whole exactly as activation does:
+
+```http
+{ "template": { "id": "018f…", "definition": 3, "presentation": 7 } }
+```
+
+A `presentation` written beside a `template` is refused: the pair a template offers is its own,
+and writing one half while pointing at the other is exactly the combination nothing ever judged.
+So is a `template.presentation` without a `template.definition`.
+
+### Deleting one
+
+A template **cannot be deleted while forms are made of what it published** — `409`, and
+`GET …/{template}` serves that count so you can see it first. Emptying it is a separate,
+deliberate address, because deleting the forms people filled in must never be something a delete
+does on the way past:
+
+```http
+DELETE /api/manage/form-templates/{template}/forms → 200 { "deleted": 200, "remaining": 1300 }
+DELETE /api/manage/form-templates/{template}       → 204
+```
+
+The first works in batches and says what is left; repeat it until nothing remains. Each form
+leaves the ordinary way — its files, revisions, announcements and notifications with it. **It is
+the most destructive address this service has**, and nothing inside this service authorises
+anybody, so closing it is your gateway's job (`docs/deploying-behind-a-gateway.md`).
+
+Deleting the template takes every version nothing is made of. A document some form is still made
+of is left exactly where it is: **a document lives as long as something needs it**.
+
+### What a template is not
+
+It is not a form that collects submissions — many fillings are still many forms, created by the
+system that owns them. It holds no values, no defaults and no placeholders: a document with code
+in it is the one thing this service refuses everywhere. It has no draft state; a version exists
+once it is published. And a form made from a template is an ordinary form in every other respect —
+its definition is as immutable as any other, and changing what *it* asks still means deleting it
+and creating a new one.
 
 ## Talking to the API
 
