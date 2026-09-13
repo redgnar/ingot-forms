@@ -1718,7 +1718,7 @@ pair is put in use.
 
 **Status codes:** `204` a write that worked · `400` malformed JSON · `404` unknown form,
 revision, file, template or template version · `409` state conflicts (locked, already confirmed, nothing to confirm, a file
-some save still names) · `410` an expired form, on every endpoint · `413` a body over this
+some save still names, a template forms are still made of) · `410` an expired form, on every endpoint · `413` a body over this
 deployment's limit · `415` a non-JSON body · `422` a validation report · `500` an opaque
 fallback.
 

@@ -58,6 +58,15 @@ it and nothing about that looks wrong from either side.
 If you do not want to separate them, do nothing: the catalogue is management and
 rule 4 is already right.
 
+**One address inside it deletes other people's answers.**
+`DELETE /api/manage/form-templates/{template}/forms` empties a template — every
+form made from it, drafts and closed records alike — because a template cannot
+be deleted while anything is made of what it published. It is the most
+destructive call this service has, and nothing inside it authorises anybody: the
+only protection it can be given is the one you give it. A deployment that carves
+the catalogue out already covers it; one that does not should consider closing
+this single address even so.
+
 **Rule 2 is the one people forget.** A gateway that passes the forms through and
 drops their stylesheet has followed every other rule to the letter. And if several
 of these services share a host, give each its own `FORMS_ASSETS_PREFIX` so their

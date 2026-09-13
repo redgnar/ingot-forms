@@ -116,6 +116,33 @@ final class DoctrineStoredDocuments implements StoredDocuments, TemplateVersions
         }
     }
 
+    public function collectVersionsOf(FormTemplateId $template): void
+    {
+        $this->forgetVersions(FormDefinitionRecord::class, 'definitionId', $template);
+        $this->forgetVersions(FormPresentationRecord::class, 'presentationId', $template);
+    }
+
+    /**
+     * Every version this template numbered that nothing is made of, in one
+     * statement per stream — and the condition is inside each of them for the
+     * reason it is inside {@see forget()}: asking first and deleting afterwards
+     * leaves a gap, and the gap is where a form created from one of these fits.
+     *
+     * @param class-string $document
+     */
+    private function forgetVersions(string $document, string $reference, FormTemplateId $template): void
+    {
+        $this->entityManager
+            ->createQuery(\sprintf(
+                'DELETE FROM %s d WHERE d.templateId = :template AND NOT EXISTS (SELECT f.id FROM %s f WHERE f.%s = d.id)',
+                $document,
+                FormRecord::class,
+                $reference,
+            ))
+            ->setParameter('template', $template->toUuid())
+            ->execute();
+    }
+
     /**
      * One statement, and the condition is inside it rather than in front of it.
      *
@@ -125,9 +152,18 @@ final class DoctrineStoredDocuments implements StoredDocuments, TemplateVersions
      * naming this row holds the key lock the delete needs, so the two take turns
      * instead of racing, and whichever loses finds the world it was told about.
      *
-     * `forms` is named here because being referred to from there is what "still
-     * needed" means today. When a template starts holding versions, this is the
-     * one place that learns a second answer.
+     * Two conditions, and the first one is the answer this learnt the day
+     * templates arrived. **Only a document in no template is collected with its
+     * form** — a published version belongs to the template that numbered it and
+     * leaves when that does ({@see collectVersionsOf()}), and a template points
+     * at the pair it uses under a key that refuses to let it go. Without that
+     * clause, deleting the last form made of a version made this statement try
+     * to take a row the catalogue was still naming, and the database said no in
+     * the middle of a deletion that had already happened.
+     *
+     * The second stays what it was: being referred to from `forms` is what
+     * "still needed" means for a one-off, and it costs nothing to keep asking
+     * even though a one-off belongs to exactly one form by construction.
      *
      * @param class-string $document
      */
@@ -135,7 +171,7 @@ final class DoctrineStoredDocuments implements StoredDocuments, TemplateVersions
     {
         $this->entityManager
             ->createQuery(\sprintf(
-                'DELETE FROM %s d WHERE d.id = :id AND NOT EXISTS (SELECT f.id FROM %s f WHERE f.%s = :id)',
+                'DELETE FROM %s d WHERE d.id = :id AND d.templateId IS NULL AND NOT EXISTS (SELECT f.id FROM %s f WHERE f.%s = :id)',
                 $document,
                 FormRecord::class,
                 $reference,

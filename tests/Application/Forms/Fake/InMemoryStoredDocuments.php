@@ -55,6 +55,17 @@ final class InMemoryStoredDocuments implements StoredDocuments, TemplateVersions
         }
     }
 
+    public function collectVersionsOf(FormTemplateId $template): void
+    {
+        foreach ($this->of($this->definitions, $template) as $document) {
+            unset($this->definitions[(string) $document->id()]);
+        }
+
+        foreach ($this->of($this->presentations, $template) as $document) {
+            unset($this->presentations[(string) $document->id()]);
+        }
+    }
+
     public function nextDefinitionSeq(FormTemplateId $template): int
     {
         return $this->highest($this->of($this->definitions, $template)) + 1;

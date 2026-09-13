@@ -41,4 +41,17 @@ interface FormTemplates
 
     /** Persists what changed on the template handed over. */
     public function save(FormTemplate $template): void;
+
+    /**
+     * Takes the template away — the row only.
+     *
+     * What it published is not this method's business and cannot be: a version
+     * lives as long as something is made of it, which is a question about forms
+     * and answered where documents are collected. The order is forced the way it
+     * is everywhere else here — this row names the pair in use, so it goes first
+     * and the documents follow.
+     *
+     * @throws FormTemplateNotFound
+     */
+    public function remove(FormTemplateId $id): void;
 }

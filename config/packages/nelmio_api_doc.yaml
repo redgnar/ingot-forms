@@ -457,6 +457,19 @@ nelmio_api_doc:
                                         type: 'urn:problem:ingot-forms:form-not-found'
                                         title: Form not found.
                                         status: 404
+                FormTemplateInUse:
+                    description: Forms are still made of what this template published, so it cannot be deleted. Empty it first — that is a separate address, because deleting the forms people filled in is a decision of its own.
+                    content:
+                        application/problem+json:
+                            schema:
+                                $ref: '#/components/schemas/Problem'
+                            examples:
+                                template-in-use:
+                                    summary: Forms still point at one of its versions
+                                    value:
+                                        type: 'urn:problem:ingot-forms:template-in-use'
+                                        title: Forms are made of what this template published.
+                                        status: 409
                 FormTemplateNotFound:
                     description: No form template with this id.
                     content:

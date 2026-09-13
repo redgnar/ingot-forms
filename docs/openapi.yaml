@@ -244,6 +244,55 @@ paths:
           $ref: '#/components/responses/FormNotFound'
         '410':
           $ref: '#/components/responses/FormGone'
+  '/api/manage/form-templates/{template}':
+    get:
+      summary: 'Read a form template'
+      description: 'The pair in use is given as version numbers, which is what `PUT …/current` takes and what the two history addresses read. `forms` counts what is made of any version this template has ever published — the number a delete is refused over.'
+      operationId: readFormTemplate
+      parameters:
+        -
+          name: template
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      responses:
+        '200':
+          description: 'The template.'
+          content:
+            application/json:
+              schema:
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+                  createdAt: { type: string, format: date-time }
+                  createdBy: { type: [string, 'null'] }
+                  definition: { description: 'The definition version new forms are made of.', type: integer }
+                  presentation: { description: 'The presentation version that shows them, or null when this template shows nothing.', type: [integer, 'null'] }
+                  forms: { description: 'How many forms are made of any version this template ever published.', type: integer }
+                type: object
+        '404':
+          $ref: '#/components/responses/FormTemplateNotFound'
+    delete:
+      summary: 'Delete a form template'
+      description: 'Takes the template and every version nothing is made of. Refused while forms are still made of what it published — empty it first with `DELETE …/{template}/forms`, which is a separate and deliberate act.'
+      operationId: deleteFormTemplate
+      parameters:
+        -
+          name: template
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      responses:
+        '204':
+          description: 'Deleted, along with every version nothing was made of.'
+        '404':
+          $ref: '#/components/responses/FormTemplateNotFound'
+        '409':
+          $ref: '#/components/responses/FormTemplateInUse'
   '/api/forms/{id}/files/{fileId}':
     get:
       summary: 'Download a file this form holds'
@@ -427,6 +476,31 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
           description: 'The presentation breaks its meta-schema, or does not fit the definition currently in use.'
+  '/api/manage/form-templates/{template}/forms':
+    delete:
+      summary: "Delete a batch of a template's forms"
+      description: 'Deletes up to 200 forms made from this template and answers with how many went and how many are left. Repeat while `remaining` is above zero. Each form leaves the ordinary way — its files, revisions, announcements and one-off documents with it, and a `form.deleted` queued — because a bulk statement would skip every one of those.'
+      operationId: purgeTemplateForms
+      parameters:
+        -
+          name: template
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+      responses:
+        '200':
+          description: 'What this batch did, and what is left.'
+          content:
+            application/json:
+              schema:
+                properties:
+                  deleted: { type: integer, example: 200 }
+                  remaining: { type: integer, example: 1300 }
+                type: object
+        '404':
+          $ref: '#/components/responses/FormTemplateNotFound'
   '/api/forms/{id}/data':
     get:
       summary: 'Read the current values'
@@ -732,36 +806,6 @@ paths:
                   value: { type: 'urn:problem:ingot-forms:revision-not-found', title: 'The form has no such save.', status: 404 }
         '410':
           $ref: '#/components/responses/FormGone'
-  '/api/manage/form-templates/{template}':
-    get:
-      summary: 'Read a form template'
-      description: 'The pair in use is given as version numbers, which is what `PUT …/current` takes and what the two history addresses read. `forms` counts what is made of any version this template has ever published — the number a delete is refused over.'
-      operationId: readFormTemplate
-      parameters:
-        -
-          name: template
-          in: path
-          required: true
-          schema:
-            type: string
-            pattern: '[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
-      responses:
-        '200':
-          description: 'The template.'
-          content:
-            application/json:
-              schema:
-                properties:
-                  id: { type: string, format: uuid }
-                  name: { type: string }
-                  createdAt: { type: string, format: date-time }
-                  createdBy: { type: [string, 'null'] }
-                  definition: { description: 'The definition version new forms are made of.', type: integer }
-                  presentation: { description: 'The presentation version that shows them, or null when this template shows nothing.', type: [integer, 'null'] }
-                  forms: { description: 'How many forms are made of any version this template ever published.', type: integer }
-                type: object
-        '404':
-          $ref: '#/components/responses/FormTemplateNotFound'
   '/api/schemas/{document}':
     get:
       summary: 'Read the meta-schema of a definition or a presentation'
@@ -1586,6 +1630,19 @@ components:
                 type: 'urn:problem:ingot-forms:form-not-found'
                 title: 'Form not found.'
                 status: 404
+    FormTemplateInUse:
+      description: 'Forms are still made of what this template published, so it cannot be deleted. Empty it first — that is a separate address, because deleting the forms people filled in is a decision of its own.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            template-in-use:
+              summary: 'Forms still point at one of its versions'
+              value:
+                type: 'urn:problem:ingot-forms:template-in-use'
+                title: 'Forms are made of what this template published.'
+                status: 409
     FormTemplateNotFound:
       description: 'No form template with this id.'
       content:

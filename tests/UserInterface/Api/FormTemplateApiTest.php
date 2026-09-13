@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\UserInterface\Api;
 
+use App\Infrastructure\Persistence\FormRecord;
+use App\Infrastructure\Persistence\FormTemplateRecord;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Uid\Uuid;
@@ -219,6 +222,74 @@ final class FormTemplateApiTest extends WebTestCase
         // THEN
         self::assertSame(422, $this->client->getResponse()->getStatusCode());
         self::assertSame('request.unexpected_key', $this->firstError()['code']);
+    }
+
+    public function testATemplateNothingIsMadeOfCanBeDeleted(): void
+    {
+        // GIVEN a template nobody created a form from
+        $id = $this->createTemplate();
+
+        // WHEN
+        $this->client->request('DELETE', \sprintf('/api/manage/form-templates/%s', $id));
+        self::assertSame(204, $this->client->getResponse()->getStatusCode());
+
+        // THEN it is out of the catalogue
+        $this->client->request('GET', \sprintf('/api/manage/form-templates/%s', $id));
+        self::assertSame(404, $this->client->getResponse()->getStatusCode());
+    }
+
+    public function testATemplateFormsAreMadeOfIsRefusedUntilItIsEmptied(): void
+    {
+        // GIVEN a template and a form made from its definition
+        $id = $this->createTemplate();
+        $this->plantFormMadeFrom($id);
+
+        // WHEN the template is deleted
+        $this->client->request('DELETE', \sprintf('/api/manage/form-templates/%s', $id));
+
+        // THEN it is refused, and the read says how much stands in the way
+        self::assertSame(409, $this->client->getResponse()->getStatusCode());
+        self::assertSame('urn:problem:ingot-forms:template-in-use', $this->member('type'));
+
+        $this->client->request('GET', \sprintf('/api/manage/form-templates/%s', $id));
+        self::assertSame(1, $this->member('forms'));
+
+        // WHEN it is emptied first
+        $this->client->request('DELETE', \sprintf('/api/manage/form-templates/%s/forms', $id));
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+        self::assertSame(1, $this->member('deleted'));
+        self::assertSame(0, $this->member('remaining'));
+
+        // THEN the delete goes through — emptying is the deliberate act that has
+        // to come first, and never something a delete does on the way past
+        $this->client->request('DELETE', \sprintf('/api/manage/form-templates/%s', $id));
+        self::assertSame(204, $this->client->getResponse()->getStatusCode());
+    }
+
+    /**
+     * A form pointing at the definition this template has in use.
+     *
+     * Written straight through Doctrine, because nothing can create one through
+     * the API yet: posting the same document creates a **new** one-off, which is
+     * a different row and would prove the opposite of what this test is about.
+     * Creating a form *from a template* is the next block; until it lands, this
+     * is what a form made of a published version looks like.
+     */
+    private function plantFormMadeFrom(string $template): void
+    {
+        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+        $row = $entityManager->find(FormTemplateRecord::class, Uuid::fromString($template));
+        self::assertInstanceOf(FormTemplateRecord::class, $row);
+
+        $form = new FormRecord();
+        $form->id = Uuid::v7();
+        $form->identityMode = 'anonymous';
+        $form->definitionId = $row->currentDefinitionId;
+        $form->expireDate = new \DateTimeImmutable('+1 day');
+        $form->createdAt = new \DateTimeImmutable();
+        $entityManager->persist($form);
+        $entityManager->flush();
     }
 
     private function createTemplate(): string

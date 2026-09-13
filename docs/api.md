@@ -21,12 +21,15 @@ this reference cannot drift from the implementation.
 | [`POST /api/manage/form-templates`](#post-apimanageform-templates) | `createFormTemplate` | Create a form template | `201`, `400`, `415`, `422` |
 | [`GET /api/manage/forms/{id}`](#get-apimanageformsid) | `getForm` | Read a form | `200`, `404`, `409`, `410` |
 | [`DELETE /api/manage/forms/{id}`](#delete-apimanageformsid) | `deleteForm` | Delete a form | `204`, `404`, `410` |
+| [`GET /api/manage/form-templates/{template}`](#get-apimanageform-templatestemplate) | `readFormTemplate` | Read a form template | `200`, `404` |
+| [`DELETE /api/manage/form-templates/{template}`](#delete-apimanageform-templatestemplate) | `deleteFormTemplate` | Delete a form template | `204`, `404`, `409` |
 | [`GET /api/forms/{id}/files/{fileId}`](#get-apiformsidfilesfileid) | `readFormFile` | Download a file this form holds | `200`, `404`, `410` |
 | [`DELETE /api/forms/{id}/files/{fileId}`](#delete-apiformsidfilesfileid) | `discardFormFile` | Throw away an uploaded file this form has not saved | `204`, `404`, `409`, `410` |
 | [`GET /api/manage/form-templates/{template}/definitions`](#get-apimanageform-templatestemplatedefinitions) | `listTemplateDefinitions` | List a template's definitions | `200`, `404` |
 | [`POST /api/manage/form-templates/{template}/definitions`](#post-apimanageform-templatestemplatedefinitions) | `publishTemplateDefinition` | Publish a definition into a template | `201`, `404`, `415`, `422` |
 | [`GET /api/manage/form-templates/{template}/presentations`](#get-apimanageform-templatestemplatepresentations) | `listTemplatePresentations` | List a template's presentations | `200`, `404` |
 | [`POST /api/manage/form-templates/{template}/presentations`](#post-apimanageform-templatestemplatepresentations) | `publishTemplatePresentation` | Publish a presentation into a template | `201`, `404`, `415`, `422` |
+| [`DELETE /api/manage/form-templates/{template}/forms`](#delete-apimanageform-templatestemplateforms) | `purgeTemplateForms` | Delete a batch of a template's forms | `200`, `404` |
 | [`GET /api/forms/{id}/data`](#get-apiformsiddata) | `getFormData` | Read the current values | `200`, `404`, `410` |
 | [`PUT /api/forms/{id}/data`](#put-apiformsiddata) | `saveFormData` | Save draft values | `204`, `400`, `404`, `409`, `412`, `415`, `410`, `422` |
 | [`GET /api/manage/forms/{id}/deliveries`](#get-apimanageformsiddeliveries) | `getFormDeliveries` | List what this form still owes, and what it could not deliver | `200`, `404`, `410` |
@@ -35,7 +38,6 @@ this reference cannot drift from the implementation.
 | [`GET /api/forms/{id}/presentation`](#get-apiformsidpresentation) | `getFormPresentation` | Read how the form is shown | `200`, `404`, `410` |
 | [`GET /api/manage/forms/{id}/pdf`](#get-apimanageformsidpdf) | `getFormRecord` | Download a confirmed form as a PDF | `200`, `404`, `409`, `410`, `422` |
 | [`GET /api/forms/{id}/history/{seq}`](#get-apiformsidhistoryseq) | `getFormRevision` | Read one save of this form | `200`, `404`, `410` |
-| [`GET /api/manage/form-templates/{template}`](#get-apimanageform-templatestemplate) | `readFormTemplate` | Read a form template | `200`, `404` |
 | [`GET /api/schemas/{document}`](#get-apischemasdocument) | `getMetaSchema` | Read the meta-schema of a definition or a presentation | `200`, `404` |
 | [`GET /api/manage/form-templates/{template}/definitions/{seq}`](#get-apimanageform-templatestemplatedefinitionsseq) | `readTemplateDefinition` | Read one published definition | `200`, `404` |
 | [`GET /api/manage/form-templates/{template}/presentations/{seq}`](#get-apimanageform-templatestemplatepresentationsseq) | `readTemplatePresentation` | Read one published presentation | `200`, `404` |
@@ -176,6 +178,45 @@ The "definition changed" path — delete the form and create a new one.
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form with this id. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
 
+### GET /api/manage/form-templates/{template}
+
+`operationId: readFormTemplate` — Read a form template
+
+The pair in use is given as version numbers, which is what `PUT …/current` takes and what the two history addresses read. `forms` counts what is made of any version this template has ever published — the number a delete is refused over.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `template` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | `application/json` | `object` | The template. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form template with this id. |
+
+### DELETE /api/manage/form-templates/{template}
+
+`operationId: deleteFormTemplate` — Delete a form template
+
+Takes the template and every version nothing is made of. Refused while forms are still made of what it published — empty it first with `DELETE …/{template}/forms`, which is a separate and deliberate act.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `template` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `204` | — | empty | Deleted, along with every version nothing was made of. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form template with this id. |
+| `409` | `application/problem+json` | [`Problem`](#problem) | Forms are still made of what this template published, so it cannot be deleted. Empty it first — that is a separate address, because deleting the forms people filled in is a decision of its own. |
+
 ### GET /api/forms/{id}/files/{fileId}
 
 `operationId: readFormFile` — Download a file this form holds
@@ -302,6 +343,25 @@ The answer is the number it was published as. It is judged against the definitio
 | `404` | `application/problem+json` | [`Problem`](#problem) | No form template with this id. |
 | `415` | `application/problem+json` | [`Problem`](#problem) | The request body is not `application/json` — no other media type is accepted. |
 | `422` | — | empty | The presentation breaks its meta-schema, or does not fit the definition currently in use. |
+
+### DELETE /api/manage/form-templates/{template}/forms
+
+`operationId: purgeTemplateForms` — Delete a batch of a template's forms
+
+Deletes up to 200 forms made from this template and answers with how many went and how many are left. Repeat while `remaining` is above zero. Each form leaves the ordinary way — its files, revisions, announcements and one-off documents with it, and a `form.deleted` queued — because a bulk statement would skip every one of those.
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+|---|---|---|---|---|
+| `template` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
+
+**Responses**
+
+| Status | Content type | Body | Description |
+|---|---|---|---|
+| `200` | `application/json` | `object` | What this batch did, and what is left. |
+| `404` | `application/problem+json` | [`Problem`](#problem) | No form template with this id. |
 
 ### GET /api/forms/{id}/data
 
@@ -472,25 +532,6 @@ The values as that save stored them, byte for byte — exactly as `GET /api/form
 | `200` | `application/json` | [`FormValues`](#formvalues) | The values that save stored. |
 | `404` | `application/problem+json` | [`Problem`](#problem) | Unknown form, or a form with no such save. |
 | `410` | `application/problem+json` | [`Problem`](#problem) | The form has expired; its data is scheduled for physical deletion. |
-
-### GET /api/manage/form-templates/{template}
-
-`operationId: readFormTemplate` — Read a form template
-
-The pair in use is given as version numbers, which is what `PUT …/current` takes and what the two history addresses read. `forms` counts what is made of any version this template has ever published — the number a delete is refused over.
-
-**Parameters**
-
-| Name | In | Required | Type | Description |
-|---|---|---|---|---|
-| `template` | path | yes | `string` (pattern `[0-9a-f]{8}-[0-9a-f]{4}-[13-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) |  |
-
-**Responses**
-
-| Status | Content type | Body | Description |
-|---|---|---|---|
-| `200` | `application/json` | `object` | The template. |
-| `404` | `application/problem+json` | [`Problem`](#problem) | No form template with this id. |
 
 ### GET /api/schemas/{document}
 

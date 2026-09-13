@@ -41,6 +41,12 @@ final class InMemoryFormTemplates implements FormTemplates
         return $this->get($id);
     }
 
+    public function remove(FormTemplateId $id): void
+    {
+        $this->get($id);
+        unset($this->templates[(string) $id]);
+    }
+
     public function save(FormTemplate $template): void
     {
         // A template that was never added has no row to write onto, exactly as

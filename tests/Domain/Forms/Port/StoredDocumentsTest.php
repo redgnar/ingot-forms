@@ -40,13 +40,17 @@ final class StoredDocumentsTest extends TestCase
         );
         sort($methods);
 
-        // THEN these five and no others: two that add a document, two that
-        // answer with one, and one that takes a document's last reference away.
+        // THEN these six and no others: two that add a document, two that
+        // answer with one, and two that take away what nothing points at any
+        // more — one form's pair, or one template's whole history.
         // `collect` is neither an edit nor a "delete this" — it asks whether
         // anything still points at a document and does nothing when something
         // does — so it leaves the invariant where it was: there is still no way
         // to change what a stored document says.
-        self::assertSame(['addDefinition', 'addPresentation', 'collect', 'definition', 'presentation'], $methods);
+        self::assertSame(
+            ['addDefinition', 'addPresentation', 'collect', 'collectVersionsOf', 'definition', 'presentation'],
+            $methods,
+        );
     }
 
     public function testWritingIsAddingAndReadingAnswersWithADocument(): void

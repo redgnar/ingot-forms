@@ -8,6 +8,7 @@ use App\Domain\Forms\Document\StoredDefinition;
 use App\Domain\Forms\Document\StoredPresentation;
 use App\Domain\Forms\Exception\DocumentNotStored;
 use App\Domain\Forms\ValueObject\DefinitionId;
+use App\Domain\Forms\ValueObject\FormTemplateId;
 use App\Domain\Forms\ValueObject\PresentationId;
 
 /**
@@ -75,4 +76,16 @@ interface StoredDocuments
      * somebody else is using is not a failure to collect.
      */
     public function collect(DefinitionId $definition, ?PresentationId $presentation): void;
+
+    /**
+     * The same question asked of a whole history: every version this template
+     * numbered, kept only where something is still made of it.
+     *
+     * Called after the template row has gone, for the reason {@see collect()} is
+     * called after the form's — and it is the same rule, not a second one. A
+     * version nothing points at leaves; one some form is made of stays exactly
+     * where it is, and stops being a version of anything the moment its template
+     * does.
+     */
+    public function collectVersionsOf(FormTemplateId $template): void;
 }

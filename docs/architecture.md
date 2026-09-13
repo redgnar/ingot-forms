@@ -469,6 +469,30 @@ enforces itself. A deployment that wants template administration held to fewer c
 management carves the prefix out in front; `docs/deploying-behind-a-gateway.md` says how, and what
 goes wrong when a gateway matches rules in declaration order.
 
+**A template in use cannot be deleted, and emptying it is its own act.**
+`DELETE …/{template}` takes the template and every version nothing is made of, and is refused
+(`409 template-in-use`) while any form points at one of them — the count is in `GET …/{template}`
+so it can be seen before trying. The count is taken under the template's **row lock**, which is
+what makes it mean anything, and the order is the one everything here follows: the template row
+first (it names the pair in use under keys that refuse to let those documents go while it exists),
+its versions second, both in one transaction. Detaching the versions instead was considered and
+dropped: it turns a delete into a silent lifecycle change on documents live forms depend on.
+
+`DELETE …/{template}/forms` is the deliberate act that has to come first, and **the most
+destructive address in this service** — it deletes answers people gave, drafts and closed records
+alike. Nothing here authorises anybody, so the protection it gets is an address of its own that a
+gateway can refuse to everybody. It is `DeleteForm` in a loop and never a bulk statement (a
+`DELETE … WHERE` would skip the files, the announcements and the log), it works in batches of 200
+and answers `{deleted, remaining}` so the caller repeats until nothing is left, and an expired form
+leaves the way the reaper would have taken it — a row is a row to a foreign key, so leaving it
+would make the template undeletable until cron next ran.
+
+One clause in the collector is worth knowing about because getting it wrong is invisible until it
+is not: a form's documents are collected **only when they are in no template**. A published version
+belongs to the template that numbered it, which points at the pair in use under a key that refuses
+to let it go, so collecting it with the last form made of it fails the constraint in the middle of
+a deletion that has already happened.
+
 `.claude/plan/27-templates.md` is the whole of the design.
 
 ## How values are judged

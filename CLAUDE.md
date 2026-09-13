@@ -938,6 +938,13 @@ Rules that follow from it, and that the tooling checks:
   template administration held to fewer callers than form management carves the prefix out **in
   front** — it is a prefix *inside* the management one, so a rule for `/api/manage/` already
   covers it.
+  **A template in use cannot be deleted** (`409`, with the count served on the read), and emptying
+  it is its own address — `DELETE …/{template}/forms`, batched, `DeleteForm` in a loop so files,
+  announcements and log lines all happen, answering `{deleted, remaining}`. It is the most
+  destructive address here and its only guard is that this service authorises nothing, so a
+  gateway can refuse it to everybody. A form's documents are collected **only when they are in no
+  template**: a published version belongs to the template that numbered it and leaves when that
+  does.
 - **A form names its two documents rather than holding them.** They are rows of their own
   (`form_definitions`, `form_presentations`), so a definition used by ten thousand forms is kept
   once — which is what the catalogue in [27](.claude/plan/27-templates.md) is built on. Three

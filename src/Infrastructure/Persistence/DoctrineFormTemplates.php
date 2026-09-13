@@ -65,6 +65,16 @@ final class DoctrineFormTemplates implements FormTemplates
         $this->entityManager->flush();
     }
 
+    public function remove(FormTemplateId $id): void
+    {
+        // The row only. Its versions are collected afterwards and elsewhere,
+        // because whether one may go is a question about forms — and this row
+        // has to be gone first either way: it names the pair in use, under keys
+        // that refuse to let those documents leave while it does.
+        $this->entityManager->remove($this->row($id, null));
+        $this->entityManager->flush();
+    }
+
     private function state(FormTemplateRecord $record, FormTemplate $template): void
     {
         $record->name = $template->name();

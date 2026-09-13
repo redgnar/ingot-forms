@@ -21,6 +21,7 @@ use App\Domain\Forms\Exception\FormHasNoData;
 use App\Domain\Forms\Exception\FormLocked;
 use App\Domain\Forms\Exception\FormMovedOn;
 use App\Domain\Forms\Exception\FormNotFound;
+use App\Domain\Forms\Exception\FormTemplateInUse;
 use App\Domain\Forms\Exception\FormTemplateNotFound;
 use App\Domain\Forms\Exception\FormUnreadable;
 use App\Domain\Forms\Exception\IdentityRequired;
@@ -81,6 +82,10 @@ final class ProblemExceptionListener
         // A save that never happened, for a form that did. The same answer as for
         // somebody else's revision number, deliberately.
         RevisionNotFound::class => [404, 'revision-not-found', 'The form has no such save.'],
+        // The database refuses it first; this is that refusal with a number, so
+        // whoever asked is told how much stands in the way. Emptying the
+        // template is its own address, deliberately.
+        FormTemplateInUse::class => [409, 'template-in-use', 'Forms are made of what this template published.'],
         FormLocked::class => [409, 'form-locked', 'Form data is confirmed and can no longer be edited.'],
         FileAttached::class => [409, 'file-attached', 'A file the stored values name cannot be thrown away.'],
         FileBudgetSpent::class => [409, 'file-budget-spent', 'This form holds as many files as it may.'],

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Application\Forms\Port;
 
 use App\Application\Forms\Template\CataloguedTemplate;
+use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\FormTemplateId;
 
 /**
@@ -41,4 +42,17 @@ interface FormTemplateCatalogue
      * the sake of a number two endpoints show.
      */
     public function formsMadeFrom(FormTemplateId $template): int;
+
+    /**
+     * Some of those forms, at most this many — what a batch of emptying works
+     * on.
+     *
+     * Bounded because a template may hold fifty thousand forms and a request
+     * that tries to delete them all is one that times out half way with no way
+     * to say what it did. The caller repeats until nothing comes back, which is
+     * what makes emptying resumable and idempotent.
+     *
+     * @return list<FormId>
+     */
+    public function formIdsMadeFrom(FormTemplateId $template, int $limit): array;
 }

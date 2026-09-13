@@ -13,6 +13,7 @@ use App\Domain\Forms\ValueObject\ExpireDate;
 use App\Domain\Forms\ValueObject\FormId;
 use App\Infrastructure\Persistence\DoctrineFormRepository;
 use App\Infrastructure\Persistence\FormRecord;
+use App\Infrastructure\Persistence\FormTemplateRecord;
 use App\Tests\Infrastructure\Persistence\WritesTheDocumentsARowNames;
 use Doctrine\ORM\EntityManagerInterface;
 use League\OpenAPIValidation\PSR7\Exception\ValidationFailed;
@@ -554,6 +555,25 @@ final class OpenApiComplianceTest extends WebTestCase
                 // 0 is no version: a history is numbered from 1 and only grows.
                 $test->putJson(\sprintf('/api/manage/form-templates/%s/current', $test->createTemplate()), '{"definition":0}');
             }],
+            ['DELETE', '/api/manage/form-templates/{template}', 204, true, '', static function (self $test): void {
+                $test->client->request('DELETE', \sprintf('/api/manage/form-templates/%s', $test->createTemplate()));
+            }],
+            ['DELETE', '/api/manage/form-templates/{template}', 404, true, '', static function (self $test): void {
+                $test->client->request('DELETE', \sprintf('/api/manage/form-templates/%s', Uuid::v7()->toRfc4122()));
+            }],
+            ['DELETE', '/api/manage/form-templates/{template}', 409, true, '', static function (self $test): void {
+                $template = $test->createTemplate();
+                $test->plantFormMadeFrom($template);
+                $test->client->request('DELETE', \sprintf('/api/manage/form-templates/%s', $template));
+            }],
+            ['DELETE', '/api/manage/form-templates/{template}/forms', 200, true, '', static function (self $test): void {
+                $template = $test->createTemplate();
+                $test->plantFormMadeFrom($template);
+                $test->client->request('DELETE', \sprintf('/api/manage/form-templates/%s/forms', $template));
+            }],
+            ['DELETE', '/api/manage/form-templates/{template}/forms', 404, true, '', static function (self $test): void {
+                $test->client->request('DELETE', \sprintf('/api/manage/form-templates/%s/forms', Uuid::v7()->toRfc4122()));
+            }],
         ];
 
         foreach ($cases as [$method, $path, $status, $requestIsValid, $variant, $stage]) {
@@ -717,6 +737,31 @@ final class OpenApiComplianceTest extends WebTestCase
         self::assertIsString($body['id'] ?? null);
 
         return $body['id'];
+    }
+
+    /**
+     * A form pointing at the definition a template has in use.
+     *
+     * Straight through Doctrine, because nothing can create one through the API
+     * yet — posting the same document makes a **new** one-off, which is a
+     * different row and would prove the opposite. Creating a form from a
+     * template is the next block.
+     */
+    private function plantFormMadeFrom(string $template): void
+    {
+        $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+        $row = $entityManager->find(FormTemplateRecord::class, Uuid::fromString($template));
+        self::assertInstanceOf(FormTemplateRecord::class, $row);
+
+        $form = new FormRecord();
+        $form->id = Uuid::v7();
+        $form->identityMode = 'anonymous';
+        $form->definitionId = $row->currentDefinitionId;
+        $form->expireDate = new \DateTimeImmutable('+1 day');
+        $form->createdAt = new \DateTimeImmutable();
+        $entityManager->persist($form);
+        $entityManager->flush();
     }
 
     private static function templatePayload(): string

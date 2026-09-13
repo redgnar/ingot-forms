@@ -222,6 +222,25 @@ final readonly class Operations
         $this->logger->info('A form template was renamed.', ['template' => (string) $id] + self::by($by));
     }
 
+    /** A template has gone, along with every version nothing was made of. */
+    public function templateDeleted(FormTemplateId $id, ?Actor $by = null): void
+    {
+        $this->logger->info('A form template was deleted.', ['template' => (string) $id] + self::by($by));
+    }
+
+    /**
+     * A batch of a template's forms was deleted — which is the line worth having
+     * beside the per-form ones, because it says the deletions were one act
+     * somebody asked for rather than a run of unrelated ones.
+     */
+    public function templateFormsPurged(FormTemplateId $id, int $deleted, ?Actor $by = null): void
+    {
+        $this->logger->info('A form template had its forms deleted.', [
+            'template' => (string) $id,
+            'deleted' => $deleted,
+        ] + self::by($by));
+    }
+
     /**
      * A change to the catalogue that did not happen, at `warning` for the reason
      * a refused change to a form is: somebody's work did not get stored, and

@@ -7,6 +7,7 @@ namespace App\Infrastructure\Persistence;
 use App\Application\Forms\Port\FormTemplateCatalogue;
 use App\Application\Forms\Template\CataloguedTemplate;
 use App\Domain\Forms\ValueObject\Actor;
+use App\Domain\Forms\ValueObject\FormId;
 use App\Domain\Forms\ValueObject\FormTemplateId;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Uid\Uuid;
@@ -64,6 +65,22 @@ final class DoctrineFormTemplateCatalogue implements FormTemplateCatalogue
             ))
             ->setParameter('template', $template->toUuid())
             ->getSingleScalarResult();
+    }
+
+    public function formIdsMadeFrom(FormTemplateId $template, int $limit): array
+    {
+        /** @var list<array{id: Uuid}> $rows */
+        $rows = $this->entityManager
+            ->createQuery(\sprintf(
+                'SELECT f.id FROM %s f WHERE f.definitionId IN (SELECT d.id FROM %s d WHERE d.templateId = :template) ORDER BY f.createdAt ASC',
+                FormRecord::class,
+                FormDefinitionRecord::class,
+            ))
+            ->setParameter('template', $template->toUuid())
+            ->setMaxResults($limit)
+            ->getArrayResult();
+
+        return array_map(static fn(array $row): FormId => FormId::of($row['id']), $rows);
     }
 
     /**
