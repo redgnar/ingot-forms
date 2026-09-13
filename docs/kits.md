@@ -473,12 +473,24 @@ that the plain kit has no markup for.
 ### `range`
 
 - **Draws:** `<input type="range" class="form-range">` —
-  [Range](https://getbootstrap.com/docs/5.3/forms/range/)
+  [Range](https://getbootstrap.com/docs/5.3/forms/range/) — **with the number beside it**, in an
+  `<output class="range-value">` kept in step by the `range` controller
 - **From the definition:** `min`, `max`, `step`
 - **Options:** —
 - **Notes:** nothing refuses a slider on an item with no bounds, and nothing should — but the
   browser then falls back to 0–100, which is not what the form asks for. Give a `range` item a
   `min`, a `max` and a `decimals`, or draw it as a `number`.
+
+  The number is there because where a thumb sits is the one answer nobody can read: not at any
+  precision worth having on a screen, and not at all on paper, where the track and the thumb are
+  backgrounds a printer may leave out. It is `aria-hidden`, because the slider already carries
+  `aria-valuenow` and an `<output>` repeating it would say everything twice on every step of a
+  drag — this is a reading for the eyes. **On paper the number stays and the bar goes**: a bar
+  that prints as an empty gap says less than nothing.
+
+  One wart worth knowing and not ours to fix: a range always has a value, so an item nobody has
+  answered shows the browser's default — the midpoint — rather than nothing. The slider said that
+  before this readout did; the number only makes it legible.
 
 ### `stepper`
 
@@ -487,7 +499,8 @@ that the plain kit has no markup for.
 - **From the definition:** `min`, `max`, `step`
 - **Options:** —
 - **Notes:** the buttons move by the definition's own step and cannot walk past its bounds, so
-  a number clicked can never be a number the published schema would refuse.
+  a number clicked can never be a number the published schema would refuse. Both are
+  `data-chrome`, so paper gets the number between them and not the two ways of changing it.
 
 ### `date`
 
@@ -828,7 +841,10 @@ selectors, so the next widget that draws a button is covered by the marker inste
 line in a list. What a notice has to be about to *stay* on the paper is the form rather than the
 attempt: that it is closed, or that this is an earlier version of it. A printed closed form
 carrying no mark reads exactly like a printed draft, and a printed old version like the current
-one. A control is flattened to a line, because the box is how a screen says "type
+one. **A choice is said in ink**, not in a fill: `radio-buttons` marks the picked option
+black and bold inside a black frame on paper, because `print-color-adjust` is `economy` by default
+and a filled toggle would print as white text on a background the printer left out. The plain kit
+needs none of this — its controls stay native, so the browser draws the mark and prints it. A control is flattened to a line, because the box is how a screen says "type
 here" and a line is what a printed blank form needs; and an entry, a group or a page is kept
 whole on one sheet. **A question nobody was asked stays off the paper**, for the reason it stays
 out of the archival record: printed with a line beside it, it reads as an answer somebody

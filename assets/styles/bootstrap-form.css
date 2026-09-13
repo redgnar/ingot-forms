@@ -93,6 +93,16 @@
     color: var(--bs-btn-active-color);
 }
 
+/* The number beside a slider. A fixed minimum width so the track does not shift
+   under the pointer as the reading goes from one digit to two, and the body's own
+   colour because it is an answer and not a hint. */
+.range-value {
+    min-width: 3ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--bs-body-color);
+}
+
 /* The reader's own switches, folded away: a pointer on the summary says it opens,
    and the browser's own marker says the same thing again to anybody who has met
    a <details> before. */
@@ -643,6 +653,44 @@ input.form-control[type="file"]:active {
        out of the record. */
     [data-unasked] {
         display: none !important;
+    }
+
+    /* A slider has nothing to say on paper. Its track and its thumb are
+       backgrounds a printer may leave out, so it prints as an empty gap — and
+       even printed perfectly, "somewhere around here" is not an answer anybody
+       can read. The number beside it is the answer, and it is text, so it
+       prints; the bar itself goes. */
+    .form-range {
+        display: none !important;
+    }
+
+    .range-value {
+        color: #000 !important;
+        min-width: 0 !important;
+    }
+
+    /* A toggle group says which option was picked with a **fill**, and a fill is
+       the one thing a printer is free to leave out: `print-color-adjust` is
+       `economy` by default, and Bootstrap sets `exact` on a checkbox and not on
+       a button. So the picked option — white text on a background nobody
+       printed — came out white on white, and the two nobody picked stayed
+       perfectly readable. The answer was the one thing missing from the page.
+
+       Said in ink instead, because ink is what a printer is not free to leave
+       out: the picked one is black and bold inside a black frame, the rest are
+       grey. No fill, no colour, and it survives a photocopier. */
+    .btn-check + .btn {
+        background: transparent !important;
+        color: #555 !important;
+        border-color: #bbb !important;
+        font-weight: 400 !important;
+    }
+
+    .btn-check:checked + .btn {
+        color: #000 !important;
+        border-color: #000 !important;
+        border-width: 2px !important;
+        font-weight: 700 !important;
     }
 
     /* An answer should read as an answer: the box is how a screen says "type

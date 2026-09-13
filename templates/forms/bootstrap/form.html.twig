@@ -722,20 +722,38 @@
                 }))|raw }}>
             </div>
         {% elseif node.widget == 'range' %}
-            <input{{ html.attributes(common|merge({
-                'type': 'range',
-                'class': 'form-range',
-                'min': node.min,
-                'max': node.max,
-                'step': node.step,
-                'value': node.value,
-            }))|raw }}>
+            {# A slider says its answer by where the thumb sits, and that is the
+               one answer nobody can read: not off a screen at any precision
+               worth having, and not off paper at all, where the track and the
+               thumb are backgrounds a printer may leave out. So the number is
+               written beside it.
+
+               `aria-hidden`, because the range already carries `aria-valuenow`:
+               anybody listening hears the value from the control, and an
+               `<output>` repeating it would say everything twice on every step
+               of a drag. This is a reading for the eyes. #}
+            <div class="d-flex align-items-center gap-3" data-controller="range">
+                <input{{ html.attributes(common|merge({
+                    'type': 'range',
+                    'class': 'form-range',
+                    'min': node.min,
+                    'max': node.max,
+                    'step': node.step,
+                    'value': node.value,
+                    'data-range-target': 'input',
+                    'data-action': 'input->range#show',
+                }))|raw }}>
+                <output class="range-value" data-range-target="value" aria-hidden="true"></output>
+            </div>
         {% elseif node.widget == 'stepper' %}
             {# A number clicked rather than typed. The bounds are the
                definition's, so the buttons cannot walk past what the published
-               schema allows. #}
+               schema allows.
+
+               Both buttons are `data-chrome`: they act, so paper has no use for
+               them — the number between them is the answer and prints as one. #}
             <div class="input-group" data-controller="stepper">
-                <button class="btn btn-outline-secondary" type="button" data-action="click->stepper#step"
+                <button class="btn btn-outline-secondary" type="button" data-chrome data-action="click->stepper#step"
                         data-stepper-by-param="-1"{{ readOnly ? ' disabled' : '' }}
                         aria-label="{{ 'page.stepper.less'|trans }}">{{ ux_icon('tabler:minus', {class: 'icon'}) }}</button>
                 <input{{ html.attributes(common|merge({
@@ -747,7 +765,7 @@
                     'step': node.step,
                     'value': node.value,
                 }))|raw }}>
-                <button class="btn btn-outline-secondary" type="button" data-action="click->stepper#step"
+                <button class="btn btn-outline-secondary" type="button" data-chrome data-action="click->stepper#step"
                         data-stepper-by-param="1"{{ readOnly ? ' disabled' : '' }}
                         aria-label="{{ 'page.stepper.more'|trans }}">{{ ux_icon('tabler:plus', {class: 'icon'}) }}</button>
             </div>

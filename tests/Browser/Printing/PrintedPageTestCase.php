@@ -33,7 +33,12 @@ abstract class PrintedPageTestCase extends PantherTestCase
 
     protected Client $browser;
 
-    private HttpClientInterface $api;
+    /**
+     * Protected, because a kit that draws something the other cannot needs a
+     * fixture of its own — and planting one goes through the API like every
+     * browser fixture here does.
+     */
+    protected HttpClientInterface $api;
 
     /** The engine the document is written for. */
     abstract protected static function engine(): string;

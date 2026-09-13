@@ -562,7 +562,12 @@ Rules that follow from it, and that the tooling checks:
   browser's attempt** (stored, not stored, waiting, refused) and not when it is about what the
   form *is*: a printed closed form carrying no mark reads exactly like a printed draft, and a
   printed old version like the current one, so those two stay — taking them off would make the
-  paper lie by omission. `[data-unasked]` stays hidden, which is the
+  paper lie by omission. **And an answer carried by a *fill* is an answer a printer may leave
+  out**: `print-color-adjust` is `economy` by default, Bootstrap sets `exact` on a checkbox and
+  not on a button, so a picked toggle was white text on a background nobody printed — white on
+  white, while the options nobody picked stayed readable. Say a choice in ink (black, bold, a
+  black frame) rather than in fill. The plain kit never had it: it leaves controls native, so the
+  browser draws the mark and the browser prints it. `[data-unasked]` stays hidden, which is the
   one thing print must *not* undo: a line beside a question nobody was asked reads as an answer
   somebody withheld, exactly as the record has it. It is **not** the archival record (`GET …/pdf`),
   and it is testable — `Emulation.setEmulatedMedia` through chromedriver's `goog/cdp/execute`

@@ -257,6 +257,13 @@ final class BootstrapRendererTest extends KernelTestCase
 
         // AND the rest are what they say: a slider, a switch, a box, a day
         self::assertSame('range', $page->filter('[data-name="rating"]')->attr('type'));
+
+        // AND the slider carries its answer as a number beside it. Where the
+        // thumb sits is the one answer nobody can read — not at any precision
+        // worth having on a screen, and not at all on paper, where the track is
+        // a background a printer may leave out
+        self::assertCount(1, $page->filter('[data-controller="range"] output.range-value'));
+        self::assertSame('true', $page->filter('output.range-value')->attr('aria-hidden'));
         self::assertSame('switch', $page->filter('[data-name="terms"]')->attr('role'));
         self::assertCount(1, $page->filter('textarea[data-name="bio"]'));
         self::assertSame('date', $page->filter('[data-name="starts"]')->attr('type'));
